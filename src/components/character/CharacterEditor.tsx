@@ -51,7 +51,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
     if (!acc[field.category]) acc[field.category] = [];
     acc[field.category].push(field);
     return acc;
-  });
+  }, {});
 
   useEffect(() => {
     if (character?.profileData) {

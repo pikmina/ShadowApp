@@ -62,11 +62,7 @@ const EFFECT_TYPES: Record<string, string> = {
 export default function TechniquesAdmin() {
   const { user } = useAuth();
   
-  const [token, setToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    getToken().then(setToken);
-  }, [getToken]);
+  
 
   const { data: rawElements, mutate } = useSWR(
     user ? "/api/elements" : null, fetcher
@@ -97,8 +93,7 @@ export default function TechniquesAdmin() {
   };
 
   const handleSave = async () => {
-    if (!token) return;
-    try {
+        try {
       const res = await apiFetch("/api/elements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

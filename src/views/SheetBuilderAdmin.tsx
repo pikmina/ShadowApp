@@ -39,11 +39,7 @@ const FIELD_TYPES: Record<string, string> = {
 export default function SheetBuilderAdmin() {
   const { user } = useAuth();
   
-  const [token, setToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    getToken().then(setToken);
-  }, [getToken]);
+  
 
   const { data: fields, mutate } = useSWR(
     user ? "/api/sheet-fields" : null, fetcher
@@ -121,11 +117,11 @@ export default function SheetBuilderAdmin() {
   const needsOptions = ["select", "multiselect"].includes(form.type);
 
   // Agrupamos por categoría
-  const groupedFields = fields?.reduce((acc: any, field: any) => {
+  const groupedFields = (fields || []).reduce((acc: any, field: any) => {
     if (!acc[field.category]) acc[field.category] = [];
     acc[field.category].push(field);
     return acc;
-  });
+  }, {});
 
   const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
   const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
@@ -162,9 +158,7 @@ export default function SheetBuilderAdmin() {
     const [draggedItem] = categoryFields.splice(draggedIdx, 1);
     categoryFields.splice(targetIdx, 0, draggedItem);
     
-    const token = await getToken();
-    if (!token) return;
-
+        
     // Mutate locally instantly
     mutate(
       fields.map((f: any) => {

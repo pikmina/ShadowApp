@@ -1,14 +1,28 @@
 const fs = require('fs');
 
-let serverCode = fs.readFileSync('server.ts', 'utf8');
-serverCode = serverCode.replace('app.post("/api/shop/purchase", requireAuth, async (req, res) => {', 'app.post("/api/shop/purchase", requireAuth, async (req: AuthRequest, res) => {');
-serverCode = serverCode.replace('app.get("/api/admin/characters", requireAuth, async (req, res) => {', 'app.get("/api/admin/characters", requireAuth, async (req: AuthRequest, res) => {');
-fs.writeFileSync('server.ts', serverCode);
+// Fix SettingsAdmin.tsx
+let settings = fs.readFileSync('src/views/SettingsAdmin.tsx', 'utf8');
+if (!settings.includes('import { apiFetch')) {
+  settings = settings.replace(
+    'import { useAuth } from "../contexts/AuthContext";',
+    'import { useAuth } from "../contexts/AuthContext";\nimport { apiFetch } from "../lib/api";'
+  );
+  fs.writeFileSync('src/views/SettingsAdmin.tsx', settings);
+}
 
-let shopCode = fs.readFileSync('src/db/shop.ts', 'utf8');
-shopCode = shopCode.replace('const price = offer.prices.find((p: any) => p.currency === selectedCurrency);', 'const price = (offer.prices as any[]).find((p: any) => p.currency === selectedCurrency);');
-fs.writeFileSync('src/db/shop.ts', shopCode);
+// Fix SheetBuilderAdmin.tsx
+let sheet = fs.readFileSync('src/views/SheetBuilderAdmin.tsx', 'utf8');
+sheet = sheet.replace(
+  /  const groupedFields = fields\?\.reduce\(\(acc: any, field: any\) => \{\n    if \(!acc\[field\.category\]\) acc\[field\.category\] = \[\];\n    acc\[field\.category\]\.push\(field\);\n    return acc;\n  \}\);/g,
+  `  const groupedFields = (fields || []).reduce((acc: any, field: any) => {\n    if (!acc[field.category]) acc[field.category] = [];\n    acc[field.category].push(field);\n    return acc;\n  }, {});`
+);
+fs.writeFileSync('src/views/SheetBuilderAdmin.tsx', sheet);
 
-let psCode = fs.readFileSync('src/views/PlayerSheet.tsx', 'utf8');
-psCode = psCode.replace('import { Shield, Target, Plus, Search, Filter, ShieldHalf, Activity, Sparkles, Zap, Package, Eye } from "lucide-react";', 'import { Shield, Target, Plus, Search, Filter, ShieldHalf, Activity, Sparkles, Zap, Package, Eye, FileText, AlertTriangle } from "lucide-react";');
-fs.writeFileSync('src/views/PlayerSheet.tsx', psCode);
+// Fix CharacterEditor.tsx
+let charEd = fs.readFileSync('src/components/character/CharacterEditor.tsx', 'utf8');
+charEd = charEd.replace(
+  /  const groupedFields = processedFields\.reduce\(\(acc: any, field: any\) => \{\n    if \(!acc\[field\.category\]\) acc\[field\.category\] = \[\];\n    acc\[field\.category\]\.push\(field\);\n    return acc;\n  \}\);/g,
+  `  const groupedFields = processedFields.reduce((acc: any, field: any) => {\n    if (!acc[field.category]) acc[field.category] = [];\n    acc[field.category].push(field);\n    return acc;\n  }, {});`
+);
+fs.writeFileSync('src/components/character/CharacterEditor.tsx', charEd);
+

@@ -2,6 +2,7 @@ import { SectionHeader } from "../components/common/SectionHeader";
 import { Settings as SectionIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { apiFetch } from "../lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -27,10 +28,8 @@ export default function SettingsAdmin() {
 
   const fetchSettings = async () => {
     try {
-      const token = await getToken();
-      const res = await apiFetch("/api/settings", {
+            const res = await apiFetch("/api/settings", {
         headers: {
-          Authorization: `Bearer ${token}`,
           Accept: "application/json"
         }
       });
@@ -53,8 +52,7 @@ export default function SettingsAdmin() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const token = await getToken();
-      const res = await apiFetch("/api/settings", {
+            const res = await apiFetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gameDate, groups })
