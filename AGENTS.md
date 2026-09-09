@@ -283,6 +283,14 @@ A `useEffect` that is technically valid can still be incorrect if it executes at
 
 Do not use component mounting or a `useEffect` as an automatic initialization mechanism until it has been verified that doing so cannot overwrite persisted data.
 
+### Hook Execution Rules
+
+* Execute hooks always in the exact same order and quantity across renders.
+* Do NOT declare hooks after conditional returns, nor inside conditions or loops.
+* Review transitions between loading, error, missing data, and available data states.
+* Verify initial loading without cache and opening with cached data when modifying components with asynchronous loading.
+* Verify that the arrival or revalidation of data does not reinitialize forms with pending user changes.
+
 ---
 
 # Phase 6 — Missing Values vs Falsy Values

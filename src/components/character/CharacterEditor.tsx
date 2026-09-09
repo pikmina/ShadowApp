@@ -36,13 +36,55 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
   const { data: fields, error: fieldsError } = useSWR(user ? ['/api/sheet-fields', user.accessToken] : null, ([url, token]) => fetcher(url, token));
   const { data: settings, error: settingsError } = useSWR(user ? ['/api/settings', user.accessToken] : null, ([url, token]) => fetcher(url, token));
 
+  // Add the "Facción / Grupo" field virtually to basic data if groups exist
+  let processedFields: any[] = [];
+  if (fields) {
+    processedFields = [...fields];
+    if (settings?.groups && settings.groups.length > 0) {
+      // Check if a group field already exists (avoiding "Grupo Sanguíneo")
+      const hasGroupField = processedFields.some((f: any) => {
+        const name = f.name.toLowerCase();
+        return (name.includes('grupo') && !name.includes('sangu')) || name.includes('facción') || name.includes('faccion');
+      });
+      if (!hasGroupField) {
+        processedFields.push({
+          id: 'faction_group',
+          name: 'Facción / Grupo',
+          category: 'Datos Administrativos',
+          type: 'select',
+          order: -100, // Put it near the top
+          options: settings.groups.map((g: any) => g.name)
+        });
+      }
+    }
+  }
+
+  // Group fields by category
+  const groupedFields = processedFields.reduce((acc: any, field: any) => {
+    if (!acc[field.category]) acc[field.category] = [];
+    acc[field.category].push(field);
+    return acc;
+  }, {});
+
   useEffect(() => {
     if (character?.profileData) {
       setFormData(character.profileData);
     }
   }, [character]);
 
-
+  useEffect(() => {
+    if (processedFields.length > 0 && !activeTab) {
+      const categories = Object.keys(groupedFields).sort((a, b) => {
+        const getOrder = (cat: string) => {
+          if (cat === 'Datos Administrativos') return 1;
+          if (cat === 'Datos Básicos') return 2;
+          return 3;
+        };
+        return getOrder(a) - getOrder(b);
+      });
+      if (categories.length > 0) setActiveTab(categories[0]);
+    }
+  }, [processedFields.length, activeTab, Object.keys(groupedFields).join(',')]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -69,52 +111,13 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
     }
   };
 
-  if (!fields || !settings) {
-    return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin" /></div>;
-  }
-
-  // Add the "Facción / Grupo" field virtually to basic data if groups exist
-  let processedFields = [...fields];
-  if (settings?.groups && settings.groups.length > 0) {
-    // Check if a group field already exists (avoiding "Grupo Sanguíneo")
-    const hasGroupField = processedFields.some((f: any) => {
-      const name = f.name.toLowerCase();
-      return (name.includes('grupo') && !name.includes('sangu')) || name.includes('facción') || name.includes('faccion');
-    });
-    if (!hasGroupField) {
-      processedFields.push({
-        id: 'faction_group',
-        name: 'Facción / Grupo',
-        category: 'Datos Administrativos',
-        type: 'select',
-        order: -100, // Put it near the top
-        options: settings.groups.map((g: any) => g.name)
-      });
-    }
-  }
-
-  // Group fields by category
-  const groupedFields = processedFields.reduce((acc: any, field: any) => {
-    if (!acc[field.category]) acc[field.category] = [];
-    acc[field.category].push(field);
-    return acc;
-  }, {});  useEffect(() => {
-    if (processedFields.length > 0 && !activeTab) {
-      const categories = Object.keys(groupedFields).sort((a, b) => {
-        const getOrder = (cat: string) => {
-          if (cat === 'Datos Administrativos') return 1;
-          if (cat === 'Datos Básicos') return 2;
-          return 3;
-        };
-        return getOrder(a) - getOrder(b);
-      });
-      if (categories.length > 0) setActiveTab(categories[0]);
-    }
-  }, [processedFields, activeTab, groupedFields]);
-
   const updateField = (id: string, value: any) => {
     setFormData(prev => ({ ...prev, [id]: value }));
   };
+
+  if (!fields || !settings) {
+    return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin" /></div>;
+  }
 
   const renderField = (field: any) => {
     // (rest of renderField...)

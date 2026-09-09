@@ -1,4 +1,5 @@
-import { defineConfig } from "drizzle-kit";
+const fs = require('fs');
+let code = `import { defineConfig } from "drizzle-kit";
 import * as dotenv from "dotenv";
 
 dotenv.config();
@@ -39,3 +40,5 @@ if (process.env.DATABASE_URL) {
 }
 
 export default config;
+`;
+fs.writeFileSync('src/db/drizzle.config.ts', code);
