@@ -56,13 +56,18 @@ const EFFECT_TYPES: Record<string, string> = {
   modify_derived: "Modificar Estadística Derivada",
   deal_damage: "Causar Daño",
   apply_status: "Aplicar Estado Alterado",
-  player_choice: "Elección del Jugador"
+  player_choice: "Elección del Jugador",
+  mechanic_rule: "Regla del Sistema (CE)"
 };
 
 export default function TechniquesAdmin() {
   const { user } = useAuth();
   
   
+
+  const { data: rules } = useSWR(user ? "/api/rules" : null, fetcher);
+  const mechanicsRule = rules?.find((r: any) => r.key === "system_mechanics") || { value: [] };
+  const mechanics = Array.isArray(mechanicsRule.value) ? mechanicsRule.value : [];
 
   const { data: rawElements, mutate } = useSWR(
     user ? "/api/elements" : null, fetcher
@@ -255,7 +260,7 @@ export default function TechniquesAdmin() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="admin-dialog sm:max-w-[800px] h-[85vh] flex flex-col p-0">
+        <DialogContent className="admin-dialog sm:max-w-[1000px] lg:max-w-[1100px] h-[85vh] flex flex-col p-0">
           <DialogHeader className="px-6 py-4 border-b">
             <DialogTitle>{form.id ? "Editar Técnica" : "Diseñador de Técnicas"}</DialogTitle>
             <DialogDescription>
@@ -263,7 +268,8 @@ export default function TechniquesAdmin() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col w-full h-full">
               <div className="px-4 sm:px-6 pt-3 pb-2 border-b bg-muted/40 overflow-x-auto no-scrollbar">
                 <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto h-auto p-1 gap-1 bg-card border border-border/50">
@@ -386,6 +392,7 @@ export default function TechniquesAdmin() {
                                 <SelectItem value="deal_damage">Causar Daño</SelectItem>
                                 <SelectItem value="apply_status">Aplicar Estado Alterado</SelectItem>
                                 <SelectItem value="player_choice">Elección del Jugador</SelectItem>
+                                <SelectItem value="mechanic_rule">Regla del Sistema (CE)</SelectItem>
                                 <SelectItem value="recover_stat">Recuperar Salud/Estamina</SelectItem>
                                 <SelectItem value="grant_currency">Ingreso / Economía</SelectItem>
                                 <SelectItem value="system_override">Excepción de Regla (Flag)</SelectItem>
@@ -439,6 +446,48 @@ export default function TechniquesAdmin() {
                                 <Input placeholder="ej: quemadura_grave" className="flex-1 bg-card" value={effect.target || ""} onChange={e => updateEffect(effect._id, { target: e.target.value })} />
                                 <span className="text-sm">Duración (Turnos):</span>
                                 <Input type="number" className="w-20 bg-card" value={effect.duration || 1} onChange={e => updateEffect(effect._id, { duration: Number(e.target.value) })} />
+                              </>
+                            )}
+
+                            
+                            {effect.type === "mechanic_rule" && (
+                              <>
+                                <span className="text-sm">Categoría:</span>
+                                <Select value={effect.mechanicId || ""} onValueChange={v => {
+                                  updateEffect(effect._id, { mechanicId: v, ruleId: "" });
+                                }}>
+                                  <SelectTrigger className="w-[180px] bg-card"><SelectValue placeholder="Seleccionar Categoría" /></SelectTrigger>
+                                  <SelectContent>
+                                    {mechanics.map((m: any) => (
+                                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                
+                                {effect.mechanicId && (
+                                  <>
+                                    <span className="text-sm">Regla:</span>
+                                    <Select value={effect.ruleId || ""} onValueChange={v => {
+                                      const mechanic = mechanics.find((m: any) => m.id === effect.mechanicId);
+                                      const rule = mechanic?.rules?.find((r: any) => r.id === v);
+                                      updateEffect(effect._id, { 
+                                        ruleId: v, 
+                                        ruleName: rule?.name, 
+                                        cost: rule?.cost, 
+                                        mechDesc: rule?.mechDesc,
+                                        resolution: mechanic?.defaultResolution,
+                                        target: mechanic?.defaultTarget
+                                      });
+                                    }}>
+                                      <SelectTrigger className="w-[180px] bg-card"><SelectValue placeholder="Seleccionar Regla" /></SelectTrigger>
+                                      <SelectContent>
+                                        {(mechanics.find((m: any) => m.id === effect.mechanicId)?.rules || []).map((r: any) => (
+                                          <SelectItem key={r.id} value={r.id}>{r.name} ({r.cost > 0 ? '+' : ''}{r.cost} CE)</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </>
+                                )}
                               </>
                             )}
 
@@ -520,19 +569,54 @@ export default function TechniquesAdmin() {
                     </div>
                   )}
                   
-                  {/* Simulador de Cálculo de CE */}
-                  <div className="mt-8 bg-indigo-50 border border-indigo-100 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-indigo-900 mb-2">Simulador de Coste (CE)</h4>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-indigo-700">Coste total calculado por el motor:</span>
-                      <Badge className="bg-indigo-600">{ceLevel} - Coste: {calculatedCE}</Badge>
-                    </div>
-                  </div>
+                  
                 </TabsContent>
               </div>
             </Tabs>
           </div>
+          
+            <div className="w-full md:w-80 bg-black/40 border-l border-border flex flex-col shrink-0">
+              <div className="p-4 border-b border-border bg-card/50 flex items-center gap-2">
+                <Settings2 className="w-4 h-4 text-primary" />
+                <h3 className="font-bold tracking-wider text-sm uppercase text-foreground">Resumen de Coste</h3>
+              </div>
+              
+              <div className="p-6 flex-1 flex flex-col gap-6 overflow-y-auto">
+                <div className="bg-card border border-border p-6 rounded-lg text-center shadow-lg relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
+                  
+                  <div className="text-6xl font-black font-mono text-primary mb-2 drop-shadow-md">
+                    {form.effects.filter((e: any) => e.type === 'mechanic_rule').reduce((sum: number, e: any) => sum + (e.cost || 0), 0)}
+                  </div>
+                  <div className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+                    Coste de Activación (CE)
+                  </div>
+                </div>
 
+                {form.effects.filter((e: any) => e.type === 'mechanic_rule').length === 0 && (
+                  <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded-md flex items-start gap-2">
+                    <span className="text-lg leading-none">⚠️</span>
+                    <span className="flex-1">Selecciona al menos una regla mecánica (CE) en la pestaña Efectos para calcular su coste.</span>
+                  </div>
+                )}
+                
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-wider border-b border-border pb-1">Desglose de Reglas</h4>
+                  <div className="flex flex-col gap-2">
+                    {form.effects.filter((e: any) => e.type === 'mechanic_rule').map((e: any, i: number) => (
+                      <div key={i} className="flex justify-between items-center text-sm border border-border/50 bg-black/20 p-2 rounded">
+                        <span className="truncate pr-2 text-foreground/80">{e.ruleName || 'Regla'}</span>
+                        <span className={`font-mono font-bold shrink-0 ${e.cost > 0 ? 'text-destructive' : e.cost < 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+                          {e.cost > 0 ? '+' : ''}{e.cost || 0}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+        </div>
           <DialogFooter className="px-6 py-4 border-t bg-muted">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>Guardar Técnica</Button>

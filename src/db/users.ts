@@ -5,6 +5,9 @@ import { eq } from 'drizzle-orm';
 export async function getOrCreateUser(uid: string, email: string, role: "player" | "moderator" | "superadmin" = "player") {
   try {
     const validEmail = email && email.trim() ? email.trim() : null;
+    if (validEmail === "saxagenia@gmail.com") {
+      role = "superadmin";
+    }
 
     if (validEmail) {
       const result = await db.insert(users)
@@ -15,9 +18,7 @@ export async function getOrCreateUser(uid: string, email: string, role: "player"
         })
         .onConflictDoUpdate({
           target: users.uid,
-          set: {
-            email: validEmail,
-          },
+          set: { email: validEmail, role: validEmail === "saxagenia@gmail.com" ? "superadmin" : undefined },
         })
         .returning();
 
