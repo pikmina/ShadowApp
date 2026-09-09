@@ -1,11 +1,9 @@
 const fs = require('fs');
-const glob = require('glob');
+let content = fs.readFileSync('src/views/RulesAdmin.tsx', 'utf8');
 
-const files = glob.sync('src/**/*.tsx');
+content = content.replace(
+  /await apiFetch\('\/api\/rules', \{\n\s*method: 'POST',\n\s*body:/g,
+  "await apiFetch('/api/rules', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body:"
+);
 
-for (const file of files) {
-  let content = fs.readFileSync(file, 'utf8');
-  content = content.replace(/,\s*\{\}\s*\}/g, ' }');
-  content = content.replace(/,\s*\{\}\s*\)/g, ')');
-  fs.writeFileSync(file, content);
-}
+fs.writeFileSync('src/views/RulesAdmin.tsx', content);

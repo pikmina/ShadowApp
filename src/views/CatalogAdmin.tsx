@@ -653,7 +653,7 @@ export default function CatalogAdmin() {
             </div>
 
         </div>
-          <DialogFooter className="px-6 py-4 border-t bg-muted">
+          <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>Guardar Elemento</Button>
           </DialogFooter>

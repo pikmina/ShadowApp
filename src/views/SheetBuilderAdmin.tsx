@@ -174,7 +174,7 @@ export default function SheetBuilderAdmin() {
     try {
       // Send updates to backend
       const updates = categoryFields.map((f: any, idx: number) => 
-        fetch("/api/sheet-fields", {
+        apiFetch("/api/sheet-fields", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...f, order: idx * 10 }),
@@ -276,15 +276,15 @@ export default function SheetBuilderAdmin() {
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="admin-dialog sm:max-w-[500px]">
-          <DialogHeader>
+        <DialogContent className="admin-dialog sm:max-w-[500px] h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle>{form.id ? "Editar Campo" : "Nuevo Campo de Ficha"}</DialogTitle>
             <DialogDescription>
               Define cómo verán los jugadores este campo en su hoja de personaje.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="grid gap-4 py-4">
+          <div className="flex-1 px-6 py-4 space-y-4 overflow-y-auto">
             <div className="grid gap-2">
               <Label>Nombre del Campo</Label>
               <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Ej: Color de Ojos, Orientación..." />
@@ -362,7 +362,7 @@ export default function SheetBuilderAdmin() {
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>Guardar Campo</Button>
           </DialogFooter>

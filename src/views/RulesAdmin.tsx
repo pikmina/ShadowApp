@@ -88,6 +88,7 @@ export default function RulesAdmin() {
 
       await apiFetch('/api/rules', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           key: 'system_mechanics',
           type: 'json',
@@ -108,6 +109,7 @@ export default function RulesAdmin() {
       const newMechanics = mechanics.filter((m: any) => m.id !== id);
       await apiFetch('/api/rules', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           key: 'system_mechanics',
           type: 'json',
@@ -133,8 +135,9 @@ export default function RulesAdmin() {
         newMechanics[existingIndex] = { ...newMechanics[existingIndex], rules: updatedRules };
         
         await apiFetch('/api/rules', {
-          method: 'POST',
-          body: JSON.stringify({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
             key: 'system_mechanics',
             type: 'json',
             value: newMechanics,
@@ -161,8 +164,9 @@ export default function RulesAdmin() {
         newMechanics[existingIndex] = { ...newMechanics[existingIndex], rules: updatedRules };
         
         await apiFetch('/api/rules', {
-          method: 'POST',
-          body: JSON.stringify({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
             key: 'system_mechanics',
             type: 'json',
             value: newMechanics,
@@ -667,14 +671,14 @@ export default function RulesAdmin() {
 
       {/* ATTR DIALOG */}
       <Dialog open={isAttrDialogOpen} onOpenChange={setIsAttrDialogOpen}>
-        <DialogContent className="admin-dialog sm:max-w-[500px]">
-          <DialogHeader>
+        <DialogContent className="admin-dialog sm:max-w-[500px] h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle>Editar {isDerived ? 'Estadística' : 'Atributo'}</DialogTitle>
             <DialogDescription>
               Modifica la descripción o fórmula visual de la regla.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="flex-1 px-6 py-4 space-y-4 overflow-y-auto">
             <div className="grid gap-2">
               <Label>Nombre</Label>
               <Input value={attrForm.name} onChange={e => setAttrForm({...attrForm, name: e.target.value})} />
@@ -704,7 +708,7 @@ export default function RulesAdmin() {
       </Dialog>
       {/* STAGE DIALOG */}
       <Dialog open={isStageDialogOpen} onOpenChange={setIsStageDialogOpen}>
-        <DialogContent className="admin-dialog sm:max-w-[700px] p-0 overflow-hidden">
+        <DialogContent className="admin-dialog sm:max-w-[700px] h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-2 border-b">
             <DialogTitle>{editingStageIndex !== null ? "Editar Etapa" : "Nueva Etapa"}</DialogTitle>
             <DialogDescription>
@@ -712,7 +716,7 @@ export default function RulesAdmin() {
             </DialogDescription>
           </DialogHeader>
           
-          <ScrollArea className="max-h-[70vh] px-6">
+          <div className="flex-1 px-6 overflow-y-auto">
             <div className="grid grid-cols-2 gap-x-6 gap-y-4 py-4">
               
               <div className="col-span-2 grid gap-2">
@@ -803,9 +807,9 @@ export default function RulesAdmin() {
               </div>
 
             </div>
-          </ScrollArea>
+          </div>
 
-          <DialogFooter className="px-6 py-4 border-t bg-muted">
+          <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
             <Button variant="outline" onClick={() => setIsStageDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSaveStage}>Guardar Etapa</Button>
           </DialogFooter>
@@ -814,14 +818,14 @@ export default function RulesAdmin() {
 
       {/* MECHANIC CATEGORY DIALOG */}
       <Dialog open={isMechanicDialogOpen} onOpenChange={setIsMechanicDialogOpen}>
-        <DialogContent className="admin-dialog sm:max-w-[600px] p-0 overflow-hidden">
+        <DialogContent className="admin-dialog sm:max-w-[700px] h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle className="flex items-center gap-2">
               <Settings2 className="w-5 h-5 text-primary" />
               {mechanicForm.id ? "Editar Categoría de Regla" : "Nueva Categoría de Regla"}
             </DialogTitle>
           </DialogHeader>
-          <div className="px-6 py-4 space-y-4">
+          <div className="flex-1 px-6 py-4 space-y-4 overflow-y-auto">
             <div className="grid gap-2">
               <Label>Nombre de la Categoría</Label>
               <Input value={mechanicForm.name} onChange={e => setMechanicForm({...mechanicForm, name: e.target.value})} placeholder="Ej: Daño" />
@@ -937,7 +941,7 @@ export default function RulesAdmin() {
               </div>
             </div>
           </div>
-          <DialogFooter className="px-6 py-4 border-t bg-muted">
+          <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
             <Button variant="outline" onClick={() => setIsMechanicDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSaveMechanic}>Guardar Categoría</Button>
           </DialogFooter>

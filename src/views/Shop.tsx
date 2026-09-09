@@ -305,8 +305,8 @@ export default function Shop() {
 
       {/* Checkout Modal */}
       <Dialog open={isCheckoutModalOpen} onOpenChange={setIsCheckoutModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle className="uppercase tracking-widest font-black flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-amber-500" /> Procesar Compra
             </DialogTitle>
@@ -314,7 +314,7 @@ export default function Shop() {
               Asigna esta compra al inventario del personaje seleccionado y descuenta los recursos.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="flex-1 px-6 py-4 space-y-4 overflow-y-auto">
             <div className="space-y-2">
               <Label>Personaje Destino</Label>
               <Select value={checkoutCharacter} onValueChange={setCheckoutCharacter}>
@@ -346,7 +346,7 @@ export default function Shop() {
               </div>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
             <Button variant="outline" onClick={() => setIsCheckoutModalOpen(false)}>Cancelar</Button>
             <Button onClick={handleCheckout}>Confirmar Compra</Button>
           </DialogFooter>
@@ -355,11 +355,11 @@ export default function Shop() {
 
       {/* Edit Offer Modal */}
       <Dialog open={!!editingOffer} onOpenChange={(open) => !open && setEditingOffer(null)}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[500px] h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle>Oferta de Tienda</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="flex-1 px-6 py-4 space-y-4 overflow-y-auto">
             <div className="space-y-2">
               <Label>Elemento del Catálogo</Label>
               <Select 
@@ -432,7 +432,7 @@ export default function Shop() {
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
             <Button variant="outline" onClick={() => setEditingOffer(null)}>Cancelar</Button>
             <Button onClick={handleSaveOffer}>Guardar</Button>
           </DialogFooter>
