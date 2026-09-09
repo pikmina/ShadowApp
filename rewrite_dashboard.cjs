@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+const fs = require('fs');
+
+const code = `import React, { useState } from 'react';
 import { 
   Users, Plus, Search, Contact, Eye, Edit2, Copy, Trash2, User, Shield
 } from 'lucide-react';
@@ -7,57 +9,32 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CharacterEditor from '@/components/character/CharacterEditor';
 import { useAuth } from '@/contexts/AuthContext';
-import useSWR from "swr";
-import { apiFetch, fetcher } from "../lib/api";
-import { toast } from "sonner";
+import useSWR from 'swr';
 
+const fetcher = async (url: string, token: string) => {
+  const res = await fetch(url, {
+    headers: {
+      Authorization: \`Bearer \${token}\`,
+      Accept: "application/json"
+    }
+  });
+  if (!res.ok) throw new Error("Error fetching data");
+  return res.json();
+};
 
 export default function PlayerSheet() {
   const { user, dbUser } = useAuth();
   const [editing, setEditing] = useState(false);
   const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'canon'>('all');
 
   const isMod = dbUser?.role === 'moderator' || dbUser?.role === 'superadmin';
 
-  const { data: allCharacters, mutate: mutateAll } = useSWR(user && isMod ? '/api/admin/characters' : null, fetcher);
+  const { data: allCharacters, mutate: mutateAll } = useSWR(
+    user && isMod ? ['/api/admin/characters', user.accessToken] : null,
+    ([url, token]) => fetcher(url, token)
+  );
 
-  
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("¿Estás seguro de que quieres borrar este personaje? Esta acción es irreversible.")) return;
-    try {
-      await apiFetch(`/api/admin/characters/${id}`, { method: 'DELETE' });
-      toast.success("Personaje borrado exitosamente");
-      mutateAll();
-    } catch (e) {
-      toast.error("Error al borrar el personaje");
-    }
-  };
-
-  const handleDuplicate = async (character: any) => {
-    try {
-      const newName = character.name + " (Copia)";
-      const body = {
-        name: newName,
-        profileData: character.profileData
-      };
-      // Since it's admin, they might be duplicating someone else's char, but wait, POST /api/character saves it for the logged in user right now.
-      // Actually we just want a way to duplicate. The current api uses the logged in user.
-      await apiFetch('/api/character', {
-        method: 'POST',
-        body: JSON.stringify(body)
-      });
-      toast.success("Personaje duplicado exitosamente");
-      mutateAll();
-    } catch (e) {
-      toast.error("Error al duplicar el personaje");
-    }
-  };
-
-  const charactersList = (isMod ? (allCharacters || []) : []).filter((c: any) => {
-    if (activeTab === 'canon') return c.profileData?.isCanon === true;
-    return true;
-  });
+  const charactersList = isMod ? (allCharacters || []) : [];
   
   if (!isMod) {
     return (
@@ -76,7 +53,7 @@ export default function PlayerSheet() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between bg-card p-4 rounded-md border border-border">
-          <h2 className="text-lg font-bold">{displayCharacter ? `Editando: ${displayCharacter.name}` : 'Nuevo Personaje'}</h2>
+          <h2 className="text-lg font-bold">{displayCharacter ? \`Editando: \${displayCharacter.name}\` : 'Nuevo Personaje'}</h2>
           <Button variant="ghost" onClick={() => setEditing(false)}>Volver a Personajes</Button>
         </div>
         <div className="bg-card p-6 rounded-md shadow border border-border">
@@ -106,6 +83,10 @@ export default function PlayerSheet() {
              </p>
            </div>
            <div className="flex items-center gap-3 shrink-0">
+             <Button variant="outline" size="sm" className="bg-transparent border-border hover:bg-muted text-xs h-9 px-4">
+               <Users className="w-3.5 h-3.5 mr-2" />
+               Mis Fichas
+             </Button>
              <Button size="sm" className="bg-[#4b637c] hover:bg-[#3d5166] text-white text-xs border-none shadow-sm h-9 px-4" onClick={() => { setSelectedCharacterId(null); setEditing(true); }}>
                <Plus className="w-4 h-4 mr-1.5" />
                Nuevo Personaje
@@ -115,16 +96,8 @@ export default function PlayerSheet() {
 
          {/* Tabs */}
          <div className="flex gap-2 border-b border-border/50 pb-4">
-           <button 
-             onClick={() => setActiveTab('all')}
-             className={`px-4 py-2 text-xs font-semibold rounded-md transition-colors ${activeTab === 'all' ? 'bg-[#1a1a1a] border border-border text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'}`}>
-             Todos los Personajes
-           </button>
-           <button 
-             onClick={() => setActiveTab('canon')}
-             className={`px-4 py-2 text-xs font-semibold rounded-md transition-colors ${activeTab === 'canon' ? 'bg-[#1a1a1a] border border-border text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'}`}>
-             Personajes Canon
-           </button>
+           <button className="px-4 py-2 text-xs font-semibold bg-[#1a1a1a] border border-border rounded-md text-foreground transition-colors">Todos los Personajes</button>
+           <button className="px-4 py-2 text-xs font-semibold bg-transparent text-muted-foreground hover:text-foreground transition-colors">Personajes Canon</button>
          </div>
 
          {/* Filters */}
@@ -133,36 +106,36 @@ export default function PlayerSheet() {
              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
              <Input placeholder="Filtrar por nombre, quirk, ID..." className="pl-9 h-9 text-xs bg-black/40 border-border focus-visible:ring-1 focus-visible:ring-border" />
            </div>
-           <Select defaultValue="todos">
+           <Select defaultValue="all">
              <SelectTrigger className="h-9 text-xs bg-black/40 border-border focus:ring-1 focus:ring-border">
                <SelectValue placeholder="Grupo: Todos" />
              </SelectTrigger>
              <SelectContent>
-               <SelectItem value="todos">Grupo: Todos</SelectItem>
+               <SelectItem value="all">Grupo: Todos</SelectItem>
              </SelectContent>
            </Select>
-           <Select defaultValue="todos">
+           <Select defaultValue="all">
              <SelectTrigger className="h-9 text-xs bg-black/40 border-border focus:ring-1 focus:ring-border">
                <SelectValue placeholder="Don: Todos" />
              </SelectTrigger>
              <SelectContent>
-               <SelectItem value="todos">Don: Todos</SelectItem>
+               <SelectItem value="all">Don: Todos</SelectItem>
              </SelectContent>
            </Select>
-           <Select defaultValue="todos">
+           <Select defaultValue="all">
              <SelectTrigger className="h-9 text-xs bg-black/40 border-border focus:ring-1 focus:ring-border">
                <SelectValue placeholder="Etapa: Todas" />
              </SelectTrigger>
              <SelectContent>
-               <SelectItem value="todos">Etapa: Todas</SelectItem>
+               <SelectItem value="all">Etapa: Todas</SelectItem>
              </SelectContent>
            </Select>
-           <Select defaultValue="nombre">
+           <Select defaultValue="name">
              <SelectTrigger className="h-9 text-xs bg-black/40 border-border focus:ring-1 focus:ring-border">
                <SelectValue placeholder="Ordenar: Nombre" />
              </SelectTrigger>
              <SelectContent>
-               <SelectItem value="nombre">Ordenar: Nombre</SelectItem>
+               <SelectItem value="name">Ordenar: Nombre</SelectItem>
              </SelectContent>
            </Select>
          </div>
@@ -218,14 +191,13 @@ export default function PlayerSheet() {
                  {/* Actions bottom */}
                  <div className="relative z-10 mt-auto flex items-center justify-between pt-3">
                    <div className="flex items-center gap-0.5 bg-black/40 border border-border/80 rounded-md p-0.5">
-                     <a href={`/sheet/${c.id}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:text-foreground text-muted-foreground transition-colors hover:bg-white/5 rounded-sm">
-                       <Eye className="w-3.5 h-3.5" />
-                     </a>
+                     <button className="p-1.5 hover:text-foreground text-muted-foreground transition-colors hover:bg-white/5 rounded-sm"><Contact className="w-3.5 h-3.5" /></button>
+                     <button className="p-1.5 hover:text-foreground text-muted-foreground transition-colors hover:bg-white/5 rounded-sm"><Eye className="w-3.5 h-3.5" /></button>
                    </div>
                    <div className="flex items-center gap-1 text-muted-foreground/60">
                      <button onClick={() => { setSelectedCharacterId(c.id); setEditing(true); }} className="p-1.5 hover:text-foreground hover:bg-white/5 rounded-md transition-all"><Edit2 className="w-3.5 h-3.5" /></button>
-                     <button onClick={() => handleDuplicate(c)} className="p-1.5 hover:text-foreground hover:bg-white/5 rounded-md transition-all"><Copy className="w-3.5 h-3.5" /></button>
-                     <button onClick={() => handleDelete(c.id)} className="p-1.5 hover:text-destructive hover:bg-destructive/10 rounded-md transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                     <button className="p-1.5 hover:text-foreground hover:bg-white/5 rounded-md transition-all"><Copy className="w-3.5 h-3.5" /></button>
+                     <button className="p-1.5 hover:text-destructive hover:bg-destructive/10 rounded-md transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
                    </div>
                  </div>
                </div>
@@ -244,3 +216,6 @@ export default function PlayerSheet() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/views/PlayerSheet.tsx', code);

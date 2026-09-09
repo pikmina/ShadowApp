@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import useSWR from "swr";
+import { apiFetch, fetcher } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import {
@@ -34,21 +35,6 @@ import { Plus, Settings2, Trash2, Edit } from "lucide-react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
 
-const fetcher = async (url: string, token: string | null) => {
-  if (!token) return [];
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json"
-    }
-  });
-  if (!res.ok) throw new Error("An error occurred while fetching the data.");
-  const contentType = res.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) {
-    throw new Error("Server returned non-JSON response");
-  }
-  return res.json();
-};
 
 const defaultForm = {
   id: "",
@@ -74,7 +60,8 @@ const EFFECT_TYPES: Record<string, string> = {
 };
 
 export default function TechniquesAdmin() {
-  const { getToken } = useAuth();
+  const { user } = useAuth();
+  
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,8 +69,7 @@ export default function TechniquesAdmin() {
   }, [getToken]);
 
   const { data: rawElements, mutate } = useSWR(
-    token ? ["/api/elements", token] : null,
-    ([url, t]) => fetcher(url, t)
+    user ? "/api/elements" : null, fetcher
   );
 
   const elements = rawElements?.filter((el: any) => el.kind === "technique");
@@ -113,12 +99,9 @@ export default function TechniquesAdmin() {
   const handleSave = async () => {
     if (!token) return;
     try {
-      const res = await fetch("/api/elements", {
+      const res = await apiFetch("/api/elements", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)
       });
       if (!res.ok) throw new Error("Error saving");
@@ -133,10 +116,8 @@ export default function TechniquesAdmin() {
   const handleDelete = async (id: string) => {
     if (!confirm("¿Borrar este elemento?")) return;
     try {
-      await fetch(`/api/elements/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await apiFetch(`/api/elements/${id}`, {
+        method: "DELETE" });
       mutate();
     } catch (e) {
       alert("Error borrando");

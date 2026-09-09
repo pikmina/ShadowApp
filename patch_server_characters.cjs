@@ -1,24 +1,18 @@
 const fs = require('fs');
 let code = fs.readFileSync('server.ts', 'utf8');
 
-// Replace the POST /api/character endpoint
 code = code.replace(
   /app\.post\("\/api\/character", requireAuth, async \(req: AuthRequest, res\) => \{[\s\S]*?res\.status\(500\)\.json\(\{ error: "Failed to save character" \}\);\s*\}\s*\}\);/,
   `app.post("/api/character", requireAuth, async (req: AuthRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
       const dbUser = await getOrCreateUser(req.user.uid, req.user.email || "");
-      const { name, profileData, targetUserId } = req.body;
+      const { characterId, name, profileData } = req.body;
       
-      let userIdToUse = dbUser.id;
-      // If targetUserId is provided and the user is a moderator/superadmin, use that
-      if (targetUserId && (dbUser.role === 'moderator' || dbUser.role === 'superadmin')) {
-        userIdToUse = targetUserId;
-      }
-      
-      const character = await upsertCharacter(userIdToUse, name || "Unnamed", profileData || {});
+      const character = await upsertCharacter(characterId, dbUser.id, name || "Unnamed", profileData || {});
       res.json(character);
     } catch (error: any) {
+      console.error(error);
       res.status(500).json({ error: "Failed to save character" });
     }
   });`

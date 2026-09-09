@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import useSWR from "swr";
+import { apiFetch, fetcher } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import {
@@ -33,23 +34,13 @@ import { ShoppingCart, Plus, Minus, Trash2, Edit, Save, X, Search, ShieldAlert }
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
 
-const fetcher = async (url: string, token: string | null) => {
-  if (!token) return [];
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json"
-    }
-  });
-  if (!res.ok) throw new Error("An error occurred while fetching the data.");
-  return res.json();
-};
 
 export default function Shop() {
-  const { token, role } = useAuth();
-  const { data: offers, mutate: mutateOffers } = useSWR(token ? ["/api/shop/offers", token] : null, ([url, t]) => fetcher(url, t));
+  const { user, dbUser } = useAuth();
+  const role = dbUser?.role;
+  const { data: offers, mutate: mutateOffers } = useSWR(user ? "/api/shop/offers" : null, fetcher);
   const { data: elements } = useSWR(token ? ["/api/elements", token] : null, ([url, t]) => fetcher(url, t));
-  const { data: characters } = useSWR(role && role !== 'player' && token ? ["/api/admin/characters", token] : null, ([url, t]) => fetcher(url, t));
+  const { data: characters } = useSWR(role && role !== 'player' && user ? "/api/admin/characters" : null, fetcher);
 
   const [activeTab, setActiveTab] = useState("store");
   
@@ -104,12 +95,9 @@ export default function Shop() {
 
     try {
       setCheckoutError("");
-      const res = await fetch("/api/shop/purchase", {
+      const res = await apiFetch("/api/shop/purchase", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           characterId: parseInt(checkoutCharacter, 10),
           cartItems: cart.map(c => ({
@@ -132,12 +120,9 @@ export default function Shop() {
 
   const handleSaveOffer = async () => {
     try {
-      await fetch("/api/shop/offers", {
+      await apiFetch("/api/shop/offers", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingOffer)
       });
       mutateOffers();

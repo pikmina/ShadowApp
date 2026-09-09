@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import useSWR from "swr";
+import { apiFetch, fetcher } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,20 +13,6 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 
-const fetcher = async (url: string, token: string) => {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json"
-    }
-  });
-  if (!res.ok) throw new Error("Error fetching data");
-  const contentType = res.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) {
-    throw new Error("Server returned non-JSON response");
-  }
-  return res.json();
-};
 
 export default function CharacterEditor({ character, onSaved, onCancel }: { character?: any, onSaved: () => void, onCancel?: () => void }) {
   const { user } = useAuth();
@@ -33,8 +20,8 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
   const [activeTab, setActiveTab] = useState('');
   const [formData, setFormData] = useState<Record<string, any>>(character?.profileData || {});
 
-  const { data: fields, error: fieldsError } = useSWR(user ? ['/api/sheet-fields', user.accessToken] : null, ([url, token]) => fetcher(url, token));
-  const { data: settings, error: settingsError } = useSWR(user ? ['/api/settings', user.accessToken] : null, ([url, token]) => fetcher(url, token));
+  const { data: fields, error: fieldsError } = useSWR(user ? "/api/sheet-fields" : null, fetcher);
+  const { data: settings, error: settingsError } = useSWR(user ? "/api/settings" : null, fetcher);
 
   // Add the "Facción / Grupo" field virtually to basic data if groups exist
   let processedFields: any[] = [];
@@ -64,7 +51,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
     if (!acc[field.category]) acc[field.category] = [];
     acc[field.category].push(field);
     return acc;
-  }, {});
+  });
 
   useEffect(() => {
     if (character?.profileData) {
@@ -90,14 +77,15 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
     if (!user) return;
     setIsSaving(true);
     try {
-      const res = await fetch('/api/character', {
+      const res = await apiFetch('/api/character', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${user.accessToken}`
         },
         body: JSON.stringify({
-          name: formData['Nombre'] || formData['name'] || "Sin Nombre",
+          characterId: character?.id,
+          name: formData.name || formData.alias || "Unnamed",
           profileData: formData
         })
       });

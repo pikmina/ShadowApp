@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import useSWR from "swr";
+import { apiFetch, fetcher } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -12,20 +13,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Loader2, Plus, Edit2, Trash2, GripVertical, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
-const fetcher = async (url: string, token: string) => {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json"
-    }
-  });
-  if (!res.ok) throw new Error("Error fetching data");
-  const contentType = res.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) {
-    throw new Error("Server returned non-JSON response");
-  }
-  return res.json();
-};
 
 const defaultForm = {
   id: "",
@@ -50,7 +37,8 @@ const FIELD_TYPES: Record<string, string> = {
 };
 
 export default function SheetBuilderAdmin() {
-  const { getToken } = useAuth();
+  const { user } = useAuth();
+  
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,8 +46,7 @@ export default function SheetBuilderAdmin() {
   }, [getToken]);
 
   const { data: fields, mutate } = useSWR(
-    token ? ["/api/sheet-fields", token] : null,
-    ([url, t]) => fetcher(url, t)
+    user ? "/api/sheet-fields" : null, fetcher
   );
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -88,12 +75,9 @@ export default function SheetBuilderAdmin() {
     }
 
     try {
-      const res = await fetch("/api/sheet-fields", {
+      const res = await apiFetch("/api/sheet-fields", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)
       });
       if (!res.ok) throw new Error();
@@ -108,10 +92,8 @@ export default function SheetBuilderAdmin() {
   const handleDelete = async (id: string) => {
     if (!confirm("¿Seguro que deseas eliminar este campo?")) return;
     try {
-      const res = await fetch(`/api/sheet-fields/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch(`/api/sheet-fields/${id}`, {
+        method: "DELETE" });
       if (!res.ok) throw new Error();
       toast.success("Campo eliminado");
       mutate();
@@ -143,7 +125,7 @@ export default function SheetBuilderAdmin() {
     if (!acc[field.category]) acc[field.category] = [];
     acc[field.category].push(field);
     return acc;
-  }, {});
+  });
 
   const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
   const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
@@ -200,10 +182,7 @@ export default function SheetBuilderAdmin() {
       const updates = categoryFields.map((f: any, idx: number) => 
         fetch("/api/sheet-fields", {
           method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...f, order: idx * 10 }),
         })
       );

@@ -10,7 +10,7 @@ import { Loader2, Calendar, Users, Plus, Trash } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SettingsAdmin() {
-  const { getToken } = useAuth();
+  
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [gameDate, setGameDate] = useState({
@@ -28,7 +28,7 @@ export default function SettingsAdmin() {
   const fetchSettings = async () => {
     try {
       const token = await getToken();
-      const res = await fetch("/api/settings", {
+      const res = await apiFetch("/api/settings", {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json"
@@ -54,9 +54,9 @@ export default function SettingsAdmin() {
     setSaving(true);
     try {
       const token = await getToken();
-      const res = await fetch("/api/settings", {
+      const res = await apiFetch("/api/settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gameDate, groups })
       });
       

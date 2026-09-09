@@ -108,7 +108,7 @@ async function startServer() {
   });
 
   // Character API
-  const { getCharacterByUserId, upsertCharacter } = await import("./src/db/characters.ts");
+  const { getCharacterByUserId, upsertCharacter, deleteCharacter } = await import("./src/db/characters.ts");
   // System Settings API (stored in systemRules)
   app.get("/api/settings", async (req, res) => {
     try {
@@ -149,7 +149,19 @@ async function startServer() {
   app.get("/api/character", requireAuth, async (req: AuthRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
-      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || "");
+      let dbUser = await getOrCreateUser(req.user.uid, req.user.email || "");
+      
+      // Auto-promote specific email to superadmin
+      if (req.user.email === 'saxagenia@gmail.com' && dbUser.role !== 'superadmin') {
+        const { db } = await import("./src/db/index.ts");
+        const { users } = await import("./src/db/schema.ts");
+        const { eq } = await import("drizzle-orm");
+        
+        [dbUser] = await db.update(users)
+          .set({ role: 'superadmin' })
+          .where(eq(users.uid, req.user.uid))
+          .returning();
+      }
       const character = await getCharacterByUserId(dbUser.id);
       res.json(character || { id: null });
     } catch (error: any) {
@@ -157,14 +169,30 @@ async function startServer() {
     }
   });
 
+
+  app.delete("/api/admin/characters/:id", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+      
+      const { deleteCharacter } = await import("./src/db/characters.ts");
+      await deleteCharacter(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: "Failed to delete character" });
+    }
+  });
+
   app.post("/api/character", requireAuth, async (req: AuthRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
       const dbUser = await getOrCreateUser(req.user.uid, req.user.email || "");
-      const { name, profileData } = req.body;
-      const character = await upsertCharacter(dbUser.id, name || "Unnamed", profileData || {});
+      const { characterId, name, profileData } = req.body;
+      
+      const character = await upsertCharacter(characterId, dbUser.id, name || "Unnamed", profileData || {});
       res.json(character);
     } catch (error: any) {
+      console.error(error);
       res.status(500).json({ error: "Failed to save character" });
     }
   });
@@ -258,6 +286,28 @@ async function startServer() {
       res.json(chars);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch characters" });
+    }
+  });
+
+  
+  app.get("/api/public/character/:id", async (req, res) => {
+    try {
+      const { db } = await import("./src/db/index.ts");
+      const { characters } = await import("./src/db/schema.ts");
+      const { eq } = await import("drizzle-orm");
+      
+      const [character] = await db.select().from(characters).where(eq(characters.id, parseInt(req.params.id)));
+      
+      if (!character) {
+        return res.status(404).json({ error: "Character not found" });
+      }
+      
+      // Optionally check if character is marked as canon or public if needed, 
+      // but the prompt says "Esta ficha pública, debe ser visible sin acceder, y tener su propia URL"
+      res.json(character);
+    } catch (error) {
+      console.error("Public character error:", error);
+      res.status(500).json({ error: "Failed to fetch character" });
     }
   });
 

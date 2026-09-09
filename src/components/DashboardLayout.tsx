@@ -6,16 +6,16 @@ import { Button } from "./ui/button";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "./ui/sheet";
 
 const navigation = [
-  { label: "Sistema", items: [
+  { label: "Sistema", roles: ["superadmin"], items: [
     { to: "/rules", label: "Reglas del sistema", icon: BookOpen },
     { to: "/catalog", label: "Catálogo", icon: Library },
     { to: "/techniques", label: "Técnicas", icon: Swords },
   ] },
-  { label: "Gestión", items: [
-    { to: "/my-sheet", label: "Vista de ficha", icon: UserRound },
+  { label: "Gestión", roles: ["superadmin", "moderator", "player"], items: [
+    { to: "/my-sheet", label: "Personajes", icon: UserRound },
     { to: "/shop", label: "Tienda", icon: ShoppingCart },
   ] },
-  { label: "Administración", items: [
+  { label: "Administración", roles: ["superadmin"], items: [
     { to: "/sheet-builder", label: "Diseño de ficha", icon: LayoutTemplate },
     { to: "/settings", label: "Ajustes globales", icon: Settings },
     { to: "/audit", label: "Auditoría", icon: FileText },
@@ -26,7 +26,17 @@ export default function DashboardLayout() {
   const { user, dbUser, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-  const currentSection = navigation.find(section => section.items.some(item => item.to === location.pathname));
+  const userRole = dbUser?.role || "player";
+
+  // Filter navigation based on role
+  const filteredNavigation = navigation
+    .filter(section => section.roles.includes(userRole))
+    .map(section => ({
+      ...section,
+      items: section.items // If we wanted to filter specific items within a section, we would do it here
+    }));
+
+  const currentSection = filteredNavigation.find(section => section.items.some(item => item.to === location.pathname));
   const currentPage = currentSection?.items.find(item => item.to === location.pathname);
   const email = dbUser?.email || user?.email || "Usuario";
   const roleLabel = dbUser?.role === "superadmin" ? "Administrador" : dbUser?.role === "moderator" ? "Moderador" : "Sesión iniciada";
@@ -41,7 +51,7 @@ export default function DashboardLayout() {
         </div>
       </div>
       <nav aria-label="Navegación principal" className="min-h-0 flex-1 space-y-7 overflow-y-auto px-3 py-6">
-        {navigation.map(section => (
+        {filteredNavigation.map(section => (
           <div key={section.label}>
             <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{section.label}</p>
             <div className="space-y-1">

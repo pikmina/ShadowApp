@@ -17,6 +17,7 @@ import SheetBuilderAdmin from "./views/SheetBuilderAdmin";
 import SettingsAdmin from "./views/SettingsAdmin";
 
 import PlayerSheet from "./views/PlayerSheet";
+import PublicSheet from "./views/PublicSheet";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -32,6 +33,17 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+
+function IndexRedirector() {
+  const { dbUser } = useAuth();
+  const role = dbUser?.role || "player";
+  
+  if (role === "superadmin") {
+    return <Navigate to="/rules" replace />;
+  }
+  return <Navigate to="/my-sheet" replace />;
+}
+
 function AppRoutes() {
   const { user, loading } = useAuth();
 
@@ -42,6 +54,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/sheet/:id" element={<PublicSheet />} />
       <Route
         path="/"
         element={
@@ -50,7 +63,7 @@ function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="/rules" replace />} />
+        <Route index element={<IndexRedirector />} />
         <Route path="settings" element={<SettingsAdmin />} />
         <Route path="rules" element={<RulesAdmin />} />
         <Route path="catalog" element={<CatalogAdmin />} />

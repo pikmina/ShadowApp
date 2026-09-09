@@ -1,4 +1,6 @@
-import { db } from './index.ts';
+const fs = require('fs');
+
+const dbChars = `import { db } from './index.ts';
 import { characters } from './schema.ts';
 import { eq } from 'drizzle-orm';
 
@@ -21,7 +23,6 @@ export async function upsertCharacter(characterId: number | null | undefined, us
     return created;
   }
 }
+`;
 
-export async function deleteCharacter(characterId: number) {
-  await db.delete(characters).where(eq(characters.id, characterId));
-}
+fs.writeFileSync('src/db/characters.ts', dbChars);
