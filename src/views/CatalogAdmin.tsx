@@ -1,3 +1,5 @@
+import { SectionHeader } from "../components/common/SectionHeader";
+import { Library as SectionIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { useAuth } from "../contexts/AuthContext";
@@ -235,18 +237,7 @@ export default function CatalogAdmin() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Catálogo de Elementos</h2>
-          <p className="text-muted-foreground mt-1">
-            Diseña rasgos, debilidades, habilidades y técnicas.
-          </p>
-        </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="w-4 h-4 mr-2" />
-          Crear Elemento
-        </Button>
-      </div>
+      <SectionHeader icon={SectionIcon} title="Catálogo de elementos" description="Define los rasgos, debilidades, habilidades y estados del sistema." actions={<Button onClick={() => handleOpenDialog()}><Plus className="size-4" aria-hidden="true" />Crear elemento</Button>} />
 
       <div className="rounded-md border bg-card shadow-sm overflow-hidden">
         <Table>
@@ -271,18 +262,18 @@ export default function CatalogAdmin() {
                 <TableRow key={el.id}>
                   <TableCell className="font-semibold">{el.name}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="capitalize">{el.kind.replace('_', ' ')}</Badge>
+                    <Badge variant="outline" className="capitalize">{KIND_TYPES[el.kind] || el.kind.replaceAll("_", " ")}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={el.status === "published" ? "default" : "secondary"}>{el.status}</Badge>
+                    <Badge variant={el.status === "published" ? "default" : "secondary"}>{STATUS_TYPES[el.status] || el.status}</Badge>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {el.effects.length} Bloques conectados
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="icon" onClick={() => handleOpenDialog(el)}><Edit className="w-4 h-4" /></Button>
-                      <Button variant="destructive" size="icon" onClick={() => handleDelete(el.id)}><Trash2 className="w-4 h-4" /></Button>
+                      <Button variant="outline" size="icon" aria-label={`Editar ${el.name}`} onClick={() => handleOpenDialog(el)}><Edit className="w-4 h-4" /></Button>
+                      <Button variant="destructive" size="icon" aria-label={`Eliminar ${el.name}`} onClick={() => handleDelete(el.id)}><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -293,7 +284,7 @@ export default function CatalogAdmin() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[800px] h-[85vh] flex flex-col p-0">
+        <DialogContent className="admin-dialog sm:max-w-[800px] h-[85vh] flex flex-col p-0">
           <DialogHeader className="px-6 py-4 border-b">
             <DialogTitle>{form.id ? "Editar Elemento" : "Diseñador de Elementos"}</DialogTitle>
             <DialogDescription>

@@ -431,3 +431,33 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Administrative workspace: composition based on the original Shadowmore UI. */
+.admin-section-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 1.25rem;
+  padding: 1.5rem; border: 1px solid var(--border); border-radius: .75rem;
+  background: var(--bg2);
+}
+.admin-nav-link {
+  display: flex; align-items: center; gap: .75rem; min-height: 44px;
+  padding: .625rem .75rem; border: 1px solid transparent; border-radius: .5rem;
+  color: var(--muted-foreground); font-size: .8125rem; transition: background-color .15s, color .15s;
+}
+.admin-nav-link:hover { background: var(--muted); color: var(--foreground); }
+.admin-nav-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.admin-nav-link-active { color: var(--foreground); border-color: color-mix(in srgb, var(--primary) 35%, transparent); background: color-mix(in srgb, var(--primary) 12%, var(--card)); box-shadow: inset 2px 0 var(--primary); }
+.admin-nav-link-active > svg { color: var(--primary); }
+.admin-workspace [data-slot="card"] { gap: 1.25rem; padding-block: 1.25rem; }
+.admin-workspace [data-slot="card-header"], .admin-workspace [data-slot="card-content"], .admin-workspace [data-slot="card-footer"] { padding-inline: 1.25rem; }
+.admin-workspace [data-slot="card-title"], .admin-dialog [data-slot="dialog-title"] { font-family: var(--font-oxanium); }
+.admin-workspace [data-slot="table-head"] { padding-inline: 1rem; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-foreground); }
+.admin-workspace [data-slot="table-cell"] { padding: 1rem; }
+.admin-workspace [data-slot="input"], .admin-dialog [data-slot="input"],
+.admin-workspace [data-slot="textarea"], .admin-dialog [data-slot="textarea"] { background-color: var(--input); border-color: var(--border); border-radius: .5rem; }
+.admin-dialog { border: 1px solid var(--border); box-shadow: 0 24px 80px rgb(0 0 0 / .4); max-height: calc(100dvh - 2rem); }
+.admin-dialog [data-slot="dialog-footer"] { margin: 0; }
+@media (max-width: 639px) {
+  .admin-section-header { align-items: stretch; flex-direction: column; padding: 1rem; }
+  .admin-workspace [data-slot="table-cell"] { padding: .75rem; }
+}
+@media (prefers-reduced-motion: reduce) { .admin-nav-link { transition: none; } }

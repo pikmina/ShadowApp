@@ -1,208 +1,90 @@
-import { useState, useEffect } from "react";
-import { Outlet, NavLink, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { BookOpen, ChevronRight, FileText, LayoutTemplate, Library, LogOut, Menu, Settings, ShieldCheck, ShoppingCart, Swords, UserRound, X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { LogOut, Book, ShoppingCart, ShieldAlert, Settings, Menu, X, FileText, User } from "lucide-react";
 import { Button } from "./ui/button";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "./ui/sheet";
+
+const navigation = [
+  { label: "Sistema", items: [
+    { to: "/rules", label: "Reglas del sistema", icon: BookOpen },
+    { to: "/catalog", label: "Catálogo", icon: Library },
+    { to: "/techniques", label: "Técnicas", icon: Swords },
+  ] },
+  { label: "Gestión", items: [
+    { to: "/my-sheet", label: "Vista de ficha", icon: UserRound },
+    { to: "/shop", label: "Tienda", icon: ShoppingCart },
+  ] },
+  { label: "Administración", items: [
+    { to: "/sheet-builder", label: "Diseño de ficha", icon: LayoutTemplate },
+    { to: "/settings", label: "Ajustes globales", icon: Settings },
+    { to: "/audit", label: "Auditoría", icon: FileText },
+  ] },
+];
 
 export default function DashboardLayout() {
   const { user, dbUser, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const currentSection = navigation.find(section => section.items.some(item => item.to === location.pathname));
+  const currentPage = currentSection?.items.find(item => item.to === location.pathname);
+  const email = dbUser?.email || user?.email || "Usuario";
+  const roleLabel = dbUser?.role === "superadmin" ? "Administrador" : dbUser?.role === "moderator" ? "Moderador" : "Sesión iniciada";
+  useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
 
-  // Close mobile navigation on route change
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [location.pathname]);
-
-  // Handle body scroll locking and Escape key when mobile menu is open
-  useEffect(() => {
-    if (!mobileMenuOpen) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMobileMenuOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [mobileMenuOpen]);
-
-  const adminLinks = [
-    { to: "/settings", label: "Ajustes Globales", icon: <Settings className="w-5 h-5" /> },
-    { to: "/rules", label: "Reglas", icon: <FileText className="w-5 h-5" /> },
-    { to: "/sheet-builder", label: "Diseño de Ficha", icon: <FileText className="w-5 h-5" /> },
-    { to: "/catalog", label: "Catálogo", icon: <Book className="w-5 h-5" /> },
-    { to: "/techniques", label: "Técnicas", icon: <Book className="w-5 h-5" /> },
-    { to: "/shop", label: "Tienda", icon: <ShoppingCart className="w-5 h-5" /> },
-    { to: "/audit", label: "Auditoría", icon: <ShieldAlert className="w-5 h-5" /> },
-  ];
-
-  const playerLinks = [
-    { to: "/my-sheet", label: "Mi Ficha (Mock)", icon: <User className="w-5 h-5" /> },
-  ];
-
-  const renderNavContent = (isMobile = false) => (
+  const renderNavigation = () => (
     <>
-      <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
-        <div>
-          <h1 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
-            <ShieldAlert className="w-6 h-6 text-primary" />
-            Shadowmore
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wider font-semibold">
-            System Admin
-          </p>
+      <div className="border-b border-border px-5 py-6">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary"><ShieldCheck className="size-5" aria-hidden="true" /></div>
+          <div><p className="font-oxanium text-lg font-semibold tracking-wide text-foreground">SHADOWMORE</p><p className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Administración del sistema</p></div>
         </div>
-        {isMobile && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground md:hidden"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-label="Cerrar menú de navegación"
-          >
-            <X className="w-6 h-6" />
-          </Button>
-        )}
       </div>
-
-      <nav className="flex-1 py-6 px-3 space-y-4 overflow-y-auto">
-        <div>
-          <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Administración</h3>
-          <div className="space-y-1">
-            {adminLinks.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                onClick={() => {
-                  if (isMobile) setMobileMenuOpen(false);
-                }}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium min-h-[44px] ${
-                    isActive
-                      ? "bg-primary/20 text-primary"
-                      : "hover:bg-muted hover:text-foreground"
-                  }`
-                }
-              >
-                {link.icon}
-                {link.label}
-              </NavLink>
-            ))}
+      <nav aria-label="Navegación principal" className="min-h-0 flex-1 space-y-7 overflow-y-auto px-3 py-6">
+        {navigation.map(section => (
+          <div key={section.label}>
+            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{section.label}</p>
+            <div className="space-y-1">
+              {section.items.map(({ to, label, icon: Icon }) => (
+                <NavLink key={to} to={to} onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => `admin-nav-link ${isActive ? "admin-nav-link-active" : ""}`}>
+                  <Icon className="size-[18px] shrink-0" aria-hidden="true" /><span className="flex-1">{label}</span>{location.pathname === to && <ChevronRight className="size-3.5" aria-hidden="true" />}
+                </NavLink>
+              ))}
+            </div>
           </div>
-        </div>
-
-        <div>
-          <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Jugador</h3>
-          <div className="space-y-1">
-            {playerLinks.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                onClick={() => {
-                  if (isMobile) setMobileMenuOpen(false);
-                }}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium min-h-[44px] ${
-                    isActive
-                      ? "bg-primary/20 text-primary"
-                      : "hover:bg-muted hover:text-foreground"
-                  }`
-                }
-              >
-                {link.icon}
-                {link.label}
-              </NavLink>
-            ))}
-          </div>
-        </div>
+        ))}
       </nav>
-
-      <div className="p-4 border-t border-border flex-shrink-0">
-        <div className="flex items-center gap-3 mb-4 px-2">
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center font-bold text-foreground uppercase">
-            {dbUser?.email ? dbUser.email.charAt(0) : (user?.email ? user.email.charAt(0) : "U")}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{dbUser?.email || user?.email || "Usuario"}</p>
-            <p className="text-xs text-muted-foreground capitalize">{dbUser?.role || "player"}</p>
-          </div>
+      <div className="border-t border-border p-4">
+        <div className="mb-3 flex items-center gap-3 px-1">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted font-oxanium font-semibold uppercase">{email.charAt(0)}</div>
+          <div className="min-w-0"><p className="truncate text-xs font-medium text-foreground" title={email}>{email}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{roleLabel}</p></div>
         </div>
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-muted-foreground hover:text-foreground hover:bg-muted min-h-[44px]"
-          onClick={() => {
-            if (isMobile) setMobileMenuOpen(false);
-            logout();
-          }}
-        >
-          <LogOut className="w-4 h-4 mr-2" />
-          Cerrar Sesión
-        </Button>
+        <Button variant="ghost" className="min-h-11 w-full justify-start text-muted-foreground" onClick={() => { setMobileMenuOpen(false); void logout(); }}><LogOut className="size-4" aria-hidden="true" />Cerrar sesión</Button>
       </div>
     </>
   );
-
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Desktop Sidebar */}
-      <aside className="w-64 bg-card border-r border-border text-muted-foreground hidden md:flex flex-col flex-shrink-0">
-        {renderNavContent(false)}
-      </aside>
-
-      {/* Mobile Drawer Backdrop */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden transition-opacity"
-          onClick={() => setMobileMenuOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Mobile Drawer */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-card border-r border-border text-muted-foreground flex flex-col shadow-2xl transition-transform duration-300 ease-in-out md:hidden ${
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-        aria-label="Menú de navegación móvil"
-      >
-        {renderNavContent(true)}
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0">
-        {/* Mobile Header */}
-        <header className="md:hidden bg-card border-b border-border text-foreground p-4 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2 font-bold">
-            <ShieldAlert className="w-5 h-5 text-primary" />
-            Shadowmore
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => setMobileMenuOpen(true)}
-            aria-label="Abrir menú de navegación"
-            aria-expanded={mobileMenuOpen}
-          >
-            <Menu className="w-6 h-6" />
-          </Button>
+    <div className="admin-shell flex h-dvh overflow-hidden bg-background text-foreground">
+      <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-card focus:p-3 focus:ring-2 focus:ring-ring">Saltar al contenido</a>
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-card md:flex">{renderNavigation()}</aside>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border bg-card/60 px-4 sm:px-6">
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden" aria-label="Abrir navegación" />}><Menu className="size-5" /></SheetTrigger>
+            <SheetContent side="left" showCloseButton={false} className="admin-mobile-nav !w-72 !max-w-[90vw] gap-0 bg-card">
+              <SheetTitle className="sr-only">Navegación de Shadowmore</SheetTitle>
+              <SheetDescription className="sr-only">Accede a los módulos de administración y gestión.</SheetDescription>
+              <SheetClose render={<Button variant="ghost" size="icon-sm" className="absolute right-1 top-1" aria-label="Cerrar navegación" />}><X className="size-4" /></SheetClose>
+              {renderNavigation()}
+            </SheetContent>
+          </Sheet>
+          <div className="flex min-w-0 items-center gap-2 text-xs"><span className="hidden text-muted-foreground sm:inline">{currentSection?.label || "Sistema"}</span><ChevronRight className="hidden size-3.5 text-muted-foreground sm:block" aria-hidden="true" /><span className="truncate font-medium">{currentPage?.label || "Shadowmore"}</span></div>
+          <span className="ml-auto shrink-0 rounded-md border border-border bg-muted/30 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{roleLabel}</span>
         </header>
-
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="max-w-6xl mx-auto h-full">
-            <Outlet />
-          </div>
-        </div>
-      </main>
+        <main id="workspace-content" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
+          <div className="admin-workspace mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8"><Outlet /></div>
+        </main>
+      </div>
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import { SectionHeader } from "../components/common/SectionHeader";
+import { BookOpen as SectionIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { useAuth } from "../contexts/AuthContext";
@@ -165,12 +167,7 @@ export default function RulesAdmin() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">Reglas del Sistema</h2>
-        <p className="text-muted-foreground mt-1">
-          Configura los límites, fórmulas y valores que rigen el motor mecánico de Shadowmore.
-        </p>
-      </div>
+      <SectionHeader icon={SectionIcon} title="Reglas del sistema" description="Etapas, atributos y valores que definen el sistema de juego." />
 
       <Tabs defaultValue="stages" className="w-full">
         <div className="w-full overflow-x-auto pb-1.5 no-scrollbar">
@@ -377,7 +374,7 @@ export default function RulesAdmin() {
 
       {/* STAGE DIALOG */}
       <Dialog open={isStageDialogOpen} onOpenChange={setIsStageDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden">
+        <DialogContent className="admin-dialog sm:max-w-[700px] p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-2 border-b">
             <DialogTitle>{editingStageIndex !== null ? "Editar Etapa" : "Nueva Etapa"}</DialogTitle>
             <DialogDescription>

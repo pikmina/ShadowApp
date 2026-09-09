@@ -303,7 +303,7 @@ export default function SheetBuilderAdmin() {
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="admin-dialog sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>{form.id ? "Editar Campo" : "Nuevo Campo de Ficha"}</DialogTitle>
             <DialogDescription>

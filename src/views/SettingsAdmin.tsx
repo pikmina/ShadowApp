@@ -1,3 +1,5 @@
+import { SectionHeader } from "../components/common/SectionHeader";
+import { Settings as SectionIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/card";
@@ -81,12 +83,7 @@ export default function SettingsAdmin() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">Ajustes Globales</h2>
-        <p className="text-muted-foreground mt-1">
-          Configuración general del mundo, cronología y parámetros administrativos del sistema.
-        </p>
-      </div>
+      <SectionHeader icon={SectionIcon} title="Ajustes globales" description="Configura la cronología y los grupos del mundo de Shadowmore." />
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>

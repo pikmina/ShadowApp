@@ -279,7 +279,7 @@ export default function TechniquesAdmin() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[800px] h-[85vh] flex flex-col p-0">
+        <DialogContent className="admin-dialog sm:max-w-[800px] h-[85vh] flex flex-col p-0">
           <DialogHeader className="px-6 py-4 border-b">
             <DialogTitle>{form.id ? "Editar Técnica" : "Diseñador de Técnicas"}</DialogTitle>
             <DialogDescription>
