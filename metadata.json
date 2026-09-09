@@ -1,0 +1,6 @@
+{
+  "name": "Shadowmore",
+  "description": "Sistema de administración y fichas de personajes para Shadowmore.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
