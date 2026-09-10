@@ -24,13 +24,16 @@ Las afirmaciones de finalización del repositorio anterior no se heredan automá
 - Omitir `profileData` durante UPDATE preserva el valor persistido.
 - Un fallo al cargar Reglas produce un estado de error; no inicializa una configuración vacía que pueda sobrescribir datos.
 - El cálculo actual de CE está aislado parcialmente en `src/domain/mechanics.ts` y resuelve reglas dinámicas por ID.
+- `src/domain/systemMechanics.ts` define y valida el contrato canónico de efectos, destinatarios y referencias de coste, incluido el número mínimo y máximo de objetivos.
+- La API valida la estructura y la unicidad de IDs de `system_mechanics` antes de guardar la configuración global.
+- El cálculo canónico de CE invalida referencias rotas o duplicadas y no usa costes copiados como fallback.
 - Reglas del Sistema presenta menús explícitos para Etapas, Atributos Base, Estadísticas Derivadas, Límites y RD, y Mecánicas y Costes.
 - Etapas, Atributos Base y Mecánicas y Costes ya tienen operaciones de guardado mediante `system_rules`.
 - Las interfaces administrativas y la ficha pública reutilizan el sistema visual Cyberpunk y los componentes compartidos conforme a `AGENTS.md`.
 
 ### Parcial o transitorio
 
-- Reglas, Catálogo y Técnicas almacenan efectos como JSON flexible. El cliente, la API y el dominio todavía no comparten la unión discriminada definida en este plan.
+- Los efectos existentes en formato legado continúan almacenados como JSON flexible. Catálogo y Técnicas comparten ya el editor canónico para efectos nuevos y presentan los antiguos como pendientes de sustitución explícita.
 - Las categorías mecánicas solo ofrecen `defaultTarget: 'self' | 'enemy'`. Este valor es una sugerencia de creación, no el contrato completo de destinatarios.
 - El campo legado `target` está sobrecargado: según el efecto representa un destinatario, atributo, estadística derivada, estado, moneda o regla.
 - Las etapas actuales se editan por posición dentro de la lista y todavía necesitan IDs estables antes de convertirse en relaciones autoritativas.
@@ -40,7 +43,7 @@ Las afirmaciones de finalización del repositorio anterior no se heredan automá
 
 ### Pendiente de trasladar o construir
 
-- Tipos centrales y validadores estrictos para `SystemElement`, `MechanicalEffect`, `EffectTargeting`, `Requirement`, `Possession` y `ShopOffer`.
+- Tipos y validadores centrales todavía pendientes para `SystemElement`, `Requirement`, `Possession` y `ShopOffer`.
 - Adaptador explícito de efectos actuales al nuevo contrato, con reporte de casos ambiguos.
 - Motores puros de requisitos y de ejecución de efectos.
 - Publicación y revisión de elementos del sistema.
@@ -224,6 +227,8 @@ Este actor no tiene cuenta ni permisos en la versión actual. Se conserva para q
 3. Publica resultados calculados con la misma versión del motor usada por el revisor.
 
 ## Contratos propuestos
+
+El contrato ejecutable vigente de efectos y destinatarios está detallado en `docs/mechanical-effects-contract.md` e implementado en `src/domain/systemMechanics.ts`. Las definiciones resumidas a continuación conservan el contexto funcional del plan.
 
 ### SystemElement
 

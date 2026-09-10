@@ -3,6 +3,7 @@ import { z } from "zod";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { requireAuth, requireRole, AuthRequest } from "./src/middleware/auth.ts";
+import { systemMechanicsConfigSchema, validatePersistedMechanicalEffects } from "./src/domain/systemMechanics.ts";
 
 
 async function startServer() {
@@ -39,8 +40,24 @@ async function startServer() {
     const parsed = RuleSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
 
-      // In the future, enforce requireRole('superadmin') here
-      const { key, type, value, description } = req.body;
+      const { key, type, description } = parsed.data;
+      let value = parsed.data.value;
+
+      if (key === "system_mechanics") {
+        if (type !== "json") {
+          return res.status(400).json({ error: "system_mechanics must use the json rule type" });
+        }
+
+        const mechanics = systemMechanicsConfigSchema.safeParse(value);
+        if (!mechanics.success) {
+          return res.status(400).json({
+            error: "Invalid system mechanics configuration",
+            details: mechanics.error,
+          });
+        }
+        value = mechanics.data;
+      }
+
       const rule = await upsertRule(key, type, value, description);
       res.json(rule);
     } catch (error: any) {
@@ -90,8 +107,15 @@ async function startServer() {
     const parsed = ElementSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
 
-      // In the future, enforce requireRole('superadmin', 'moderator')
-      const item = await upsertElement(req.body);
+      const effects = validatePersistedMechanicalEffects(parsed.data.effects ?? []);
+      if (!effects.valid) {
+        return res.status(400).json({
+          error: "Invalid canonical mechanical effects",
+          details: effects.errors,
+        });
+      }
+
+      const item = await upsertElement(parsed.data);
       res.json(item);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to save element" });

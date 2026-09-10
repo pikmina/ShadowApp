@@ -3,7 +3,7 @@ import { Library as SectionIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
-import { calculateTotalCE, getCELevel, resolveLiveRule } from "../domain/mechanics";
+import { MechanicalEffectsEditor } from "../components/mechanics/MechanicalEffectsEditor";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import {
@@ -63,18 +63,6 @@ const KIND_TYPES: Record<string, string> = {
 const STATUS_TYPES: Record<string, string> = {
   draft: "Borrador (Oculto)",
   published: "Publicado"
-};
-
-const EFFECT_TYPES: Record<string, string> = {
-  modify_attribute: "Modificar Atributo",
-  modify_derived: "Modificar Estadística Derivada",
-  deal_damage: "Causar Daño",
-  apply_status: "Aplicar Estado Alterado",
-  player_choice: "Elección del Jugador",
-  recover_stat: "Recuperar Salud/Estamina",
-  grant_currency: "Ingreso / Economía",
-  system_override: "Excepción de Regla (Flag)",
-  mechanic_rule: "Regla del Sistema (CE)"
 };
 
 export default function CatalogAdmin() {
@@ -141,47 +129,6 @@ export default function CatalogAdmin() {
     }
   };
 
-  const addEffect = () => {
-    setForm(f => ({
-      ...f,
-      effects: [...f.effects, { _id: nanoid(), type: "modify_attribute", target: "FUE", value: 1 }]
-    }));
-  };
-
-  const removeEffect = (id: string) => {
-    setForm(f => ({
-      ...f,
-      effects: f.effects.filter(e => e._id !== id)
-    }));
-  };
-
-  const updateEffect = (id: string, updates: any) => {
-    setForm(f => ({
-      ...f,
-      effects: f.effects.map(e => {
-        if (e._id === id) {
-          const next = { ...e, ...updates };
-          if (updates.type && e.type !== updates.type) {
-            next.target = undefined;
-            next.value = undefined;
-            next.duration = undefined;
-            next.dice = undefined;
-            next.recipient = undefined;
-            next.frequency = undefined;
-            
-            if (updates.type === 'grant_currency') next.target = 'yen';
-            if (updates.type === 'recover_stat') next.target = 'ES';
-            if (updates.type === 'modify_attribute') { next.target = 'FUE'; next.value = 1; }
-            if (updates.type === 'deal_damage') next.target = 'enemy';
-            if (updates.type === 'modify_derived') { next.target = 'EVA'; next.value = 1; }
-          }
-          return next;
-        }
-        return e;
-      })
-    }));
-  };
-
   const addRequirement = () => {
     setForm(f => ({
       ...f,
@@ -211,9 +158,6 @@ export default function CatalogAdmin() {
       }
     }));
   };
-
-  const calculatedCE = calculateTotalCE(form.effects || [], mechanics);
-  const ceLevel = getCELevel(calculatedCE);
 
   return (
     <div className="space-y-6">
@@ -385,280 +329,17 @@ export default function CatalogAdmin() {
                   )}
                 </TabsContent>
 
-                <TabsContent value="effects" className="mt-0 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-medium text-foreground">Motor de Efectos (Lego)</h3>
-                      <p className="text-xs text-muted-foreground">Añade los bloques matemáticos que esto ejecuta en combate o en la ficha.</p>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={addEffect}>
-                      <Settings2 className="w-4 h-4 mr-1" /> Añadir Efecto
-                    </Button>
-                  </div>
-                  
-                  {form.effects.length === 0 ? (
-                    <div className="border border-dashed border-border rounded-lg p-8 text-center text-muted-foreground text-sm">
-                      Este elemento es puramente narrativo, no tiene efectos mecánicos programados.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {form.effects.map((effect, idx) => (
-                        <div key={effect._id} className="flex flex-col gap-2 bg-indigo-500/10 border border-indigo-500/30 p-3 rounded-md">
-                          <div className="flex items-center gap-2">
-                            <Badge className="bg-indigo-600">{idx + 1}</Badge>
-                            <Select value={effect.type} onValueChange={v => updateEffect(effect._id, { type: v })}>
-                              <SelectTrigger className="w-[220px] bg-card">
-                                <SelectValue>{EFFECT_TYPES[effect.type] || "Seleccionar Efecto"}</SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="modify_attribute">Modificar Atributo</SelectItem>
-                                <SelectItem value="modify_derived">Modificar Estadística Derivada</SelectItem>
-                                <SelectItem value="deal_damage">Causar Daño</SelectItem>
-                                <SelectItem value="apply_status">Aplicar Estado Alterado</SelectItem>
-                                <SelectItem value="player_choice">Elección del Jugador</SelectItem>
-                                <SelectItem value="mechanic_rule">Regla del Sistema (CE)</SelectItem>
-                                <SelectItem value="recover_stat">Recuperar Salud/Estamina</SelectItem>
-                                <SelectItem value="grant_currency">Ingreso / Economía</SelectItem>
-                                <SelectItem value="system_override">Excepción de Regla (Flag)</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Button variant="ghost" size="icon" className="text-red-500 ml-auto" onClick={() => removeEffect(effect._id)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-
-                          <div className="flex flex-col gap-2 pl-10">
-    <div className="flex items-center gap-2">
-      {effect.type !== 'mechanic_rule' && (
-        <div className="flex items-center gap-2 border-r border-border pr-3 mr-1">
-          <span className="text-sm font-bold text-primary">Coste CE:</span>
-          <Input type="number" className="w-20 bg-card font-mono" value={effect.cost || 0} onChange={e => updateEffect(effect._id, { cost: Number(e.target.value) })} />
-        </div>
-      )}
-                            {effect.type === "modify_attribute" && (
-                              <>
-                                <span className="text-sm">Atributo:</span>
-                                <Select value={effect.target} onValueChange={v => updateEffect(effect._id, { target: v })}>
-                                  <SelectTrigger className="w-[120px] bg-card"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="FUE">Fuerza</SelectItem>
-                                    <SelectItem value="DES">Destreza</SelectItem>
-                                    <SelectItem value="RES">Resistencia</SelectItem>
-                                    <SelectItem value="INT">Inteligencia</SelectItem>
-                                    <SelectItem value="VOL">Voluntad</SelectItem>
-                                    <SelectItem value="VEL">Velocidad</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <span className="text-sm">Modificador (Ej: +1, -2):</span>
-                                <Input type="number" className="w-24 bg-card" value={effect.value} onChange={e => updateEffect(effect._id, { value: Number(e.target.value) })} />
-                              </>
-                            )}
-
-                            {effect.type === "deal_damage" && (
-                              <>
-                                <span className="text-sm">Dado(s):</span>
-                                <Input placeholder="Ej: 2D6" className="w-24 bg-card" value={effect.dice || ""} onChange={e => updateEffect(effect._id, { dice: e.target.value })} />
-                                <span className="text-sm">Objetivo:</span>
-                                <Select value={effect.target || "enemy"} onValueChange={v => updateEffect(effect._id, { target: v })}>
-                                  <SelectTrigger className="w-[120px] bg-card"><SelectValue>{effect.target === 'ally' ? 'Aliado' : effect.target === 'self' ? 'A sí mismo' : effect.target === 'area' ? 'Área (AoE)' : 'Enemigo'}</SelectValue></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="enemy">Enemigo</SelectItem>
-                                    <SelectItem value="ally">Aliado</SelectItem>
-                                    <SelectItem value="self">A sí mismo</SelectItem>
-                                    <SelectItem value="area">Área (AoE)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </>
-                            )}
-                            
-                            {effect.type === "apply_status" && (
-                              <>
-                                <span className="text-sm">ID del Estado:</span>
-                                <Input placeholder="ej: quemadura_grave" className="flex-1 bg-card" value={effect.target || ""} onChange={e => updateEffect(effect._id, { target: e.target.value })} />
-                                <span className="text-sm">Duración (Turnos):</span>
-                                <Input type="number" className="w-20 bg-card" value={effect.duration || 1} onChange={e => updateEffect(effect._id, { duration: Number(e.target.value) })} />
-                              </>
-                            )}
-
-                            {effect.type === "player_choice" && (
-                              <>
-                                <span className="text-sm">Opciones (separadas por coma):</span>
-                                <Input placeholder="FUE, DES, RES..." className="flex-1 bg-card" value={effect.value || ""} onChange={e => updateEffect(effect._id, { value: e.target.value })} />
-                              </>
-                            )}
-
-                            
-                            {effect.type === "mechanic_rule" && (
-                              <>
-                                <span className="text-sm">Categoría:</span>
-                                <Select value={effect.mechanicId || ""} onValueChange={v => {
-                                  updateEffect(effect._id, { mechanicId: v, ruleId: "" });
-                                }}>
-                                  <SelectTrigger className="w-[180px] bg-card"><SelectValue placeholder="Seleccionar Categoría" /></SelectTrigger>
-                                  <SelectContent>
-                                    {mechanics.map((m: any) => (
-                                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                
-                                {effect.mechanicId && (
-                                  <>
-                                    <span className="text-sm">Regla:</span>
-                                    <Select value={effect.ruleId || ""} onValueChange={v => {
-                                      const mechanic = mechanics.find((m: any) => m.id === effect.mechanicId);
-                                      const rule = mechanic?.rules?.find((r: any) => r.id === v);
-                                      updateEffect(effect._id, { 
-                                        ruleId: v, 
-                                        ruleName: rule?.name, 
-                                        cost: rule?.cost, 
-                                        mechDesc: rule?.mechDesc,
-                                        resolution: mechanic?.defaultResolution,
-                                        target: mechanic?.defaultTarget
-                                      });
-                                    }}>
-                                      <SelectTrigger className="w-[180px] bg-card"><SelectValue placeholder="Seleccionar Regla" /></SelectTrigger>
-                                      <SelectContent>
-                                        {(mechanics.find((m: any) => m.id === effect.mechanicId)?.rules || []).map((r: any) => (
-                                          <SelectItem key={r.id} value={r.id}>{r.name} ({r.cost > 0 ? '+' : ''}{r.cost} CE)</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </>
-                                )}
-                              </>
-                            )}
-
-                            {effect.type === "modify_derived" && (
-                              <>
-                                <span className="text-sm">Estadística:</span>
-                                <Select value={effect.target || "EVA"} onValueChange={v => updateEffect(effect._id, { target: v })}>
-                                  <SelectTrigger className="w-[140px] bg-card"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="SA">Salud Máxima</SelectItem>
-                                    <SelectItem value="ES">Estamina Máx</SelectItem>
-                                    <SelectItem value="EVA">Evasión</SelectItem>
-                                    <SelectItem value="COR">Coraje</SelectItem>
-                                    <SelectItem value="DB">Daño Base</SelectItem>
-                                    <SelectItem value="INI">Iniciativa</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <span className="text-sm">Modificador (Ej: +1, -2):</span>
-                                <Input type="number" className="w-24 bg-card" value={effect.value || 1} onChange={e => updateEffect(effect._id, { value: Number(e.target.value) })} />
-                              </>
-                            )}
-
-                            {effect.type === "recover_stat" && (
-                              <>
-                                <span className="text-sm">Recuperar:</span>
-                                <Select value={effect.target || "ES"} onValueChange={v => updateEffect(effect._id, { target: v })}>
-                                  <SelectTrigger className="w-[120px] bg-card"><SelectValue>{effect.target === 'SA' ? 'Salud' : 'Estamina'}</SelectValue></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="ES">Estamina</SelectItem>
-                                    <SelectItem value="SA">Salud</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <span className="text-sm">Cantidad:</span>
-                                <Input type="number" className="w-20 bg-card" value={effect.value || 1} onChange={e => updateEffect(effect._id, { value: Number(e.target.value) })} />
-                                <span className="text-sm">Objetivo:</span>
-                                <Select value={effect.recipient || "self"} onValueChange={v => updateEffect(effect._id, { recipient: v })}>
-                                  <SelectTrigger className="w-[120px] bg-card"><SelectValue>{effect.recipient === 'ally' ? 'Aliado(s)' : 'A sí mismo'}</SelectValue></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="self">A sí mismo</SelectItem>
-                                    <SelectItem value="ally">Aliado(s)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </>
-                            )}
-
-                            {effect.type === "grant_currency" && (
-                              <>
-                                <span className="text-sm">Moneda:</span>
-                                <Select value={effect.target || "yen"} onValueChange={v => updateEffect(effect._id, { target: v })}>
-                                  <SelectTrigger className="w-[120px] bg-card"><SelectValue>{effect.target === 'exp' ? 'Experiencia' : 'Yenes'}</SelectValue></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="yen">Yenes</SelectItem>
-                                    <SelectItem value="exp">Experiencia</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <span className="text-sm">Cantidad:</span>
-                                <Input type="number" className="w-24 bg-card" value={effect.value || 0} onChange={e => updateEffect(effect._id, { value: Number(e.target.value) })} />
-                                <span className="text-sm">Frecuencia:</span>
-                                <Input placeholder="Ej: por mes, por sesión..." className="flex-1 bg-card" value={effect.frequency || ""} onChange={e => updateEffect(effect._id, { frequency: e.target.value })} />
-                              </>
-                            )}
-
-                            {effect.type === "system_override" && (
-                              <>
-                                <span className="text-sm">Regla a ignorar/sobreescribir:</span>
-                                <Input placeholder="Ej: max_attribute_limit" className="flex-1 bg-card" value={effect.target || ""} onChange={e => updateEffect(effect._id, { target: e.target.value })} />
-                              </>
-                            )}
-                          </div>
-                            </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Simulador de Cálculo de CE */}
-                  <div className="mt-8 bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-indigo-300 mb-2">Simulador de Coste (CE)</h4>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-indigo-200">Coste total calculado por el motor:</span>
-                      <Badge className="bg-indigo-600">{ceLevel} - Coste: {calculatedCE}</Badge>
-                    </div>
-                  </div>
+                <TabsContent value="effects" className="mt-0">
+                  <MechanicalEffectsEditor
+                    effects={form.effects || []}
+                    mechanics={mechanics}
+                    onChange={(effects) => setForm((current) => ({ ...current, effects }))}
+                  />
                 </TabsContent>
               </div>
             </Tabs>
           </div>
           
-            <div className="w-full md:w-80 bg-black/40 border-l border-border flex flex-col shrink-0">
-              <div className="p-4 border-b border-border bg-card/50 flex items-center gap-2">
-                <Settings2 className="w-4 h-4 text-primary" />
-                <h3 className="font-bold tracking-wider text-sm uppercase text-foreground">Resumen de Coste</h3>
-              </div>
-              
-              <div className="p-6 flex-1 flex flex-col gap-6 overflow-y-auto">
-                <div className="bg-card border border-border p-6 rounded-lg text-center shadow-lg relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
-                  
-                  <div className="text-6xl font-black font-mono text-primary mb-2 drop-shadow-md">
-                    {calculateTotalCE(form.effects || [], mechanics)}
-                  </div>
-                  <div className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-                    Coste de Activación (CE)
-                  </div>
-                </div>
-
-                {form.effects.filter((e: any) => e.type === 'mechanic_rule').length === 0 && (
-                  <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded-md flex items-start gap-2">
-                    <span className="text-lg leading-none">⚠️</span>
-                    <span className="flex-1">Selecciona al menos una regla mecánica (CE) en la pestaña Efectos para calcular su coste.</span>
-                  </div>
-                )}
-                
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-wider border-b border-border pb-1">Desglose de Reglas</h4>
-                  <div className="flex flex-col gap-2">
-                    {form.effects.filter((e: any) => e.type === 'mechanic_rule').map((e: any, i: number) => {
-                      const liveRule = resolveLiveRule(e, mechanics);
-                      const cost = liveRule ? liveRule.cost : (e.cost || 0);
-                      const name = liveRule ? liveRule.name : (e.ruleName ? e.ruleName + ' (Desvinculado)' : 'Regla (Desvinculada)');
-                      return (
-                      <div key={i} className="flex justify-between items-center text-sm border border-border/50 bg-black/20 p-2 rounded">
-                        <span className="truncate pr-2 text-foreground/80">{name}</span>
-                        <span className={`font-mono font-bold shrink-0 ${cost > 0 ? 'text-destructive' : cost < 0 ? 'text-primary' : 'text-muted-foreground'}`}>
-                          {cost > 0 ? '+' : ''}{cost || 0}
-                        </span>
-                      </div>
-                    )
-                  })}
-                  </div>
-                </div>
-              </div>
-            </div>
 
         </div>
           <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
