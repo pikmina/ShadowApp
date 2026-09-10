@@ -24,6 +24,8 @@ Las afirmaciones de finalización del repositorio anterior no se heredan automá
 - Omitir `profileData` durante UPDATE preserva el valor persistido.
 - Un fallo al cargar Reglas produce un estado de error; no inicializa una configuración vacía que pueda sobrescribir datos.
 - El cálculo actual de CE está aislado parcialmente en `src/domain/mechanics.ts` y resuelve reglas dinámicas por ID.
+- Reglas del Sistema presenta menús explícitos para Etapas, Atributos Base, Estadísticas Derivadas, Límites y RD, y Mecánicas y Costes.
+- Etapas, Atributos Base y Mecánicas y Costes ya tienen operaciones de guardado mediante `system_rules`.
 - Las interfaces administrativas y la ficha pública reutilizan el sistema visual Cyberpunk y los componentes compartidos conforme a `AGENTS.md`.
 
 ### Parcial o transitorio
@@ -31,6 +33,7 @@ Las afirmaciones de finalización del repositorio anterior no se heredan automá
 - Reglas, Catálogo y Técnicas almacenan efectos como JSON flexible. El cliente, la API y el dominio todavía no comparten la unión discriminada definida en este plan.
 - Las categorías mecánicas solo ofrecen `defaultTarget: 'self' | 'enemy'`. Este valor es una sugerencia de creación, no el contrato completo de destinatarios.
 - El campo legado `target` está sobrecargado: según el efecto representa un destinatario, atributo, estadística derivada, estado, moneda o regla.
+- Las etapas actuales se editan por posición dentro de la lista y todavía necesitan IDs estables antes de convertirse en relaciones autoritativas.
 - El menú de Estadísticas Derivadas existe y `system_derived` admite persistencia, pero la tabla visible todavía usa filas fijas y sus acciones de edición no están conectadas al editor.
 - El menú Límites y RD existe como sección visible, pero todavía no administra ni persiste sus listas.
 - La ficha pública ya tiene presentación, pero la resolución completa de posesiones persistidas está pendiente.
@@ -116,7 +119,7 @@ Los límites representan máximos, mínimos o topes compartidos, como límites d
 
 Los Rangos de Dificultad (RD) forman una escala administrable de valores con nombre y descripción. Técnicas, acciones, requisitos y resoluciones que utilicen RD deben referenciar una entrada por ID. El nombre puede cambiar sin alterar la relación.
 
-Las claves y el esquema definitivo en `system_rules` deben definirse junto con sus validadores antes de conectar consumidores. La implementación no debe esconder estas listas dentro de Mecánicas y Costes ni introducir valores de RD codificados en componentes.
+`system_limits` es la fuente de verdad de la lista de límites y `system_difficulty_ranges` es la fuente de verdad de la escala de RD. Ambas claves guardan listas JSON validadas y cada entrada usa un ID único y estable. La implementación no debe esconder estas listas dentro de Mecánicas y Costes ni introducir valores de RD codificados en componentes.
 
 ### Mecánicas y Costes (CE)
 
@@ -703,6 +706,10 @@ No quedan decisiones pendientes en esta sección.
 7. Moderator puede conceder elementos directamente mediante una operación auditada; ningún rol actual omite requisitos mecánicos.
 8. Cada oferta configura EXP, yenes o ambas monedas conjuntamente según corresponda.
 9. Los descuentos de ofertas no se acumulan y los paquetes quedan fuera de esta versión.
+10. Reglas del Sistema conserva cinco módulos explícitos: Etapas, Atributos Base, Estadísticas Derivadas, Límites y RD, y Mecánicas y Costes.
+11. Los IDs de atributos base y estadísticas derivadas son estables; el administrador puede editar sus nombres visibles y descripciones, y las fórmulas derivadas se validan como reglas del sistema.
+12. Límites y Rangos de Dificultad son listas administrables y referenciables por ID, con fuentes de verdad separadas en `system_limits` y `system_difficulty_ranges`.
+13. Mecánicas y Costes conserva categorías como Daño y Curación y sus opciones CE; esas categorías configuran efectos conocidos y no crean motores arbitrarios.
 
 ### Semántica del motor de requisitos
 
