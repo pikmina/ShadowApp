@@ -229,6 +229,32 @@ async function startServer() {
     }
   });
 
+  app.post("/api/admin/character/:id/duplicate", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
+    try {
+      const charId = parseInt(req.params.id);
+      
+      const { db } = await import("./src/db/index.ts");
+      const { characters } = await import("./src/db/schema.ts");
+      const { eq } = await import("drizzle-orm");
+      
+      const [char] = await db.select().from(characters).where(eq(characters.id, charId));
+      if (!char) return res.status(404).json({ error: "Character not found" });
+
+      const [newChar] = await db.insert(characters).values({
+        userId: char.userId,
+        name: char.name + " (Copia)",
+        exp: char.exp,
+        yen: char.yen,
+        profileData: char.profileData
+      }).returning();
+
+      res.json(newChar);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: "Failed to duplicate character" });
+    }
+  });
+
   app.post("/api/character", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
@@ -243,6 +269,7 @@ async function startServer() {
       const parsed = CharSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
       const { characterId, name, profileData, expectedUpdatedAt, userId } = parsed.data;
+      console.log("POST /api/character request:", { characterId, name, expectedUpdatedAt, userId });
 
       
       const { updateCharacter, createCharacter } = await import("./src/db/characters.ts");

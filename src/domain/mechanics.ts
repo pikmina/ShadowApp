@@ -37,24 +37,15 @@ export function resolveLiveRule(effect: MechanicalEffect, mechanicsCategories: M
 
 export function calculateTotalCE(effects: MechanicalEffect[], mechanicsCategories: MechanicCategory[]): number {
   return effects.reduce((sum, effect) => {
-    if (effect.type === 'deal_damage') {
-      return sum + 2;
-    }
-    if (effect.type === 'apply_status') {
-      return sum + 1;
-    }
-    if (effect.type === 'modify_attribute') {
-      return sum + Number(effect.value || 0);
-    }
     if (effect.type === 'mechanic_rule') {
       const liveRule = resolveLiveRule(effect, mechanicsCategories);
-      // "Una referencia viva inexistente no debe usar silenciosamente un coste legacy sin indicar que el dato está sin resolver."
-      // Since it's a pure function and we can't easily indicate UI here, we will still fallback to cost but the UI 
-      // is responsible for showing "Unresolved"
       const cost = liveRule ? liveRule.cost : (effect.cost || 0);
       return sum + cost;
     }
-    return sum;
+    if (effect.type === 'deal_damage') return sum + 2;
+    if (effect.type === 'apply_status') return sum + 1;
+    if (effect.type === 'modify_attribute') return sum + Number(effect.value || 0);
+    return sum + Number(effect.cost || 0);
   }, 0);
 }
 

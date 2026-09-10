@@ -31,22 +31,23 @@ export async function updateCharacter(characterId: number, data: { name?: string
     .set(updatePayload)
     .where(and(
       eq(characters.id, characterId),
-      // In Postgres, timestamp comparison might need careful handling, but expectedUpdatedAt from client is usually ISO string.
-      // We can compare exact timestamps by wrapping in sql or just relying on eq if it matches.
-      // Drizzle handles Date object equality in some dialects, but to be robust:
-      sql`${characters.updatedAt} = ${expectedTime}::timestamp`
+      sql`date_trunc('milliseconds', ${characters.updatedAt}) = date_trunc('milliseconds', ${expectedTime}::timestamp)`
     ))
     .returning();
 
   if (!updated) {
     // Check if it exists to distinguish 404 from 409
-    const [existing] = await db.select({ id: characters.id }).from(characters).where(eq(characters.id, characterId));
+    const [existing] = await db.select({ id: characters.id, updatedAt: characters.updatedAt }).from(characters).where(eq(characters.id, characterId));
     if (!existing) {
       const error = new Error("Character not found");
       (error as any).status = 404;
       throw error;
     } else {
-      const error = new Error("Conflict");
+      const dbTime = existing.updatedAt?.toISOString();
+      const cliTime = expectedTime.toISOString();
+      const msg = `Conflict: client=${cliTime} vs db=${dbTime}`;
+      console.error(msg);
+      const error = new Error(msg);
       (error as any).status = 409;
       throw error;
     }
