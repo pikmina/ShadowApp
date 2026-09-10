@@ -3,6 +3,7 @@ import { Library as SectionIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
+import { calculateTotalCE, getCELevel, resolveLiveRule } from "../domain/mechanics";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import {
@@ -211,14 +212,8 @@ export default function CatalogAdmin() {
     }));
   };
 
-  // Basic CE calculation simulator
-  let calculatedCE = 0;
-  form.effects.forEach(e => {
-    if (e.type === "deal_damage") calculatedCE += 2;
-    if (e.type === "apply_status") calculatedCE += 1;
-    if (e.type === "modify_attribute") calculatedCE += Number(e.value || 0);
-  });
-  const ceLevel = calculatedCE <= 2 ? "Nivel 1 (Bajo)" : calculatedCE <= 5 ? "Nivel 2 (Medio)" : "Nivel 3+ (Alto)";
+  const calculatedCE = calculateTotalCE(form.effects || [], mechanics);
+  const ceLevel = getCELevel(calculatedCE);
 
   return (
     <div className="space-y-6">
@@ -408,7 +403,7 @@ export default function CatalogAdmin() {
                   ) : (
                     <div className="space-y-3">
                       {form.effects.map((effect, idx) => (
-                        <div key={effect._id} className="flex flex-col gap-2 bg-indigo-50/50 border border-indigo-100 p-3 rounded-md">
+                        <div key={effect._id} className="flex flex-col gap-2 bg-indigo-500/10 border border-indigo-500/30 p-3 rounded-md">
                           <div className="flex items-center gap-2">
                             <Badge className="bg-indigo-600">{idx + 1}</Badge>
                             <Select value={effect.type} onValueChange={v => updateEffect(effect._id, { type: v })}>
@@ -599,10 +594,10 @@ export default function CatalogAdmin() {
                   )}
                   
                   {/* Simulador de Cálculo de CE */}
-                  <div className="mt-8 bg-indigo-50 border border-indigo-100 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-indigo-900 mb-2">Simulador de Coste (CE)</h4>
+                  <div className="mt-8 bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-indigo-300 mb-2">Simulador de Coste (CE)</h4>
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-indigo-700">Coste total calculado por el motor:</span>
+                      <span className="text-indigo-200">Coste total calculado por el motor:</span>
                       <Badge className="bg-indigo-600">{ceLevel} - Coste: {calculatedCE}</Badge>
                     </div>
                   </div>
@@ -622,7 +617,7 @@ export default function CatalogAdmin() {
                   <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
                   
                   <div className="text-6xl font-black font-mono text-primary mb-2 drop-shadow-md">
-                    {form.effects.filter((e: any) => e.type === 'mechanic_rule').reduce((sum: number, e: any) => sum + (e.cost || 0), 0)}
+                    {calculateTotalCE(form.effects || [], mechanics)}
                   </div>
                   <div className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
                     Coste de Activación (CE)
@@ -639,14 +634,19 @@ export default function CatalogAdmin() {
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-wider border-b border-border pb-1">Desglose de Reglas</h4>
                   <div className="flex flex-col gap-2">
-                    {form.effects.filter((e: any) => e.type === 'mechanic_rule').map((e: any, i: number) => (
+                    {form.effects.filter((e: any) => e.type === 'mechanic_rule').map((e: any, i: number) => {
+                      const liveRule = resolveLiveRule(e, mechanics);
+                      const cost = liveRule ? liveRule.cost : (e.cost || 0);
+                      const name = liveRule ? liveRule.name : (e.ruleName || 'Regla');
+                      return (
                       <div key={i} className="flex justify-between items-center text-sm border border-border/50 bg-black/20 p-2 rounded">
-                        <span className="truncate pr-2 text-foreground/80">{e.ruleName || 'Regla'}</span>
-                        <span className={`font-mono font-bold shrink-0 ${e.cost > 0 ? 'text-destructive' : e.cost < 0 ? 'text-primary' : 'text-muted-foreground'}`}>
-                          {e.cost > 0 ? '+' : ''}{e.cost || 0}
+                        <span className="truncate pr-2 text-foreground/80">{name}</span>
+                        <span className={`font-mono font-bold shrink-0 ${cost > 0 ? 'text-destructive' : cost < 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+                          {cost > 0 ? '+' : ''}{cost || 0}
                         </span>
                       </div>
-                    ))}
+                    )
+                  })}
                   </div>
                 </div>
               </div>

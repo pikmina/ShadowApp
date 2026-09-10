@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
+import { requireAuth, requireRole, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 
 async function startServer() {
@@ -18,7 +18,7 @@ async function startServer() {
   // System Rules API
   const { getRules, upsertRule, deleteRule } = await import("./src/db/rules.ts");
 
-  app.get("/api/rules", requireAuth, async (req: AuthRequest, res) => {
+  app.get("/api/rules", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const rules = await getRules();
       res.json(rules);
@@ -27,7 +27,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/rules", requireAuth, async (req: AuthRequest, res) => {
+  app.post("/api/rules", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
       // In the future, enforce requireRole('superadmin') here
       const { key, type, value, description } = req.body;
@@ -38,7 +38,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/rules/:key", requireAuth, async (req: AuthRequest, res) => {
+  app.delete("/api/rules/:key", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
       await deleteRule(req.params.key);
       res.json({ success: true });
@@ -50,7 +50,7 @@ async function startServer() {
   // System Elements API
   const { getElements, upsertElement, deleteElement } = await import("./src/db/elements.ts");
 
-  app.get("/api/elements", requireAuth, async (req: AuthRequest, res) => {
+  app.get("/api/elements", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const items = await getElements();
       res.json(items);
@@ -59,7 +59,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/elements", requireAuth, async (req: AuthRequest, res) => {
+  app.post("/api/elements", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
       // In the future, enforce requireRole('superadmin', 'moderator')
       const item = await upsertElement(req.body);
@@ -69,7 +69,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/elements/:id", requireAuth, async (req: AuthRequest, res) => {
+  app.delete("/api/elements/:id", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
       await deleteElement(req.params.id);
       res.json({ success: true });
@@ -80,7 +80,7 @@ async function startServer() {
 
   // Sheet Fields API
   const { getSheetFields, upsertSheetField, deleteSheetField } = await import("./src/db/sheetFields.ts");
-  app.get("/api/sheet-fields", requireAuth, async (req: AuthRequest, res) => {
+  app.get("/api/sheet-fields", requireAuth, requireRole(["superadmin", "moderator", "player"]), async (req: AuthRequest, res) => {
     try {
       const fields = await getSheetFields();
       res.json(fields);
@@ -89,7 +89,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/sheet-fields", requireAuth, async (req: AuthRequest, res) => {
+  app.post("/api/sheet-fields", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
       const field = await upsertSheetField(req.body);
       res.json(field);
@@ -98,7 +98,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/sheet-fields/:id", requireAuth, async (req: AuthRequest, res) => {
+  app.delete("/api/sheet-fields/:id", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
       await deleteSheetField(req.params.id);
       res.json({ success: true });
@@ -125,7 +125,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/settings", requireAuth, async (req: AuthRequest, res) => {
+  app.post("/api/settings", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
       const { upsertRule } = await import("./src/db/rules.ts");
       const currentSettings = await import("./src/db/rules.ts").then(m => m.getRule("global_settings"));
@@ -149,19 +149,9 @@ async function startServer() {
   app.get("/api/character", requireAuth, async (req: AuthRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
-      let dbUser = await getOrCreateUser(req.user.uid, req.user.email || "");
+      let dbUser = req.dbUser!;
       
-      // Auto-promote specific email to superadmin
-      if (req.user.email === 'saxagenia@gmail.com' && dbUser.role !== 'superadmin') {
-        const { db } = await import("./src/db/index.ts");
-        const { users } = await import("./src/db/schema.ts");
-        const { eq } = await import("drizzle-orm");
-        
-        [dbUser] = await db.update(users)
-          .set({ role: 'superadmin' })
-          .where(eq(users.uid, req.user.uid))
-          .returning();
-      }
+      // Removed auto-promote
       const character = await getCharacterByUserId(dbUser.id);
       res.json(character || { id: null });
     } catch (error: any) {
@@ -170,7 +160,7 @@ async function startServer() {
   });
 
 
-  app.delete("/api/admin/characters/:id", requireAuth, async (req: AuthRequest, res) => {
+  app.delete("/api/admin/characters/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
       
@@ -185,11 +175,11 @@ async function startServer() {
 
   app.post("/api/character", requireAuth, async (req: AuthRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: "Unauthorized" });
-      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || "");
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
       const { characterId, name, profileData } = req.body;
       
-      const character = await upsertCharacter(characterId, dbUser.id, name || "Unnamed", profileData || {});
+      const { upsertCharacter } = await import("./src/db/characters.ts");
+      const character = await upsertCharacter(characterId, req.dbUser.id, name, profileData);
       res.json(character);
     } catch (error: any) {
       console.error(error);
@@ -203,7 +193,7 @@ async function startServer() {
         res.status(401).json({ error: "Unauthorized" });
         return;
       }
-      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || "");
+      const dbUser = req.dbUser!;
       if (!dbUser) {
         res.status(500).json({ error: "Failed to retrieve user" });
         return;
@@ -221,7 +211,7 @@ async function startServer() {
         res.status(401).json({ error: "Unauthorized" });
         return;
       }
-      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || "");
+      const dbUser = req.dbUser!;
       if (!dbUser) {
         res.status(500).json({ error: "Failed to retrieve user" });
         return;
@@ -237,7 +227,7 @@ async function startServer() {
   // Shop API
   const { getShopOffers, upsertShopOffer, deleteShopOffer, processPurchase } = await import("./src/db/shop.ts");
 
-  app.get("/api/shop/offers", requireAuth, async (req, res) => {
+  app.get("/api/shop/offers", requireAuth, requireRole(["superadmin", "moderator", "player"]), async (req: AuthRequest, res) => {
     try {
       const offers = await getShopOffers();
       res.json(offers);
@@ -246,7 +236,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/shop/offers", requireAuth, async (req, res) => {
+  app.post("/api/shop/offers", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
       const offer = await upsertShopOffer(req.body);
       res.json(offer);
@@ -255,7 +245,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/shop/offers/:id", requireAuth, async (req, res) => {
+  app.delete("/api/shop/offers/:id", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
       await deleteShopOffer(req.params.id);
       res.json({ success: true });
@@ -264,7 +254,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/shop/purchase", requireAuth, async (req: AuthRequest, res) => {
+  app.post("/api/shop/purchase", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { characterId, cartItems } = req.body;
       const user = req.user;
@@ -278,7 +268,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/admin/characters", requireAuth, async (req: AuthRequest, res) => {
+  app.get("/api/admin/characters", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { db } = await import("./src/db/index.ts");
       const { characters } = await import("./src/db/schema.ts");

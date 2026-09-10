@@ -1,8 +1,10 @@
-import { db } from './index.ts';
-import { users } from './schema.ts';
-import { eq } from 'drizzle-orm';
+const fs = require('fs');
+let content = fs.readFileSync('src/db/users.ts', 'utf8');
 
-export async function getOrCreateUser(uid: string, email: string, role: "player" | "moderator" | "superadmin" = "player") {
+// We want to rewrite getOrCreateUser to remove the automatic promotion
+content = content.replace(
+  /export async function getOrCreateUser.*?\}\s*\}/s,
+  `export async function getOrCreateUser(uid: string, email: string, role: "player" | "moderator" | "superadmin" = "player") {
   try {
     const validEmail = email && email.trim() ? email.trim() : null;
     
@@ -43,9 +45,11 @@ export async function getOrCreateUser(uid: string, email: string, role: "player"
     if (fallback) {
       return fallback;
     }
-    throw new Error(`User with uid ${uid} could not be created or found`);
+    throw new Error(\`User with uid \${uid} could not be created or found\`);
   } catch (error) {
     console.error("Database query failed:", error);
     throw new Error("Failed to get or create user", { cause: error });
   }
-}
+}`
+);
+fs.writeFileSync('src/db/users.ts', content);

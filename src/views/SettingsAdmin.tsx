@@ -13,6 +13,7 @@ import { toast } from "sonner";
 export default function SettingsAdmin() {
   
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [gameDate, setGameDate] = useState({
     year: 2201,
@@ -41,10 +42,11 @@ export default function SettingsAdmin() {
       const data = await res.json();
       setGameDate(data.gameDate || { year: 2201, month: 1, day: 1 });
       setGroups(data.groups || []);
+      setLoadError(null);
       setLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error("Error al cargar los ajustes");
+      setLoadError("Error al cargar los ajustes: " + error.message);
       setLoading(false);
     }
   };
@@ -75,6 +77,15 @@ export default function SettingsAdmin() {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <div className="text-destructive font-semibold">{loadError}</div>
+        <Button onClick={() => { setLoading(true); fetchSettings(); }}>Reintentar</Button>
       </div>
     );
   }

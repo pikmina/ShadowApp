@@ -53,11 +53,12 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
     return acc;
   }, {});
 
+  const [isDirty, setIsDirty] = useState(false);
   useEffect(() => {
-    if (character?.profileData) {
+    if (character?.profileData && !isDirty) {
       setFormData(character.profileData);
     }
-  }, [character]);
+  }, [character?.profileData, isDirty]);
 
   useEffect(() => {
     if (processedFields.length > 0 && !activeTab) {
@@ -85,7 +86,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
         },
         body: JSON.stringify({
           characterId: character?.id,
-          name: formData.name || formData.alias || "Unnamed",
+          name: formData.name || formData.Nombre || formData.alias || character?.name, // Use existing name if not found in formData
           profileData: formData
         })
       });
@@ -100,6 +101,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
   };
 
   const updateField = (id: string, value: any) => {
+    setIsDirty(true);
     setFormData(prev => ({ ...prev, [id]: value }));
   };
 
@@ -109,7 +111,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
 
   const renderField = (field: any) => {
     // (rest of renderField...)
-    const value = formData[field.id] || "";
+    const value = formData[field.id] ?? "";
 
     switch (field.type) {
       case 'text':

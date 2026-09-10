@@ -1,4 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
+const fs = require('fs');
+
+const authTsContent = `import { Request, Response, NextFunction } from 'express';
 import { adminAuth } from '../lib/firebase-admin.ts';
 import { DecodedIdToken } from 'firebase-admin/auth';
 import { db } from '../db/index.ts';
@@ -53,7 +55,10 @@ export const requireRole = (allowedRoles: ('superadmin' | 'moderator' | 'player'
     if (allowedRoles.includes(effectiveRole) || effectiveRole === 'superadmin') {
       next();
     } else {
-      res.status(403).json({ error: `Forbidden: Requires one of ${allowedRoles.join(', ')}` });
+      res.status(403).json({ error: \`Forbidden: Requires one of \${allowedRoles.join(', ')}\` });
     }
   };
 };
+`;
+
+fs.writeFileSync('src/middleware/auth.ts', authTsContent);
