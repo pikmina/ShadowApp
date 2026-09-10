@@ -85,6 +85,18 @@ export async function processPurchase(moderatorUid: string, characterId: number,
       // Need to lock the row for the offer
       const [offer] = await tx.select().from(shopOffers).where(eq(shopOffers.id, offerId));
       if (!offer) throw new Error(`Offer ${offerId} not found`);
+      if (offer.perCharacterLimit !== null) {
+        // Find existing possessions for this element
+        const [existingPos] = await tx.select().from(elementPossessions).where(and(
+          eq(elementPossessions.characterId, characterId),
+          eq(elementPossessions.elementId, offer.elementId)
+        ));
+        const currentAmount = existingPos ? existingPos.quantity : 0;
+        const pendingAdded = possessionsToAdd[offer.elementId] || 0;
+        if (currentAmount + pendingAdded + quantity > offer.perCharacterLimit) {
+          throw new Error(`Per-character limit exceeded for offer ${offerId}. Limit is ${offer.perCharacterLimit}.`);
+        }
+      }
       if (offer.status !== 'available') throw new Error(`Offer ${offerId} is not available`);
 
       const price = (offer.prices as any[]).find((p: any) => p.currency === selectedCurrency);

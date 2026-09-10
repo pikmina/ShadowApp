@@ -1,8 +1,9 @@
 import express from "express";
+import { z } from "zod";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { requireAuth, requireRole, AuthRequest } from "./src/middleware/auth.ts";
-import { getOrCreateUser } from "./src/db/users.ts";
+
 
 async function startServer() {
   const app = express();
@@ -173,15 +174,37 @@ async function startServer() {
     }
   });
 
-  app.post("/api/character", requireAuth, async (req: AuthRequest, res) => {
+  app.post("/api/character", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
-      const { characterId, name, profileData } = req.body;
       
-      const { upsertCharacter } = await import("./src/db/characters.ts");
-      const character = await upsertCharacter(characterId, req.dbUser.id, name, profileData);
+      const CharSchema = z.object({
+        characterId: z.number().optional().nullable(),
+        userId: z.number().optional(),
+        name: z.string().optional(),
+        profileData: z.record(z.string(), z.any()).optional(),
+        expectedUpdatedAt: z.string().optional()
+      });
+      const parsed = CharSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      const { characterId, name, profileData, expectedUpdatedAt, userId } = parsed.data;
+
+      
+      const { updateCharacter, createCharacter } = await import("./src/db/characters.ts");
+      let character;
+      if (characterId) {
+        character = await updateCharacter(characterId, { name, profileData, expectedUpdatedAt });
+      } else {
+        // Must provide userId to create. Since moderators create characters for players, we probably need userId in the body.
+        // For now, if no userId is provided, fail. Wait, the legacy code used req.dbUser.id.
+        const targetUserId = userId || req.dbUser.id;
+        character = await createCharacter(targetUserId, name || "Unnamed", profileData || {});
+      }
       res.json(character);
     } catch (error: any) {
+      if (error.status === 409) {
+        return res.status(409).json({ error: "Conflict: Character was modified by someone else." });
+      }
       console.error(error);
       res.status(500).json({ error: "Failed to save character" });
     }
@@ -256,14 +279,67 @@ async function startServer() {
 
   app.post("/api/shop/purchase", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
-      const { characterId, cartItems } = req.body;
-      const user = req.user;
-      if (user.role !== 'moderator' && user.role !== 'superadmin') {
-        return res.status(403).json({ error: "Solo los moderadores pueden procesar compras directamente." });
-      }
-      const result = await processPurchase(user.uid, characterId, cartItems);
+      
+      const PurchaseSchema = z.object({
+        characterId: z.number().int().positive(),
+        cartItems: z.array(z.object({
+          offerId: z.string().min(1),
+          quantity: z.number().int().positive(),
+          selectedCurrency: z.enum(['exp', 'yen'])
+        }))
+      });
+      const parsed = PurchaseSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload format" });
+      const { characterId, cartItems } = parsed.data;
+
+      const dbUser = req.dbUser!;
+      const result = await processPurchase(dbUser.uid, characterId, cartItems);
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/character/:id/reward", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const charId = Number(req.params.id);
+      
+      const RewardSchema = z.object({
+        type: z.enum(['exp', 'yen']),
+        amount: z.number().int().min(-100000).max(100000).refine(val => val !== 0, { message: "Amount cannot be 0" }),
+        reason: z.string().optional()
+      });
+      const parsed = RewardSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      const { type, amount, reason } = parsed.data;
+
+      
+      const { grantReward } = await import("./src/db/characters.ts");
+      const result = await grantReward(req.dbUser.uid, charId, type, amount, reason || "Manual reward");
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/character/:id/possession", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const charId = Number(req.params.id);
+      
+      const PosSchema = z.object({
+        elementId: z.string().min(1),
+        quantity: z.number().int().refine(val => val !== 0, { message: "Quantity change cannot be 0" }),
+        reason: z.string().optional()
+      });
+      const parsed = PosSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      const { elementId, quantity, reason } = parsed.data;
+
+      
+      const { updatePossession } = await import("./src/db/characters.ts");
+      const result = await updatePossession(req.dbUser.uid, charId, elementId, quantity, reason || "Manual adjustment");
+      res.json(result);
+    } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });

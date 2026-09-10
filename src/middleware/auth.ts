@@ -4,7 +4,7 @@ import { DecodedIdToken } from 'firebase-admin/auth';
 import { db } from '../db/index.ts';
 import { users } from '../db/schema.ts';
 import { eq } from 'drizzle-orm';
-import { getOrCreateUser } from '../db/users.ts';
+import { getUserByUid } from '../db/users.ts';
 
 export interface AuthRequest extends Request {
   user?: DecodedIdToken;
@@ -28,7 +28,11 @@ export const requireAuth = async (
     req.user = decodedToken;
     
     // Resolve dbUser as the source of truth for roles
-    let dbUser = await getOrCreateUser(decodedToken.uid, decodedToken.email || '');
+    let dbUser = await getUserByUid(decodedToken.uid);
+    if (!dbUser) {
+      res.status(403).json({ error: 'Forbidden: User not found in database or not active' });
+      return;
+    }
     req.dbUser = dbUser;
     
     next();

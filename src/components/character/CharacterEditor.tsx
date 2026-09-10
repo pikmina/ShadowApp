@@ -86,10 +86,17 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
         },
         body: JSON.stringify({
           characterId: character?.id,
-          name: formData.name || formData.Nombre || formData.alias || character?.name, // Use existing name if not found in formData
+          name: (() => {
+            const nameField = fields?.find((f: any) => f.id === 'basic_name' || f.isNameField);
+            return nameField && formData[nameField.id] ? formData[nameField.id] : character?.name || "Unnamed";
+          })(),
+          expectedUpdatedAt: character?.updatedAt,
           profileData: formData
         })
       });
+      if (res.status === 409) {
+        throw new Error("Conflicto: El personaje ha sido modificado por otro usuario. Copia tus cambios y recarga.");
+      }
       if (!res.ok) throw new Error("Error saving");
       toast.success("Ficha guardada exitosamente");
       onSaved();
@@ -228,11 +235,18 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 border-b border-border pb-6">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-muted/50 border border-border rounded-md flex items-center justify-center text-xl font-bold uppercase text-foreground">
-            {formData['Nombre']?.charAt(0) || character?.name?.charAt(0) || 'P'}
+            {(() => {
+              const nf = fields?.find((f: any) => f.id === 'basic_name' || f.isNameField);
+              const n = (nf ? formData[nf.id] : null) || character?.name || 'P';
+              return typeof n === 'string' ? n.charAt(0) : 'P';
+            })()}
           </div>
           <div>
             <h2 className="text-2xl font-bold font-oxanium text-foreground flex items-center gap-3">
-              Editar Registro: {formData['Nombre'] || formData['name'] || character?.name || "Sin Nombre"}
+              Editar Registro: {(() => {
+                const nf = fields?.find((f: any) => f.id === 'basic_name' || f.isNameField);
+                return (nf ? formData[nf.id] : null) || character?.name || "Sin Nombre";
+              })()}
             </h2>
             <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-widest mt-1">
               SISTEMA 4.1.2 — GESTIÓN AUTOMATIZADA DE ATRIBUTOS, DONES Y REGLAS

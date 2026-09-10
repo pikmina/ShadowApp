@@ -601,7 +601,7 @@ export default function TechniquesAdmin() {
                     {form.effects.filter((e: any) => e.type === 'mechanic_rule').map((e: any, i: number) => {
                       const liveRule = resolveLiveRule(e, mechanics);
                       const cost = liveRule ? liveRule.cost : (e.cost || 0);
-                      const name = liveRule ? liveRule.name : (e.ruleName || 'Regla');
+                      const name = liveRule ? liveRule.name : (e.ruleName ? e.ruleName + ' (Desvinculado)' : 'Regla (Desvinculada)');
                       return (
                       <div key={i} className="flex justify-between items-center text-sm border border-border/50 bg-black/20 p-2 rounded">
                         <span className="truncate pr-2 text-foreground/80">{name}</span>
