@@ -101,7 +101,11 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
       toast.success("Ficha guardada exitosamente");
       onSaved();
     } catch (err: any) {
-      toast.error(err.message || "Error al guardar");
+      if (err.message?.includes("409")) {
+        toast.error("Conflicto: El personaje ha sido modificado. Copia tus cambios y recarga.");
+      } else {
+        toast.error(err.message || "Error al guardar");
+      }
     } finally {
       setIsSaving(false);
     }
