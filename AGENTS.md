@@ -731,3 +731,88 @@ When implementing or modifying interface controls, first check whether the proje
 If the component is not present but shadcn/ui provides a compatible primitive, add it to `src/components/ui` and use that shared implementation. Keep shadcn/ui primitives reusable and free of Shadowmore-specific business rules.
 
 Create application-specific components only when they compose shared primitives or represent domain behavior that should not live in the generic UI layer. Do not reproduce a shadcn/ui control with one-off HTML and styles inside a feature component.
+
+## Shadowmore Visual System — REQUIRED
+
+ShadowApp must preserve the established visual language of Shadowmore System. When the sibling `ShadowmoreSystem` repository is available, inspect its equivalent screen and shared components before redesigning an existing ShadowApp screen. Treat it as a visual reference only; do not copy its domain calculations, persistence model, mock data, or obsolete business logic.
+
+Before changing a screen, inspect:
+
+* `src/index.css` for theme tokens, typography, spacing, and semantic colors;
+* the existing components under `src/components/ui`;
+* the equivalent layout in Shadowmore System, when available;
+* the real data contract returned by the ShadowApp API.
+
+### Use Theme Tokens
+
+Use the existing semantic classes and CSS variables, including:
+
+```text
+background / foreground
+card / muted / border / primary / destructive
+bg1..bg8
+text1 / text2
+accent1..accent4
+font-poppins / font-oxanium / font-yanone
+```
+
+Do not introduce a parallel palette with hard-coded hex colors when a project token already represents the intended role. Do not replace the Shadowmore fonts or visual hierarchy with generic defaults.
+
+### Cyberpunk Component Contracts
+
+Use the existing Cyberpunk components according to their declared TypeScript interfaces. Read the component source before supplying props; do not guess prop names from another component.
+
+* `EntityPanel` is the standard container for themed sections and entity cards. Use its `pattern`, `accent`, `glow`, `cornerTicks`, `title`, `subtitle`, `badge`, and `icon` props. Keep its internal layout compact; do not reintroduce global `Card` spacing that duplicates the panel header/content padding.
+* `CyberSpacer` uses the `variant` prop. Valid variants are `line`, `diamond`, `brackets`, `dots`, `circuit`, `hazard`, and `crosshair`. Do not pass `pattern` to `CyberSpacer`.
+* `CyberFillerPanel` uses `icon`, `title`, `subtitle`, `variant`, `pattern`, and `className`. Use utility classes such as `min-h-24` through `className`; do not invent props such as `message` or `minHeight`.
+* `CyberModule` is a compact label/status module. Use `title`, `subtitle`, `icon`, `variant`, `pattern`, and `showTelemetry`. Do not expect the `text` prop to render an unrestricted long-form body when a title is also supplied; render descriptive copy in an adjacent semantic element.
+* shadcn/ui primitives remain the base for buttons, inputs, selects, dialogs, tabs, badges, and cards. Do not regenerate or replace a shared primitive without reviewing every consumer and performing a visual regression check.
+
+If TypeScript rejects a visual component prop, correct the usage. Do not widen the component type merely to accept a prop that the component does not implement.
+
+### Layout and Density
+
+Shadowmore screens use compact, information-dense layouts:
+
+* headers should not consume a large empty vertical area;
+* character cards should preserve room for the avatar, identity, metadata, and actions;
+* use `min-w-0` and `truncate` only where truncation is intentional;
+* do not impose narrow fixed title widths such as `w-[100px]`;
+* avoid fixed card heights when content or responsive wrapping may require more space;
+* keep primary actions visible and give destructive actions a distinct treatment;
+* verify layouts at mobile, tablet, and desktop breakpoints.
+
+Decorative grids, dots, glows, telemetry, and corner ticks must support the content hierarchy. Do not use them as substitutes for spacing, labels, or structure.
+
+### UI Must Reflect Real Behavior
+
+Every visible control must work. Search fields, filters, tabs, sorting controls, and action buttons must be connected to real state and behavior before they are shown. Do not add placeholder filters that contain one option or display raw internal values such as `all`, `todos`, or `name` when the visible label should be `Grupo: Todos` or `Ordenar: Nombre`.
+
+The UI must display persisted or API-provided values exactly as read, including valid `0` and `false` values. Presentation components must not:
+
+* calculate gameplay attributes or derived statistics;
+* invent formulas, defaults, possessions, techniques, traits, weaknesses, rewards, or inventory;
+* hard-code sample character content into production screens;
+* treat mock content from an older interface as real data;
+* write display fallbacks back to component state, context, or persistence.
+
+If an API does not yet hydrate a relation needed by the design, show an honest empty or unavailable state with `CyberFillerPanel`, and identify the missing data contract. Do not fabricate records to make the screen appear complete.
+
+Public routes must remain usable without authentication. Do not make a public character sheet depend on authenticated endpoints, private context state, or admin-only configuration unless a public API contract explicitly supplies that data.
+
+### Visual Change Verification
+
+For every non-trivial visual change:
+
+```text
+1. Compare the affected screen with the Shadowmore System reference when available.
+2. Confirm that all component props match their TypeScript interfaces.
+3. Verify that visible controls perform their stated behavior.
+4. Check loading, empty, error, sparse-data, and populated states.
+5. Check mobile and desktop layouts.
+6. Run TypeScript/lint and the production build.
+7. Perform a browser or rendered screenshot review when the environment permits it.
+8. Remove all temporary visual fixtures and sample data before completion.
+```
+
+Do not declare a visual task complete solely because it compiles. Confirm that the rendered result preserves readable hierarchy, compact spacing, responsive behavior, and the established Shadowmore identity.

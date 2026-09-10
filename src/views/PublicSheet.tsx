@@ -1,14 +1,61 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { 
-  Shield, Heart, Zap, Coins, Award, Activity, Info, User, 
-  GraduationCap, Box, Swords, BrainCircuit, FileText, ChevronDown
+import { Link, useParams } from 'react-router-dom';
+import {
+  Activity, BatteryCharging, Brain, Briefcase, Feather, FileText, Flame,
+  HandFist, HeartPlus, Info, PackageOpen, Shield, ShieldHalf, Sparkles,
+  Swords, User, Wind, Zap
 } from 'lucide-react';
-import { EntityPanel } from '@/components/ui/entity-panel';
+import { Badge } from '@/components/ui/badge';
+import { CyberFillerPanel } from '@/components/ui/cyber-filler-panel';
 import { CyberModule } from '@/components/ui/cyber-module';
 import { CyberSpacer } from '@/components/ui/cyber-spacer';
-import { CyberFillerPanel } from '@/components/ui/cyber-filler-panel';
-import { Badge } from '@/components/ui/badge';
+import { EntityPanel } from '@/components/ui/entity-panel';
+
+const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
+
+const readValue = (profile: Record<string, any>, keys: string[]) => {
+  for (const key of keys) {
+    if (hasValue(profile[key])) return profile[key];
+  }
+  return undefined;
+};
+
+const displayValue = (value: unknown, fallback = 'N/A') => {
+  if (!hasValue(value)) return fallback;
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+  if (typeof value === 'object') return fallback;
+  return String(value);
+};
+
+function VitalBar({ label, current, maximum, icon: Icon, barClass }: {
+  label: string;
+  current: unknown;
+  maximum: unknown;
+  icon: React.ComponentType<{ className?: string }>;
+  barClass: string;
+}) {
+  const currentNumber = Number(current);
+  const maximumNumber = Number(maximum);
+  const percentage = Number.isFinite(currentNumber) && Number.isFinite(maximumNumber) && maximumNumber > 0
+    ? Math.min(100, Math.max(0, (currentNumber / maximumNumber) * 100))
+    : 0;
+
+  return (
+    <div className="relative overflow-hidden border border-bg3 bg-bg1 p-3">
+      <Icon className="absolute left-2 top-1/2 size-8 -translate-y-1/2 text-text2 opacity-10" />
+      <div className="relative z-10 flex flex-col gap-2 pl-8">
+        <div className="flex justify-end text-[10px] font-bold uppercase tracking-widest text-text1">
+          <span className="mr-1 text-primary">{label}</span>
+          ({displayValue(current, '—')} / {displayValue(maximum, '—')})
+        </div>
+        <div className="h-3 w-full overflow-hidden border border-bg3 bg-bg2">
+          <div className={`h-full ${barClass}`} style={{ width: `${percentage}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function PublicSheet() {
   const { id } = useParams();
@@ -17,283 +64,163 @@ export default function PublicSheet() {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    const fetchChar = async () => {
+    const controller = new AbortController();
+    const loadCharacter = async () => {
       try {
-        const res = await fetch(`/api/public/character/${id}`);
-        if (!res.ok) throw new Error("Character not found");
-        const data = await res.json();
-        setCharacter(data);
-      } catch (err) {
-        setError(true);
+        const response = await fetch(`/api/public/character/${id}`, { signal: controller.signal });
+        if (!response.ok) throw new Error('Character not found');
+        setCharacter(await response.json());
+      } catch (requestError: any) {
+        if (requestError.name !== 'AbortError') setError(true);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
-    fetchChar();
+    void loadCharacter();
+    return () => controller.abort();
   }, [id]);
 
-  if (loading) {
-    return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Cargando ficha...</div>;
-  }
-  if (error || !character) {
-    return <div className="min-h-screen bg-background flex items-center justify-center text-destructive">Error: Ficha no encontrada o privada.</div>;
-  }
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-background font-oxanium text-sm text-muted-foreground">Cargando expediente...</div>;
+  if (error || !character) return <div className="flex min-h-screen items-center justify-center bg-background p-6 text-center font-oxanium text-sm text-destructive">Ficha no encontrada o no disponible.</div>;
 
-  const p = character.profileData || {};
-  const getVal = (key: string) => p[key] || '-';
-  const getNum = (key: string) => parseInt(p[key] || '0');
+  const profile = character.profileData || {};
+  const name = displayValue(readValue(profile, ['basic_name', 'name', 'nombre']) || character.name, 'Sin nombre');
+  const lastName = displayValue(readValue(profile, ['last_name', 'lastName', 'apellido']), '');
+  const fullName = `${name} ${lastName}`.trim();
+  const alias = displayValue(readValue(profile, ['alias', 'hero_name', 'nombre_heroe']), 'Sin alias');
+  const avatar = readValue(profile, ['avatarUrl', 'avatar_url', 'avatar', 'image', 'imagen']);
+  const group = readValue(profile, ['faction_group', 'group', 'grupo', 'faccion', 'facción']);
+  const status = displayValue(readValue(profile, ['status', 'estado']), 'Activo');
+  const quirkName = displayValue(readValue(profile, ['quirk_name', 'quirkName', 'don_name', 'don']), 'Sin don registrado');
+  const quirkType = displayValue(readValue(profile, ['quirk_type', 'quirkType', 'tipo_quirk', 'tipo_don']), 'Sin clasificación');
+  const quirkEvolution = displayValue(readValue(profile, ['quirk_evolution', 'quirkEvolution', 'nivel_quirk']), 'Nivel sin registrar');
+  const quirkDescription = displayValue(readValue(profile, ['quirk_description', 'quirkDesc', 'quirk_desc', 'don_descripcion']), 'No se ha registrado información sobre este don.');
+  const quirkLevelOne = displayValue(readValue(profile, ['quirk_lvl1', 'quirkLvl1', 'quirk_level_1', 'quirk_nivel_1']), 'Sin descripción de nivel.');
 
-  // Computed values
-  const attrKeys = ['fuerza', 'destreza', 'constitucion', 'inteligencia', 'percepcion', 'carisma', 'voluntad', 'suerte'];
-  const baseAttrs = attrKeys.map(k => ({ label: k.charAt(0).toUpperCase() + k.slice(1), value: getNum(k) }));
-  
-  const derivedAttrs = [
-    { label: 'Aguante', value: Math.floor((getNum('constitucion') * 2) + (getNum('voluntad') * 0.5)) },
-    { label: 'Iniciativa', value: Math.floor((getNum('destreza') + getNum('percepcion')) / 2) },
-    { label: 'Evasión', value: Math.floor(getNum('destreza') + (getNum('suerte') * 0.2)) },
-    { label: 'Dureza', value: Math.floor(getNum('constitucion') * 1.5) },
+  const baseAttributes = [
+    { label: 'Fuerza', value: readValue(profile, ['FUE', 'fue', 'fuerza']), icon: HandFist },
+    { label: 'Resistencia', value: readValue(profile, ['RES', 'res', 'resistencia']), icon: HeartPlus },
+    { label: 'Destreza', value: readValue(profile, ['DES', 'des', 'destreza']), icon: Zap },
+    { label: 'Inteligencia', value: readValue(profile, ['INT', 'int', 'inteligencia']), icon: Brain },
+    { label: 'Velocidad', value: readValue(profile, ['VEL', 'vel', 'velocidad']), icon: Wind },
+    { label: 'Voluntad', value: readValue(profile, ['VOL', 'vol', 'voluntad']), icon: Flame }
+  ];
+  const derivedAttributes = [
+    ['Evasión', readValue(profile, ['eva', 'evasion', 'evasión'])],
+    ['Coraje', readValue(profile, ['cor', 'courage', 'coraje'])],
+    ['Daño base', readValue(profile, ['baseDamage', 'base_damage', 'dano_base', 'daño_base'])],
+    ['Plus Ultra', readValue(profile, ['plusUltra', 'plus_ultra'])],
+    ['Reducción de daño', readValue(profile, ['dr', 'damageReduction', 'damage_reduction'])],
+    ['Iniciativa', readValue(profile, ['initiative', 'iniciativa'])],
+    ['Mod. FUE', readValue(profile, ['modFUE', 'mod_fue'])],
+    ['Mod. DES', readValue(profile, ['modDES', 'mod_des'])]
+  ];
+  const identityData = [
+    ['Grupo sanguíneo', readValue(profile, ['bloodType', 'blood_type', 'sangre', 'grupo_sanguineo'])],
+    ['Edad', readValue(profile, ['age', 'edad'])],
+    ['Alineación', readValue(profile, ['alignment', 'alineacion', 'alineación'])],
+    ['Género', readValue(profile, ['gender', 'genero', 'género', 'sexo'])],
+    ['Nacionalidad', readValue(profile, ['nationality', 'nacionalidad'])],
+    ['Faceclaim', readValue(profile, ['faceclaim', 'faceclaim_pb', 'pb'])]
   ];
 
-  const possesses = character.possessions || [];
-  
-  // Elements filtering (assuming relations are partly fetched or we use defaults for now)
-  const traits = possesses.filter((p: any) => p.element?.kind === 'trait');
-  const weaknesses = possesses.filter((p: any) => p.element?.kind === 'weakness');
-  const skills = possesses.filter((p: any) => p.element?.kind === 'skill');
-  const techniques = possesses.filter((p: any) => p.element?.kind === 'technique' || p.element?.kind === 'technique_entitlement');
-  const inventory = possesses.filter((p: any) => ['equipment', 'weapon', 'consumable', 'ammunition', 'crafting_material', 'ingredient'].includes(p.element?.kind));
-
   return (
-    <div className="min-h-screen bg-background text-foreground font-poppins selection:bg-primary/20 selection:text-primary pb-20">
-      
-      {/* Top Navbar */}
-      <div className="border-b border-border bg-background/60 backdrop-blur-md px-6 py-3 flex justify-between items-center sticky top-0 z-50">
-        <div>
-          <h1 className="text-foreground font-black tracking-widest text-sm flex items-center gap-2 font-oxanium">
-            <span className="bg-primary text-primary-foreground px-1.5 py-0.5 rounded text-[10px]">S</span>
-            SHADOWMORE OS <span className="text-primary text-xs font-normal">v4.1.2</span>
-          </h1>
-          <p className="text-[10px] tracking-widest uppercase text-muted-foreground mt-1 font-oxanium">Expediente Oficial (Público)</p>
-        </div>
-        <div className="flex gap-3">
-          <Link to="/character-editor" className="px-4 py-1.5 text-xs font-bold uppercase tracking-widest border border-border rounded hover:bg-muted transition-colors text-muted-foreground font-oxanium">
-            Registros
-          </Link>
-          <Link to="/login" className="px-4 py-1.5 text-xs font-bold uppercase tracking-widest border border-border rounded hover:bg-muted transition-colors text-muted-foreground font-oxanium">
-            Acceso Admin
-          </Link>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-8 space-y-8">
-        
-        {/* Header Section */}
-        <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6 items-start">
-          <div className="relative aspect-square md:aspect-auto md:h-64 border border-border bg-card rounded-md overflow-hidden shrink-0 group">
-            {p.avatarUrl ? (
-              <img src={p.avatarUrl} alt={character.name} className="w-full h-full object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-500" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-muted-foreground/20">
-                <User className="w-20 h-20" />
-              </div>
-            )}
-            <div className="absolute inset-0 border border-primary/20 pointer-events-none mix-blend-overlay"></div>
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background to-transparent p-4">
-              <Badge variant="outline" className="bg-background/80 backdrop-blur border-primary/30 text-primary font-oxanium uppercase tracking-widest text-[10px]">
-                {getVal('status') || 'Activo'}
-              </Badge>
-            </div>
+    <div className="public-view min-h-screen bg-background pb-16 font-oxanium text-text1 selection:bg-primary/20 selection:text-primary">
+      <header className="sticky top-0 z-50 border-b border-border bg-background/85 px-4 py-3 backdrop-blur-md sm:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 truncate text-sm font-black tracking-widest text-foreground"><span className="rounded bg-primary px-1.5 py-0.5 text-[10px] text-primary-foreground">S</span> SHADOWMORE OS <span className="text-xs font-normal text-primary">4.1.2</span></p>
+            <p className="mt-1 truncate text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Expediente público de personaje</p>
           </div>
-          
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-4xl md:text-5xl font-black font-yanone tracking-tight text-foreground uppercase leading-none">
-                {character.name}
-              </h2>
-              <div className="text-xl font-oxanium text-muted-foreground tracking-widest uppercase mt-1">
-                "{getVal('alias') || 'Desconocido'}"
-              </div>
-            </div>
+          <nav className="flex shrink-0 gap-2">
+            <Link to="/character-editor" className="rounded border border-border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Registros</Link>
+            <Link to="/login" className="hidden rounded border border-border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:block">Acceso</Link>
+          </nav>
+        </div>
+      </header>
 
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Badge variant="secondary" className="font-oxanium uppercase tracking-wider text-xs px-3 py-1 bg-accent/10 border-accent/20 text-accent-foreground">{getVal('group') || 'Independiente'}</Badge>
-              <Badge variant="secondary" className="font-oxanium uppercase tracking-wider text-xs px-3 py-1 bg-accent2/10 border-accent2/20 text-accent2">{getVal('gender') || 'N/A'}</Badge>
-              <Badge variant="secondary" className="font-oxanium uppercase tracking-wider text-xs px-3 py-1 bg-accent3/10 border-accent3/20 text-accent3">Nvl {getVal('level') || '1'}</Badge>
+      <main className="mx-auto mt-7 max-w-6xl space-y-6 px-4 sm:px-6">
+        <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0"><h1 className="truncate font-yanone text-4xl font-black uppercase leading-none tracking-wider text-text1 sm:text-5xl">{fullName}</h1><p className="mt-1 truncate text-lg font-bold uppercase tracking-widest text-primary">• {alias}</p></div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              ['Reputación', readValue(profile, ['reputation', 'reputacion', 'amenaza'])],
+              ['Yenes', character.yen],
+              ['EXP', character.exp]
+            ].map(([label, value]) => <div key={String(label)} className="min-w-20 border border-bg3 bg-bg2/80 px-3 py-2 text-center"><strong className="block text-lg leading-none text-text1">{displayValue(value, '0')}</strong><span className="mt-1 block text-[9px] uppercase tracking-widest text-text2">{String(label)}</span></div>)}
+          </div>
+        </section>
+
+        <CyberSpacer variant="line" accent="accent1" glow className="my-0" />
+
+        <EntityPanel title="Datos del personaje" subtitle="Character info" badge={displayValue(group, 'Sin grupo')} icon={<Activity className="size-4" />} pattern="dots" accent="accent1" cornerTicks>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {identityData.map(([label, value], index) => <React.Fragment key={String(label)}>{index > 0 && <span className="hidden text-border sm:inline">|</span>}<span>{String(label)} • <strong className="text-foreground">{displayValue(value)}</strong></span></React.Fragment>)}
+          </div>
+        </EntityPanel>
+
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="flex flex-col gap-4 lg:col-span-3">
+            <div className="relative aspect-[3/4] overflow-hidden border border-bg3 bg-bg2">
+              {avatar ? <img src={String(avatar)} alt={fullName} className="size-full object-cover" /> : <div className="flex size-full flex-col items-center justify-center gap-2 text-text2/40"><User className="size-12" /><span className="text-[10px] uppercase tracking-widest">Sin imagen</span></div>}
+              <Badge variant="outline" className="absolute bottom-3 left-3 bg-background/80 font-oxanium text-[9px] uppercase tracking-wider backdrop-blur">{status}</Badge>
             </div>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-border/50">
-              <div className="flex items-center gap-2">
-                <Heart className="w-4 h-4 text-destructive" />
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground font-oxanium">HP Máximo</span>
-                  <span className="text-sm font-bold">{getVal('max_hp') || '100'}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-primary" />
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground font-oxanium">Stamina</span>
-                  <span className="text-sm font-bold">{getVal('max_stamina') || '100'}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Award className="w-4 h-4 text-accent4" />
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground font-oxanium">Reputación</span>
-                  <span className="text-sm font-bold">{getVal('reputation') || '0'}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Coins className="w-4 h-4 text-accent2" />
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground font-oxanium">Yenes</span>
-                  <span className="text-sm font-bold">{getVal('yens') || '0'}</span>
-                </div>
+            <VitalBar label="Salud" current={readValue(profile, ['currentHealth', 'current_health', 'salud_actual'])} maximum={readValue(profile, ['maxHealth', 'max_health', 'salud_maxima'])} icon={HeartPlus} barClass="bg-primary" />
+            <VitalBar label="Estamina" current={readValue(profile, ['currentStamina', 'current_stamina', 'estamina_actual'])} maximum={readValue(profile, ['maxStamina', 'max_stamina', 'estamina_maxima'])} icon={BatteryCharging} barClass="bg-indigo-400" />
+            <div className="border border-bg3 bg-bg2/40 p-3 text-xs">
+              <h2 className="mb-3 flex items-center gap-2 border-b border-bg3 pb-2 text-[10px] font-bold uppercase tracking-widest text-text1"><Briefcase className="size-4 text-accent2" /> Ocupación</h2>
+              {[
+                ['Ocupación', readValue(profile, ['occupation', 'ocupacion', 'ocupación'])],
+                ['Rango / rol', readValue(profile, ['rank', 'rango', 'role', 'rol'])],
+                ['Año escolar', readValue(profile, ['schoolYear', 'school_year', 'ano_escolar', 'año_escolar'])]
+              ].map(([label, value]) => <div key={String(label)} className="flex items-start justify-between gap-3 border-b border-bg3/50 py-1.5 last:border-0"><span className="text-[9px] uppercase tracking-widest text-text2">{String(label)}</span><strong className="text-right text-text1">{displayValue(value)}</strong></div>)}
+            </div>
+            <CyberFillerPanel icon={Shield} title="SYS.OPTIMAL" subtitle={`ID: CHAR_${character.id}`} variant="accent2" pattern="dots" className="min-h-24 p-4" />
+          </div>
+
+          <div className="flex flex-col gap-6 lg:col-span-4">
+            <div className="border border-bg3 bg-bg2/40 p-4">
+              <h2 className="mb-4 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest text-accent2"><HeartPlus className="size-4" /> Atributos base</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {baseAttributes.map(({ label, value, icon: Icon }) => <div key={label} className="relative overflow-hidden border border-bg3 bg-bg1 p-2 text-right"><Icon className="absolute left-2 top-1/2 size-8 -translate-y-1/2 text-text2 opacity-10" /><span className="relative z-10 block text-[9px] uppercase tracking-widest text-primary">{label}</span><strong className="relative z-10 mt-1 block text-xl leading-none text-text1">{displayValue(value, '—')}</strong></div>)}
               </div>
             </div>
-          </div>
-        </div>
-
-        <CyberSpacer pattern="grid" className="my-8" />
-
-        {/* Quirk & Identity */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <EntityPanel 
-              title="Don (Quirk)" 
-              icon={<Activity className="w-5 h-5" />} 
-              pattern="dots" 
-              accent="accent1" 
-              cornerTicks 
-              glow
-            >
-              <h3 className="text-xl font-bold uppercase tracking-wider text-primary mb-2 font-oxanium">
-                {getVal('quirk_name') || 'Sin Quirk'}
-              </h3>
-              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                {getVal('quirk_description') || 'No se ha registrado información sobre su Don.'}
-              </p>
-              
-              {/* Optional module if it's a specific type */}
-              <CyberModule 
-                title="Clasificación" 
-                text={getVal('quirk_type') || 'Emisor'} 
-                variant="accent1" 
-                className="mt-4" 
-              />
-            </EntityPanel>
-            
-            <EntityPanel title="Historia y Personalidad" icon={<Info className="w-5 h-5" />} pattern="none" cornerTicks>
-              <div className="space-y-4 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                <div>
-                  <h4 className="text-foreground font-bold font-oxanium uppercase tracking-widest text-xs mb-1">Personalidad</h4>
-                  <p>{getVal('personality') || 'Información clasificada.'}</p>
-                </div>
-                <div>
-                  <h4 className="text-foreground font-bold font-oxanium uppercase tracking-widest text-xs mb-1">Historia</h4>
-                  <p>{getVal('backstory') || 'Expediente no disponible.'}</p>
-                </div>
+            <div className="border border-bg3 bg-bg2/40 p-4">
+              <h2 className="mb-4 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest text-accent2"><Activity className="size-4" /> Atributos derivados</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {derivedAttributes.map(([label, value]) => <div key={String(label)} className="border border-bg3 bg-bg1 p-2 text-center"><span className="block text-[9px] uppercase tracking-widest text-primary">{String(label)}</span><strong className="mt-1 block text-lg leading-none text-text1">{displayValue(value, '—')}</strong></div>)}
               </div>
-            </EntityPanel>
-          </div>
-
-          <div className="space-y-6">
-            <EntityPanel title="Atributos Base" icon={<BrainCircuit className="w-5 h-5" />} pattern="grid" accent="default">
-              <div className="grid grid-cols-2 gap-2">
-                {baseAttrs.map(attr => (
-                  <div key={attr.label} className="bg-muted/30 border border-border p-2 rounded flex flex-col items-center justify-center">
-                    <span className="text-[10px] text-muted-foreground font-oxanium uppercase tracking-widest">{attr.label}</span>
-                    <span className="text-xl font-bold text-foreground">{attr.value}</span>
-                  </div>
-                ))}
-              </div>
-            </EntityPanel>
-
-            <EntityPanel title="Estadísticas Derivadas" icon={<Activity className="w-5 h-5" />} pattern="diagonal" accent="accent3">
-              <div className="space-y-2">
-                {derivedAttrs.map(attr => (
-                  <div key={attr.label} className="flex justify-between items-center p-2 bg-muted/20 border border-border rounded">
-                    <span className="text-xs text-muted-foreground font-oxanium uppercase tracking-widest">{attr.label}</span>
-                    <span className="text-sm font-bold text-foreground">{attr.value}</span>
-                  </div>
-                ))}
-              </div>
-            </EntityPanel>
-          </div>
-        </div>
-
-        <CyberSpacer pattern="horizontal" className="my-8" />
-
-        {/* Inventory and Mechanics */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-6">
-            <EntityPanel title="Habilidades y Destrezas" icon={<GraduationCap className="w-5 h-5" />} cornerTicks>
-              {skills.length > 0 ? (
-                <div className="space-y-2">
-                  {skills.map((s: any) => (
-                    <CyberModule key={s.id} title={s.element.name} text={s.element.description || 'Sin descripción'} variant="default" showTelemetry={false} />
-                  ))}
-                </div>
-              ) : (
-                <CyberFillerPanel message="Sin habilidades registradas" />
-              )}
-            </EntityPanel>
-            
-            <EntityPanel title="Inventario y Equipamiento" icon={<Box className="w-5 h-5" />} cornerTicks pattern="dots">
-              {inventory.length > 0 ? (
-                <div className="space-y-2">
-                  {inventory.map((item: any) => (
-                    <CyberModule key={item.id} title={item.element.name} subtitle={`Cant: ${item.quantity}`} text={item.element.description} variant="default" showTelemetry={false} />
-                  ))}
-                </div>
-              ) : (
-                <CyberFillerPanel message="Inventario vacío" />
-              )}
-            </EntityPanel>
-          </div>
-
-          <div className="space-y-6">
-            <EntityPanel title="Técnicas Especiales" icon={<Swords className="w-5 h-5" />} cornerTicks pattern="radial" accent="accent1" glow>
-              {techniques.length > 0 ? (
-                <div className="space-y-2">
-                  {techniques.map((t: any) => (
-                    <CyberModule key={t.id} title={t.element.name} text={t.element.description} variant="accent1" />
-                  ))}
-                </div>
-              ) : (
-                <CyberFillerPanel message="No domina técnicas especiales" />
-              )}
-            </EntityPanel>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <EntityPanel title="Rasgos" icon={<FileText className="w-4 h-4" />}>
-                {traits.length > 0 ? (
-                  <div className="space-y-2">
-                    {traits.map((t: any) => (
-                      <Badge key={t.id} variant="outline" className="w-full justify-start text-xs font-normal font-oxanium text-muted-foreground">{t.element.name}</Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <CyberFillerPanel message="Sin rasgos" minHeight="80px" />
-                )}
-              </EntityPanel>
-              
-              <EntityPanel title="Debilidades" icon={<ChevronDown className="w-4 h-4" />}>
-                {weaknesses.length > 0 ? (
-                  <div className="space-y-2">
-                    {weaknesses.map((w: any) => (
-                      <Badge key={w.id} variant="outline" className="w-full justify-start text-xs font-normal font-oxanium text-destructive border-destructive/30">{w.element.name}</Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <CyberFillerPanel message="Sin debilidades" minHeight="80px" />
-                )}
-              </EntityPanel>
             </div>
+            <CyberFillerPanel icon={Activity} title="ATTR.SYNC" subtitle="READ ONLY" variant="accent1" pattern="grid" className="min-h-24 p-4" />
           </div>
-        </div>
 
-      </div>
+          <div className="flex flex-col gap-6 lg:col-span-5">
+            <EntityPanel title="Don (Quirk)" icon={<Sparkles className="size-5" />} pattern="radial" accent="accent1" cornerTicks glow className="flex-1">
+              <div className="flex h-full flex-col">
+                <div className="mb-5 flex items-start justify-between gap-3 border-b border-border pb-4"><div className="rounded-md border border-border bg-bg3 p-3"><Zap className="size-6 text-primary" /></div><div className="text-right"><p className="text-3xl font-black tracking-wider text-primary">QUIRK</p><p className="mt-1 text-[9px] uppercase tracking-widest text-text2">{quirkEvolution}</p></div></div>
+                <h2 className="text-xl font-black italic text-text1">✦ {quirkName}</h2>
+                <p className="mt-3 text-sm leading-relaxed text-text2"><strong className="mr-2 uppercase text-text1">{quirkType} —</strong>{quirkDescription}</p>
+                <div className="mt-6">
+                  <CyberModule title="Nivel 1" subtitle="Despertar" variant="accent1" showTelemetry={false} />
+                  <p className="border-x border-b border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-text2">{quirkLevelOne}</p>
+                </div>
+              </div>
+            </EntityPanel>
+            <EntityPanel title="Historia y personalidad" icon={<Info className="size-4" />} cornerTicks>
+              <div className="space-y-4 text-sm leading-relaxed text-text2"><div><h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-text1">Personalidad</h3><p className="whitespace-pre-wrap">{displayValue(readValue(profile, ['personality', 'personalidad']), 'Información no registrada.')}</p></div><div><h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-text1">Historia</h3><p className="whitespace-pre-wrap">{displayValue(readValue(profile, ['backstory', 'history', 'historia']), 'Expediente no disponible.')}</p></div></div>
+            </EntityPanel>
+          </div>
+        </section>
+
+        <CyberSpacer variant="brackets" accent="accent1" className="my-1" />
+        <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <EntityPanel title="Técnicas" icon={<Swords className="size-4" />} cornerTicks><CyberFillerPanel icon={Swords} title="Sin datos públicos" subtitle="Módulo pendiente de conexión" className="min-h-28 p-4" /></EntityPanel>
+          <EntityPanel title="Inventario" icon={<PackageOpen className="size-4" />} pattern="dots" cornerTicks><CyberFillerPanel icon={PackageOpen} title="Sin datos públicos" subtitle="Módulo pendiente de conexión" className="min-h-28 p-4" /></EntityPanel>
+          <EntityPanel title="Rasgos" icon={<FileText className="size-4" />} cornerTicks><CyberFillerPanel icon={Feather} title="Sin datos públicos" subtitle="Módulo pendiente de conexión" className="min-h-28 p-4" /></EntityPanel>
+          <EntityPanel title="Debilidades" icon={<ShieldHalf className="size-4" />} cornerTicks><CyberFillerPanel icon={ShieldHalf} title="Sin datos públicos" subtitle="Módulo pendiente de conexión" className="min-h-28 p-4" /></EntityPanel>
+        </section>
+        <p className="text-center text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Ficha pública de sólo lectura · Shadowmore OS</p>
+      </main>
     </div>
   );
 }

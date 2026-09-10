@@ -120,7 +120,7 @@ export const EntityPanel: React.FC<EntityPanelProps> = ({
     return (
       <Card
         className={cn(
-          "overflow-hidden border-border bg-card relative",
+          "overflow-hidden border-border bg-card relative gap-0 py-0",
           variantStyles[variant] || "border-border bg-card",
           glow && glowStyles[accent],
           className
@@ -149,7 +149,7 @@ export const EntityPanel: React.FC<EntityPanelProps> = ({
   return (
     <Card
       className={cn(
-        "border-border bg-card relative overflow-hidden",
+        "border-border bg-card relative overflow-hidden gap-0 py-0",
         variantStyles[variant] || "border-border bg-card",
         glow && glowStyles[accent],
         className
