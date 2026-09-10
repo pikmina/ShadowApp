@@ -87,7 +87,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
         body: JSON.stringify({
           characterId: character?.id,
           name: (() => {
-            const nameField = fields?.find((f: any) => f.id === 'basic_name' || f.isNameField);
+            const nameField = fields?.find((f: any) => f.id === 'basic_name');
             return nameField && formData[nameField.id] ? formData[nameField.id] : character?.name || "Unnamed";
           })(),
           expectedUpdatedAt: character?.updatedAt,
@@ -236,7 +236,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-muted/50 border border-border rounded-md flex items-center justify-center text-xl font-bold uppercase text-foreground">
             {(() => {
-              const nf = fields?.find((f: any) => f.id === 'basic_name' || f.isNameField);
+              const nf = fields?.find((f: any) => f.id === 'basic_name');
               const n = (nf ? formData[nf.id] : null) || character?.name || 'P';
               return typeof n === 'string' ? n.charAt(0) : 'P';
             })()}
@@ -244,7 +244,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
           <div>
             <h2 className="text-2xl font-bold font-oxanium text-foreground flex items-center gap-3">
               Editar Registro: {(() => {
-                const nf = fields?.find((f: any) => f.id === 'basic_name' || f.isNameField);
+                const nf = fields?.find((f: any) => f.id === 'basic_name');
                 return (nf ? formData[nf.id] : null) || character?.name || "Sin Nombre";
               })()}
             </h2>

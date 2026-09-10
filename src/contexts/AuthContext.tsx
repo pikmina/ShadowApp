@@ -6,7 +6,7 @@ export type DbUser = {
   id: number;
   uid: string;
   email: string;
-  role: 'player' | 'moderator' | 'superadmin';
+  role: 'moderator' | 'superadmin';
 };
 
 interface AuthContextType {
@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: 0,
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
-          role: 'player'
+          role: 'moderator'
         });
       }
     } catch (err) {
@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: 0,
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
-          role: 'player'
+          role: 'moderator'
         });
       }
     }
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: 0,
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
-          role: 'player'
+          role: 'moderator'
         });
         syncWithBackend(firebaseUser, 1);
       } else {

@@ -85,6 +85,11 @@ export async function processPurchase(moderatorUid: string, characterId: number,
       // Need to lock the row for the offer
       const [offer] = await tx.select().from(shopOffers).where(eq(shopOffers.id, offerId));
       if (!offer) throw new Error(`Offer ${offerId} not found`);
+      
+      const [element] = await tx.select().from(systemElements).where(eq(systemElements.id, offer.elementId));
+      if (!element || element.status !== 'published') {
+         throw new Error(`Element for offer ${offerId} is not published`);
+      }
       if (offer.perCharacterLimit !== null) {
         // Find existing possessions for this element
         const [existingPos] = await tx.select().from(elementPossessions).where(and(
@@ -168,6 +173,9 @@ export async function processPurchase(moderatorUid: string, characterId: number,
             elementId,
             quantity,
             acquiredAt: new Date()
+        }).onConflictDoUpdate({
+            target: [elementPossessions.characterId, elementPossessions.elementId],
+            set: { quantity: sql`${elementPossessions.quantity} + ${quantity}` }
         });
     }
 

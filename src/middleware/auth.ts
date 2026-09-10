@@ -33,6 +33,10 @@ export const requireAuth = async (
       res.status(403).json({ error: 'Forbidden: User not found in database or not active' });
       return;
     }
+    if (dbUser.role !== 'moderator' && dbUser.role !== 'superadmin') {
+      res.status(403).json({ error: 'Forbidden: User is not staff' });
+      return;
+    }
     req.dbUser = dbUser;
     
     next();
@@ -45,7 +49,7 @@ export const requireAuth = async (
   }
 };
 
-export const requireRole = (allowedRoles: ('superadmin' | 'moderator' | 'player')[]) => {
+export const requireRole = (allowedRoles: ('superadmin' | 'moderator')[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.dbUser) {
       res.status(401).json({ error: 'Unauthorized: User not resolved' });

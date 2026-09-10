@@ -51,7 +51,7 @@ export default function PublicSheet() {
           <p className="text-[10px] tracking-widest uppercase text-muted-foreground/60 mt-1">Ficha Oficial de Personaje (Vista Pública)</p>
         </div>
         <div className="flex gap-3">
-          <Link to="/my-sheet" className="px-4 py-1.5 text-xs font-bold uppercase tracking-widest border border-white/10 rounded hover:bg-white/5 transition-colors text-white/70">
+          <Link to="/character-editor" className="px-4 py-1.5 text-xs font-bold uppercase tracking-widest border border-white/10 rounded hover:bg-white/5 transition-colors text-white/70">
             Registros
           </Link>
           <Link to="/login" className="px-4 py-1.5 text-xs font-bold uppercase tracking-widest border border-white/10 rounded hover:bg-white/5 transition-colors text-white/70">

@@ -19,44 +19,42 @@ export async function createCharacter(userId: number, name: string, profileData:
   return created;
 }
 
-export async function updateCharacter(characterId: number, data: { name?: string, profileData?: any, expectedUpdatedAt?: Date | string }) {
-  const [existing] = await db.select().from(characters).where(eq(characters.id, characterId));
-  if (!existing) throw new Error("Character not found");
+export async function updateCharacter(characterId: number, data: { name?: string, profileData?: any, expectedUpdatedAt: Date | string }) {
+  const updatePayload: any = { updatedAt: new Date() };
+  if (data.name !== undefined) updatePayload.name = data.name;
+  if (data.profileData !== undefined) updatePayload.profileData = data.profileData;
 
-  if (data.expectedUpdatedAt) {
-    const existingTime = existing.updatedAt?.getTime() || 0;
-    const expectedTime = new Date(data.expectedUpdatedAt).getTime();
-    if (existingTime !== expectedTime) {
+  const expectedTime = new Date(data.expectedUpdatedAt);
+
+  // Single update with condition
+  const [updated] = await db.update(characters)
+    .set(updatePayload)
+    .where(and(
+      eq(characters.id, characterId),
+      // In Postgres, timestamp comparison might need careful handling, but expectedUpdatedAt from client is usually ISO string.
+      // We can compare exact timestamps by wrapping in sql or just relying on eq if it matches.
+      // Drizzle handles Date object equality in some dialects, but to be robust:
+      sql`${characters.updatedAt} = ${expectedTime}::timestamp`
+    ))
+    .returning();
+
+  if (!updated) {
+    // Check if it exists to distinguish 404 from 409
+    const [existing] = await db.select({ id: characters.id }).from(characters).where(eq(characters.id, characterId));
+    if (!existing) {
+      const error = new Error("Character not found");
+      (error as any).status = 404;
+      throw error;
+    } else {
       const error = new Error("Conflict");
       (error as any).status = 409;
       throw error;
     }
   }
-
-  const updatePayload: any = { updatedAt: new Date() };
-  if (data.name !== undefined) updatePayload.name = data.name;
-  
-  if (data.profileData !== undefined) {
-    // If it's partial, maybe we should merge. But the form usually sends the whole object.
-    // To be safe, if we send profileData, we just overwrite it, but we require a full object.
-    updatePayload.profileData = data.profileData;
-  }
-  
-  const [updated] = await db.update(characters)
-    .set(updatePayload)
-    .where(eq(characters.id, characterId))
-    .returning();
   return updated;
 }
 
-// Keep upsertCharacter for backwards compatibility but make it safe
-export async function upsertCharacter(characterId: number | null | undefined, userId: number, name: string | undefined, profileData: any | undefined) {
-  if (characterId) {
-    return await updateCharacter(characterId, { name, profileData });
-  } else {
-    return await createCharacter(userId, name || "Unnamed", profileData || {});
-  }
-}
+
 
 export async function deleteCharacter(characterId: number) {
   await db.delete(characters).where(eq(characters.id, characterId));
@@ -68,16 +66,6 @@ import { nanoid } from 'nanoid';
 
 export async function grantReward(moderatorUid: string, characterId: number, type: 'exp' | 'yen', amount: number, reason: string) {
   return await db.transaction(async (tx) => {
-    const [character] = await tx.select().from(characters).where(eq(characters.id, characterId));
-    if (!character) throw new Error("Character not found");
-
-    const currentValue = character[type];
-    const finalValue = currentValue + amount;
-    
-    if (finalValue < 0) {
-      throw new Error(`Cannot reduce ${type} below zero. Current: ${currentValue}, Change: ${amount}`);
-    }
-
     const updatePayload: any = { updatedAt: new Date() };
     if (type === 'exp') updatePayload.exp = sql`exp + ${amount}`;
     if (type === 'yen') updatePayload.yen = sql`yen + ${amount}`;
@@ -90,7 +78,15 @@ export async function grantReward(moderatorUid: string, characterId: number, typ
       ))
       .returning();
 
-    if (!updated) throw new Error("Concurrent character update or insufficient funds.");
+    if (!updated) {
+        // Did it fail because of balance or character existence?
+        const [char] = await tx.select({ id: characters.id, exp: characters.exp, yen: characters.yen }).from(characters).where(eq(characters.id, characterId));
+        if (!char) throw new Error("Character not found");
+        throw new Error(`Cannot reduce ${type} below zero. Current: ${char[type]}, Change: ${amount}`);
+    }
+    
+    const finalValue = updated[type];
+    const previousValue = finalValue - amount;
 
     await tx.insert(auditLogs).values({
       actorUid: moderatorUid,
@@ -99,7 +95,7 @@ export async function grantReward(moderatorUid: string, characterId: number, typ
       details: {
         change: amount,
         reason,
-        previousValue: currentValue,
+        previousValue,
         finalValue
       }
     });
@@ -116,36 +112,36 @@ export async function updatePossession(moderatorUid: string, characterId: number
     const [element] = await tx.select().from(systemElements).where(eq(systemElements.id, elementId));
     if (!element) throw new Error("Element not found");
 
-    const [existingPos] = await tx.select().from(elementPossessions).where(and(
-      eq(elementPossessions.characterId, characterId),
-      eq(elementPossessions.elementId, elementId)
-    ));
-
-    const currentQty = existingPos ? existingPos.quantity : 0;
-    const finalQty = currentQty + quantityChange;
+    // Atomic UPSERT or DELETE
+    // First, let's just do an atomic INSERT ... ON CONFLICT DO UPDATE
+    let finalQty = 0;
+    let previousQuantity = 0;
+    
+    // We can use native onConflictDoUpdate
+    const [updated] = await tx.insert(elementPossessions).values({
+      id: nanoid(10),
+      characterId,
+      elementId,
+      quantity: quantityChange,
+      acquiredAt: new Date()
+    }).onConflictDoUpdate({
+      target: [elementPossessions.characterId, elementPossessions.elementId],
+      set: { quantity: sql`${elementPossessions.quantity} + ${quantityChange}` }
+    }).returning();
+    
+    finalQty = updated.quantity;
+    previousQuantity = finalQty - quantityChange;
 
     if (finalQty < 0) {
-      throw new Error(`Cannot reduce quantity below zero. Current: ${currentQty}, Change: ${quantityChange}`);
+      // Rollback
+      throw new Error(`Cannot reduce quantity below zero. Current: ${previousQuantity}, Change: ${quantityChange}`);
     }
 
     if (finalQty === 0) {
-      if (existingPos) {
-        await tx.delete(elementPossessions).where(eq(elementPossessions.id, existingPos.id));
-      }
-    } else {
-      if (existingPos) {
-        await tx.update(elementPossessions)
-          .set({ quantity: finalQty })
-          .where(eq(elementPossessions.id, existingPos.id));
-      } else {
-        await tx.insert(elementPossessions).values({
-          id: nanoid(10),
-          characterId,
-          elementId,
-          quantity: finalQty,
-          acquiredAt: new Date()
-        });
-      }
+      await tx.delete(elementPossessions).where(and(
+        eq(elementPossessions.characterId, characterId),
+        eq(elementPossessions.elementId, elementId)
+      ));
     }
 
     await tx.insert(auditLogs).values({
@@ -156,7 +152,7 @@ export async function updatePossession(moderatorUid: string, characterId: number
         elementId,
         change: quantityChange,
         reason,
-        previousQuantity: currentQty,
+        previousQuantity,
         finalQuantity: finalQty
       }
     });

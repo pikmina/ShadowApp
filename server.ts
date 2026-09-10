@@ -29,7 +29,17 @@ async function startServer() {
   });
 
   app.post("/api/rules", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
-    try {
+  try {
+    const RuleSchema = z.object({
+      id: z.string().optional(),
+      name: z.string().min(1),
+      category: z.enum(['combat', 'exploration', 'social', 'magic', 'general']),
+      cost: z.number().int().min(0),
+      description: z.string()
+    });
+    const parsed = RuleSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+
       // In the future, enforce requireRole('superadmin') here
       const { key, type, value, description } = req.body;
       const rule = await upsertRule(key, type, value, description);
@@ -61,7 +71,17 @@ async function startServer() {
   });
 
   app.post("/api/elements", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
-    try {
+  try {
+    const ElementSchema = z.object({
+      id: z.string().optional(),
+      type: z.enum(['technique', 'technique_entitlement', 'item', 'modifier', 'effect']),
+      name: z.string().min(1),
+      description: z.string(),
+      mechanics: z.array(z.any()).optional()
+    });
+    const parsed = ElementSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+
       // In the future, enforce requireRole('superadmin', 'moderator')
       const item = await upsertElement(req.body);
       res.json(item);
@@ -81,7 +101,7 @@ async function startServer() {
 
   // Sheet Fields API
   const { getSheetFields, upsertSheetField, deleteSheetField } = await import("./src/db/sheetFields.ts");
-  app.get("/api/sheet-fields", requireAuth, requireRole(["superadmin", "moderator", "player"]), async (req: AuthRequest, res) => {
+  app.get("/api/sheet-fields", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const fields = await getSheetFields();
       res.json(fields);
@@ -91,7 +111,20 @@ async function startServer() {
   });
 
   app.post("/api/sheet-fields", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
-    try {
+  try {
+    const FieldSchema = z.object({
+      id: z.string().optional(),
+      type: z.enum(['text', 'number', 'longtext', 'boolean', 'select', 'multiselect', 'formula', 'attribute']),
+      name: z.string().min(1),
+      description: z.string().optional(),
+      config: z.record(z.string(), z.any()).optional(),
+      orderIndex: z.number().int().optional(),
+      isRequired: z.boolean().optional(),
+      categoryId: z.string().optional()
+    });
+    const parsed = FieldSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+
       const field = await upsertSheetField(req.body);
       res.json(field);
     } catch (error: any) {
@@ -109,7 +142,7 @@ async function startServer() {
   });
 
   // Character API
-  const { getCharacterByUserId, upsertCharacter, deleteCharacter } = await import("./src/db/characters.ts");
+  const { getCharacterByUserId, deleteCharacter } = await import("./src/db/characters.ts");
   // System Settings API (stored in systemRules)
   app.get("/api/settings", async (req, res) => {
     try {
@@ -119,7 +152,7 @@ async function startServer() {
       const defaultSettings = { gameDate: { year: 2201, month: 1, day: 1 }, groups: [] };
       const settings = settingsRule?.value ? settingsRule.value : defaultSettings;
       
-      res.json(settings);
+      res.json({ ...(settings as Record<string, any>), updatedAt: settingsRule?.updatedAt });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: "Internal error" });
@@ -127,22 +160,38 @@ async function startServer() {
   });
 
   app.post("/api/settings", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
-    try {
+  try {
+    const SettingsSchema = z.object({
+      gameDate: z.any().optional(),
+      groups: z.any().optional(),
+      expectedUpdatedAt: z.string().optional()
+    });
+    const parsed = SettingsSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+
       const { upsertRule } = await import("./src/db/rules.ts");
       const currentSettings = await import("./src/db/rules.ts").then(m => m.getRule("global_settings"));
       
       const currentVal = (currentSettings?.value && typeof currentSettings.value === "object" && !Array.isArray(currentSettings.value))
         ? (currentSettings.value as Record<string, unknown>)
         : {};
-      const newSettings = { 
-        ...currentVal,
-        ...req.body 
-      };
-
+      const { expectedUpdatedAt, gameDate, groups } = parsed.data;
+      if (expectedUpdatedAt && currentSettings?.updatedAt) {
+        if (new Date(expectedUpdatedAt).getTime() !== new Date(currentSettings.updatedAt).getTime()) {
+           const err: any = new Error("Conflict");
+           err.status = 409;
+           throw err;
+        }
+      }
+      const newSettings = { ...currentVal };
+      if (gameDate !== undefined) newSettings.gameDate = gameDate;
+      if (groups !== undefined) newSettings.groups = groups;
+      
       await upsertRule("global_settings", "json", newSettings, "Ajustes globales del sistema (Tiempo, Grupos, etc.)");
       res.json({ success: true });
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      if (e.status) return res.status(e.status).json({ error: e.message });
       res.status(500).json({ error: "Internal error" });
     }
   });
@@ -202,8 +251,8 @@ async function startServer() {
       }
       res.json(character);
     } catch (error: any) {
-      if (error.status === 409) {
-        return res.status(409).json({ error: "Conflict: Character was modified by someone else." });
+      if (error.status) {
+        return res.status(error.status).json({ error: error.message });
       }
       console.error(error);
       res.status(500).json({ error: "Failed to save character" });
@@ -250,7 +299,7 @@ async function startServer() {
   // Shop API
   const { getShopOffers, upsertShopOffer, deleteShopOffer, processPurchase } = await import("./src/db/shop.ts");
 
-  app.get("/api/shop/offers", requireAuth, requireRole(["superadmin", "moderator", "player"]), async (req: AuthRequest, res) => {
+  app.get("/api/shop/offers", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const offers = await getShopOffers();
       res.json(offers);
@@ -260,7 +309,21 @@ async function startServer() {
   });
 
   app.post("/api/shop/offers", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
-    try {
+  try {
+    const OfferSchema = z.object({
+      id: z.string().optional(),
+      elementId: z.string().min(1),
+      status: z.enum(['draft', 'available', 'hidden', 'archived']),
+      prices: z.array(z.object({
+        currency: z.enum(['exp', 'yen']),
+        amount: z.number().int().min(0)
+      })),
+      globalStock: z.number().int().nullable().optional(),
+      perCharacterLimit: z.number().int().min(1).nullable().optional()
+    });
+    const parsed = OfferSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+
       const offer = await upsertShopOffer(req.body);
       res.json(offer);
     } catch (error) {
@@ -286,7 +349,7 @@ async function startServer() {
           offerId: z.string().min(1),
           quantity: z.number().int().positive(),
           selectedCurrency: z.enum(['exp', 'yen'])
-        }))
+        })).min(1)
       });
       const parsed = PurchaseSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload format" });

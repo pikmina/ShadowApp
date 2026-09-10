@@ -3,6 +3,7 @@ import {
   Users, Plus, Search, Contact, Eye, Edit2, Copy, Trash2, User, Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import AdminRewardsDialog from '@/components/character/AdminRewardsDialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CharacterEditor from '@/components/character/CharacterEditor';
@@ -12,9 +13,10 @@ import { apiFetch, fetcher } from "../lib/api";
 import { toast } from "sonner";
 
 
-export default function PlayerSheet() {
+export default function CharactersView() {
   const { user, dbUser } = useAuth();
   const [editing, setEditing] = useState(false);
+  const [rewardingCharId, setRewardingCharId] = useState<number | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'canon'>('all');
 
@@ -240,6 +242,7 @@ export default function PlayerSheet() {
             <p className="text-xs text-muted-foreground/60 mt-1">Usa el botón "Nuevo Personaje" para comenzar.</p>
           </div>
         )}
+            {rewardingCharId && <AdminRewardsDialog characterId={rewardingCharId} onClose={() => { setRewardingCharId(null); mutateAll(); }} />}
       </div>
     </div>
   );

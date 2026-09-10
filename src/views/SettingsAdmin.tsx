@@ -13,6 +13,7 @@ import { toast } from "sonner";
 export default function SettingsAdmin() {
   
   const [loading, setLoading] = useState(true);
+    const [expectedUpdatedAt, setExpectedUpdatedAt] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [gameDate, setGameDate] = useState({
@@ -40,6 +41,7 @@ export default function SettingsAdmin() {
         throw new Error("Server returned non-JSON response");
       }
       const data = await res.json();
+      if (data.updatedAt) setExpectedUpdatedAt(data.updatedAt);
       setGameDate(data.gameDate || { year: 2201, month: 1, day: 1 });
       setGroups(data.groups || []);
       setLoadError(null);
@@ -57,13 +59,17 @@ export default function SettingsAdmin() {
             const res = await apiFetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gameDate, groups })
+        body: JSON.stringify({ gameDate, groups, expectedUpdatedAt })
       });
       
       if (res.ok) {
         toast.success("Ajustes guardados correctamente");
       } else {
-        throw new Error("Error saving");
+        if (res.status === 409) {
+          toast.error("Conflicto: Otro administrador modificó los ajustes. Recarga la página.");
+        } else {
+          throw new Error("Error saving");
+        }
       }
       setSaving(false);
     } catch (error) {

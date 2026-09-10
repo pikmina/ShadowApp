@@ -16,7 +16,7 @@ import TechniquesAdmin from "./views/TechniquesAdmin";
 import SheetBuilderAdmin from "./views/SheetBuilderAdmin";
 import SettingsAdmin from "./views/SettingsAdmin";
 
-import PlayerSheet from "./views/PlayerSheet";
+import CharacterEditor from "./views/CharacterEditor";
 import PublicSheet from "./views/PublicSheet";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -36,12 +36,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function IndexRedirector() {
   const { dbUser } = useAuth();
-  const role = dbUser?.role || "player";
+  const role = dbUser?.role;
   
   if (role === "superadmin") {
     return <Navigate to="/rules" replace />;
   }
-  return <Navigate to="/my-sheet" replace />;
+  return <Navigate to="/character-editor" replace />;
 }
 
 function AppRoutes() {
@@ -69,7 +69,7 @@ function AppRoutes() {
         <Route path="catalog" element={<CatalogAdmin />} />
         <Route path="techniques" element={<TechniquesAdmin />} />
         <Route path="sheet-builder" element={<SheetBuilderAdmin />} />
-        <Route path="my-sheet" element={<PlayerSheet />} />
+        <Route path="character-editor" element={<CharacterEditor />} />
         <Route path="shop" element={<Shop />} />
         <Route path="audit" element={<div className="p-8 text-center text-muted-foreground">Log de Auditoría (Próxima Fase)</div>} />
       </Route>

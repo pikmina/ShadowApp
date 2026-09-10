@@ -1,7 +1,7 @@
-import { relations } from 'drizzle-orm';
-import { integer, pgTable, serial, text, timestamp, jsonb, boolean, pgEnum } from 'drizzle-orm/pg-core';
+import {  relations } from 'drizzle-orm';
+import { integer, pgTable, serial, text, timestamp, jsonb, boolean, pgEnum , unique } from 'drizzle-orm/pg-core';
 
-export const roleEnum = pgEnum('role', ['player', 'moderator', 'superadmin']);
+export const roleEnum = pgEnum('role', ['moderator', 'superadmin']);
 export const elementKindEnum = pgEnum('element_kind', [
   'trait', 'weakness', 'skill', 'equipment', 'weapon', 
   'ammunition', 'consumable', 'license', 'permission', 
@@ -16,7 +16,7 @@ export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   uid: text('uid').notNull().unique(), // Firebase Auth UID
   email: text('email').notNull(),
-  role: roleEnum('role').default('player').notNull(),
+  role: roleEnum('role').default('moderator').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -61,6 +61,7 @@ export const shopOffers = pgTable('shop_offers', {
 
 // Element Possessions Table (Character Inventory/Traits)
 export const elementPossessions = pgTable('element_possessions', {
+
   id: text('id').primaryKey(),
   characterId: integer('character_id').references(() => characters.id).notNull(),
   elementId: text('element_id').references(() => systemElements.id).notNull(),
@@ -68,7 +69,9 @@ export const elementPossessions = pgTable('element_possessions', {
   selectedChoices: jsonb('selected_choices').default({}), // Record<string, ElementChoiceValue>
   notes: text('notes'),
   acquiredAt: timestamp('acquired_at').defaultNow(),
-});
+}, (t) => ({
+  unq: unique().on(t.characterId, t.elementId)
+}));
 
 // System Rules Table (Configurable Constants/Limits)
 export const systemRules = pgTable('system_rules', {

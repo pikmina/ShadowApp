@@ -11,8 +11,8 @@ const navigation = [
     { to: "/catalog", label: "Catálogo", icon: Library },
     { to: "/techniques", label: "Técnicas", icon: Swords },
   ] },
-  { label: "Gestión", roles: ["superadmin", "moderator", "player"], items: [
-    { to: "/my-sheet", label: "Personajes", icon: UserRound },
+  { label: "Gestión", roles: ["superadmin", "moderator"], items: [
+    { to: "/character-editor", label: "Personajes", icon: UserRound },
     { to: "/shop", label: "Tienda", icon: ShoppingCart },
   ] },
   { label: "Administración", roles: ["superadmin"], items: [
@@ -26,7 +26,7 @@ export default function DashboardLayout() {
   const { user, dbUser, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-  const userRole = dbUser?.role || "player";
+  const userRole = dbUser?.role;
 
   // Filter navigation based on role
   const filteredNavigation = navigation

@@ -40,7 +40,7 @@ export default function Shop() {
   const role = dbUser?.role;
   const { data: offers, mutate: mutateOffers } = useSWR(user ? "/api/shop/offers" : null, fetcher);
   const { data: elements } = useSWR(user ? "/api/elements" : null, fetcher);
-  const { data: characters } = useSWR(role && role !== 'player' && user ? "/api/admin/characters" : null, fetcher);
+  const { data: characters } = useSWR(role && user ? "/api/admin/characters" : null, fetcher);
 
   const [activeTab, setActiveTab] = useState("store");
   
