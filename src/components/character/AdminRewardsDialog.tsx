@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
+import useSWR from 'swr';
+
+const fetcher = (url: string) => apiFetch(url).then(res => res.json());
 
 export default function AdminRewardsDialog({ characterId, onClose }: { characterId: number, onClose: () => void }) {
   const [type, setType] = useState<'exp' | 'yen' | 'possession'>('exp');
@@ -11,6 +14,8 @@ export default function AdminRewardsDialog({ characterId, onClose }: { character
   const [elementId, setElementId] = useState<string>('');
   const [reason, setReason] = useState<string>('');
   const [loading, setLoading] = useState(false);
+
+  const { data: elements } = useSWR('/api/catalog', fetcher);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +27,7 @@ export default function AdminRewardsDialog({ characterId, onClose }: { character
     setLoading(true);
     try {
       if (type === 'possession') {
-         if (!elementId) throw new Error("Debes especificar el ID del elemento");
+         if (!elementId) throw new Error("Debes especificar el elemento");
          const res = await apiFetch(`/api/admin/character/${characterId}/possession`, {
            method: 'POST',
            body: JSON.stringify({ elementId, quantity: parseInt(amount), reason })
@@ -62,8 +67,15 @@ export default function AdminRewardsDialog({ characterId, onClose }: { character
           </div>
           {type === 'possession' && (
             <div>
-              <label className="text-xs mb-1 block">ID del Elemento</label>
-              <Input value={elementId} onChange={e => setElementId(e.target.value)} placeholder="Ej: item_123" />
+              <label className="text-xs mb-1 block">Elemento</label>
+              <Select value={elementId} onValueChange={setElementId}>
+                <SelectTrigger><SelectValue placeholder="Selecciona un elemento" /></SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {elements?.map((el: any) => (
+                    <SelectItem key={el.id} value={el.id}>{el.name} ({el.kind})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
           <div>

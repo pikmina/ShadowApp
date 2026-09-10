@@ -16,7 +16,7 @@ export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   uid: text('uid').notNull().unique(), // Firebase Auth UID
   email: text('email').notNull(),
-  role: roleEnum('role').default('moderator').notNull(),
+  role: roleEnum('role').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

@@ -31,10 +31,9 @@ async function startServer() {
   app.post("/api/rules", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
   try {
     const RuleSchema = z.object({
-      id: z.string().optional(),
-      name: z.string().min(1),
-      category: z.enum(['combat', 'exploration', 'social', 'magic', 'general']),
-      cost: z.number().int().min(0),
+      key: z.string().min(1),
+      type: z.enum(['number', 'formula', 'json']),
+      value: z.any(),
       description: z.string()
     });
     const parsed = RuleSchema.safeParse(req.body);
@@ -74,10 +73,19 @@ async function startServer() {
   try {
     const ElementSchema = z.object({
       id: z.string().optional(),
-      type: z.enum(['technique', 'technique_entitlement', 'item', 'modifier', 'effect']),
+      kind: z.enum([
+        'trait', 'weakness', 'skill', 'equipment', 'weapon',
+        'ammunition', 'consumable', 'license', 'permission',
+        'character_resource', 'attribute_upgrade', 'technique_entitlement',
+        'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient',
+        'technique' // adding this just in case they need it based on frontend
+      ]),
       name: z.string().min(1),
       description: z.string(),
-      mechanics: z.array(z.any()).optional()
+      status: z.enum(['draft', 'published', 'archived']).optional(),
+      effects: z.array(z.any()).optional(),
+      requirements: z.any().optional(),
+      metadata: z.any().optional()
     });
     const parsed = ElementSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
@@ -114,13 +122,11 @@ async function startServer() {
   try {
     const FieldSchema = z.object({
       id: z.string().optional(),
-      type: z.enum(['text', 'number', 'longtext', 'boolean', 'select', 'multiselect', 'formula', 'attribute']),
       name: z.string().min(1),
-      description: z.string().optional(),
-      config: z.record(z.string(), z.any()).optional(),
-      orderIndex: z.number().int().optional(),
-      isRequired: z.boolean().optional(),
-      categoryId: z.string().optional()
+      type: z.string(),
+      category: z.string(),
+      options: z.array(z.any()).optional(),
+      order: z.number().int().optional()
     });
     const parsed = FieldSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
@@ -313,7 +319,7 @@ async function startServer() {
     const OfferSchema = z.object({
       id: z.string().optional(),
       elementId: z.string().min(1),
-      status: z.enum(['draft', 'available', 'hidden', 'archived']),
+      status: z.enum(['draft', 'scheduled', 'available', 'paused', 'ended', 'archived']),
       prices: z.array(z.object({
         currency: z.enum(['exp', 'yen']),
         amount: z.number().int().min(0)

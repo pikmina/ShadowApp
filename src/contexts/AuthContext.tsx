@@ -13,6 +13,7 @@ interface AuthContextType {
   user: User | null;
   dbUser: DbUser | null;
   loading: boolean;
+  unauthorized: boolean;
   signIn: () => Promise<void>;
   logout: () => Promise<void>;
   getToken: () => Promise<string | null>;
@@ -25,9 +26,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [unauthorized, setUnauthorized] = useState(false);
 
-  const syncWithBackend = useCallback(async (firebaseUser: User, attempt = 1): Promise<void> => {
+  const syncWithBackend = useCallback(async (firebaseUser: User): Promise<void> => {
     try {
       const token = await firebaseUser.getIdToken();
       if (!token) return;
@@ -41,52 +42,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
-      const contentType = res.headers.get('content-type') || '';
-      const isJson = contentType.includes('application/json');
-
-      if (res.ok && isJson) {
-        const text = await res.text();
-        if (text.trim()) {
-          try {
-            const data = JSON.parse(text);
-            if (data && typeof data === 'object') {
-              setDbUser(data);
-              return;
-            }
-          } catch (parseErr) {
-            console.warn("Auth sync response was not valid JSON:", parseErr);
-          }
-        }
+      if (res.status === 401 || res.status === 403) {
+        setUnauthorized(true);
+        setDbUser(null);
+        setLoading(false);
+        return;
       }
 
-      if (attempt < 3) {
-        if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-        syncTimeoutRef.current = setTimeout(() => {
-          syncWithBackend(firebaseUser, attempt + 1);
-        }, attempt * 1000);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object') {
+          setDbUser(data);
+          setUnauthorized(false);
+        }
       } else {
-        setDbUser(prev => prev || {
-          id: 0,
-          uid: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          role: 'moderator'
-        });
+        setUnauthorized(true);
       }
     } catch (err) {
-      if (attempt < 3) {
-        if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-        syncTimeoutRef.current = setTimeout(() => {
-          syncWithBackend(firebaseUser, attempt + 1);
-        }, attempt * 1000);
-      } else {
-        console.warn("Could not sync user with backend:", err);
-        setDbUser(prev => prev || {
-          id: 0,
-          uid: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          role: 'moderator'
-        });
-      }
+      console.error("Auth sync error:", err);
+      setUnauthorized(true);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -94,25 +70,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        setDbUser(prev => prev || {
-          id: 0,
-          uid: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          role: 'moderator'
-        });
-        syncWithBackend(firebaseUser, 1);
+        setLoading(true);
+        setUnauthorized(false);
+        await syncWithBackend(firebaseUser);
       } else {
         setDbUser(null);
+        setUnauthorized(false);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => {
-      unsubscribe();
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-      }
-    };
+    return () => unsubscribe();
   }, [syncWithBackend]);
 
   const signIn = async () => {
@@ -122,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     await signOut(auth);
     setDbUser(null);
+    setUnauthorized(false);
   };
 
   const getToken = async () => {
@@ -131,12 +100,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const syncUser = async () => {
     if (user) {
-      await syncWithBackend(user, 1);
+      await syncWithBackend(user);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, dbUser, loading, signIn, logout, getToken, syncUser }}>
+    <AuthContext.Provider value={{ user, dbUser, loading, unauthorized, signIn, logout, getToken, syncUser }}>
       {children}
     </AuthContext.Provider>
   );

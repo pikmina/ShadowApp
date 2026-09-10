@@ -16,11 +16,11 @@ import TechniquesAdmin from "./views/TechniquesAdmin";
 import SheetBuilderAdmin from "./views/SheetBuilderAdmin";
 import SettingsAdmin from "./views/SettingsAdmin";
 
-import CharacterEditor from "./views/CharacterEditor";
+import CharactersAdmin from "./views/CharactersAdmin";
 import PublicSheet from "./views/PublicSheet";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, dbUser, loading, unauthorized } = useAuth();
   
   if (loading) {
     return <div className="h-screen flex items-center justify-center bg-background">Cargando sistema...</div>;
@@ -28,6 +28,16 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (unauthorized || !dbUser) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-background text-center p-4">
+        <h1 className="text-2xl font-bold text-red-500 mb-2">Acceso No Autorizado</h1>
+        <p className="text-muted-foreground mb-4">Tu cuenta no tiene privilegios administrativos en este sistema.</p>
+        <button onClick={() => window.location.href = '/login'} className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium">Volver</button>
+      </div>
+    );
   }
   
   return <>{children}</>;
@@ -69,7 +79,7 @@ function AppRoutes() {
         <Route path="catalog" element={<CatalogAdmin />} />
         <Route path="techniques" element={<TechniquesAdmin />} />
         <Route path="sheet-builder" element={<SheetBuilderAdmin />} />
-        <Route path="character-editor" element={<CharacterEditor />} />
+        <Route path="character-editor" element={<CharactersAdmin />} />
         <Route path="shop" element={<Shop />} />
         <Route path="audit" element={<div className="p-8 text-center text-muted-foreground">Log de Auditoría (Próxima Fase)</div>} />
       </Route>
