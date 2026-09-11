@@ -1,60 +1,16 @@
-import { SectionHeader } from "../components/common/SectionHeader";
-import { Settings as SectionIcon } from "lucide-react";
-import { useState, useEffect } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { apiFetch } from "../lib/api";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { Loader2, Calendar, Users, Plus, Trash } from "lucide-react";
-import { toast } from "sonner";
+import re
 
-export default function SettingsAdmin() {
-  
-  const [loading, setLoading] = useState(true);
-    const [expectedUpdatedAt, setExpectedUpdatedAt] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [gameDate, setGameDate] = useState({
-    year: 2201,
-    month: 1,
-    day: 1,
-  });
+with open('src/views/SettingsAdmin.tsx', 'r') as f:
+    content = f.read()
 
-  const [groups, setGroups] = useState<{ id: string; name: string; color: string }[]>([]);
+# We need to add Tabs imports
+if 'Tabs,' not in content:
+    content = content.replace('import { Button }', 'import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";\nimport { Button }')
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    try {
-            const res = await apiFetch("/api/settings", {
-        headers: {
-          Accept: "application/json"
-        }
-      });
-      if (!res.ok) throw new Error("Error fetching settings");
-      const contentType = res.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        throw new Error("Server returned non-JSON response");
-      }
-      const data = await res.json();
-      if (data.updatedAt) setExpectedUpdatedAt(data.updatedAt);
-      setGameDate(data.gameDate || { year: 2201, month: 1, day: 1 });
-      setGroups(data.groups || []);
-      setLoadError(null);
-      setLoading(false);
-    } catch (error: any) {
-      console.error(error);
-      setLoadError("Error al cargar los ajustes: " + error.message);
-      setLoading(false);
-    }
-  };
-
-  const [activeTab, setActiveTab] = useState("time");
+# We need to separate handleSave into handleSaveDate and handleSaveGroups
+content = content.replace(
+    'const handleSave = async () => {',
+    '''const [activeTab, setActiveTab] = useState("time");
     
   const handleSaveDate = async () => {
     setSaving(true);
@@ -104,30 +60,14 @@ export default function SettingsAdmin() {
     } finally {
       setSaving(false);
     }
-  };
+  };'''
+)
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-  
-  if (loadError) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 space-y-4">
-        <div className="text-destructive font-semibold">{loadError}</div>
-        <Button onClick={() => { setLoading(true); fetchSettings(); }}>Reintentar</Button>
-      </div>
-    );
-  }
+# Remove the old handleSave up to the end of the try-catch block
+content = re.sub(r'const handleSave = async \(\) => \{.*?setSaving\(false\);\n    \}\n  \};', '', content, flags=re.DOTALL)
 
-  return (
-    <div className="space-y-6">
-      <SectionHeader icon={SectionIcon} title="Ajustes globales" description="Configura la cronología y los grupos del mundo de Shadowmore." />
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+# Replace the layout
+layout_str = '''<Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-6 bg-card/50 border border-border">
           <TabsTrigger value="time">Tiempo On-Rol</TabsTrigger>
           <TabsTrigger value="groups">Grupos / Facciones</TabsTrigger>
@@ -248,7 +188,11 @@ export default function SettingsAdmin() {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
+      </Tabs>'''
+
+# Remove the old grid layout
+content = re.sub(r'<div className="grid gap-6 md:grid-cols-2">.*?</div>\n    </div>\n  \);\n\}', layout_str + '\n    </div>\n  );\n}', content, flags=re.DOTALL)
+
+with open('src/views/SettingsAdmin.tsx', 'w') as f:
+    f.write(content)
+
