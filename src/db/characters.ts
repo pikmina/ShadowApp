@@ -1,5 +1,5 @@
 import { db } from './index.ts';
-import { characters } from './schema.ts';
+import { characters, elementPossessions } from './schema.ts';
 import { eq } from 'drizzle-orm';
 
 export async function getCharacterByUserId(userId: number) {
@@ -58,7 +58,10 @@ export async function updateCharacter(characterId: number, data: { name?: string
 
 
 export async function deleteCharacter(characterId: number) {
-  await db.delete(characters).where(eq(characters.id, characterId));
+  await db.transaction(async (tx) => {
+    await tx.delete(elementPossessions).where(eq(elementPossessions.characterId, characterId));
+    await tx.delete(characters).where(eq(characters.id, characterId));
+  });
 }
 
 import { elementPossessions, auditLogs, systemElements } from './schema.ts';

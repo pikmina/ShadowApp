@@ -129,7 +129,7 @@ export const EntityPanel: React.FC<EntityPanelProps> = ({
       >
         {renderPattern()}
         {renderTicks()}
-        <CardHeader className="p-4 sm:p-5 pb-3 border-b border-border/50 relative z-10">
+        <CardHeader className="sm:p-5 pb-3 border-b border-border/50 relative z-10">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
               {icon && <div className="text-primary shrink-0">{icon}</div>}
