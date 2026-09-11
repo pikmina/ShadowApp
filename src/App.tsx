@@ -18,6 +18,7 @@ import SettingsAdmin from "./views/SettingsAdmin";
 
 import CharactersAdmin from "./views/CharactersAdmin";
 import PublicSheet from "./views/PublicSheet";
+import ComponentShowcase from "./views/ComponentShowcase";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, dbUser, loading, unauthorized } = useAuth();
@@ -81,6 +82,7 @@ function AppRoutes() {
         <Route path="sheet-builder" element={<SheetBuilderAdmin />} />
         <Route path="character-editor" element={<CharactersAdmin />} />
         <Route path="shop" element={<Shop />} />
+        <Route path="showcase" element={<ComponentShowcase />} />
         <Route path="audit" element={<div className="p-8 text-center text-muted-foreground">Log de Auditoría (Próxima Fase)</div>} />
       </Route>
     </Routes>

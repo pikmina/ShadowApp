@@ -1,0 +1,170 @@
+[
+  {
+    "id": "rwvCFObXbc",
+    "name": "Nombre",
+    "type": "text",
+    "category": "Datos Básicos",
+    "options": [],
+    "order": 0,
+    "createdAt": "2026-09-08T23:35:24.446Z",
+    "updatedAt": "2026-09-09T01:28:03.896Z"
+  },
+  {
+    "id": "CoL8xH2nDA",
+    "name": "Apellido",
+    "type": "text",
+    "category": "Datos Básicos",
+    "options": [],
+    "order": 10,
+    "createdAt": "2026-09-08T23:35:35.384Z",
+    "updatedAt": "2026-09-09T01:28:03.898Z"
+  },
+  {
+    "id": "aNEPmamd--",
+    "name": "Apodo/Nombre de Héroe o Villano",
+    "type": "text",
+    "category": "Datos Básicos",
+    "options": [],
+    "order": 20,
+    "createdAt": "2026-09-09T00:19:46.312Z",
+    "updatedAt": "2026-09-09T01:28:03.900Z"
+  },
+  {
+    "id": "LQ-IIAkI4J",
+    "name": "Grupo Sanguíneo",
+    "type": "select",
+    "category": "Datos Básicos",
+    "options": [
+      "O+",
+      "O-",
+      "A+",
+      "A-",
+      "B+",
+      "B-",
+      "AB+",
+      "AB-"
+    ],
+    "order": 40,
+    "createdAt": "2026-09-09T00:16:30.284Z",
+    "updatedAt": "2026-09-09T01:28:03.901Z"
+  },
+  {
+    "id": "wUo1El9GHs",
+    "name": "Género",
+    "type": "select",
+    "category": "Datos Básicos",
+    "options": [
+      "Femenino",
+      "Masculino",
+      "No Binario"
+    ],
+    "order": 30,
+    "createdAt": "2026-09-09T00:17:07.074Z",
+    "updatedAt": "2026-09-09T01:28:03.903Z"
+  },
+  {
+    "id": "7QmSlP6IZR",
+    "name": "Alineación",
+    "type": "select",
+    "category": "Datos Básicos",
+    "options": [
+      "Heróico",
+      "Legal",
+      "Neutral",
+      "Caótico",
+      "Villanía"
+    ],
+    "order": 50,
+    "createdAt": "2026-09-09T00:17:27.848Z",
+    "updatedAt": "2026-09-09T01:28:03.904Z"
+  },
+  {
+    "id": "feEhVcc9EC",
+    "name": "Nacimiento",
+    "type": "date",
+    "category": "Datos Básicos",
+    "options": [],
+    "order": 70,
+    "createdAt": "2026-09-09T00:18:41.833Z",
+    "updatedAt": "2026-09-09T01:28:03.909Z"
+  },
+  {
+    "id": "_cj2pGF5Uk",
+    "name": "Nacionalidad",
+    "type": "text",
+    "category": "Datos Básicos",
+    "options": [],
+    "order": 60,
+    "createdAt": "2026-09-09T00:17:35.085Z",
+    "updatedAt": "2026-09-09T01:28:03.911Z"
+  },
+  {
+    "id": "QlvzlaVwdl",
+    "name": "Faceclaim",
+    "type": "text",
+    "category": "Datos Administrativos",
+    "options": [],
+    "order": 20,
+    "createdAt": "2026-09-09T00:18:12.474Z",
+    "updatedAt": "2026-09-09T01:28:14.663Z"
+  },
+  {
+    "id": "ATWAdupJy9",
+    "name": "Estatus ",
+    "type": "select",
+    "category": "Datos Administrativos",
+    "options": [
+      "Activo",
+      "Inactivo",
+      "Archivado"
+    ],
+    "order": 0,
+    "createdAt": "2026-09-09T00:35:16.503Z",
+    "updatedAt": "2026-09-09T01:28:14.662Z"
+  },
+  {
+    "id": "AhbNOfYuW8",
+    "name": "Personaje Canon",
+    "type": "switch",
+    "category": "Datos Administrativos",
+    "options": [],
+    "order": 10,
+    "createdAt": "2026-09-08T23:35:59.845Z",
+    "updatedAt": "2026-09-09T01:28:14.659Z"
+  },
+  {
+    "id": "OIU-ysRSzW",
+    "name": "Imagen",
+    "type": "image",
+    "category": "Datos Administrativos",
+    "options": [],
+    "order": 30,
+    "createdAt": "2026-09-09T00:19:06.419Z",
+    "updatedAt": "2026-09-09T01:28:14.668Z"
+  },
+  {
+    "id": "aiAB0icKck",
+    "name": "Tipo de Quirk",
+    "type": "select",
+    "category": "Quirk & Poder",
+    "options": [
+      "Transformador",
+      "Emisor",
+      "Mutante",
+      "Sin quirk"
+    ],
+    "order": 0,
+    "createdAt": "2026-09-09T01:17:57.441Z",
+    "updatedAt": "2026-09-09T01:28:44.677Z"
+  },
+  {
+    "id": "HWNcgGwtC_",
+    "name": "Quirk",
+    "type": "quirk",
+    "category": "Quirk & Poder",
+    "options": [],
+    "order": 10,
+    "createdAt": "2026-09-09T00:33:40.431Z",
+    "updatedAt": "2026-09-09T01:28:44.679Z"
+  }
+]

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertCircle, Award, Check, Copy, Edit2, Eye, Plus, Search, Trash2, User, Users } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle, Award, Check, Copy, Edit2, Eye, Plus, Search, Trash2, User, Users } from 'lucide-react';
 import useSWR from 'swr';
 import { toast } from 'sonner';
 import AdminRewardsDialog from '@/components/character/AdminRewardsDialog';
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, fetcher } from '@/lib/api';
+import { validateCharacter } from '@/lib/characterValidation';
 
 const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
 
@@ -64,7 +65,9 @@ export default function CharactersAdmin() {
 
   const isMod = dbUser?.role === 'moderator' || dbUser?.role === 'superadmin';
   const { data: allCharacters, mutate: mutateAll } = useSWR(user && isMod ? '/api/admin/characters' : null, fetcher);
+  const { data: rules } = useSWR(user && isMod ? '/api/rules' : null, fetcher);
   const charactersList = Array.isArray(allCharacters) ? allCharacters : [];
+  const stagesList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_stages')?.value || [] : [];
 
   const groupOptions = useMemo(() => {
     const values = charactersList
@@ -161,22 +164,11 @@ export default function CharactersAdmin() {
   if (editing) {
     return (
       <div className="mx-auto max-w-5xl space-y-4">
-        <EntityPanel
-          title={displayCharacter ? `Editando: ${displayCharacter.name}` : 'Nuevo personaje'}
-          icon={<Edit2 className="size-5" />}
-          pattern="diagonal"
-          accent="accent1"
-          cornerTicks
-        >
-          <div className="mb-4 flex justify-end">
-            <Button variant="outline" onClick={() => setEditing(false)}>Volver a personajes</Button>
-          </div>
-          <CharacterEditor
-            character={displayCharacter}
-            onSaved={() => { setEditing(false); mutateAll(); }}
-            onCancel={() => setEditing(false)}
-          />
-        </EntityPanel>
+        <CharacterEditor 
+          character={displayCharacter}
+          onSaved={() => { setEditing(false); mutateAll(); }}
+          onCancel={() => setEditing(false)}
+        />
       </div>
     );
   }
@@ -260,7 +252,19 @@ export default function CharactersAdmin() {
           const stage = String(readProfile(profile, ['basic_stage', 'stage', 'etapa']) || 'Desconocida');
           const age = String(readProfile(profile, ['basic_age', 'age', 'edad']) || '?');
           const alignment = String(readProfile(profile, ['basic_alignment', 'alignment', 'alineamiento']) || 'Heroico');
-          const bloodType = String(readProfile(profile, ['basic_blood_type', 'blood_type', 'sangre']) || 'O+');
+          const bloodType = String(readProfile(profile, ['basic_blood_type', 'blood_type', 'sangre', 'sanguineo', 'grupo_sanguineo']) || 'O+');
+
+          const validation = validateCharacter(profile, stagesList);
+          
+          let statusIcon = <CheckCircle className="size-3.5 text-green-500" />;
+          let statusColor = 'border-green-500/30';
+          if (validation.status === 'red') {
+            statusIcon = <AlertTriangle className="size-3.5 text-red-500" />;
+            statusColor = 'border-red-500/30';
+          } else if (validation.status === 'orange') {
+            statusIcon = <AlertCircle className="size-3.5 text-yellow-500" />;
+            statusColor = 'border-yellow-500/30';
+          }
 
           return (
             <EntityPanel key={character.id} variant="character" pattern="dots" accent="accent2" cornerTicks className="group flex flex-col h-full rounded-xl bg-black/40 border border-border/50 transition-colors hover:border-primary/60 !p-0 !gap-0 overflow-hidden">
@@ -271,8 +275,11 @@ export default function CharactersAdmin() {
                 ) : (
                   <div className="absolute inset-0 flex size-full items-center justify-center bg-muted/20 font-oxanium text-2xl font-bold text-primary/50">{name.charAt(0).toUpperCase() || <User className="size-9" />}</div>
                 )}
-                <div className="absolute top-2 left-2 rounded-full bg-black/40 p-0.5 border border-yellow-500/30">
-                  <AlertCircle className="size-3.5 text-yellow-500" />
+                <div 
+                  className={`absolute top-2 left-2 rounded-full bg-black/40 p-0.5 border ${statusColor}`}
+                  title={validation.messages.join('\n') || 'Todo en orden'}
+                >
+                  {statusIcon}
                 </div>
               </a>
               

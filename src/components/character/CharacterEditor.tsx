@@ -10,8 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, Flame, Wind } from "lucide-react";
 import { toast } from "sonner";
+import { validateCharacter, calculateDerivedStats } from "@/lib/characterValidation";
+import { Badge } from "@/components/ui/badge";
 
 
 export default function CharacterEditor({ character, onSaved, onCancel }: { character?: any, onSaved: () => void, onCancel?: () => void }) {
@@ -22,6 +24,8 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
 
   const { data: fields, error: fieldsError } = useSWR(user ? "/api/sheet-fields" : null, fetcher);
   const { data: settings, error: settingsError } = useSWR(user ? "/api/settings" : null, fetcher);
+  const { data: rules } = useSWR(user ? "/api/rules" : null, fetcher);
+  const stagesList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_stages')?.value || [] : [];
 
   // Add the "Facción / Grupo" field virtually to basic data if groups exist
   let processedFields: any[] = [];
@@ -48,8 +52,13 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
 
   // Group fields by category
   const groupedFields = processedFields.reduce((acc: any, field: any) => {
-    if (!acc[field.category]) acc[field.category] = [];
-    acc[field.category].push(field);
+    let category = field.category;
+    if (category === 'Datos Básicos' || category === 'Datos Administrativos') {
+      category = 'Datos';
+    }
+    
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(field);
     return acc;
   }, {});
 
@@ -60,17 +69,33 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
     }
   }, [character?.profileData, isDirty]);
 
+  // Derive current age and auto-assign stage based on birth date
+  const dateField = processedFields?.find((f: any) => f.type === 'date' && (f.name.toLowerCase().includes('nacimiento') || f.name.toLowerCase().includes('birth')));
+  const birthDateValue = dateField ? formData[dateField.id] : undefined;
+  
+  useEffect(() => {
+    if (birthDateValue && settings?.gameDate && stagesList.length > 0) {
+      const birth = new Date(birthDateValue);
+      const game = new Date(settings.gameDate.year, settings.gameDate.month - 1, settings.gameDate.day);
+      let age = game.getFullYear() - birth.getFullYear();
+      const m = game.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && game.getDate() < birth.getDate())) {
+        age--;
+      }
+      if (age >= 0) {
+        const matchingStage = stagesList.find((s: any) => age >= (s.minAge || 0) && age <= (s.maxAge || 999));
+        if (matchingStage && formData['basic_stage'] !== matchingStage.name) {
+          setFormData(prev => ({ ...prev, basic_stage: matchingStage.name, basic_age: age }));
+        } else if (!matchingStage && formData['basic_age'] !== age) {
+          setFormData(prev => ({ ...prev, basic_age: age }));
+        }
+      }
+    }
+  }, [birthDateValue, settings?.gameDate, stagesList.length, formData['basic_stage']]);
+
   useEffect(() => {
     if (processedFields.length > 0 && !activeTab) {
-      const categories = Object.keys(groupedFields).sort((a, b) => {
-        const getOrder = (cat: string) => {
-          if (cat === 'Datos Administrativos') return 1;
-          if (cat === 'Datos Básicos') return 2;
-          return 3;
-        };
-        return getOrder(a) - getOrder(b);
-      });
-      if (categories.length > 0) setActiveTab(categories[0]);
+      setActiveTab('Datos');
     }
   }, [processedFields.length, activeTab, Object.keys(groupedFields).join(',')]);
 
@@ -78,6 +103,72 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
     if (!user) return;
     setIsSaving(true);
     try {
+      const derived = calculateDerivedStats(formData, stagesList);
+      const finalProfileData: Record<string, any> = {
+        ...formData,
+        salud_actual: formData.salud_actual ?? derived.salud,
+        estamina_actual: formData.estamina_actual ?? derived.estamina,
+        salud_maxima: derived.salud,
+        estamina_maxima: derived.estamina,
+        evasion: derived.evasion,
+        coraje: derived.coraje,
+        mod_fue: derived.modFue,
+        mod_des: derived.modDes,
+        iniciativa: derived.iniciativa,
+        daño_base: derived.dañoBase,
+      };
+
+      // Ensure semantic mapping for fields to make sure readProfile in other components works
+      if (fields) {
+        fields.forEach((f: any) => {
+          const val = formData[f.id];
+          const nName = f.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '_');
+          
+          if (val !== undefined && val !== null) {
+            finalProfileData[nName] = val;
+            
+            // Explicit common mappings for the hardcoded readProfile arrays
+            if (nName.includes('nombre') && !nName.includes('apodo') && !nName.includes('heroe')) finalProfileData['basic_name'] = val;
+            if (nName.includes('apellido')) finalProfileData['last_name'] = val;
+            if (nName.includes('apodo') || nName.includes('alias') || nName.includes('heroe')) finalProfileData['alias'] = val;
+            if (nName.includes('edad')) finalProfileData['basic_age'] = val;
+            if (nName.includes('alineacion') || nName.includes('alineamiento')) finalProfileData['basic_alignment'] = val;
+            if (nName.includes('sangre') || nName.includes('sanguineo')) finalProfileData['basic_blood_type'] = val;
+            if (nName.includes('faccion') || (nName.includes('grupo') && !nName.includes('sangre') && !nName.includes('sanguineo'))) finalProfileData['faction_group'] = val;
+            if (nName.includes('estatus') || nName.includes('estado')) finalProfileData['status'] = val;
+            if (nName.includes('canon')) finalProfileData['is_canon'] = val;
+            if (nName.includes('imagen') || nName.includes('avatar') || nName.includes('faceclaim')) finalProfileData['avatar_url'] = val;
+          }
+
+          // Handle Quirk specific mappings
+          if (f.type === 'quirk') {
+            if (formData[`${f.id}_name`]) finalProfileData['quirk_name'] = formData[`${f.id}_name`];
+            if (formData[`${f.id}_desc`]) finalProfileData['quirk_description'] = formData[`${f.id}_desc`];
+            if (formData[`${f.id}_lvl1`]) finalProfileData['quirk_lvl1'] = formData[`${f.id}_lvl1`];
+            if (formData[`${f.id}_lvl2`]) finalProfileData['quirk_lvl2'] = formData[`${f.id}_lvl2`];
+            if (formData[`${f.id}_lvl3`]) finalProfileData['quirk_lvl3'] = formData[`${f.id}_lvl3`];
+          }
+          
+          // Handle specific standard types
+          if (f.type === 'image' && val) {
+            finalProfileData['avatar_url'] = val;
+          }
+          
+          if (f.type === 'date' && val && settings?.gameDate) {
+             const birth = new Date(val);
+             const game = new Date(settings.gameDate.year, settings.gameDate.month - 1, settings.gameDate.day);
+             let age = game.getFullYear() - birth.getFullYear();
+             const m = game.getMonth() - birth.getMonth();
+             if (m < 0 || (m === 0 && game.getDate() < birth.getDate())) {
+               age--;
+             }
+             if (age >= 0) {
+               finalProfileData['basic_age'] = age;
+             }
+          }
+        });
+      }
+
       const res = await apiFetch('/api/character', {
         method: 'POST',
         headers: {
@@ -87,11 +178,10 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
         body: JSON.stringify({
           characterId: character?.id,
           name: (() => {
-            const nameField = fields?.find((f: any) => f.id === 'basic_name');
-            return nameField && formData[nameField.id] ? formData[nameField.id] : character?.name || "Unnamed";
+            return finalProfileData['basic_name'] || finalProfileData['nombre'] || character?.name || "Unnamed";
           })(),
           expectedUpdatedAt: character?.updatedAt,
-          profileData: formData
+          profileData: finalProfileData
         })
       });
       if (res.status === 409) {
@@ -216,15 +306,15 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
               <Textarea value={formData[`${field.id}_desc`] || ''} onChange={e => updateField(`${field.id}_desc`, e.target.value)} />
             </div>
             <div className="space-y-2 border-t border-border pt-2">
-              <Label className="text-xs block text-primary">Nivel 1 (Despertar)</Label>
+              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 1 (Despertar)</Label>
               <Textarea value={formData[`${field.id}_lvl1`] || ''} onChange={e => updateField(`${field.id}_lvl1`, e.target.value)} />
             </div>
             <div className="space-y-2 border-t border-border pt-2">
-              <Label className="text-xs block text-primary">Nivel 2 (Desarrollo)</Label>
+              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 2 (Desarrollo)</Label>
               <Textarea value={formData[`${field.id}_lvl2`] || ''} onChange={e => updateField(`${field.id}_lvl2`, e.target.value)} />
             </div>
             <div className="space-y-2 border-t border-border pt-2">
-              <Label className="text-xs block text-primary">Nivel 3 (Maestría)</Label>
+              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 3 (Maestría)</Label>
               <Textarea value={formData[`${field.id}_lvl3`] || ''} onChange={e => updateField(`${field.id}_lvl3`, e.target.value)} />
             </div>
           </div>
@@ -240,16 +330,16 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-muted/50 border border-border rounded-md flex items-center justify-center text-xl font-bold uppercase text-foreground">
             {(() => {
-              const nf = fields?.find((f: any) => f.id === 'basic_name');
-              const n = (nf ? formData[nf.id] : null) || character?.name || 'P';
-              return typeof n === 'string' ? n.charAt(0) : 'P';
+              const nf = fields?.find((f: any) => f.id === 'basic_name' || f.name.toLowerCase().includes('nombre') && !f.name.toLowerCase().includes('apodo'));
+              const n = (nf ? formData[nf.id] : null) || formData['basic_name'] || character?.name || 'P';
+              return typeof n === 'string' && n.length > 0 ? n.charAt(0).toUpperCase() : 'P';
             })()}
           </div>
           <div>
             <h2 className="text-2xl font-bold font-oxanium text-foreground flex items-center gap-3">
               Editar Registro: {(() => {
-                const nf = fields?.find((f: any) => f.id === 'basic_name');
-                return (nf ? formData[nf.id] : null) || character?.name || "Sin Nombre";
+                const nf = fields?.find((f: any) => f.id === 'basic_name' || f.name.toLowerCase().includes('nombre') && !f.name.toLowerCase().includes('apodo'));
+                return (nf ? formData[nf.id] : null) || formData['basic_name'] || character?.name || "Sin Nombre";
               })()}
             </h2>
             <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-widest mt-1">
@@ -271,43 +361,167 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
       </div>
 
       <div className="flex bg-card/40 border border-border overflow-x-auto custom-scrollbar rounded-lg mb-6 p-1 gap-1 items-center">
-        {Object.keys(groupedFields).sort((a, b) => {
-          const getOrder = (cat: string) => {
-            if (cat === 'Datos Administrativos') return 1;
-            if (cat === 'Datos Básicos') return 2;
-            return 3;
-          };
-          return getOrder(a) - getOrder(b);
-        }).map(category => (
-          <Button
-            key={category}
-            variant="ghost"
-            size="sm"
-            className={`whitespace-nowrap shrink-0 transition-colors rounded-md font-medium h-9 px-4 ${activeTab === category ? 'bg-background text-primary border border-border/50 shadow-sm hover:bg-background/80 hover:text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
-            onClick={() => setActiveTab(category)}
-          >
-            {category}
-          </Button>
-        ))}
+        {(() => {
+          const allCats = Object.keys(groupedFields);
+          const quirkCat = allCats.find(c => c.toLowerCase().includes('quirk')) || 'Quirk';
+          
+          return ['Datos', quirkCat, 'Atributos', ...allCats.filter(c => !['Datos', quirkCat, 'Atributos'].includes(c))].map(category => (
+            <Button
+              key={category}
+              variant="ghost"
+              size="sm"
+              className={`whitespace-nowrap shrink-0 transition-colors rounded-md font-medium h-9 px-4 ${activeTab === category ? 'bg-background text-primary border border-border/50 shadow-sm hover:bg-background/80 hover:text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
+              onClick={() => setActiveTab(category)}
+            >
+              {category}
+            </Button>
+          ));
+        })()}
       </div>
 
       <div className="space-y-6">
-        {activeTab && groupedFields[activeTab] && (
-          <Card key={activeTab} className="border-border">
-            <CardHeader className="border-b bg-muted/30 pb-3">
-              <CardTitle className="text-base uppercase tracking-wider text-primary">{activeTab}</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {groupedFields[activeTab].sort((a: any, b: any) => a.order - b.order).map((field: any) => (
-                  <div key={field.id} className={`space-y-2 ${['textarea', 'quirk', 'image', 'multiselect'].includes(field.type) ? 'md:col-span-2' : ''} w-full`}>
-                    <Label>{field.name}</Label>
-                    {renderField(field)}
+        {activeTab === 'Atributos' && (() => {
+          const validation = validateCharacter(formData, stagesList);
+          const derived = calculateDerivedStats(formData, stagesList);
+          const stage = stagesList.find((s: any) => s.name.toLowerCase() === String(formData['basic_stage'] || formData['stage'] || formData['etapa'] || '').toLowerCase());
+          
+          return (
+            <Card className="border-border">
+              <CardHeader className="border-b bg-muted/30 pb-3 flex flex-row items-center justify-between">
+                <CardTitle className="text-base uppercase tracking-wider text-primary flex items-center gap-2">
+                  <Activity className="size-5" /> Sistema & Estadísticas
+                </CardTitle>
+                {validation.status === 'green' && <Badge className="bg-green-500/20 text-green-500 border-green-500/50"><CheckCircle className="size-3.5 mr-1" /> Todo en orden</Badge>}
+                {validation.status === 'orange' && <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/50"><AlertCircle className="size-3.5 mr-1" /> Faltan datos</Badge>}
+                {validation.status === 'red' && <Badge className="bg-red-500/20 text-red-500 border-red-500/50"><AlertTriangle className="size-3.5 mr-1" /> Hay errores</Badge>}
+              </CardHeader>
+              <CardContent className="pt-6 space-y-8">
+                {validation.messages.length > 0 && (
+                  <div className={`p-4 rounded-md border ${validation.status === 'red' ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500'}`}>
+                    <ul className="list-disc list-inside text-sm font-medium">
+                      {validation.messages.map((msg, idx) => <li key={idx}>{msg}</li>)}
+                    </ul>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                )}
+                
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-bold uppercase tracking-widest text-foreground">Etapa del Personaje</Label>
+                    {birthDateValue && <span className="text-xs text-muted-foreground">Derivada de la edad ({formData['basic_age'] || '?'} años)</span>}
+                  </div>
+                  <Select 
+                    value={formData['basic_stage'] || ''} 
+                    onValueChange={v => updateField('basic_stage', v)}
+                    disabled={!!birthDateValue}
+                  >
+                    <SelectTrigger className="w-full md:w-1/2">
+                      <SelectValue placeholder="Selecciona una etapa..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stagesList.map((s: any) => (
+                        <SelectItem key={s.name} value={s.name}>{s.name} ({s.attrPoints} pts, max {s.maxAttr})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-bold uppercase tracking-widest text-foreground">Atributos Base</Label>
+                    {stage && (
+                      <span className="text-xs font-mono text-muted-foreground">
+                        Puntos repartidos: <strong className={validation.status === 'red' ? 'text-red-500' : 'text-primary'}>
+                          {(Number(formData.FUE)||0) + (Number(formData.DES)||0) + (Number(formData.RES)||0) + (Number(formData.INT)||0) + (Number(formData.VOL)||0) + (Number(formData.VEL)||0)}
+                        </strong> / {stage.attrPoints}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {[
+                      { id: 'FUE', label: 'Fuerza', icon: Swords },
+                      { id: 'DES', label: 'Destreza', icon: Zap },
+                      { id: 'RES', label: 'Resistencia', icon: Shield },
+                      { id: 'INT', label: 'Inteligencia', icon: Brain },
+                      { id: 'VOL', label: 'Voluntad', icon: Flame },
+                      { id: 'VEL', label: 'Velocidad', icon: Wind }
+                    ].map(attr => (
+                      <div key={attr.id} className="relative border border-border bg-bg2/40 p-3 rounded-md">
+                        <attr.icon className="absolute right-3 top-1/2 -translate-y-1/2 size-8 text-muted-foreground/10" />
+                        <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">{attr.label}</Label>
+                        <Input 
+                          type="number" 
+                          min="0" 
+                          max={stage?.maxAttr || 10} 
+                          value={formData[attr.id] || ''} 
+                          onChange={e => updateField(attr.id, parseInt(e.target.value) || 0)} 
+                          className="mt-1 font-mono text-lg bg-background" 
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <Label className="text-sm font-bold uppercase tracking-widest text-foreground">Estadísticas Derivadas (Auto-calculadas)</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
+                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Salud</span>
+                      <strong className="text-xl font-mono text-primary">{derived.salud}</strong>
+                    </div>
+                    <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
+                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Estamina</span>
+                      <strong className="text-xl font-mono text-indigo-400">{derived.estamina}</strong>
+                    </div>
+                    <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
+                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Evasión</span>
+                      <strong className="text-xl font-mono text-foreground">{derived.evasion}</strong>
+                    </div>
+                    <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
+                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Coraje</span>
+                      <strong className="text-xl font-mono text-foreground">{derived.coraje}</strong>
+                    </div>
+                    <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
+                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Iniciativa</span>
+                      <strong className="text-xl font-mono text-foreground">{derived.iniciativa > 0 ? `+${derived.iniciativa}` : derived.iniciativa}</strong>
+                    </div>
+                    <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
+                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Mod FUE</span>
+                      <strong className="text-xl font-mono text-foreground">{derived.modFue > 0 ? `+${derived.modFue}` : derived.modFue}</strong>
+                    </div>
+                    <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
+                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Mod DES</span>
+                      <strong className="text-xl font-mono text-foreground">{derived.modDes > 0 ? `+${derived.modDes}` : derived.modDes}</strong>
+                    </div>
+                    <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
+                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Daño Base</span>
+                      <strong className="text-xl font-mono text-red-400">{derived.dañoBase}</strong>
+                    </div>
+                  </div>
+                </div>
+
+              </CardContent>
+            </Card>
+          );
+        })()}
+        {activeTab !== 'Atributos' && activeTab && groupedFields[activeTab] && (
+          <div key={activeTab}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {groupedFields[activeTab].sort((a: any, b: any) => {
+                if (activeTab === 'Datos') {
+                  const getCatOrder = (cat: string) => cat === 'Datos Básicos' ? 1 : (cat === 'Datos Administrativos' ? 2 : 3);
+                  if (getCatOrder(a.category) !== getCatOrder(b.category)) {
+                    return getCatOrder(a.category) - getCatOrder(b.category);
+                  }
+                }
+                return a.order - b.order;
+              }).map((field: any) => (
+                <div key={field.id} className={`space-y-2 ${['textarea', 'quirk', 'image', 'multiselect'].includes(field.type) ? 'md:col-span-2' : ''} w-full`}>
+                  <Label className="text-sm font-bold uppercase tracking-widest text-foreground">{field.name}</Label>
+                  {renderField(field)}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>
