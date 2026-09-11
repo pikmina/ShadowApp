@@ -353,7 +353,9 @@ export default function SheetBuilderAdmin() {
                     {form.options.map((opt, idx) => (
                       <Badge key={idx} variant="outline" className="bg-card px-2 py-1 flex items-center gap-1">
                         {opt}
-                        <Trash2 className="w-3 h-3 text-red-500 cursor-pointer" onClick={() => removeOption(idx)} />
+                        <span onClick={() => removeOption(idx)} className="cursor-pointer text-red-500 hover:text-red-700 flex items-center justify-center">
+                          <Trash2 className="w-3 h-3" />
+                        </span>
                       </Badge>
                     ))}
                   </div>
