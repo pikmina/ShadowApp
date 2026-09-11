@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,8 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
   const { data: settings, error: settingsError } = useSWR(user ? "/api/settings" : null, fetcher);
   const { data: rules } = useSWR(user ? "/api/rules" : null, fetcher);
   const stagesList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_stages')?.value || [] : [];
+  const { data: rawElements } = useSWR(user ? "/api/elements" : null, fetcher);
+  const elements = Array.isArray(rawElements) ? rawElements.filter(el => el.status === 'published') : [];
 
   // Add the "Facción / Grupo" field virtually to basic data if groups exist
   let processedFields: any[] = [];
@@ -365,7 +367,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
           const allCats = Object.keys(groupedFields);
           const quirkCat = allCats.find(c => c.toLowerCase().includes('quirk')) || 'Quirk';
           
-          return ['Datos', quirkCat, 'Atributos', ...allCats.filter(c => !['Datos', quirkCat, 'Atributos'].includes(c))].map(category => (
+          return ['Datos', 'Rasgos', quirkCat, 'Atributos', ...allCats.filter(c => !['Datos', 'Rasgos', quirkCat, 'Atributos'].includes(c))].map(category => (
             <Button
               key={category}
               variant="ghost"
@@ -380,7 +382,107 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
       </div>
 
       <div className="space-y-6">
-        {activeTab === 'Atributos' && (() => {
+        
+        {activeTab === 'Rasgos' && (() => {
+          const stageName = String(formData['basic_stage'] || formData['stage'] || formData['etapa'] || '').toLowerCase();
+          const stage = stagesList.find((s: any) => s.name.toLowerCase() === stageName);
+          const maxTraits = stage?.maxTraits || 0;
+          const minWeaknesses = stage?.minWeaknesses || 0;
+          
+          const traitsList = elements.filter(el => el.kind === 'trait');
+          const weaknessesList = elements.filter(el => el.kind === 'weakness');
+          
+          const selectedTraits = Array.isArray(formData['traits']) ? formData['traits'] : [];
+          const selectedWeaknesses = Array.isArray(formData['weaknesses']) ? formData['weaknesses'] : [];
+
+          const toggleElement = (type: 'traits' | 'weaknesses', id: string, max: number, isMin: boolean = false) => {
+            const current = Array.isArray(formData[type]) ? formData[type] : [];
+            if (current.includes(id)) {
+              setFormData(prev => ({ ...prev, [type]: current.filter(v => v !== id) }));
+            } else {
+              if (max > 0 && current.length >= max && !isMin) {
+                toast.error(`No puedes seleccionar más de ${max} ${type === 'traits' ? 'rasgos' : 'debilidades'}`);
+                return;
+              }
+              setFormData(prev => ({ ...prev, [type]: [...current, id] }));
+            }
+          };
+
+          return (
+            <Card className="border-border">
+              <CardHeader className="border-b bg-muted/30 pb-3">
+                <CardTitle className="text-base uppercase tracking-wider text-primary flex items-center gap-2">
+                  <Brain className="size-5" /> Rasgos y Debilidades
+                </CardTitle>
+                <CardDescription>
+                  {stage ? (
+                    <span>Etapa actual: <strong>{stage.name}</strong>. Permite hasta {maxTraits} rasgos y requiere un mínimo de {minWeaknesses} debilidades.</span>
+                  ) : (
+                    <span>Selecciona una etapa en la pestaña Datos para ver los límites de rasgos y debilidades.</span>
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-8">
+                
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <h3 className="font-bold font-oxanium text-lg text-foreground flex items-center gap-2"><Zap className="size-4 text-cyan-500" /> Rasgos</h3>
+                    <Badge variant="outline">{selectedTraits.length} / {maxTraits > 0 ? maxTraits : '∞'}</Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {traitsList.map(trait => (
+                      <div 
+                        key={trait.id} 
+                        className={`flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors ${selectedTraits.includes(trait.id) ? 'bg-cyan-950/20 border-cyan-800/50' : 'bg-card hover:bg-muted/50 border-border'}`}
+                        onClick={() => toggleElement('traits', trait.id, maxTraits)}
+                      >
+                        <Checkbox 
+                          checked={selectedTraits.includes(trait.id)} 
+                          onCheckedChange={() => toggleElement('traits', trait.id, maxTraits)}
+                          className="mt-1"
+                        />
+                        <div>
+                          <div className="font-medium text-sm text-foreground">{trait.name}</div>
+                          <div className="text-xs text-muted-foreground line-clamp-2">{trait.description}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {traitsList.length === 0 && <div className="text-sm text-muted-foreground p-4 text-center col-span-full border border-dashed rounded-md">No hay rasgos publicados en el catálogo.</div>}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <h3 className="font-bold font-oxanium text-lg text-foreground flex items-center gap-2"><AlertTriangle className="size-4 text-red-500" /> Debilidades</h3>
+                    <Badge variant="outline">{selectedWeaknesses.length} / Mínimo {minWeaknesses}</Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {weaknessesList.map(weakness => (
+                      <div 
+                        key={weakness.id} 
+                        className={`flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors ${selectedWeaknesses.includes(weakness.id) ? 'bg-red-950/20 border-red-800/50' : 'bg-card hover:bg-muted/50 border-border'}`}
+                        onClick={() => toggleElement('weaknesses', weakness.id, 0, true)}
+                      >
+                        <Checkbox 
+                          checked={selectedWeaknesses.includes(weakness.id)} 
+                          onCheckedChange={() => toggleElement('weaknesses', weakness.id, 0, true)}
+                          className="mt-1"
+                        />
+                        <div>
+                          <div className="font-medium text-sm text-foreground">{weakness.name}</div>
+                          <div className="text-xs text-muted-foreground line-clamp-2">{weakness.description}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {weaknessesList.length === 0 && <div className="text-sm text-muted-foreground p-4 text-center col-span-full border border-dashed rounded-md">No hay debilidades publicadas en el catálogo.</div>}
+                  </div>
+                </div>
+
+              </CardContent>
+            </Card>
+          );
+        })()}
+{activeTab === 'Atributos' && (() => {
           const validation = validateCharacter(formData, stagesList);
           const derived = calculateDerivedStats(formData, stagesList);
           const stage = stagesList.find((s: any) => s.name.toLowerCase() === String(formData['basic_stage'] || formData['stage'] || formData['etapa'] || '').toLowerCase());

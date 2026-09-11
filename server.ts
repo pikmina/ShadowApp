@@ -20,7 +20,7 @@ async function startServer() {
   // System Rules API
   const { getRules, upsertRule, deleteRule } = await import("./src/db/rules.ts");
 
-  app.get("/api/rules", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+  app.get("/api/rules", async (req, res) => {
     try {
       const rules = await getRules();
       res.json(rules);
@@ -77,7 +77,7 @@ async function startServer() {
   // System Elements API
   const { getElements, upsertElement, deleteElement } = await import("./src/db/elements.ts");
 
-  app.get("/api/elements", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+  app.get("/api/elements", async (req, res) => {
     try {
       const items = await getElements();
       res.json(items);
@@ -133,7 +133,7 @@ async function startServer() {
 
   // Sheet Fields API
   const { getSheetFields, upsertSheetField, deleteSheetField } = await import("./src/db/sheetFields.ts");
-  app.get("/api/sheet-fields", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+  app.get("/api/sheet-fields", async (req, res) => {
     try {
       const fields = await getSheetFields();
       res.json(fields);

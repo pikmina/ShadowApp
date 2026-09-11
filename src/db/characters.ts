@@ -1,5 +1,5 @@
 import { db } from './index.ts';
-import { characters, elementPossessions } from './schema.ts';
+import { characters } from './schema.ts';
 import { eq } from 'drizzle-orm';
 
 export async function getCharacterByUserId(userId: number) {

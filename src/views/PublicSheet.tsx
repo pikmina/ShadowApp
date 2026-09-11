@@ -62,14 +62,19 @@ export default function PublicSheet() {
   const [character, setCharacter] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [elements, setElements] = useState<any[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
     const loadCharacter = async () => {
       try {
-        const response = await fetch(`/api/public/character/${id}`, { signal: controller.signal });
+        const [response, elemResponse] = await Promise.all([
+          fetch(`/api/public/character/${id}`, { signal: controller.signal }),
+          fetch('/api/elements', { signal: controller.signal }).catch(() => ({ ok: false, json: async () => [] }))
+        ]);
         if (!response.ok) throw new Error('Character not found');
         setCharacter(await response.json());
+        if ((elemResponse as any).ok) setElements(await (elemResponse as any).json());
       } catch (requestError: any) {
         if (requestError.name !== 'AbortError') setError(true);
       } finally {
@@ -84,6 +89,10 @@ export default function PublicSheet() {
   if (error || !character) return <div className="flex min-h-screen items-center justify-center bg-background p-6 text-center font-oxanium text-sm text-destructive">Ficha no encontrada o no disponible.</div>;
 
   const profile = character.profileData || {};
+  
+  const getElementName = (id: string) => elements.find(el => el.id === id)?.name || id;
+  const traits = Array.isArray(profile.traits) ? profile.traits : [];
+  const weaknesses = Array.isArray(profile.weaknesses) ? profile.weaknesses : [];
   const name = displayValue(readValue(profile, ['basic_name', 'name', 'nombre']) || character.name, 'Sin nombre');
   const lastName = displayValue(readValue(profile, ['last_name', 'lastName', 'apellido']), '');
   const fullName = `${name} ${lastName}`.trim();
@@ -216,8 +225,20 @@ export default function PublicSheet() {
         <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           <EntityPanel title="Técnicas" icon={<Swords className="size-4" />} cornerTicks><CyberFillerPanel icon={Swords} title="Sin datos públicos" subtitle="Módulo pendiente de conexión" className="min-h-28 p-4" /></EntityPanel>
           <EntityPanel title="Inventario" icon={<PackageOpen className="size-4" />} pattern="dots" cornerTicks><CyberFillerPanel icon={PackageOpen} title="Sin datos públicos" subtitle="Módulo pendiente de conexión" className="min-h-28 p-4" /></EntityPanel>
-          <EntityPanel title="Rasgos" icon={<FileText className="size-4" />} cornerTicks><CyberFillerPanel icon={Feather} title="Sin datos públicos" subtitle="Módulo pendiente de conexión" className="min-h-28 p-4" /></EntityPanel>
-          <EntityPanel title="Debilidades" icon={<ShieldHalf className="size-4" />} cornerTicks><CyberFillerPanel icon={ShieldHalf} title="Sin datos públicos" subtitle="Módulo pendiente de conexión" className="min-h-28 p-4" /></EntityPanel>
+          <EntityPanel title="Rasgos" icon={<FileText className="size-4" />} cornerTicks>
+            {traits.length > 0 ? (
+              <div className="space-y-2 p-4 text-sm text-text2">
+                {traits.map(id => <div key={id} className="flex items-center gap-2"><div className="size-1 bg-cyan-500 rounded-full" />{getElementName(id)}</div>)}
+              </div>
+            ) : <CyberFillerPanel icon={Feather} title="Sin datos públicos" subtitle="No posee rasgos registrados" className="min-h-28 p-4" />}
+          </EntityPanel>
+          <EntityPanel title="Debilidades" icon={<ShieldHalf className="size-4" />} cornerTicks>
+            {weaknesses.length > 0 ? (
+              <div className="space-y-2 p-4 text-sm text-text2">
+                {weaknesses.map(id => <div key={id} className="flex items-center gap-2"><div className="size-1 bg-red-500 rounded-full" />{getElementName(id)}</div>)}
+              </div>
+            ) : <CyberFillerPanel icon={ShieldHalf} title="Sin datos públicos" subtitle="No posee debilidades registradas" className="min-h-28 p-4" />}
+          </EntityPanel>
         </section>
         <p className="text-center text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Ficha pública de sólo lectura · Shadowmore OS</p>
       </main>

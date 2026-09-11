@@ -12,7 +12,7 @@ export function validateCharacter(
   stages: any[]
 ): ValidationResult {
   const messages: string[] = [];
-  let status: 'green' | 'orange' | 'red' = 'green';
+  let status: 'green' | 'orange' | 'red' = 'green' as 'green' | 'orange' | 'red';
 
   // Read Stage
   const stageName = String(profile['basic_stage'] || profile['stage'] || profile['etapa'] || '').trim();
