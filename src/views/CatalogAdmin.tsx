@@ -34,7 +34,8 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
-import { Plus, Settings2, Trash2, Edit } from "lucide-react";
+import { Plus, Settings2, Trash2, Edit, Search } from "lucide-react";
+import { useMemo } from "react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
 
@@ -67,6 +68,13 @@ const STATUS_TYPES: Record<string, string> = {
 
 export default function CatalogAdmin() {
   const { user } = useAuth();
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("info");
+  const [form, setForm] = useState(defaultForm);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedType, setSelectedType] = useState("all");
+
   
   
 
@@ -79,10 +87,26 @@ export default function CatalogAdmin() {
   );
 
   const elements = rawElements?.filter((el: any) => el.kind !== "technique" && el.kind !== "technique_entitlement");
+  
+  const filteredElements = useMemo(() => {
+    if (!elements) return [];
+    let list = elements;
+    
+    if (selectedType !== "all") {
+      list = list.filter((el: any) => el.kind === selectedType);
+    }
 
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("info");
-  const [form, setForm] = useState(defaultForm);
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      list = list.filter((el: any) => 
+        el.name.toLowerCase().includes(q) || 
+        (KIND_TYPES[el.kind] || "").toLowerCase().includes(q)
+      );
+    }
+    
+    return list;
+  }, [elements, selectedType, searchTerm]);
+
 
   const handleOpenDialog = (el?: any) => {
     if (el) {
@@ -163,6 +187,32 @@ export default function CatalogAdmin() {
     <div className="space-y-6">
       <SectionHeader icon={SectionIcon} title="Catálogo de elementos" description="Define los rasgos, debilidades, habilidades y estados del sistema." actions={<Button onClick={() => handleOpenDialog()}><Plus className="size-4" aria-hidden="true" />Crear elemento</Button>} />
 
+      
+      <div className="flex flex-col sm:flex-row gap-4 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input 
+            value={searchTerm} 
+            onChange={e => setSearchTerm(e.target.value)} 
+            placeholder="Buscar por nombre..." 
+            className="pl-9 bg-card"
+          />
+        </div>
+        <div className="w-full sm:w-64">
+          <Select value={selectedType} onValueChange={setSelectedType}>
+            <SelectTrigger className="bg-card">
+              <SelectValue>{selectedType === 'all' ? 'Todos los tipos' : KIND_TYPES[selectedType]}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los tipos</SelectItem>
+              {Object.entries(KIND_TYPES).map(([val, label]) => (
+                <SelectItem key={val} value={val}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <div className="rounded-md border bg-card shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-muted">
@@ -175,14 +225,14 @@ export default function CatalogAdmin() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(!elements || elements.length === 0) ? (
+            {(!filteredElements || filteredElements.length === 0) ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
                   El catálogo está vacío. Haz clic en "Crear Elemento" para comenzar.
                 </TableCell>
               </TableRow>
             ) : (
-              elements.map((el: any) => (
+              filteredElements.map((el: any) => (
                 <TableRow key={el.id}>
                   <TableCell className="font-semibold">{el.name}</TableCell>
                   <TableCell>

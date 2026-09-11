@@ -497,7 +497,7 @@ export default function RulesAdmin() {
                           <div className="flex items-center text-xs text-muted-foreground mt-1 gap-1.5">
                             <span>{(m.rules || []).length} reglas</span>
                             <span>&bull;</span>
-                            <span className="capitalize">{m.logicalType}</span>
+                            <span className="capitalize">{{offensive: "Ofensiva", defensive: "Defensiva", support: "Soporte", control: "Control", limitation: "Limitación", utility: "Utilidad"}[m.logicalType as string] || m.logicalType}</span>
                           </div>
                           <div className="flex gap-1.5 mt-2 flex-wrap">
                             {m.scope?.techniques && <span className="text-[10px] text-cyan-400">Técnicas</span>}
@@ -535,15 +535,17 @@ export default function RulesAdmin() {
                       <div>
                         <div className="flex items-center gap-3">
                           <h2 className="text-lg font-bold">{selectedMechanic.name}</h2>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-black/50 border border-border/50 capitalize">{selectedMechanic.logicalType}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-black/50 border border-border/50 capitalize">{{offensive: "Ofensiva", defensive: "Defensiva", support: "Soporte", control: "Control", limitation: "Limitación", utility: "Utilidad"}[selectedMechanic.logicalType as string] || selectedMechanic.logicalType}</span>
                           
-                          <div className="flex gap-1.5 flex-wrap">
+                                                    <div className="flex gap-1.5 flex-wrap">
                             {selectedMechanic.scope?.techniques && <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-900/30 text-cyan-400 border border-cyan-900/50">Aplica a Técnicas</span>}
                             {selectedMechanic.scope?.objects && <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-900/30 text-cyan-400 border border-cyan-900/50">Aplica a Objetos</span>}
                             {selectedMechanic.scope?.actions && <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-900/30 text-cyan-400 border border-cyan-900/50">Aplica a Acciones normales</span>}
                             
                             {selectedMechanic.defaultTarget === 'enemy' && <span className="text-xs px-2 py-0.5 rounded-full bg-destructive/20 text-destructive border border-destructive/30 flex items-center gap-1">🎯 Objetivo / Rival</span>}
                             {selectedMechanic.defaultTarget === 'self' && <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30 flex items-center gap-1">👤 Portador / Usuario</span>}
+                            {selectedMechanic.defaultTarget === 'ally' && <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 flex items-center gap-1">🤝 Compañero / Aliado</span>}
+                            {selectedMechanic.defaultTarget === 'any' && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 flex items-center gap-1">🌐 Cualquier Objetivo</span>}
                             
                             {selectedMechanic.defaultResolution && selectedMechanic.defaultResolution !== 'none' && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-purple-900/30 text-purple-400 border border-purple-900/50 flex items-center gap-1">
@@ -812,7 +814,7 @@ export default function RulesAdmin() {
                 <Label>Tipo Lógico</Label>
                 <Select value={mechanicForm.logicalType} onValueChange={v => setMechanicForm({...mechanicForm, logicalType: v})}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>{{"offensive": "Ofensiva (Ataque / Daño)", "defensive": "Defensiva (Barreras / Evasión)", "support": "Soporte (Curación / Bonos)", "control": "Control (Alteraciones / CC)", "limitation": "Limitación (Debilidades / Costes)", "utility": "Utilidad (Movimiento / Entorno)"}[mechanicForm.logicalType as string] || mechanicForm.logicalType}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="offensive">Ofensiva (Ataque / Daño)</SelectItem>
@@ -848,7 +850,7 @@ export default function RulesAdmin() {
               <Label className="text-primary mb-3 block">Destinatario por Defecto de los Efectos Mecánicos</Label>
               <p className="text-xs text-muted-foreground mb-4">Define a quién aplicarán automáticamente los efectos de los elementos creados en esta categoría.</p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label className={`flex flex-col gap-2 p-3 rounded-md border cursor-pointer transition-colors ${mechanicForm.defaultTarget === 'self' ? 'bg-primary/10 border-primary' : 'bg-card border-border hover:border-primary/50'}`}>
                   <div className="flex items-center gap-2">
                     <input type="radio" name="target" checked={mechanicForm.defaultTarget === 'self'} onChange={() => setMechanicForm({...mechanicForm, defaultTarget: 'self'})} className="sr-only" />
@@ -866,45 +868,67 @@ export default function RulesAdmin() {
                     <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${mechanicForm.defaultTarget === 'enemy' ? 'border-destructive' : 'border-muted-foreground'}`}>
                       {mechanicForm.defaultTarget === 'enemy' && <div className="w-2 h-2 rounded-full bg-destructive" />}
                     </div>
-                    <span className="font-bold text-sm text-destructive flex items-center gap-1">🎯 Objetivo Impactado / Rival</span>
+                    <span className="font-bold text-sm text-destructive flex items-center gap-1">🎯 Objetivo Impactado / Rival (Enemigo)</span>
                   </div>
                   <span className="text-xs text-muted-foreground pl-6">Recomendado para Armas, Proyectiles, Venenos y Daño.</span>
                 </label>
+
+                <label className={`flex flex-col gap-2 p-3 rounded-md border cursor-pointer transition-colors ${mechanicForm.defaultTarget === 'ally' ? 'bg-emerald-500/10 border-emerald-500' : 'bg-card border-border hover:border-emerald-500/50'}`}>
+                  <div className="flex items-center gap-2">
+                    <input type="radio" name="target" checked={mechanicForm.defaultTarget === 'ally'} onChange={() => setMechanicForm({...mechanicForm, defaultTarget: 'ally'})} className="sr-only" />
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${mechanicForm.defaultTarget === 'ally' ? 'border-emerald-500' : 'border-muted-foreground'}`}>
+                      {mechanicForm.defaultTarget === 'ally' && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+                    </div>
+                    <span className="font-bold text-sm text-emerald-500 flex items-center gap-1">🤝 Compañero / Aliado</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground pl-6">Recomendado para Curación externa, Buffs de grupo y Apoyo.</span>
+                </label>
+
+                <label className={`flex flex-col gap-2 p-3 rounded-md border cursor-pointer transition-colors ${mechanicForm.defaultTarget === 'any' ? 'bg-amber-500/10 border-amber-500' : 'bg-card border-border hover:border-amber-500/50'}`}>
+                  <div className="flex items-center gap-2">
+                    <input type="radio" name="target" checked={mechanicForm.defaultTarget === 'any'} onChange={() => setMechanicForm({...mechanicForm, defaultTarget: 'any'})} className="sr-only" />
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${mechanicForm.defaultTarget === 'any' ? 'border-amber-500' : 'border-muted-foreground'}`}>
+                      {mechanicForm.defaultTarget === 'any' && <div className="w-2 h-2 rounded-full bg-amber-500" />}
+                    </div>
+                    <span className="font-bold text-sm text-amber-500 flex items-center gap-1">🌐 Cualquier Objetivo (Cualquiera)</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground pl-6">Recomendado para Terrenos, Áreas o Efectos que no discriminan bando.</span>
+                </label>
               </div>
             </div>
-
+          
             <div className="mt-4 border border-border rounded-lg p-4 bg-black/20">
               <Label className="text-purple-400 mb-3 block">Tipo de Tirada / Resolución de Acción por Defecto</Label>
               <p className="text-xs text-muted-foreground mb-4">Selecciona qué tipo de tirada tendrán los artículos creados en esta categoría.</p>
               
-              <Select value={mechanicForm.defaultResolution} onValueChange={v => setMechanicForm({...mechanicForm, defaultResolution: v})}>
-                <SelectTrigger>
-                  <SelectValue />
+              <Select value={mechanicForm.defaultResolution || 'none'} onValueChange={v => setMechanicForm({...mechanicForm, defaultResolution: v})}>
+                <SelectTrigger className="bg-card">
+                  <SelectValue>{{"none": "Sin Tirada (Auto Impacto / Defecto)", "eva": "vs Evasión (EVA)", "cor": "vs Coraje (COR)", "rd": "vs Dificultad (RD)", "opposed": "Tirada Enfrentada"}[mechanicForm.defaultResolution as string] || "Sin Tirada (Auto Impacto / Defecto)"}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">-- Sin resolución por defecto (Uso Pasivo / Sin tirada) --</SelectItem>
-                  <SelectItem value="eva">Ataque Físico / Proyectil (Contra Evasión - EVA)</SelectItem>
-                  <SelectItem value="cor">Ataque Mental / Ilusión (Contra Coraje - COR)</SelectItem>
-                  <SelectItem value="rd">Acción Compleja (Contra Rango de Dificultad - RD Estático)</SelectItem>
-                  <SelectItem value="opposed">Tirada Enfrentada de Atributos</SelectItem>
+                  <SelectItem value="none">Sin Tirada (Auto Impacto / Defecto)</SelectItem>
+                  <SelectItem value="eva">Impacto vs Evasión (EVA)</SelectItem>
+                  <SelectItem value="cor">Mente/Moral vs Coraje (COR)</SelectItem>
+                  <SelectItem value="rd">Prueba vs Rango de Dificultad (RD)</SelectItem>
+                  <SelectItem value="opposed">Tirada Enfrentada Pura</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
+            
             <div className="mt-4 border border-border rounded-lg p-4 bg-black/20">
               <Label className="text-cyan-400 mb-3 block">Ámbito de Aplicación (¿A qué elementos del sistema aplica?)</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 border border-border bg-card px-3 py-2 rounded-md flex-1 cursor-pointer hover:bg-white/5 transition-colors">
-                  <span className="text-sm flex-1 font-medium">Técnicas</span>
-                  <input type="checkbox" checked={mechanicForm.scope?.techniques || false} onChange={e => setMechanicForm({...mechanicForm, scope: {...mechanicForm.scope, techniques: e.target.checked}})} className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-primary focus:ring-primary/30 focus:ring-offset-gray-900" />
+              <div className="flex gap-4 flex-wrap">
+                <label className="flex items-center gap-2 border p-2 rounded-md bg-card cursor-pointer hover:border-cyan-400/50">
+                  <input type="checkbox" className="accent-cyan-400" checked={mechanicForm.scope?.techniques || false} onChange={e => setMechanicForm({...mechanicForm, scope: {...mechanicForm.scope, techniques: e.target.checked}})} />
+                  <span className="text-sm font-medium">Técnicas</span>
                 </label>
-                <label className="flex items-center gap-2 border border-border bg-card px-3 py-2 rounded-md flex-1 cursor-pointer hover:bg-white/5 transition-colors">
-                  <span className="text-sm flex-1 font-medium">Objetos</span>
-                  <input type="checkbox" checked={mechanicForm.scope?.objects || false} onChange={e => setMechanicForm({...mechanicForm, scope: {...mechanicForm.scope, objects: e.target.checked}})} className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-primary focus:ring-primary/30 focus:ring-offset-gray-900" />
+                <label className="flex items-center gap-2 border p-2 rounded-md bg-card cursor-pointer hover:border-cyan-400/50">
+                  <input type="checkbox" className="accent-cyan-400" checked={mechanicForm.scope?.objects || false} onChange={e => setMechanicForm({...mechanicForm, scope: {...mechanicForm.scope, objects: e.target.checked}})} />
+                  <span className="text-sm font-medium">Objetos</span>
                 </label>
-                <label className="flex items-center gap-2 border border-border bg-card px-3 py-2 rounded-md flex-1 cursor-pointer hover:bg-white/5 transition-colors">
-                  <span className="text-sm flex-1 font-medium">Acciones normales</span>
-                  <input type="checkbox" checked={mechanicForm.scope?.actions || false} onChange={e => setMechanicForm({...mechanicForm, scope: {...mechanicForm.scope, actions: e.target.checked}})} className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-primary focus:ring-primary/30 focus:ring-offset-gray-900" />
+                <label className="flex items-center gap-2 border p-2 rounded-md bg-card cursor-pointer hover:border-cyan-400/50">
+                  <input type="checkbox" className="accent-cyan-400" checked={mechanicForm.scope?.actions || false} onChange={e => setMechanicForm({...mechanicForm, scope: {...mechanicForm.scope, actions: e.target.checked}})} />
+                  <span className="text-sm font-medium">Acciones normales</span>
                 </label>
               </div>
             </div>

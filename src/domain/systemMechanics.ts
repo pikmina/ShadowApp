@@ -173,7 +173,7 @@ const mechanicCategorySchema = z
         actions: z.boolean(),
       })
       .passthrough(),
-    defaultTarget: z.enum(["self", "enemy"]).optional(),
+    defaultTarget: z.enum(["self", "enemy", "ally", "any"]).optional(),
     defaultTargeting: effectTargetingSchema.optional(),
     defaultResolution: z
       .enum(["none", "eva", "cor", "rd", "opposed"])

@@ -58,9 +58,9 @@ export default function CharactersAdmin() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'canon'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('');
-  const [selectedDon, setSelectedDon] = useState('');
-  const [selectedStage, setSelectedStage] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState('all');
+  const [selectedDon, setSelectedDon] = useState('all');
+  const [selectedStage, setSelectedStage] = useState('all');
   const [sortBy, setSortBy] = useState<'name' | 'recent'>('name');
 
   const isMod = dbUser?.role === 'moderator' || dbUser?.role === 'superadmin';
