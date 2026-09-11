@@ -58,9 +58,9 @@ export default function CharactersAdmin() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'canon'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('all');
-  const [selectedDon, setSelectedDon] = useState('all');
-  const [selectedStage, setSelectedStage] = useState('all');
+  const [selectedGroup, setSelectedGroup] = useState('');
+  const [selectedDon, setSelectedDon] = useState('');
+  const [selectedStage, setSelectedStage] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'recent'>('name');
 
   const isMod = dbUser?.role === 'moderator' || dbUser?.role === 'superadmin';
@@ -208,28 +208,28 @@ export default function CharactersAdmin() {
               <Input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Filtrar por nombre, don o ID..." className="h-9 bg-background/70 pl-8 text-xs" />
             </div>
             <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{selectedGroup === 'all' || selectedGroup === '' ? 'Grupo: Todos' : `Grupo: ${selectedGroup}`}</SelectValue></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Grupo: Todos</SelectItem>
                 {groupOptions.map(group => <SelectItem key={group} value={group}>Grupo: {group}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={selectedDon} onValueChange={setSelectedDon}>
-              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{selectedDon === 'all' || selectedDon === '' ? 'Don: Todos' : `Don: ${selectedDon}`}</SelectValue></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Don: Todos</SelectItem>
                 {donOptions.map(don => <SelectItem key={don} value={don}>Don: {don}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={selectedStage} onValueChange={setSelectedStage}>
-              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{selectedStage === 'all' || selectedStage === '' ? 'Etapa: Todas' : `Etapa: ${selectedStage}`}</SelectValue></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Etapa: Todas</SelectItem>
                 {stageOptions.map(stage => <SelectItem key={stage} value={stage}>Etapa: {stage}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={value => setSortBy(value as 'name' | 'recent')}>
-              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{sortBy === 'name' ? 'Ordenar: Nombre' : 'Ordenar: Actualización'}</SelectValue></SelectTrigger>
               <SelectContent>
                 <SelectItem value="name">Ordenar: Nombre</SelectItem>
                 <SelectItem value="recent">Ordenar: Actualización</SelectItem>
