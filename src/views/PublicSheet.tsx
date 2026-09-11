@@ -119,7 +119,7 @@ export default function PublicSheet() {
     ['Coraje', readValue(profile, ['cor', 'courage', 'coraje'])],
     ['Daño base', readValue(profile, ['baseDamage', 'base_damage', 'dano_base', 'daño_base'])],
     ['Plus Ultra', readValue(profile, ['plusUltra', 'plus_ultra'])],
-    ['Reducción de daño', readValue(profile, ['dr', 'damageReduction', 'damage_reduction'])],
+    ['Reducción de daño', readValue(profile, ['reduccionDano', 'reduccion_dano', 'dr', 'damageReduction', 'damage_reduction'])],
     ['Iniciativa', readValue(profile, ['initiative', 'iniciativa'])],
     ['Mod. FUE', readValue(profile, ['modFUE', 'mod_fue'])],
     ['Mod. DES', readValue(profile, ['modDES', 'mod_des'])]

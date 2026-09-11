@@ -105,7 +105,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
     if (!user) return;
     setIsSaving(true);
     try {
-      const derived = calculateDerivedStats(formData, stagesList);
+      const derived = calculateDerivedStats(formData, stagesList, elements);
       const finalProfileData: Record<string, any> = {
         ...formData,
         salud_actual: formData.salud_actual ?? derived.salud,
@@ -118,6 +118,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
         mod_des: derived.modDes,
         iniciativa: derived.iniciativa,
         daño_base: derived.dañoBase,
+        reduccion_dano: derived.reduccionDano,
       };
 
       // Ensure semantic mapping for fields to make sure readProfile in other components works
@@ -485,7 +486,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
         })()}
 {activeTab === 'Atributos' && (() => {
           const validation = validateCharacter(formData, stagesList);
-          const derived = calculateDerivedStats(formData, stagesList);
+          const derived = calculateDerivedStats(formData, stagesList, elements);
           const stage = stagesList.find((s: any) => s.name.toLowerCase() === String(formData['basic_stage'] || formData['stage'] || formData['etapa'] || '').toLowerCase());
           
           return (
@@ -586,6 +587,10 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
                     <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
                       <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Iniciativa</span>
                       <strong className="text-xl font-mono text-foreground">{derived.iniciativa > 0 ? `+${derived.iniciativa}` : derived.iniciativa}</strong>
+                    </div>
+                    <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
+                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">RED</span>
+                      <strong className="text-xl font-mono text-foreground">{derived.reduccionDano}</strong>
                     </div>
                     <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
                       <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Mod FUE</span>
