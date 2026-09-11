@@ -362,7 +362,8 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
         </div>
       </div>
 
-      <div className="flex bg-card/40 border border-border overflow-x-auto custom-scrollbar rounded-lg mb-6 p-1 gap-1 items-center">
+      <Card className="border-border shadow-sm bg-card overflow-hidden">
+        <div className="flex bg-muted/20 border-b border-border/50 overflow-x-auto custom-scrollbar p-1.5 gap-1 items-center">
         {(() => {
           const allCats = Object.keys(groupedFields);
           const quirkCat = allCats.find(c => c.toLowerCase().includes('quirk')) || 'Quirk';
@@ -381,7 +382,8 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
         })()}
       </div>
 
-      <div className="space-y-6">
+        <div className="p-6">
+          <div className="space-y-6">
         
         {activeTab === 'Rasgos' && (() => {
           const stageName = String(formData['basic_stage'] || formData['stage'] || formData['etapa'] || '').toLowerCase();
@@ -396,6 +398,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
           const selectedWeaknesses = Array.isArray(formData['weaknesses']) ? formData['weaknesses'] : [];
 
           const toggleElement = (type: 'traits' | 'weaknesses', id: string, max: number, isMin: boolean = false) => {
+            setIsDirty(true);
             const current = Array.isArray(formData[type]) ? formData[type] : [];
             if (current.includes(id)) {
               setFormData(prev => ({ ...prev, [type]: current.filter(v => v !== id) }));
@@ -438,8 +441,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
                       >
                         <Checkbox 
                           checked={selectedTraits.includes(trait.id)} 
-                          onCheckedChange={() => toggleElement('traits', trait.id, maxTraits)}
-                          className="mt-1"
+                          className="mt-1 pointer-events-none"
                         />
                         <div>
                           <div className="font-medium text-sm text-foreground">{trait.name}</div>
@@ -465,8 +467,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
                       >
                         <Checkbox 
                           checked={selectedWeaknesses.includes(weakness.id)} 
-                          onCheckedChange={() => toggleElement('weaknesses', weakness.id, 0, true)}
-                          className="mt-1"
+                          className="mt-1 pointer-events-none"
                         />
                         <div>
                           <div className="font-medium text-sm text-foreground">{weakness.name}</div>
@@ -625,7 +626,9 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
             </div>
           </div>
         )}
-      </div>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
