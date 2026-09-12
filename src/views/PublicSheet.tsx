@@ -125,9 +125,9 @@ export default function PublicSheet() {
     ['Mod. DES', readValue(profile, ['modDES', 'mod_des'])]
   ];
   const identityData = [
-    ['Grupo sanguíneo', readValue(profile, ['bloodType', 'blood_type', 'sangre', 'grupo_sanguineo'])],
-    ['Edad', readValue(profile, ['age', 'edad'])],
-    ['Alineación', readValue(profile, ['alignment', 'alineacion', 'alineación'])],
+    ['Grupo sanguíneo', readValue(profile, ['basic_blood_type', 'bloodType', 'blood_type', 'sangre', 'grupo_sanguineo'])],
+    ['Edad', readValue(profile, ['basic_age', 'age', 'edad'])],
+    ['Alineación', readValue(profile, ['basic_alignment', 'alignment', 'alineacion', 'alineación'])],
     ['Género', readValue(profile, ['gender', 'genero', 'género', 'sexo'])],
     ['Nacionalidad', readValue(profile, ['nationality', 'nacionalidad'])],
     ['Faceclaim', readValue(profile, ['faceclaim', 'faceclaim_pb', 'pb'])]
