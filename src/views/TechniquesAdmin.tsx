@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
-import { Plus, Settings2, Trash2, Edit } from "lucide-react";
+import { Plus, Settings2, Trash2, Edit, Eye, EyeOff } from "lucide-react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
 
@@ -106,7 +106,24 @@ export default function TechniquesAdmin() {
     }
   };
 
-    const handleDelete = async (id: string) => {
+  
+  const handleToggleStatus = async (el: any) => {
+    try {
+      const updatedEl = { ...el, status: el.status === "published" ? "draft" : "published" };
+      const res = await apiFetch("/api/elements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedEl)
+      });
+      if (!res.ok) throw new Error("Error saving");
+      mutate();
+    } catch (e) {
+      console.error(e);
+      alert("Error al actualizar estado");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
     try {
       await apiFetch(`/api/elements/${id}`, {
         method: "DELETE" });
@@ -191,6 +208,9 @@ export default function TechniquesAdmin() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="icon" title={el.status === "published" ? `Pasar a borrador` : `Publicar`} onClick={() => handleToggleStatus(el)}>
+                        {el.status === "published" ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
                       <Button variant="outline" size="icon" onClick={() => handleOpenDialog(el)}><Edit className="w-4 h-4" /></Button>
                       {deleteConfirmId === el.id ? (
                         <div className="flex items-center gap-1">
