@@ -1,5 +1,5 @@
 import { db } from './index.ts';
-import { systemElements } from './schema.ts';
+import { systemElements, elementPossessions, shopOffers } from './schema.ts';
 import { eq, desc } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
@@ -8,7 +8,7 @@ export async function getElements() {
     return await db.select().from(systemElements).orderBy(desc(systemElements.createdAt));
   } catch (error) {
     console.error("Database query failed:", error);
-    throw new Error("Failed to fetch elements", { cause: error });
+    throw new Error("Failed to fetch elements");
   }
 }
 
@@ -18,7 +18,7 @@ export async function getElement(id: string) {
     return results[0];
   } catch (error) {
     console.error("Database query failed:", error);
-    throw new Error("Failed to fetch element", { cause: error });
+    throw new Error("Failed to fetch element");
   }
 }
 
@@ -53,15 +53,19 @@ export async function upsertElement(data: any) {
     }
   } catch (error) {
     console.error("Database query failed:", error);
-    throw new Error("Failed to upsert element", { cause: error });
+    throw new Error("Failed to upsert element");
   }
 }
 
 export async function deleteElement(id: string) {
   try {
-    await db.delete(systemElements).where(eq(systemElements.id, id));
+    await db.transaction(async (tx) => {
+      await tx.delete(elementPossessions).where(eq(elementPossessions.elementId, id));
+      await tx.delete(shopOffers).where(eq(shopOffers.elementId, id));
+      await tx.delete(systemElements).where(eq(systemElements.id, id));
+    });
   } catch (error) {
     console.error("Database query failed:", error);
-    throw new Error("Failed to delete element", { cause: error });
+    throw new Error("Failed to delete element");
   }
 }

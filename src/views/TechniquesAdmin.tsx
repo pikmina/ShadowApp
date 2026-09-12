@@ -68,6 +68,7 @@ export default function TechniquesAdmin() {
   const elements = rawElements?.filter((el: any) => el.kind === "technique_entitlement");
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("info");
   const [form, setForm] = useState(defaultForm);
 
@@ -105,14 +106,14 @@ export default function TechniquesAdmin() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("¿Borrar este elemento?")) return;
+    const handleDelete = async (id: string) => {
     try {
       await apiFetch(`/api/elements/${id}`, {
         method: "DELETE" });
       mutate();
+      setDeleteConfirmId(null);
     } catch (e) {
-      alert("Error borrando");
+      alert("Error borrando: " + (e as Error).message);
     }
   };
 
@@ -191,7 +192,14 @@ export default function TechniquesAdmin() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" size="icon" onClick={() => handleOpenDialog(el)}><Edit className="w-4 h-4" /></Button>
-                      <Button variant="destructive" size="icon" onClick={() => handleDelete(el.id)}><Trash2 className="w-4 h-4" /></Button>
+                      {deleteConfirmId === el.id ? (
+                        <div className="flex items-center gap-1">
+                          <Button variant="destructive" size="sm" onClick={() => handleDelete(el.id)}>Confirmar</Button>
+                          <Button variant="outline" size="icon" onClick={() => setDeleteConfirmId(null)}>X</Button>
+                        </div>
+                      ) : (
+                        <Button variant="destructive" size="icon" onClick={() => setDeleteConfirmId(el.id)}><Trash2 className="w-4 h-4" /></Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -216,8 +224,8 @@ export default function TechniquesAdmin() {
               <div className="px-4 sm:px-6 pt-3 pb-2 border-b bg-muted/40 overflow-x-auto no-scrollbar">
                 <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto h-auto p-1 gap-1 bg-card border border-border/50">
                   <TabsTrigger value="info" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">1. Info Básica</TabsTrigger>
-                  <TabsTrigger value="reqs" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">2. Requisitos</TabsTrigger>
-                  <TabsTrigger value="effects" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">3. Efectos Mecánicos</TabsTrigger>
+                  <TabsTrigger value="effects" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">2. Efectos Mecánicos</TabsTrigger>
+                  <TabsTrigger value="reqs" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">3. Requisitos</TabsTrigger>
                 </TabsList>
               </div>
 

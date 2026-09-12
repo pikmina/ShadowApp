@@ -50,7 +50,7 @@ export const systemElements = pgTable('system_elements', {
 // Shop Offers Table
 export const shopOffers = pgTable('shop_offers', {
   id: text('id').primaryKey(),
-  elementId: text('element_id').references(() => systemElements.id).notNull(),
+  elementId: text('element_id').references(() => systemElements.id, { onDelete: 'cascade' }).notNull(),
   status: offerStatusEnum('status').default('draft').notNull(),
   prices: jsonb('prices').notNull().default([]), // Array<{ currency: 'exp' | 'yen'; amount: number }>
   globalStock: integer('global_stock'), // null means unlimited
@@ -64,7 +64,7 @@ export const elementPossessions = pgTable('element_possessions', {
 
   id: text('id').primaryKey(),
   characterId: integer('character_id').references(() => characters.id).notNull(),
-  elementId: text('element_id').references(() => systemElements.id).notNull(),
+  elementId: text('element_id').references(() => systemElements.id, { onDelete: 'cascade' }).notNull(),
   quantity: integer('quantity').default(1).notNull(),
   selectedChoices: jsonb('selected_choices').default({}), // Record<string, ElementChoiceValue>
   notes: text('notes'),

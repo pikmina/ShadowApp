@@ -17,6 +17,7 @@ type Props = {
   effects: unknown[];
   mechanics: SystemMechanicsConfig;
   onChange: (effects: unknown[]) => void;
+  hideCosts?: boolean;
 };
 
 const labels: Record<MechanicalEffectType, string> = {
@@ -54,7 +55,7 @@ function createEffect(type: MechanicalEffectType, old?: CanonicalMechanicalEffec
   }
 }
 
-export function MechanicalEffectsEditor({ effects, mechanics, onChange }: Props) {
+export function MechanicalEffectsEditor({ effects, mechanics, onChange, hideCosts }: Props) {
   const parsed = useMemo(() => effects.map(effect => mechanicalEffectSchema.safeParse(effect)), [effects]);
   const canonical = parsed.flatMap(result => result.success ? [result.data] : []);
   const isCanonicalCandidate = (effect: unknown): effect is CanonicalMechanicalEffect =>
@@ -71,7 +72,7 @@ export function MechanicalEffectsEditor({ effects, mechanics, onChange }: Props)
 
   return <div className="space-y-4">
     <div className="flex items-center justify-between gap-3">
-      <div><h3 className="text-sm font-semibold">Efectos mecánicos</h3><p className="text-xs text-muted-foreground">Comportamiento, destinatarios y costes se guardan por separado.</p></div>
+      <div><h3 className="text-sm font-semibold">Efectos mecánicos</h3><p className="text-xs text-muted-foreground">{hideCosts ? "El comportamiento y los destinatarios se guardan por separado." : "Comportamiento, destinatarios y costes se guardan por separado."}</p></div>
       <Button type="button" variant="outline" size="sm" onClick={() => onChange([...effects, createEffect("damage")])}><Plus className="size-4" /> Añadir efecto</Button>
     </div>
 
@@ -113,24 +114,28 @@ export function MechanicalEffectsEditor({ effects, mechanics, onChange }: Props)
           <Input aria-label="Máximo de destinatarios" type="number" min={1} disabled={effect.targeting.relationship === "self"} value={effect.targeting.maxTargets ?? ""} onChange={event => patchTarget({ maxTargets: event.target.value === "" ? null : Number(event.target.value) })} placeholder={effect.targeting.selection === "area" ? "Sin límite" : "Máximo"} />
         </div>
 
-        <div className="space-y-2 rounded-md border p-3">
-          {effect.costRules.map((reference, ruleIndex) => { const group = mechanics.find(item => item.id === reference.mechanicId); const rule = group?.rules.find(item => item.id === reference.ruleId); return <div key={`${reference.mechanicId}:${reference.ruleId}:${ruleIndex}`} className="flex items-center gap-2 text-sm"><span className="flex-1">{group?.name ?? reference.mechanicId} / {rule?.name ?? reference.ruleId}</span><span className="font-mono">{rule ? `${rule.cost >= 0 ? "+" : ""}${rule.cost} CE` : "Sin resolver"}</span><Button type="button" variant="ghost" size="icon" onClick={() => patch({ costRules: effect.costRules.filter((_, i) => i !== ruleIndex) })}><Trash2 className="size-4" /></Button></div>; })}
-          <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
-            <Select value={draft.mechanicId} onValueChange={mechanicId => setPending(current => ({ ...current, [effect.id]: { mechanicId, ruleId: "" } }))}><SelectTrigger><SelectValue placeholder="Categoría de coste" /></SelectTrigger><SelectContent>{mechanics.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select>
-            <Select value={draft.ruleId} disabled={!draft.mechanicId} onValueChange={ruleId => setPending(current => ({ ...current, [effect.id]: { ...draft, ruleId } }))}><SelectTrigger><SelectValue placeholder="Regla" /></SelectTrigger><SelectContent>{(category?.rules ?? []).map(rule => <SelectItem key={rule.id} value={rule.id}>{rule.name} ({rule.cost >= 0 ? "+" : ""}{rule.cost} CE)</SelectItem>)}</SelectContent></Select>
-            <Button type="button" variant="secondary" onClick={() => { if (!draft.mechanicId || !draft.ruleId || effect.costRules.some(ref => ref.mechanicId === draft.mechanicId && ref.ruleId === draft.ruleId)) return; patch({ costRules: [...effect.costRules, draft] }); setPending(current => ({ ...current, [effect.id]: { mechanicId: "", ruleId: "" } })); }}>Añadir coste</Button>
+        {!hideCosts && (
+          <div className="space-y-2 rounded-md border p-3">
+            {effect.costRules.map((reference, ruleIndex) => { const group = mechanics.find(item => item.id === reference.mechanicId); const rule = group?.rules.find(item => item.id === reference.ruleId); return <div key={`${reference.mechanicId}:${reference.ruleId}:${ruleIndex}`} className="flex items-center gap-2 text-sm"><span className="flex-1">{group?.name ?? reference.mechanicId} / {rule?.name ?? reference.ruleId}</span><span className="font-mono">{rule ? `${rule.cost >= 0 ? "+" : ""}${rule.cost} CE` : "Sin resolver"}</span><Button type="button" variant="ghost" size="icon" onClick={() => patch({ costRules: effect.costRules.filter((_, i) => i !== ruleIndex) })}><Trash2 className="size-4" /></Button></div>; })}
+            <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+              <Select value={draft.mechanicId} onValueChange={mechanicId => setPending(current => ({ ...current, [effect.id]: { mechanicId, ruleId: "" } }))}><SelectTrigger><SelectValue placeholder="Categoría de coste" /></SelectTrigger><SelectContent>{mechanics.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select>
+              <Select value={draft.ruleId} disabled={!draft.mechanicId} onValueChange={ruleId => setPending(current => ({ ...current, [effect.id]: { ...draft, ruleId } }))}><SelectTrigger><SelectValue placeholder="Regla" /></SelectTrigger><SelectContent>{(category?.rules ?? []).map(rule => <SelectItem key={rule.id} value={rule.id}>{rule.name} ({rule.cost >= 0 ? "+" : ""}{rule.cost} CE)</SelectItem>)}</SelectContent></Select>
+              <Button type="button" variant="secondary" onClick={() => { if (!draft.mechanicId || !draft.ruleId || effect.costRules.some(ref => ref.mechanicId === draft.mechanicId && ref.ruleId === draft.ruleId)) return; patch({ costRules: [...effect.costRules, draft] }); setPending(current => ({ ...current, [effect.id]: { mechanicId: "", ruleId: "" } })); }}>Añadir coste</Button>
+            </div>
           </div>
-        </div>
+        )}
       </div>;
     })}
 
-    <div className="flex items-center justify-between rounded-md border bg-black/20 p-4"><div><p className="text-sm font-semibold">Coste canónico total</p>{(legacyCount > 0 || invalidCanonicalCount > 0 || !cost.valid) && <p className="text-xs text-amber-300">{legacyCount > 0 ? `${legacyCount} efecto(s) legado(s) pendientes.` : invalidCanonicalCount > 0 ? "Hay efectos canónicos incompletos." : "Hay referencias de coste duplicadas o rotas."}</p>}</div><strong className="font-mono text-xl">{legacyCount === 0 && invalidCanonicalCount === 0 && cost.valid ? `${cost.total} CE` : "Sin resolver"}</strong></div>
+    {!hideCosts && (
+      <div className="flex items-center justify-between rounded-md border bg-black/20 p-4"><div><p className="text-sm font-semibold">Coste canónico total</p>{(legacyCount > 0 || invalidCanonicalCount > 0 || !cost.valid) && <p className="text-xs text-amber-300">{legacyCount > 0 ? `${legacyCount} efecto(s) legado(s) pendientes.` : invalidCanonicalCount > 0 ? "Hay efectos canónicos incompletos." : "Hay referencias de coste duplicadas o rotas."}</p>}</div><strong className="font-mono text-xl">{legacyCount === 0 && invalidCanonicalCount === 0 && cost.valid ? `${cost.total} CE` : "Sin resolver"}</strong></div>
+    )}
   </div>;
 }
 
 function ValueFields({ effect, patch }: { effect: CanonicalMechanicalEffect; patch: (value: Record<string, unknown>) => void }) {
   switch (effect.type) {
-    case "attribute_modifier": return <div className="grid gap-2 md:grid-cols-2"><Input value={effect.attributeId} onChange={e => patch({ attributeId: e.target.value })} placeholder="ID del atributo" /><Input type="number" value={effect.amount} onChange={e => patch({ amount: Number(e.target.value) })} placeholder="Modificador" /></div>;
+    case "attribute_modifier": return <div className="grid gap-2 md:grid-cols-2"><Select value={effect.attributeId} onValueChange={attributeId => patch({ attributeId })}><SelectTrigger><SelectValue>{{"FUE": "Fuerza (FUE)", "DES": "Destreza (DES)", "RES": "Resistencia (RES)", "INT": "Inteligencia (INT)", "VOL": "Voluntad (VOL)", "VEL": "Velocidad (VEL)"}[effect.attributeId as string] || effect.attributeId || "Seleccionar atributo..."}</SelectValue></SelectTrigger><SelectContent><SelectItem value="FUE">Fuerza (FUE)</SelectItem><SelectItem value="DES">Destreza (DES)</SelectItem><SelectItem value="RES">Resistencia (RES)</SelectItem><SelectItem value="INT">Inteligencia (INT)</SelectItem><SelectItem value="VOL">Voluntad (VOL)</SelectItem><SelectItem value="VEL">Velocidad (VEL)</SelectItem></SelectContent></Select><Input type="number" value={effect.amount} onChange={e => patch({ amount: Number(e.target.value) })} placeholder="Modificador" /></div>;
     case "derived_stat_modifier": return <div className="grid gap-2 md:grid-cols-2"><Select value={effect.statId} onValueChange={statId => patch({ statId })}><SelectTrigger><SelectValue>{{"INI": "Iniciativa", "EVA": "Evasión", "COR": "Coraje", "SAL": "Salud Max", "EST": "Estamina Max", "RED": "Reducción de Daño"}[effect.statId as string] || effect.statId || "Seleccionar..."}</SelectValue></SelectTrigger><SelectContent><SelectItem value="INI">Iniciativa</SelectItem><SelectItem value="EVA">Evasión</SelectItem><SelectItem value="COR">Coraje</SelectItem><SelectItem value="SAL">Salud Max</SelectItem><SelectItem value="EST">Estamina Max</SelectItem><SelectItem value="RED">Reducción de Daño (RED)</SelectItem></SelectContent></Select><Input type="number" value={effect.amount} onChange={e => patch({ amount: Number(e.target.value) })} placeholder="Modificador" /></div>;
     case "damage": return <Input value={effect.dice} onChange={e => patch({ dice: e.target.value })} placeholder="Dados, por ejemplo 2D6" />;
     case "healing": return <div className="grid gap-2 md:grid-cols-2"><Select value={effect.resourceId} onValueChange={resourceId => patch({ resourceId })}><SelectTrigger><SelectValue>{{"SA": "Salud", "ES": "Estamina"}[effect.resourceId as string] || effect.resourceId}</SelectValue></SelectTrigger><SelectContent><SelectItem value="SA">Salud</SelectItem><SelectItem value="ES">Estamina</SelectItem></SelectContent></Select><Input type="number" min={1} value={effect.amount} onChange={e => patch({ amount: Number(e.target.value) })} placeholder="Cantidad" /></div>;

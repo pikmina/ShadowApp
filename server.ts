@@ -127,7 +127,8 @@ async function startServer() {
       await deleteElement(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ error: "Failed to delete element" });
+      console.error("DELETE ELEMENT ROUTE ERROR:", error);
+      res.status(500).json({ error: "Failed to delete element: " + (error.message || String(error)) });
     }
   });
 
