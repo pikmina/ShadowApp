@@ -163,6 +163,29 @@ export default function RulesAdmin() {
   };
 
   
+  
+  const getEffectLogicalType = (effect: any): 'offensive' | 'defensive' | 'support' | 'control' | 'utility' => {
+    if (!effect) return 'utility';
+    if (effect.type === 'damage') return 'offensive';
+    if (effect.type === 'barrier') return 'defensive';
+    if (effect.type === 'healing') return 'support';
+    if (effect.type === 'status') return 'control';
+    if (effect.type === 'attribute_modifier' || effect.type === 'derived_stat_modifier') return effect.amount >= 0 ? 'support' : 'control';
+    return 'utility';
+  };
+
+  const deriveLogicalType = (rules: any[]) => {
+    const types = rules
+      .filter((r: any) => r.ruleType === 'effect' && r.effect)
+      .map((r: any) => getEffectLogicalType(r.effect));
+    
+    if (types.includes('offensive')) return 'offensive';
+    if (types.includes('control')) return 'control';
+    if (types.includes('support')) return 'support';
+    if (types.includes('defensive')) return 'defensive';
+    return 'utility';
+  };
+
   const handleAddRuleToForm = () => {
     if (!newRuleName.trim()) return;
     const newRule = {
@@ -173,9 +196,25 @@ export default function RulesAdmin() {
       ruleType: newRuleType,
       ...(newRuleType === 'effect' ? { effect: newRuleEffect } : {}),
     };
+    
+    const currentRules = mechanicForm.rules || [];
+    const allRules = [...currentRules, newRule];
+    const types = allRules
+      .filter((r: any) => r.ruleType === 'effect' && r.effect)
+      .map((r: any) => getEffectLogicalType(r.effect));
+      
+    const hasOffensiveOrControl = types.includes('offensive') || types.includes('control');
+    const hasSupportOrDefensive = types.includes('support') || types.includes('defensive');
+    
+    if (hasOffensiveOrControl && hasSupportOrDefensive) {
+      alert("Incompatibilidad mecánica: No puedes mezclar opciones de Daño/Control con opciones de Soporte/Defensivas en la misma categoría técnica.");
+      return;
+    }
+    
     setMechanicForm((current: any) => ({
       ...current,
-      rules: [...(current.rules || []), newRule]
+      logicalType: deriveLogicalType(allRules),
+      rules: allRules
     }));
     setNewRuleName('');
     setNewRuleCost(0);
@@ -185,10 +224,14 @@ export default function RulesAdmin() {
   };
 
   const handleRemoveRuleFromForm = (ruleId: string) => {
-    setMechanicForm((current: any) => ({
-      ...current,
-      rules: (current.rules || []).filter((r: any) => r.id !== ruleId)
-    }));
+    setMechanicForm((current: any) => {
+      const newRules = (current.rules || []).filter((r: any) => r.id !== ruleId);
+      return {
+        ...current,
+        logicalType: deriveLogicalType(newRules),
+        rules: newRules
+      };
+    });
   };
 
   const handleAddRuleToMechanic = async () => {
@@ -644,20 +687,10 @@ export default function RulesAdmin() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="grid gap-2">
-                        <Label>Tipo Lógico</Label>
-                        <Select value={mechanicForm.logicalType} onValueChange={v => setMechanicForm({...mechanicForm, logicalType: v})}>
-                          <SelectTrigger>
-                            <SelectValue>{{"offensive": "Ofensiva (Ataque / Daño)", "defensive": "Defensiva (Barreras / Evasión)", "support": "Soporte (Curación / Bonos)", "control": "Control (Estados Alterados)", "limitation": "Limitación (Desventajas)", "utility": "Utilidad (Alcance / Duración)"}[mechanicForm.logicalType as string] || mechanicForm.logicalType}</SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="offensive">Ofensiva (Ataque / Daño)</SelectItem>
-                            <SelectItem value="defensive">Defensiva (Barreras / Evasión)</SelectItem>
-                            <SelectItem value="support">Soporte (Curación / Bonos)</SelectItem>
-                            <SelectItem value="control">Control (Estados Alterados)</SelectItem>
-                            <SelectItem value="limitation">Limitación (Desventajas)</SelectItem>
-                            <SelectItem value="utility">Utilidad (Alcance / Duración)</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Label>Tipo Lógico (Derivado)</Label>
+                        <div className="flex items-center h-10 px-3 py-2 text-sm border rounded-md bg-muted/50 text-muted-foreground border-input">
+                          {{"offensive": "Ofensiva", "defensive": "Defensiva", "support": "Soporte", "control": "Control", "utility": "Utilidad"}[mechanicForm.logicalType as string] || "Utilidad"}
+                        </div>
                       </div>
                       <div className="grid gap-2">
                         <Label>Icono</Label>
@@ -797,7 +830,6 @@ export default function RulesAdmin() {
                             <TableCell className="text-center">
                               <span className={`text-xs px-2 py-1 rounded-md font-bold ${rule.cost > 0 ? 'bg-emerald-900/30 text-emerald-400' : rule.cost < 0 ? 'bg-red-900/30 text-red-400' : 'bg-muted text-muted-foreground'}`}>
                                 {rule.cost > 0 ? '+' : ''}{rule.cost} CE
-                                <span className="block text-[9px] font-normal">Estamina</span>
                               </span>
                             </TableCell>
                             <TableCell className="text-right">
