@@ -74,17 +74,20 @@ export const costRuleReferenceSchema = z.strictObject({
   ruleId: z.string().min(1),
 });
 
+const durationSchema = z.strictObject({
+  value: z.number().int().positive(),
+  unit: z.enum(["turn", "round", "scene"]),
+});
+
 const baseEffectShape = {
   id: z.string().min(1),
   timing: effectTimingSchema,
   targeting: effectTargetingSchema,
   costRules: z.array(costRuleReferenceSchema).default([]),
+  duration: durationSchema.optional(),
 };
 
-const durationSchema = z.strictObject({
-  value: z.number().int().positive(),
-  unit: z.enum(["turn", "round", "scene"]),
-});
+
 
 export const mechanicalEffectSchema = z.discriminatedUnion("type", [
   z.strictObject({
@@ -114,13 +117,11 @@ export const mechanicalEffectSchema = z.discriminatedUnion("type", [
     ...baseEffectShape,
     type: z.literal("barrier"),
     amount: z.number().positive(),
-    duration: durationSchema.optional(),
   }),
   z.strictObject({
     ...baseEffectShape,
     type: z.literal("status"),
     statusElementId: z.string().min(1),
-    duration: durationSchema.optional(),
   }),
   z.strictObject({
     ...baseEffectShape,
