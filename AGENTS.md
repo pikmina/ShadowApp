@@ -732,21 +732,24 @@ Before changing system mechanics, CE rules, element effects, techniques, targeti
 * `docs/mechanical-effects-contract.md`
 * `src/domain/systemMechanics.ts`
 
-The canonical contract separates behavior, affected property, targeting, timing, and cost references. Preserve that separation in domain, API, persistence, and UI.
+The canonical contract centralizes reusable behavior and Stamina execution cost in System Rules. Catalog and Techniques apply those mechanics through stable references.
 
 Mandatory rules:
 
-* Only `CanonicalMechanicalEffect.type` defines executable behavior. Names, descriptions, `logicalType`, categories, badges, and icons never execute mechanics.
+* `CE` means `Coste de Estamina`. Never describe or implement it as design cost, construction points, power, balance, price, EXP, or currency.
+* A System Mechanic category is the source of truth for scope, targeting, target quantity, and resolution. Its executable options are the source of truth for effect type, semantic value, timing, duration, and additional CE.
+* Only the closed `effect.type` of a global option defines executable behavior. Names, descriptions, `logicalType`, badges, and icons never execute mechanics.
 * `offensive` is a classification and `damage` is the behavior that reduces Health. Do not create parallel effects or properties for synonyms such as Damage/Offensive or Healing/Support.
-* Cost categories stored in `system_rules/system_mechanics` contribute CE only. They do not become executable effect types.
-* Canonical effects reference current cost rules through `costRules`. Do not persist copied `cost`, `ruleName`, or `mechDesc` as authoritative values and do not fall back to them when a reference breaks.
+* Catalog and Techniques MUST NOT recapture behavior already defined in System Rules. They persist only `applicationId`, `mechanicId`, and `ruleId`, and may combine multiple references.
+* Do not persist copied `cost`, `ruleName`, `mechDesc`, dice, amount, target, or resolution in an applied reference. Resolve current values from `system_rules/system_mechanics`; broken references invalidate execution.
+* `system_rules/stamina_execution_costs` is the source of truth for minimum action, object-use, technique-level, and active-skill-level Stamina costs. Final CE is the greater of the contextual minimum and the sum of active option costs; never add the minimum twice.
+* Passive mechanics always cost 0 Stamina. They exist continuously on the bearer and must never be charged on equip, load, hydration, or turn processing.
 * Use semantic fields such as `attributeId`, `statId`, `statusElementId`, `resourceId`, `currencyId`, and `ruleId`. Do not reintroduce the overloaded legacy `target` or `value` property.
-* Every canonical effect uses `targeting` with entity kinds, relationship, selection, minimum targets, and maximum targets. Area is a selection mode, not a relationship. `self` means the source character or NPC and always selects exactly one direct target.
-* `defaultTarget` or `defaultTargeting` may initialize a newly created effect only. Never apply it during LOAD or UPDATE.
+* Every category targeting contract uses entity kinds, relationship, selection, minimum targets, and maximum targets. Area is a selection mode, not a relationship. `self` always selects exactly one direct target.
 * Changing an effect type creates a clean variant. Do not retain hidden properties from the previous type.
 * Validate canonical effects and system mechanics at the API boundary. Broken or duplicate references invalidate publication; they must not silently become zero-cost effects.
 * Preserve legacy records until an explicit migration. Do not infer the behavior of a legacy `mechanic_rule` from its category name and do not normalize persisted effects during hydration.
-* Keep one shared effect editor for Catálogo and Técnicas when the canonical UI is introduced. Do not duplicate domain rules in both views.
+* Keep one shared mechanic selector for Catálogo and Técnicas. The executable option editor belongs only to Reglas del Sistema.
 
 Any new effect type or targeting dimension requires a coordinated update to the architecture document, domain schema, validator, engine, API validation, tests, and every active consumer.
 

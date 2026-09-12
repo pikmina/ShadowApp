@@ -26,6 +26,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
   const { data: settings, error: settingsError } = useSWR(user ? "/api/settings" : null, fetcher);
   const { data: rules } = useSWR(user ? "/api/rules" : null, fetcher);
   const stagesList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_stages')?.value || [] : [];
+  const mechanicsList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_mechanics')?.value || [] : [];
   const { data: rawElements } = useSWR(user ? "/api/elements" : null, fetcher);
   const elements = Array.isArray(rawElements) ? rawElements.filter(el => el.status === 'published') : [];
 
@@ -105,7 +106,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
     if (!user) return;
     setIsSaving(true);
     try {
-      const derived = calculateDerivedStats(formData, stagesList, elements);
+      const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList);
       const finalProfileData: Record<string, any> = {
         ...formData,
         salud_actual: formData.salud_actual ?? derived.salud,
@@ -486,7 +487,7 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
         })()}
 {activeTab === 'Atributos' && (() => {
           const validation = validateCharacter(formData, stagesList);
-          const derived = calculateDerivedStats(formData, stagesList, elements);
+          const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList);
           const stage = stagesList.find((s: any) => s.name.toLowerCase() === String(formData['basic_stage'] || formData['stage'] || formData['etapa'] || '').toLowerCase());
           
           return (

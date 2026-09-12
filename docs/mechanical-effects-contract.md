@@ -1,181 +1,85 @@
-# Contrato canónico de efectos, costes y destinatarios
+# Contrato de Categorías Mecánicas y Coste de Estamina
 
-## Propósito
+Este documento es la referencia obligatoria para Reglas del Sistema, Catálogo, Técnicas y cualquier motor que ejecute efectos.
 
-Este documento define la única arquitectura admitida para efectos mecánicos nuevos. Complementa `system-core-architecture-plan.md` y debe leerse antes de modificar Reglas, Catálogo, Técnicas, combate, fichas o persistencia de elementos.
+## Significado de CE
 
-El objetivo es impedir que nombres parecidos creen comportamientos duplicados. “Ofensiva”, “Daño” y “2D6” pertenecen a niveles diferentes:
+CE significa exclusivamente **Coste de Estamina**: los puntos de Estamina que paga un personaje al ejecutar una acción. No representa potencia, balance ni coste de diseño.
 
-```text
-Clasificación: offensive
-  └─ organiza una categoría; no modifica Salud
+Una mecánica con timing pasivo existe permanentemente en su portador y siempre tiene CE 0. La API rechaza una opción pasiva con coste distinto de cero.
 
-Efecto: damage
-  └─ declara que el resultado reduce Salud
+## Una sola fuente de verdad
 
-Regla de coste: damage / damage_2d6
-  └─ aporta CE al diseño; no ejecuta daño por sí misma
-```
+system_rules/system_mechanics contiene las Categorías Mecánicas reutilizables. Cada categoría define:
 
-## Fuentes de verdad
+- ID estable, nombre, descripción y clasificación visual;
+- ámbitos permitidos: técnicas, objetos y acciones comunes;
+- destinatario, modo de selección y mínimo/máximo de objetivos;
+- resolución: automática, EVA, COR, RD o enfrentada;
+- opciones mecánicas con ID estable.
 
-| Concepto | Fuente |
-| --- | --- |
-| Comportamiento ejecutable | `CanonicalMechanicalEffect.type` |
-| Propiedad afectada | campo semántico de la variante: `attributeId`, `statId`, `statusElementId`, etc. |
-| Destinatarios | `CanonicalMechanicalEffect.targeting` |
-| Momento de aplicación | `CanonicalMechanicalEffect.timing` |
-| Coste CE | reglas referenciadas en `costRules`, resueltas contra `system_rules/system_mechanics` |
-| Nombre y descripción | presentación; nunca se ejecutan |
-| Clasificación lógica | organización y filtros; nunca se ejecuta |
+Cada opción de tipo effect define una vez:
 
-Un efecto no guarda una copia autoritativa del nombre, descripción o coste de una regla. Una referencia rota invalida el cálculo; no usa un valor histórico como fallback.
+- el comportamiento cerrado que ejecuta el motor;
+- su propiedad semántica, como statId, resourceId o dados;
+- momento y duración;
+- CE adicional de ejecución.
 
-## Tipos ejecutables
+Una opción cost_modifier modifica CE sin inventar otro comportamiento. Sirve para excepciones explícitas. Nunca se interpreta una descripción humana para ejecutar lógica.
 
-El conjunto inicial es cerrado:
+## Flujo de autoría
 
-- `attribute_modifier`: modifica un atributo mediante `attributeId` y `amount`.
-- `derived_stat_modifier`: modifica una estadística mediante `statId` y `amount`.
-- `damage`: reduce Salud y declara `dice`.
-- `healing`: recupera `SA` o `ES` y declara `amount`.
-- `barrier`: crea una barrera con cantidad y duración opcional.
-- `status`: aplica un `statusElementId` y una duración opcional.
-- `currency`: modifica `yen` o `exp`.
-- `rule_override`: referencia explícitamente la regla afectada.
-- `choice`: declara opciones estructuradas.
+~~~text
+Reglas del Sistema
+  Categoría Daño
+    target: 1 rival
+    resolución: EVA
+    opción: 2D8, on_hit, CE 3
+          ↓ referencia estable
+Técnica / elemento
+  { applicationId, mechanicId: "damage", ruleId: "damage_2d8" }
+          ↓ resolución en tiempo de uso
+Motor
+  daño 2D8 a 1 rival, contra EVA; cobra el CE aplicable
+~~~
 
-Añadir otro tipo requiere actualizar conjuntamente el contrato, el validador, el motor, las pruebas, la API y los consumidores. Crear una categoría nueva en Mecánicas y Costes no crea un tipo ejecutable.
+Catálogo y Técnicas no vuelven a capturar 2D8, target, cantidad, resolución o CE. Pueden agregar varias referencias para componer varios efectos.
 
-## Destinatarios
+El elemento persiste únicamente applicationId, mechanicId y ruleId. No persiste copias de nombre, descripción, dados, cantidad, target o coste. Una referencia rota invalida la resolución; nunca usa una copia o un valor cero como fallback.
 
-Todo efecto canónico contiene:
+## Tipos ejecutables cerrados
 
-```ts
-interface EffectTargeting {
-  allowedEntityKinds: Array<'character' | 'npc'>;
-  relationship: 'self' | 'ally' | 'enemy' | 'any';
-  selection: 'direct' | 'area';
-  minTargets: number;
-  maxTargets: number | null;
-  overflowSelection?: 'highest_initiative' | 'lowest_initiative';
-  targetingCostRuleId?: string;
-}
-```
+Las etiquetas “Ofensiva”, “Soporte” o “Daño” no ejecutan lógica. El comportamiento lo define effect.type, limitado a:
 
-Reglas obligatorias:
+- attribute_modifier
+- derived_stat_modifier
+- damage
+- healing
+- barrier
+- status
+- currency
+- rule_override
+- choice
 
-1. `self` es el personaje o NPC que porta o activa el efecto, no la cuenta autenticada.
-2. `self` siempre es directo y selecciona exactamente un destinatario.
-3. Aliado, enemigo y cualquiera expresan una relación con la fuente.
-4. Área expresa cómo se selecciona; no sustituye la relación.
-5. `minTargets` y `maxTargets` son enteros positivos y el mínimo no supera el máximo.
-6. `maxTargets: null` solo es válido para área y delega la cantidad final en sus reglas geométricas.
-7. Alcance, distancia y línea de visión son contratos distintos.
+Así se evita que “Daño” y “Ofensiva” se conviertan en dos propiedades que reducen Salud.
 
-Ejemplos:
+## Coste por contexto
 
-```ts
-// Dos enemigos como máximo.
-{
-  allowedEntityKinds: ['character', 'npc'],
-  relationship: 'enemy',
-  selection: 'direct',
-  minTargets: 1,
-  maxTargets: 2
-}
+system_rules/stamina_execution_costs define los costes base:
 
-// Entre uno y tres aliados.
-{
-  allowedEntityKinds: ['character', 'npc'],
-  relationship: 'ally',
-  selection: 'direct',
-  minTargets: 1,
-  maxTargets: 3
-}
+- baseAction: acción o golpe básico;
+- objectUse: uso activo de objeto;
+- techniqueByLevel: coste base de técnica por nivel;
+- skillByLevel: coste base de habilidad activa por nivel.
 
-// Todos los enemigos válidos dentro de un área.
-{
-  allowedEntityKinds: ['character', 'npc'],
-  relationship: 'enemy',
-  selection: 'area',
-  minTargets: 1,
-  maxTargets: null
-}
-```
+El coste de ejecución es el mayor entre el mínimo base del contexto y la suma de las opciones mecánicas activas habilitadas para ese ámbito. El mínimo no vuelve a sumarse cuando las opciones ya cuestan más. Los pasivos no aportan CE. La adquisición, el precio en yenes/EXP y las recompensas son conceptos separados.
 
-## Mecánicas y Costes
+## Compatibilidad y migración
 
-La configuración global se persiste en `system_rules` con la clave `system_mechanics`. Cada categoría y cada regla usan IDs únicos y estables. La API valida la lista antes del `upsert`.
+Los efectos canónicos anteriores y los registros legados se conservan exactamente durante LOAD. No se convierten por nombre, descripción o categoría. El editor los identifica como anteriores y exige una sustitución explícita por referencias globales.
 
-Las categorías pueden clasificarse como ofensivas, defensivas, soporte, control, limitación o utilidad. Esa clasificación no aplica efectos. Sus reglas aportan únicamente componentes de coste CE.
+CREATE usa el contrato de referencias. UPDATE solo cambia lo editado. Cambiar una categoría global cambia la resolución vigente de sus referencias, por lo que sus IDs deben ser estables y los cambios publicados deben revisarse como reglas de sistema.
 
-Un efecto canónico contiene cero o más referencias:
+## Cambios coordinados
 
-```ts
-interface CostRuleReference {
-  mechanicId: string;
-  ruleId: string;
-}
-```
-
-El motor resuelve cada referencia contra la configuración vigente, rechaza referencias duplicadas dentro del mismo efecto y devuelve coste total, desglose y problemas. Si falta cualquier referencia, el total es inválido y no se presenta como cero.
-
-## Prohibiciones
-
-- No crear un efecto genérico `mechanic_rule` en datos canónicos.
-- No usar `logicalType: offensive` como sinónimo de daño.
-- No guardar `cost`, `ruleName` o `mechDesc` como fuente mecánica dentro del efecto.
-- No usar `target` para atributo, estadística, estado, moneda, regla o destinatario.
-- No usar `recipient` como segundo contrato paralelo de destinatario.
-- No representar área mediante `relationship`.
-- No codificar costes de Daño, Estado o Modificadores dentro del motor.
-- No permitir propiedades ajenas a la variante del efecto.
-- No publicar efectos que todavía dependan del formato legado.
-
-## Persistencia e hidratación
-
-Los contratos canónicos se guardan dentro de `system_elements.effects`, actualmente una columna JSONB adecuada para la unión discriminada. No se necesita una columna por tipo de efecto.
-
-La API debe validar antes de guardar. LOAD devuelve exactamente el efecto persistido. La UI puede resolver nombres y costes para mostrar, pero no los escribe de vuelta como copias. UPDATE solo modifica el efecto editado y nunca aplica `defaultTargeting` sobre un efecto existente.
-
-`defaultTarget` y el futuro `defaultTargeting` de una categoría son sugerencias exclusivas de CREATE. La fuente de verdad de un efecto creado es su propio `targeting` explícito.
-
-## Transición del formato legado
-
-Los datos existentes se preservan hasta una migración explícita. No se transforman durante carga, montaje de React ni guardado de otro campo.
-
-| Legado | Campo canónico |
-| --- | --- |
-| `deal_damage` | `type: 'damage'` |
-| `modify_attribute.target` | `attributeId` |
-| `modify_derived.target` | `statId` |
-| `apply_status.target` | `statusElementId` |
-| `recover_stat.target` | `resourceId` |
-| `recover_stat.recipient` | `targeting.relationship` |
-| `grant_currency.target` | `currencyId` |
-| `system_override.target` | `ruleId` |
-| `mechanic_rule.mechanicId/ruleId` | una entrada de `costRules` del efecto real correspondiente |
-
-Un `mechanic_rule` aislado no indica qué comportamiento ejecuta. No se convierte por el nombre de su categoría. Debe asociarse manualmente con el efecto real o quedar reportado como ambiguo.
-
-Al cambiar el tipo de un efecto, la aplicación crea una variante nueva y copia únicamente los campos compatibles. No conserva propiedades ocultas de la variante anterior.
-
-## Estado de adopción
-
-Implementado:
-
-- tipos y validadores canónicos en `src/domain/systemMechanics.ts`;
-- validación de estructura, costes e IDs de `system_mechanics` antes de persistir;
-- cálculo canónico sin fallback y con desglose de referencias;
-- pruebas de destinatarios, cantidades, propiedades prohibidas, duplicados y referencias rotas.
-- editor canónico compartido por Catálogo y Técnicas para todos los efectos nuevos;
-- conservación visible y sin normalización automática de efectos legados;
-- validación en la API de todo efecto que declare identidad canónica.
-
-Pendiente:
-
-- crear una herramienta explícita de revisión/migración de efectos legados;
-- impedir la publicación de efectos legados cuando exista una herramienta de migración capaz de resolverlos sin pérdida;
-- conectar ficha y combate al ejecutor de efectos;
-- retirar `src/domain/mechanics.ts` y los formularios duplicados cuando ningún consumidor legado permanezca.
+Agregar un tipo de efecto, dimensión de target o contexto de CE requiere modificar conjuntamente el contrato, el plan de arquitectura, los esquemas del dominio, la API, el editor de Reglas, el selector compartido y sus pruebas.

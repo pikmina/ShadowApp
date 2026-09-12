@@ -1,3 +1,5 @@
+import { appliedMechanicReferenceSchema, resolveAppliedMechanics, type SystemMechanicsConfig } from '../domain/systemMechanics';
+
 export interface ValidationResult {
   status: 'green' | 'orange' | 'red';
   messages: string[];
@@ -55,7 +57,7 @@ export function validateCharacter(
   return { status, messages };
 }
 
-export function calculateDerivedStats(profile: Record<string, any>, stages: any[], elements: any[] = []) {
+export function calculateDerivedStats(profile: Record<string, any>, stages: any[], elements: any[] = [], mechanics: SystemMechanicsConfig = []) {
   const stageName = String(profile['basic_stage'] || profile['stage'] || profile['etapa'] || '').trim();
   const stage = stages.find((s: any) => s.name.toLowerCase() === stageName.toLowerCase());
 
@@ -84,9 +86,16 @@ export function calculateDerivedStats(profile: Record<string, any>, stages: any[
     const el = elements.find(e => e.id === id);
     if (!el || !Array.isArray(el.effects)) return;
 
-    el.effects.forEach((eff: any) => {
+    const references = el.effects.flatMap((effect: unknown) => {
+      const parsed = appliedMechanicReferenceSchema.safeParse(effect);
+      return parsed.success ? [parsed.data] : [];
+    });
+    const referencedEffects = references.length > 0 ? resolveAppliedMechanics(references, mechanics).effects : [];
+    const directEffects = el.effects.filter((effect: unknown) => !appliedMechanicReferenceSchema.safeParse(effect).success);
+
+    [...directEffects, ...referencedEffects].forEach((eff: any) => {
       // Support multiple schemas (legacy and new)
-      const attrId = eff.attributeId || eff.target;
+      const attrId = eff.attributeId || eff.statId || eff.target;
       const amount = eff.amount ?? eff.value ?? 0;
 
       if ((eff.type === 'attribute_modifier' || eff.type === 'modify_attribute' || eff.type === 'stat_modifier') && (!eff.timing || eff.timing === 'passive')) {
@@ -98,7 +107,7 @@ export function calculateDerivedStats(profile: Record<string, any>, stages: any[
         if (attrId === 'VEL' || attrId === 'velocidad') vel += amount;
       }
       
-      if ((eff.type === 'derived_modifier' || eff.type === 'modify_derived') && (!eff.timing || eff.timing === 'passive')) {
+      if ((eff.type === 'derived_stat_modifier' || eff.type === 'derived_modifier' || eff.type === 'modify_derived') && (!eff.timing || eff.timing === 'passive')) {
         if (attrId === 'INI' || attrId === 'iniciativa') extraIni += amount;
         if (attrId === 'EVA' || attrId === 'evasion') extraEvasion += amount;
         if (attrId === 'COR' || attrId === 'coraje') extraCoraje += amount;

@@ -1,14 +1,17 @@
 import { describe, expect, test } from "vitest";
 import {
   calculateCanonicalMechanicalCost,
+  calculateExecutionStaminaCost,
   canonicalMechanicalEffectsSchema,
   effectTargetingSchema,
   systemMechanicsConfigSchema,
+  resolveAppliedMechanics,
   validatePersistedMechanicalEffects,
   type CanonicalMechanicalEffect,
   type EffectTargeting,
   type SystemMechanicsConfig,
 } from "../systemMechanics";
+import { calculateDerivedStats } from "../../lib/characterValidation";
 
 const selfTarget: EffectTargeting = {
   allowedEntityKinds: ["character"],
@@ -33,7 +36,8 @@ const mechanics: SystemMechanicsConfig = [
     description: "Costes de daño",
     logicalType: "offensive",
     scope: { techniques: true, objects: true, actions: false },
-    rules: [{ id: "damage_2d6", name: "2D6", cost: 3 }],
+    targeting: twoEnemies,
+    rules: [{ id: "damage_2d6", name: "2D6", cost: 3, ruleType: "effect", effect: { type: "damage", dice: "2D6", timing: "on_hit" } }],
   },
 ];
 
@@ -121,11 +125,46 @@ describe("System mechanics configuration", () => {
       mechanics[0],
       {
         ...mechanics[0],
-        rules: [{ id: "damage_2d6", name: "Duplicada", cost: 8 }],
+        rules: [{ id: "damage_2d6", name: "Duplicada", cost: 8, ruleType: "cost_modifier" }],
       },
     ]);
 
     expect(parsed.success).toBe(false);
+  });
+
+  test("materializes behavior, targets and Stamina cost from one global option", () => {
+    const references = [{ applicationId: "application_1", mechanicId: "damage", ruleId: "damage_2d6" }];
+    const result = resolveAppliedMechanics(references, mechanics);
+
+    expect(result.valid).toBe(true);
+    expect(result.staminaCost).toBe(3);
+    expect(result.effects[0]).toMatchObject({ id: "application_1", type: "damage", dice: "2D6", targeting: twoEnemies });
+    expect(references[0]).not.toHaveProperty("dice");
+    expect(references[0]).not.toHaveProperty("cost");
+  });
+
+  test("adds the configured execution base and only mechanics enabled for that context", () => {
+    const references = [{ applicationId: "application_1", mechanicId: "damage", ruleId: "damage_2d6" }];
+    const policy = { baseAction: 1, objectUse: 2, techniqueByLevel: [{ level: 5, cost: 5 }], skillByLevel: [{ level: 5, cost: 4 }] };
+
+    expect(calculateExecutionStaminaCost(references, mechanics, policy, "object")).toBe(3);
+    expect(calculateExecutionStaminaCost(references, mechanics, policy, "technique", 5)).toBe(5);
+    expect(calculateExecutionStaminaCost(references, mechanics, policy, "action")).toBe(1);
+  });
+
+  test("rejects Stamina costs on passive mechanics", () => {
+    const parsed = systemMechanicsConfigSchema.safeParse([{ ...mechanics[0], rules: [{ id: "passive", name: "Siempre activo", cost: 1, ruleType: "effect", effect: { type: "barrier", amount: 2, timing: "passive" } }] }]);
+    expect(parsed.success).toBe(false);
+  });
+
+  test("applies a referenced passive trait permanently without charging Stamina", () => {
+    const passiveMechanics = systemMechanicsConfigSchema.parse([{ ...mechanics[0], id: "health", targeting: selfTarget, rules: [{ id: "health_2", name: "+2 Salud", cost: 0, ruleType: "effect", effect: { type: "derived_stat_modifier", statId: "SAL", amount: 2, timing: "passive" } }] }]);
+    const elements = [{ id: "trait_1", effects: [{ applicationId: "application_1", mechanicId: "health", ruleId: "health_2" }] }];
+    const profile = { basic_stage: "Novato", traits: ["trait_1"], RES: 3 };
+    const stages = [{ name: "Novato", baseHealth: 20, baseStamina: 10, baseDamage: "1D4" }];
+
+    expect(calculateDerivedStats(profile, stages, elements, passiveMechanics).salud).toBe(25);
+    expect(resolveAppliedMechanics(elements[0].effects, passiveMechanics).staminaCost).toBe(0);
   });
 
   test("resolves cost only from the current system rule", () => {

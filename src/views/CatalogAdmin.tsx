@@ -412,7 +412,6 @@ export default function CatalogAdmin() {
                     effects={form.effects || []}
                     mechanics={mechanics}
                     onChange={(effects) => setForm((current) => ({ ...current, effects }))}
-                    hideCosts={!["skill", "altered_status", "technique_entitlement", "plus_ultra_effect"].includes(form.kind)}
                   />
                 </TabsContent>
               </div>

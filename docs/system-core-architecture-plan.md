@@ -27,8 +27,8 @@ Las afirmaciones de finalización del repositorio anterior no se heredan automá
 - `src/domain/systemMechanics.ts` define y valida el contrato canónico de efectos, destinatarios y referencias de coste, incluido el número mínimo y máximo de objetivos.
 - La API valida la estructura y la unicidad de IDs de `system_mechanics` antes de guardar la configuración global.
 - El cálculo canónico de CE invalida referencias rotas o duplicadas y no usa costes copiados como fallback.
-- Reglas del Sistema presenta menús explícitos para Etapas, Atributos Base, Estadísticas Derivadas, Límites y RD, y Mecánicas y Costes.
-- Etapas, Atributos Base y Mecánicas y Costes ya tienen operaciones de guardado mediante `system_rules`.
+- Reglas del Sistema presenta menús explícitos para Etapas, Atributos Base, Estadísticas Derivadas, Límites y RD, y Mecánicas y Estamina.
+- Etapas, Atributos Base y Mecánicas y Estamina ya tienen operaciones de guardado mediante `system_rules`.
 - Las interfaces administrativas y la ficha pública reutilizan el sistema visual Cyberpunk y los componentes compartidos conforme a `AGENTS.md`.
 
 ### Parcial o transitorio
@@ -58,7 +58,7 @@ Esta organización fue añadida después del plan original y queda confirmada co
 2. Atributos Base.
 3. Estadísticas Derivadas.
 4. Límites y RD.
-5. Mecánicas y Costes (CE).
+5. Mecánicas y Estamina (CE).
 
 No son categorías libres creadas por el administrador. Son módulos conocidos del sistema, cada uno con validación y forma de edición propias. El rol `admin` los administra y la API vuelve a comprobar ese permiso antes de guardar.
 
@@ -122,9 +122,9 @@ Los límites representan máximos, mínimos o topes compartidos, como límites d
 
 Los Rangos de Dificultad (RD) forman una escala administrable de valores con nombre y descripción. Técnicas, acciones, requisitos y resoluciones que utilicen RD deben referenciar una entrada por ID. El nombre puede cambiar sin alterar la relación.
 
-`system_limits` es la fuente de verdad de la lista de límites y `system_difficulty_ranges` es la fuente de verdad de la escala de RD. Ambas claves guardan listas JSON validadas y cada entrada usa un ID único y estable. La implementación no debe esconder estas listas dentro de Mecánicas y Costes ni introducir valores de RD codificados en componentes.
+`system_limits` es la fuente de verdad de la lista de límites y `system_difficulty_ranges` es la fuente de verdad de la escala de RD. Ambas claves guardan listas JSON validadas y cada entrada usa un ID único y estable. La implementación no debe esconder estas listas dentro de Mecánicas y Estamina ni introducir valores de RD codificados en componentes.
 
-### Mecánicas y Costes (CE)
+### Categorías Mecánicas y Coste de Estamina (CE)
 
 La lista `system_mechanics` conserva las mecánicas y tablas de costes que existían en la administración anterior, por ejemplo Daño, Curación, Barrera, Estados, Duración, Área, Alcance, Bonos y Limitaciones.
 
@@ -133,13 +133,13 @@ Cada categoría mecánica declara:
 - ID estable, nombre, descripción e icono;
 - tipo lógico: ofensiva, defensiva, soporte, control, limitación o utilidad;
 - ámbito: técnicas, objetos y/o acciones normales;
-- sugerencia de destinatario para CREATE;
-- resolución sugerida: ninguna, EVA, COR, RD o enfrentada;
-- lista de opciones o reglas, cada una con ID, nombre, explicación mecánica y coste CE.
+- destinatario efectivo, selección y mínimo/máximo de objetivos;
+- resolución efectiva: ninguna, EVA, COR, RD o enfrentada;
+- lista de opciones con ID, comportamiento ejecutable, valor semántico, timing, duración y CE.
 
-Estas categorías no crean tipos de efecto nuevos. Organizan reglas de coste que los tipos cerrados de `MechanicalEffect` referencian por ID. Daño y Curación, por ejemplo, son efectos conocidos por el dominio; sus dados, intensidades o variantes y su coste se seleccionan desde las reglas publicadas de la categoría correspondiente.
+Estas categorías configuran instancias reutilizables de los tipos cerrados de `MechanicalEffect`. Daño y Curación no crean motores arbitrarios: una opción elige un tipo cerrado y fija una sola vez sus dados, intensidad o valor. Catálogo y Técnicas guardan únicamente la referencia a esa opción.
 
-El coste nunca se obtiene de la etiqueta o descripción. El motor resuelve el ID de la categoría y el ID de la regla contra la versión persistida vigente y devuelve un desglose trazable. Una referencia inexistente invalida el cálculo y no recupera silenciosamente un coste copiado en el efecto.
+CE significa Coste de Estamina. Nunca representa coste de diseño. El motor resuelve el ID de categoría y opción contra la versión persistida vigente; una referencia inexistente invalida la ejecución y no recupera silenciosamente comportamiento ni coste copiados.
 
 ## Alcance de estas etapas
 
@@ -310,7 +310,7 @@ El valor afectado y quien recibe el efecto son datos distintos. Por ejemplo, `at
 
 `self` significa el personaje o NPC que porta o activa el efecto, no la cuenta autenticada. `area` es un modo de selección y no una relación. Un destinatario propio siempre exige selección directa y exactamente un objetivo; un máximo abierto solo se admite para un área cuyas reglas determinen los afectados.
 
-El `defaultTarget` actual de una categoría puede sugerir un valor exclusivamente durante CREATE. Cada efecto debe persistir su `targeting` completo y explícito; cambiar el valor predeterminado no modifica efectos existentes durante LOAD o UPDATE.
+El `targeting` de una Categoría Mecánica es la fuente de verdad vigente para sus referencias. `defaultTarget` se conserva solo como compatibilidad con categorías anteriores y no autoriza a Catálogo o Técnicas a copiar el target.
 
 `ActivationConstraint` representa condiciones estructuradas como primer turno, preparación, consumo, enfriamiento, habilidad activa, repercusión, límite por Día/Escena/Partida, objetivo consciente, umbral, límite de absorción y rotura por pifia.
 
@@ -489,7 +489,7 @@ La conversión depende del tipo del efecto y nunca del nombre visible:
 - `recover_stat.target` se convierte en el ID del recurso recuperado y su antiguo `recipient` se adapta a `targeting.relationship`.
 - `deal_damage.target` solo se adapta como relación cuando contiene `self`, `ally` o `enemy`; el antiguo valor `area` se adapta a `targeting.selection: 'area'`, no a una relación.
 
-La categoría mecánica puede aportar una sugerencia durante CREATE, pero no resuelve automáticamente un efecto persistido. Si el destinatario legado es ambiguo, el adaptador conserva el JSON original, informa el problema y bloquea su publicación en el nuevo contrato hasta que un administrador lo corrija.
+La Categoría Mecánica resuelve el target de todas sus referencias nuevas. Si el destinatario de un efecto legado es ambiguo, el adaptador conserva el JSON original, informa el problema y bloquea su publicación en el nuevo contrato hasta que un administrador lo sustituya explícitamente.
 
 ### Orden de disparadores de una acción
 
@@ -569,26 +569,25 @@ El motor obtiene estas dependencias de las fórmulas vigentes en Reglas del Sist
 
 Esta prohibición solo se aplica a rasgos, debilidades y demás elecciones permanentes, además del equipo simultáneamente equipado. Los Estados Alterados, ataques y otros efectos temporales pueden aplicar penas aunque exista un bono permanente relacionado, salvo que una inmunidad u otra regla específica lo impida.
 
-### Coste de diseño por componentes
+### Composición de mecánicas reutilizables
 
-Todo `MechanicalEffect` que aumente, reduzca o altere una regla participa en el cálculo de coste de diseño. El coste total se compone a partir del tipo y potencia del efecto, sus destinatarios, cantidad de objetivos, duración, alcance, activación y demás modificadores aplicables.
+Todo `MechanicalEffect` se define como opción reutilizable en Reglas del Sistema. La categoría contiene destinatarios, cantidad, resolución y ámbitos; la opción contiene el comportamiento, valor, timing, duración y CE de ejecución.
 
-Un componente puede tener coste cero cuando Reglas del Sistema lo defina explícitamente como comportamiento básico. Por ejemplo, afectar a uno mismo o a un único objetivo cuesta cero por destinatario porque todo efecto debe afectar a alguien; permitir un segundo objetivo o más añade el coste configurado para objetivos adicionales. Un bono aplicado sobre uno mismo conserva el coste del bono, aunque la selección de uno mismo no agregue coste.
+Una opción pasiva siempre tiene CE 0 porque existe permanentemente en su portador. Una opción activa puede aportar CE cuando se ejecuta dentro de un ámbito habilitado por su categoría.
 
-Los valores, escalas y componentes gratuitos se editan en Reglas del Sistema. Tienda, Técnicas y el Catálogo solo componen esas reglas y muestran el desglose; no duplican tablas ni convierten silenciosamente un componente desconocido en coste cero.
+Tienda, Técnicas y Catálogo solo componen referencias. No vuelven a capturar dados, cantidades, targets, resoluciones ni CE y no convierten un componente desconocido en coste cero.
 
-### Unidades de diseño y costes de activación
+### Costes de Estamina por ejecución
 
-CE es la unidad de construcción para técnicas y efectos configurables realizados por los personajes. CE mide potencia y composición; el personaje no lo gasta durante una acción. El recurso consumido al activar un efecto se define por la clase de elemento y permanece separado de su coste de diseño.
+CE es el Coste de Estamina que paga el personaje al ejecutar una acción. `stamina_execution_costs` configura el mínimo de acción básica, uso de objeto, técnica por nivel y habilidad activa por nivel. El coste final es el mayor entre ese mínimo y la suma de las opciones mecánicas activas habilitadas; el mínimo no se suma otra vez.
 
-- Las técnicas convierten su composición en un coste de Estamina mediante las reglas correspondientes.
-- Los usos especiales de habilidades emplean CE cuando permiten construir o configurar efectos y consumen Estamina cuando su regla lo indique.
-- Cada arma tiene un coste propio de Estamina. Reglas del Sistema calcula un valor sugerido a partir de su daño y propiedades; el administrador puede modificarlo, pero debe registrar una justificación visible y auditable.
-- El equipo y los gadgets pueden no tener coste, tener un coste fijo de activación o requerir mantenimiento, según su definición.
-- Cada consumible declara una política de Estamina: sin coste, coste fijo o coste calculado por Reglas. Esta política es independiente del descuento de su cantidad al realizar la Tirada de Acción.
+- Una técnica respeta el mínimo de su nivel y la suma de sus opciones activas.
+- Una habilidad activa respeta el mínimo de su nivel y la suma de sus opciones activas.
+- Un objeto utilizado respeta el mínimo de objeto y la suma de sus opciones activas; equipar o portar un pasivo no cobra CE.
+- Una acción común respeta el mínimo base y la suma de sus opciones activas.
 - Los efectos Plus Ultra consumen puntos Plus Ultra según su definición.
 
-La interfaz debe mostrar por separado el coste de diseño, el coste sugerido de activación, cualquier ajuste administrativo y el coste final que pagará el personaje.
+La interfaz muestra el CE que pagará el personaje y su desglose por regla base y opciones mecánicas.
 
 ### Coste mínimo de acciones y límites de técnicas
 
@@ -596,7 +595,7 @@ Toda acción realizada en un turno que requiera una Tirada de Acción tiene un c
 
 Las Tiradas de Salvación no consumen Estamina por defecto, salvo que su regla indique expresamente un coste. Un consumible que requiera Tirada de Acción respeta el mínimo de 1; uno que no requiera esa tirada puede tener coste nulo según su definición.
 
-Las técnicas tienen un CE mínimo de 1. Sus máximos vigentes son 5 para Nivel 1 — Despertar, 10 para Nivel 2 — Dominio y 15 para Nivel 3 — Trascendencia. Estos valores se guardan como configuración estructurada en Reglas del Sistema para permitir futuros ajustes de equilibrio sin modificar el creador de Técnicas. El motor del Catálogo obtiene el mínimo general de la categoría `design_cost_minimum` y el descuento acumulado máximo de `limitation_discount_maximum`; debe existir una sola regla publicada de tipo `limit` y unidad `ce` en cada categoría.
+Los costes base de técnicas y habilidades se guardan por nivel en `stamina_execution_costs`. No se codifican en sus formularios. El golpe básico parte de 1 CE mientras esa sea la regla publicada.
 
 Los `categoryId` pertenecen a un catálogo estructural seleccionable; no se capturan como texto libre y quedan fijos después de publicar. Las reglas `stage` guardan por separado su orden, edad mínima y edad máxima. La etapa se resuelve directamente desde la edad: Novato 15–17, Emergente 18–24, Élite 25–30, Veterano 31–40, Emblema 41–50 y Leyenda desde 51.
 
@@ -711,10 +710,10 @@ No quedan decisiones pendientes en esta sección.
 7. Moderator puede conceder elementos directamente mediante una operación auditada; ningún rol actual omite requisitos mecánicos.
 8. Cada oferta configura EXP, yenes o ambas monedas conjuntamente según corresponda.
 9. Los descuentos de ofertas no se acumulan y los paquetes quedan fuera de esta versión.
-10. Reglas del Sistema conserva cinco módulos explícitos: Etapas, Atributos Base, Estadísticas Derivadas, Límites y RD, y Mecánicas y Costes.
+10. Reglas del Sistema conserva cinco módulos explícitos: Etapas, Atributos Base, Estadísticas Derivadas, Límites y RD, y Mecánicas y Estamina.
 11. Los IDs de atributos base y estadísticas derivadas son estables; el administrador puede editar sus nombres visibles y descripciones, y las fórmulas derivadas se validan como reglas del sistema.
 12. Límites y Rangos de Dificultad son listas administrables y referenciables por ID, con fuentes de verdad separadas en `system_limits` y `system_difficulty_ranges`.
-13. Mecánicas y Costes conserva categorías como Daño y Curación y sus opciones CE; esas categorías configuran efectos conocidos y no crean motores arbitrarios.
+13. Las Categorías Mecánicas como Daño y Curación definen opciones ejecutables reutilizables y su CE. Catálogo y Técnicas solo guardan referencias a ellas.
 
 ### Semántica del motor de requisitos
 
@@ -730,7 +729,7 @@ La evaluación conserva valores válidos como `0` y `false`, no altera sus entra
 
 El motor numérico recibe el valor base, cambios permanentes, un reemplazo opcional, multiplicadores, bonos y penas, límites y redondeo. Aplica los pasos en el orden acordado y devuelve tanto el resultado como los valores intermedios para explicar el cálculo. Todos los límites y métodos de redondeo llegan desde Reglas del Sistema.
 
-El coste de diseño se obtiene exclusivamente mediante IDs de reglas asociados al efecto principal, destinatarios, duración, componentes adicionales y limitaciones. Una regla de coste cero debe existir explícitamente; una referencia ausente o desconocida invalida el resultado y nunca se interpreta como cero. Los descuentos se guardan como magnitudes positivas, se suman hasta el máximo configurable y después se respeta el coste mínimo configurable.
+El Coste de Estamina se obtiene exclusivamente mediante la regla base del contexto y los IDs de opciones mecánicas aplicadas. Una referencia ausente o desconocida invalida el resultado y nunca se interpreta como cero. Las mecánicas pasivas aportan siempre CE 0.
 
 El mantenimiento solo admite Daño Activo y Curación Activa recurrentes. Calcula cada efecto desde su coste unitario referenciado, aplica el porcentaje y redondeo configurados y finalmente suma el paquete. Una Barrera, un efecto no recurrente o un efecto sin coste resoluble invalida el cálculo. La decisión de pagar el paquete o terminarlo durante el turno pertenece al futuro ejecutor de combate; este motor únicamente produce el coste verificable.
 

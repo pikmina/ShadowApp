@@ -3,7 +3,7 @@ import { z } from "zod";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { requireAuth, requireRole, AuthRequest } from "./src/middleware/auth.ts";
-import { systemMechanicsConfigSchema, validatePersistedMechanicalEffects } from "./src/domain/systemMechanics.ts";
+import { resolveAppliedMechanics, staminaExecutionCostsSchema, systemMechanicsConfigSchema, validatePersistedMechanicalEffects } from "./src/domain/systemMechanics.ts";
 
 
 async function startServer() {
@@ -56,6 +56,12 @@ async function startServer() {
           });
         }
         value = mechanics.data;
+      }
+      if (key === "stamina_execution_costs") {
+        if (type !== "json") return res.status(400).json({ error: "stamina_execution_costs must use the json rule type" });
+        const costs = staminaExecutionCostsSchema.safeParse(value);
+        if (!costs.success) return res.status(400).json({ error: "Invalid Stamina execution costs", details: costs.error });
+        value = costs.data;
       }
 
       const rule = await upsertRule(key, type, value, description);
@@ -113,6 +119,14 @@ async function startServer() {
           error: "Invalid canonical mechanical effects",
           details: effects.errors,
         });
+      }
+      if (effects.appliedMechanics.length > 0) {
+        const storedRules = await getRules();
+        const storedMechanics = storedRules.find((rule: any) => rule.key === "system_mechanics")?.value;
+        const mechanics = systemMechanicsConfigSchema.safeParse(storedMechanics);
+        if (!mechanics.success) return res.status(409).json({ error: "System mechanics are unavailable or invalid" });
+        const resolution = resolveAppliedMechanics(effects.appliedMechanics, mechanics.data);
+        if (!resolution.valid) return res.status(400).json({ error: "Unknown or duplicate applied mechanic reference", details: resolution.issues });
       }
 
       const item = await upsertElement(parsed.data);

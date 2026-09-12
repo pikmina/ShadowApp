@@ -33,6 +33,8 @@ import {
 } from "../components/ui/select";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { MechanicalEffectDefinitionEditor, createEffectDefinition, describeEffect } from "../components/mechanics/MechanicalEffectDefinitionEditor";
+import type { MechanicalEffectDefinition } from "../domain/systemMechanics";
 
 
 const defaultStage = {
@@ -53,6 +55,13 @@ const defaultStage = {
   minWeaknesses: 2
 };
 
+const defaultStaminaCosts = {
+  baseAction: 1,
+  objectUse: 1,
+  techniqueByLevel: [1, 2, 3, 4, 5].map(level => ({ level, cost: level })),
+  skillByLevel: [1, 2, 3, 4, 5].map(level => ({ level, cost: level })),
+};
+
 export default function RulesAdmin() {
   const { user } = useAuth();
   
@@ -63,27 +72,54 @@ export default function RulesAdmin() {
   );
 
   
-  const mechanicsRule = rules?.find((r: any) => r.key === 'system_mechanics') || { key: 'system_mechanics', type: 'json', value: [], description: 'Mecánicas y Costes del Sistema (CE)' };
+  const mechanicsRule = rules?.find((r: any) => r.key === 'system_mechanics') || { key: 'system_mechanics', type: 'json', value: [], description: 'Categorías Mecánicas y Coste de Estamina (CE)' };
   const mechanics = Array.isArray(mechanicsRule.value) ? mechanicsRule.value : [];
+  const staminaRule = rules?.find((r: any) => r.key === 'stamina_execution_costs');
+  const [staminaCosts, setStaminaCosts] = useState<any>(defaultStaminaCosts);
+  const [staminaCostsDirty, setStaminaCostsDirty] = useState(false);
+  useEffect(() => {
+    if (!staminaCostsDirty && staminaRule?.value) setStaminaCosts(staminaRule.value);
+  }, [staminaRule?.value, staminaCostsDirty]);
   
   const [selectedMechanicId, setSelectedMechanicId] = useState<string | null>(null);
   const [isMechanicDialogOpen, setIsMechanicDialogOpen] = useState(false);
-  const [mechanicForm, setMechanicForm] = useState<any>({ id: '', name: '', description: '', logicalType: 'offensive', icon: 'Hand', scope: { techniques: true, objects: true, actions: false }, defaultTarget: 'self', defaultResolution: 'none', rules: [] });
+  const [mechanicForm, setMechanicForm] = useState<any>({ id: '', name: '', description: '', logicalType: 'offensive', icon: 'Hand', scope: { techniques: true, objects: true, actions: false }, defaultTarget: 'self', targeting: { allowedEntityKinds: ['character', 'npc'], relationship: 'self', selection: 'direct', minTargets: 1, maxTargets: 1 }, defaultResolution: 'none', rules: [] });
   const [newRuleName, setNewRuleName] = useState('');
   const [newRuleCost, setNewRuleCost] = useState(0);
   const [newRuleMechDesc, setNewRuleMechDesc] = useState('');
+  const [newRuleType, setNewRuleType] = useState<'effect' | 'cost_modifier'>('effect');
+  const [newRuleEffect, setNewRuleEffect] = useState<MechanicalEffectDefinition>(() => createEffectDefinition('damage'));
 
   const selectedMechanic = mechanics.find((m: any) => m.id === selectedMechanicId);
+  const setCategoryRelationship = (relationship: 'self' | 'enemy' | 'ally' | 'any') => setMechanicForm((current: any) => ({
+    ...current,
+    defaultTarget: relationship,
+    targeting: relationship === 'self'
+      ? { allowedEntityKinds: ['character', 'npc'], relationship, selection: 'direct', minTargets: 1, maxTargets: 1 }
+      : { allowedEntityKinds: ['character', 'npc'], selection: 'direct', minTargets: 1, maxTargets: 1, ...current.targeting, relationship },
+  }));
+
+  const saveStaminaCosts = async () => {
+    const response = await apiFetch('/api/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'stamina_execution_costs', type: 'json', value: staminaCosts, description: 'Costes de Estamina por contexto de ejecución' }) });
+    if (!response.ok) throw new Error('No se pudieron guardar los costes de Estamina');
+    setStaminaCostsDirty(false);
+    await mutate();
+  };
 
   const handleSaveMechanic = async () => {
     try {
       let newMechanics = [...mechanics];
       const existingIndex = newMechanics.findIndex(m => m.id === mechanicForm.id);
+      const relationship = mechanicForm.targeting?.relationship ?? mechanicForm.defaultTarget ?? 'self';
+      const normalizedTargeting = relationship === 'self'
+        ? { allowedEntityKinds: ['character', 'npc'], relationship: 'self', selection: 'direct', minTargets: 1, maxTargets: 1 }
+        : (mechanicForm.targeting ?? { allowedEntityKinds: ['character', 'npc'], relationship, selection: 'direct', minTargets: 1, maxTargets: 1 });
+      const normalizedForm = { ...mechanicForm, defaultTarget: relationship, targeting: normalizedTargeting };
       
       if (existingIndex >= 0) {
-        newMechanics[existingIndex] = { ...mechanicForm };
+        newMechanics[existingIndex] = normalizedForm;
       } else {
-        newMechanics.push({ ...mechanicForm, id: mechanicForm.name.toLowerCase().replace(/\s+/g, '_') });
+        newMechanics.push({ ...normalizedForm, id: mechanicForm.name.toLowerCase().replace(/\s+/g, '_') });
       }
 
       await apiFetch('/api/rules', {
@@ -131,7 +167,14 @@ export default function RulesAdmin() {
       const existingIndex = newMechanics.findIndex(m => m.id === selectedMechanic.id);
       
       if (existingIndex >= 0) {
-        const updatedRules = [...(newMechanics[existingIndex].rules || []), { id: Date.now().toString(), name: newRuleName, cost: newRuleCost, mechDesc: newRuleMechDesc }];
+        const updatedRules = [...(newMechanics[existingIndex].rules || []), {
+          id: Date.now().toString(),
+          name: newRuleName,
+          cost: newRuleCost,
+          mechDesc: newRuleMechDesc,
+          ruleType: newRuleType,
+          ...(newRuleType === 'effect' ? { effect: newRuleEffect } : {}),
+        }];
         newMechanics[existingIndex] = { ...newMechanics[existingIndex], rules: updatedRules };
         
         await apiFetch('/api/rules', {
@@ -147,6 +190,8 @@ export default function RulesAdmin() {
         setNewRuleName('');
         setNewRuleCost(0);
         setNewRuleMechDesc('');
+        setNewRuleType('effect');
+        setNewRuleEffect(createEffectDefinition('damage'));
         mutate();
       }
     } catch (e) {
@@ -328,7 +373,7 @@ export default function RulesAdmin() {
             <TabsTrigger value="attributes" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Atributos Base</TabsTrigger>
             <TabsTrigger value="derived" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Estad. Derivadas</TabsTrigger>
             <TabsTrigger value="limits" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Límites y RD</TabsTrigger>
-            <TabsTrigger value="mechanics" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Mecánicas y Costes (CE)</TabsTrigger>
+            <TabsTrigger value="mechanics" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Mecánicas y Estamina (CE)</TabsTrigger>
           </TabsList>
         </div>
 
@@ -465,14 +510,24 @@ export default function RulesAdmin() {
         </TabsContent>
       
         <TabsContent value="mechanics" className="m-0 mt-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="mb-6 rounded-lg border border-border bg-card p-5 space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-bold">Coste base por ejecución</h2><p className="text-sm text-muted-foreground">CE significa Coste de Estamina. Se cobra al ejecutar; las mecánicas pasivas cuestan 0.</p></div><Button onClick={saveStaminaCosts}>Guardar costes base</Button></div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2"><Label>Acción o golpe básico</Label><Input type="number" min={0} value={staminaCosts.baseAction} onChange={e => { setStaminaCostsDirty(true); setStaminaCosts({...staminaCosts, baseAction: Number(e.target.value)}); }} /></div>
+              <div className="space-y-2"><Label>Usar un objeto</Label><Input type="number" min={0} value={staminaCosts.objectUse} onChange={e => { setStaminaCostsDirty(true); setStaminaCosts({...staminaCosts, objectUse: Number(e.target.value)}); }} /></div>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {[['Técnica por nivel', 'techniqueByLevel'], ['Habilidad activa por nivel', 'skillByLevel']].map(([label, key]) => <div key={key} className="space-y-2"><Label>{label}</Label><div className="grid grid-cols-5 gap-2">{staminaCosts[key].map((entry: any, index: number) => <div key={entry.level}><span className="block text-center text-[10px] text-muted-foreground">N{entry.level}</span><Input aria-label={`${label} nivel ${entry.level}`} type="number" min={0} value={entry.cost} onChange={e => { const list = staminaCosts[key].map((item: any, itemIndex: number) => itemIndex === index ? {...item, cost: Number(e.target.value)} : item); setStaminaCostsDirty(true); setStaminaCosts({...staminaCosts, [key]: list}); }} /></div>)}</div></div>)}
+            </div>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             {/* Sidebar Categorías */}
             <div className="lg:col-span-4 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold tracking-wider text-muted-foreground uppercase">Categorías de Costes (CE)</h3>
+                <h3 className="text-sm font-bold tracking-wider text-muted-foreground uppercase">Categorías Mecánicas</h3>
                 <Button size="sm" variant="secondary" className="h-8" onClick={() => {
-                  setMechanicForm({ id: '', name: '', description: '', logicalType: 'offensive', icon: 'Hand', scope: { techniques: true, objects: true, actions: false }, defaultTarget: 'self', defaultResolution: 'none', rules: [] });
+                  setMechanicForm({ id: '', name: '', description: '', logicalType: 'offensive', icon: 'Hand', scope: { techniques: true, objects: true, actions: false }, defaultTarget: 'self', targeting: { allowedEntityKinds: ['character', 'npc'], relationship: 'self', selection: 'direct', minTargets: 1, maxTargets: 1 }, defaultResolution: 'none', rules: [] });
                   setIsMechanicDialogOpen(true);
                 }}>
                   <Plus className="w-4 h-4 mr-1" /> Nueva
@@ -566,25 +621,16 @@ export default function RulesAdmin() {
                   </div>
 
                   
-                  <div className="p-6 rounded-lg border border-border bg-card">
-                    <h3 className="text-sm font-bold tracking-wider text-muted-foreground uppercase mb-4">Añadir nueva regla a {selectedMechanic.name}</h3>
-                    <div className="grid grid-cols-12 gap-4 items-end">
-                      <div className="col-span-12 md:col-span-5 space-y-2">
-                        <Label>Nombre de la regla (ej: 3D8, Muy Rápido)</Label>
-                        <Input value={newRuleName} onChange={e => setNewRuleName(e.target.value)} placeholder="Ej: 3D8" />
-                      </div>
-                      <div className="col-span-12 md:col-span-5 space-y-2">
-                        <Label>Efecto Mecánico (Opcional)</Label>
-                        <Input value={newRuleMechDesc} onChange={e => setNewRuleMechDesc(e.target.value)} placeholder="Ej: Reduce la Salud en 3D8." />
-                      </div>
-                      <div className="col-span-8 md:col-span-2 space-y-2">
-                        <Label>Coste CE</Label>
-                        <Input type="number" value={newRuleCost} onChange={e => setNewRuleCost(Number(e.target.value))} />
-                      </div>
-                      <div className="col-span-4 md:col-span-12 flex justify-end mt-2">
-                        <Button onClick={handleAddRuleToMechanic} className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30"><Plus className="w-4 h-4 mr-1" /> Añadir</Button>
-                      </div>
+                  <div className="p-6 rounded-lg border border-border bg-card space-y-4">
+                    <div><h3 className="text-sm font-bold tracking-wider text-muted-foreground uppercase">Añadir opción mecánica a {selectedMechanic.name}</h3><p className="text-xs text-muted-foreground mt-1">Define una vez el comportamiento y su Coste de Estamina. Catálogo y Técnicas solo seleccionarán esta opción.</p></div>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-2"><Label>Nombre</Label><Input value={newRuleName} onChange={e => setNewRuleName(e.target.value)} placeholder="Ej: Daño 2D8" /></div>
+                      <div className="space-y-2"><Label>Clase</Label><Select value={newRuleType} onValueChange={value => setNewRuleType(value as 'effect' | 'cost_modifier')}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="effect">Mecánica ejecutable</SelectItem><SelectItem value="cost_modifier">Ajuste de Coste de Estamina</SelectItem></SelectContent></Select></div>
+                      <div className="space-y-2"><Label>Coste de Estamina (CE)</Label><Input type="number" disabled={newRuleType === 'effect' && newRuleEffect.timing === 'passive'} value={newRuleType === 'effect' && newRuleEffect.timing === 'passive' ? 0 : newRuleCost} onChange={e => setNewRuleCost(Number(e.target.value))} />{newRuleType === 'effect' && newRuleEffect.timing === 'passive' && <p className="text-xs text-muted-foreground">Las mecánicas pasivas existen permanentemente y no consumen Estamina.</p>}</div>
                     </div>
+                    <div className="space-y-2"><Label>Descripción</Label><Input value={newRuleMechDesc} onChange={e => setNewRuleMechDesc(e.target.value)} placeholder="Cuándo o por qué se utiliza" /></div>
+                    {newRuleType === 'effect' && <MechanicalEffectDefinitionEditor value={newRuleEffect} onChange={effect => { setNewRuleEffect(effect); if (effect.timing === 'passive') setNewRuleCost(0); }} />}
+                    <div className="flex justify-end"><Button onClick={handleAddRuleToMechanic} className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30"><Plus className="w-4 h-4 mr-1" /> Añadir opción</Button></div>
                   </div>
 
 
@@ -600,10 +646,11 @@ export default function RulesAdmin() {
                       <TableBody>
                         {(selectedMechanic.rules || []).map((rule: any) => (
                           <TableRow key={rule.id}>
-                            <TableCell><div className="font-medium text-sm">{rule.name}</div>{rule.mechDesc && <div className="text-xs text-muted-foreground mt-0.5">{rule.mechDesc}</div>}</TableCell>
+                            <TableCell><div className="font-medium text-sm">{rule.name}</div>{rule.effect && <div className="text-xs text-primary mt-0.5">{describeEffect(rule.effect, selectedMechanic.targeting ?? selectedMechanic.defaultTargeting)}</div>}{rule.mechDesc && <div className="text-xs text-muted-foreground mt-0.5">{rule.mechDesc}</div>}{!rule.ruleType && <div className="text-xs text-amber-400 mt-0.5">Regla anterior: conviértela explícitamente para que ejecute una mecánica.</div>}</TableCell>
                             <TableCell className="text-center">
                               <span className={`text-xs px-2 py-1 rounded-md font-bold ${rule.cost > 0 ? 'bg-emerald-900/30 text-emerald-400' : rule.cost < 0 ? 'bg-red-900/30 text-red-400' : 'bg-muted text-muted-foreground'}`}>
                                 {rule.cost > 0 ? '+' : ''}{rule.cost} CE
+                                <span className="block text-[9px] font-normal">Estamina</span>
                               </span>
                             </TableCell>
                             <TableCell className="text-right">
@@ -847,13 +894,13 @@ export default function RulesAdmin() {
             </div>
             
             <div className="mt-4 border border-border rounded-lg p-4 bg-black/20">
-              <Label className="text-primary mb-3 block">Destinatario por Defecto de los Efectos Mecánicos</Label>
-              <p className="text-xs text-muted-foreground mb-4">Define a quién aplicarán automáticamente los efectos de los elementos creados en esta categoría.</p>
+              <Label className="text-primary mb-3 block">Destinatarios de la Categoría Mecánica</Label>
+              <p className="text-xs text-muted-foreground mb-4">Es la regla efectiva para todas sus opciones. No volverá a capturarse en Catálogo o Técnicas.</p>
               
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label className={`flex flex-col gap-2 p-3 rounded-md border cursor-pointer transition-colors ${mechanicForm.defaultTarget === 'self' ? 'bg-primary/10 border-primary' : 'bg-card border-border hover:border-primary/50'}`}>
                   <div className="flex items-center gap-2">
-                    <input type="radio" name="target" checked={mechanicForm.defaultTarget === 'self'} onChange={() => setMechanicForm({...mechanicForm, defaultTarget: 'self'})} className="sr-only" />
+                    <input type="radio" name="target" checked={mechanicForm.defaultTarget === 'self'} onChange={() => setCategoryRelationship('self')} className="sr-only" />
                     <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${mechanicForm.defaultTarget === 'self' ? 'border-primary' : 'border-muted-foreground'}`}>
                       {mechanicForm.defaultTarget === 'self' && <div className="w-2 h-2 rounded-full bg-primary" />}
                     </div>
@@ -864,7 +911,7 @@ export default function RulesAdmin() {
                 
                 <label className={`flex flex-col gap-2 p-3 rounded-md border cursor-pointer transition-colors ${mechanicForm.defaultTarget === 'enemy' ? 'bg-destructive/10 border-destructive' : 'bg-card border-border hover:border-destructive/50'}`}>
                   <div className="flex items-center gap-2">
-                    <input type="radio" name="target" checked={mechanicForm.defaultTarget === 'enemy'} onChange={() => setMechanicForm({...mechanicForm, defaultTarget: 'enemy'})} className="sr-only" />
+                    <input type="radio" name="target" checked={mechanicForm.defaultTarget === 'enemy'} onChange={() => setCategoryRelationship('enemy')} className="sr-only" />
                     <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${mechanicForm.defaultTarget === 'enemy' ? 'border-destructive' : 'border-muted-foreground'}`}>
                       {mechanicForm.defaultTarget === 'enemy' && <div className="w-2 h-2 rounded-full bg-destructive" />}
                     </div>
@@ -875,7 +922,7 @@ export default function RulesAdmin() {
 
                 <label className={`flex flex-col gap-2 p-3 rounded-md border cursor-pointer transition-colors ${mechanicForm.defaultTarget === 'ally' ? 'bg-emerald-500/10 border-emerald-500' : 'bg-card border-border hover:border-emerald-500/50'}`}>
                   <div className="flex items-center gap-2">
-                    <input type="radio" name="target" checked={mechanicForm.defaultTarget === 'ally'} onChange={() => setMechanicForm({...mechanicForm, defaultTarget: 'ally'})} className="sr-only" />
+                    <input type="radio" name="target" checked={mechanicForm.defaultTarget === 'ally'} onChange={() => setCategoryRelationship('ally')} className="sr-only" />
                     <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${mechanicForm.defaultTarget === 'ally' ? 'border-emerald-500' : 'border-muted-foreground'}`}>
                       {mechanicForm.defaultTarget === 'ally' && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
                     </div>
@@ -886,7 +933,7 @@ export default function RulesAdmin() {
 
                 <label className={`flex flex-col gap-2 p-3 rounded-md border cursor-pointer transition-colors ${mechanicForm.defaultTarget === 'any' ? 'bg-amber-500/10 border-amber-500' : 'bg-card border-border hover:border-amber-500/50'}`}>
                   <div className="flex items-center gap-2">
-                    <input type="radio" name="target" checked={mechanicForm.defaultTarget === 'any'} onChange={() => setMechanicForm({...mechanicForm, defaultTarget: 'any'})} className="sr-only" />
+                    <input type="radio" name="target" checked={mechanicForm.defaultTarget === 'any'} onChange={() => setCategoryRelationship('any')} className="sr-only" />
                     <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${mechanicForm.defaultTarget === 'any' ? 'border-amber-500' : 'border-muted-foreground'}`}>
                       {mechanicForm.defaultTarget === 'any' && <div className="w-2 h-2 rounded-full bg-amber-500" />}
                     </div>
@@ -895,10 +942,15 @@ export default function RulesAdmin() {
                   <span className="text-xs text-muted-foreground pl-6">Recomendado para Terrenos, Áreas o Efectos que no discriminan bando.</span>
                 </label>
               </div>
+              <div className="grid gap-4 md:grid-cols-3 mt-4">
+                <div className="space-y-2"><Label>Selección</Label><Select disabled={mechanicForm.defaultTarget === 'self'} value={mechanicForm.targeting?.selection ?? 'direct'} onValueChange={selection => setMechanicForm({...mechanicForm, targeting: {...mechanicForm.targeting, selection, minTargets: selection === 'direct' ? 1 : (mechanicForm.targeting?.minTargets ?? 1), maxTargets: selection === 'direct' ? 1 : (mechanicForm.targeting?.maxTargets ?? 1)}})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="direct">Un objetivo</SelectItem><SelectItem value="area">Varios / área</SelectItem></SelectContent></Select></div>
+                <div className="space-y-2"><Label>Mínimo de objetivos</Label><Input type="number" min={1} disabled={mechanicForm.defaultTarget === 'self' || mechanicForm.targeting?.selection !== 'area'} value={mechanicForm.targeting?.minTargets ?? 1} onChange={e => setMechanicForm({...mechanicForm, targeting: {...mechanicForm.targeting, minTargets: Number(e.target.value)}})} /></div>
+                <div className="space-y-2"><Label>Máximo de objetivos</Label><Input type="number" min={1} disabled={mechanicForm.defaultTarget === 'self' || mechanicForm.targeting?.selection !== 'area'} value={mechanicForm.targeting?.maxTargets ?? ''} placeholder="Sin límite" onChange={e => setMechanicForm({...mechanicForm, targeting: {...mechanicForm.targeting, maxTargets: e.target.value === '' ? null : Number(e.target.value)}})} /></div>
+              </div>
             </div>
           
             <div className="mt-4 border border-border rounded-lg p-4 bg-black/20">
-              <Label className="text-purple-400 mb-3 block">Tipo de Tirada / Resolución de Acción por Defecto</Label>
+              <Label className="text-purple-400 mb-3 block">Tipo de Tirada / Resolución de la Categoría</Label>
               <p className="text-xs text-muted-foreground mb-4">Selecciona qué tipo de tirada tendrán los artículos creados en esta categoría.</p>
               
               <Select value={mechanicForm.defaultResolution || 'none'} onValueChange={v => setMechanicForm({...mechanicForm, defaultResolution: v})}>
