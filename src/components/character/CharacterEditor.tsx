@@ -632,6 +632,18 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
           </div>
         )}
           </div>
+          
+          <div className="mt-8 pt-6 border-t border-border flex items-center justify-end gap-2">
+            {onCancel && (
+              <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+                Ver Ficha
+              </Button>
+            )}
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Guardar
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
