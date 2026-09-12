@@ -28,7 +28,7 @@ export function MechanicalEffectsEditor({ effects, mechanics, onChange, hideCost
   return <div className="space-y-4">
     <div><h3 className="text-sm font-semibold">Mecánicas aplicadas</h3><p className="text-xs text-muted-foreground">Agrega dinámicas definidas en Reglas del Sistema. La técnica o elemento solo guarda su referencia.</p></div>
     <div className="grid gap-2 rounded-md border bg-card p-4 md:grid-cols-[1fr_1fr_auto]">
-      <Select value={categoryId} onValueChange={value => { setCategoryId(value); setRuleId(""); }}><SelectTrigger><SelectValue placeholder="Categoría mecánica" /></SelectTrigger><SelectContent>{mechanics.filter(item => item.rules.some(rule => rule.ruleType === "effect")).map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select>
+      <Select value={categoryId} onValueChange={value => { setCategoryId(value); setRuleId(""); }}><SelectTrigger><SelectValue placeholder="Categoría mecánica" /></SelectTrigger><SelectContent>{mechanics.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select>
       <Select value={ruleId} disabled={!categoryId} onValueChange={setRuleId}><SelectTrigger><SelectValue placeholder="Opción mecánica" /></SelectTrigger><SelectContent>{availableRules.map(rule => <SelectItem key={rule.id} value={rule.id}>{rule.name}{hideCosts ? "" : ` (${rule.cost >= 0 ? "+" : ""}${rule.cost} CE)`}</SelectItem>)}</SelectContent></Select>
       <Button type="button" variant="secondary" onClick={add}><Plus className="size-4" /> Agregar</Button>
     </div>

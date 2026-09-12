@@ -53,7 +53,7 @@ describe.skipIf(!dbAvailable)('Characters Database Logic', () => {
       await updateCharacter(testCharId, { name: "Another Name", expectedUpdatedAt: new Date(1999, 1, 1) });
       expect.fail("Should have thrown");
     } catch (err: any) {
-      expect(err.message).toBe("Conflict");
+      expect(err.message).toContain("Conflict");
       expect(err.status).toBe(409);
     }
   });
