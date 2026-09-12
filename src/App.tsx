@@ -19,6 +19,8 @@ import SettingsAdmin from "./views/SettingsAdmin";
 import CharactersAdmin from "./views/CharactersAdmin";
 import PublicSheet from "./views/PublicSheet";
 import ComponentShowcase from "./views/ComponentShowcase";
+import SystemManual from "./views/SystemManual";
+
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, dbUser, loading, unauthorized } = useAuth();
@@ -66,6 +68,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/sheet/:id" element={<PublicSheet />} />
+      <Route path="/manual" element={<SystemManual />} />
+
       <Route
         path="/"
         element={

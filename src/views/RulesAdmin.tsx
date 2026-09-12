@@ -443,7 +443,7 @@ export default function RulesAdmin() {
       <Tabs defaultValue="stages" className="w-full">
         <div className="w-full overflow-x-auto pb-1.5 no-scrollbar">
           <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto h-auto p-1 gap-1 bg-muted/60 border border-border/50">
-            <TabsTrigger value="stages" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Etapas de Personaje</TabsTrigger>
+            <TabsTrigger value="stages" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Etapas por Edad</TabsTrigger>
             <TabsTrigger value="attributes" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Atributos Base</TabsTrigger>
             <TabsTrigger value="derived" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Estad. Derivadas</TabsTrigger>
             <TabsTrigger value="limits" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Límites y RD</TabsTrigger>

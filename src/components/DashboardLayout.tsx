@@ -15,6 +15,9 @@ const navigation = [
     { to: "/character-editor", label: "Personajes", icon: UserRound },
     { to: "/shop", label: "Tienda", icon: ShoppingCart },
   ] },
+  { label: "Documentación", roles: ["superadmin", "moderator", "user"], items: [
+    { to: "/manual", label: "Manual del Sistema", icon: BookOpen },
+  ] },
   { label: "Administración", roles: ["superadmin"], items: [
     { to: "/sheet-builder", label: "Diseño de ficha", icon: LayoutTemplate },
     { to: "/settings", label: "Ajustes globales", icon: Settings },
