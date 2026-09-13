@@ -71,6 +71,61 @@ export default function RulesAdmin() {
   );
 
   
+  const difficultyRule = rules?.find((r: any) => r.key === 'system_difficulty');
+  const difficulties = difficultyRule?.value || { normal: [], sustained: [] };
+
+  const [diffForm, setDiffForm] = useState(difficulties);
+  const [diffDirty, setDiffDirty] = useState(false);
+  
+  useEffect(() => {
+    if (!diffDirty && difficultyRule?.value) {
+      setDiffForm(difficultyRule.value);
+    }
+  }, [difficultyRule?.value, diffDirty]);
+
+  const saveDifficulties = async () => {
+    const response = await apiFetch('/api/rules', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ 
+        key: 'system_difficulty', 
+        type: 'json', 
+        value: diffForm, 
+        description: 'Rangos de Dificultad para tiradas' 
+      }) 
+    });
+    if (!response.ok) throw new Error('No se pudieron guardar las dificultades');
+    setDiffDirty(false);
+    await mutate();
+  };
+
+  const addDiff = (type: 'normal' | 'sustained') => {
+    setDiffDirty(true);
+    setDiffForm({
+      ...diffForm,
+      [type]: [
+        ...(diffForm[type] || []),
+        type === 'normal' 
+          ? { name: "Nueva Dificultad", rd: 10, desc: "" }
+          : { name: "Nuevo Proyecto", successes: 5, desc: "" }
+      ]
+    });
+  };
+
+  const updateDiff = (type: 'normal' | 'sustained', index: number, field: string, val: any) => {
+    setDiffDirty(true);
+    const newList = [...(diffForm[type] || [])];
+    newList[index] = { ...newList[index], [field]: val };
+    setDiffForm({ ...diffForm, [type]: newList });
+  };
+
+  const removeDiff = (type: 'normal' | 'sustained', index: number) => {
+    setDiffDirty(true);
+    const newList = [...(diffForm[type] || [])];
+    newList.splice(index, 1);
+    setDiffForm({ ...diffForm, [type]: newList });
+  };
+
   const mechanicsRule = rules?.find((r: any) => r.key === 'system_mechanics') || { key: 'system_mechanics', type: 'json', value: [], description: 'Categorías Mecánicas y Coste de Estamina (CE)' };
   const mechanics = Array.isArray(mechanicsRule.value) ? mechanicsRule.value : [];
   const staminaRule = rules?.find((r: any) => r.key === 'stamina_execution_costs');
@@ -353,10 +408,76 @@ export default function RulesAdmin() {
 
         <TabsContent value="limits" className="mt-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Límites y RD</CardTitle>
-              <CardDescription>Esta sección se programará en el siguiente módulo. (Modificadores máximos, Rangos de Dificultad, etc.)</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Rangos de Dificultad (RD)</CardTitle>
+                <CardDescription>Configura los valores objetivo para superar tiradas.</CardDescription>
+              </div>
+              <Button onClick={saveDifficulties}>Guardar Dificultades</Button>
             </CardHeader>
+            <CardContent className="space-y-8">
+              {/* Normal Rolls */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold">Tiradas Normales</h3>
+                  <Button variant="outline" size="sm" onClick={() => addDiff('normal')}>
+                    <Plus className="w-4 h-4 mr-2" /> Añadir RD
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {(diffForm.normal || []).map((diff: any, idx: number) => (
+                    <div key={idx} className="flex gap-2 items-start bg-muted/50 p-2 rounded-md">
+                      <div className="grid gap-2 flex-1">
+                        <div className="flex gap-2">
+                          <Input className="flex-1" value={diff.name} onChange={e => updateDiff('normal', idx, 'name', e.target.value)} placeholder="Nombre (Ej: Normal)" />
+                          <Input className="w-24 text-center font-mono font-bold" type="number" value={diff.rd} onChange={e => updateDiff('normal', idx, 'rd', Number(e.target.value))} placeholder="RD" />
+                        </div>
+                        <Input value={diff.desc} onChange={e => updateDiff('normal', idx, 'desc', e.target.value)} placeholder="Descripción (Opcional)" className="text-sm" />
+                      </div>
+                      <Button variant="destructive" size="icon" onClick={() => removeDiff('normal', idx)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {(!diffForm.normal || diffForm.normal.length === 0) && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No hay RDs normales configurados.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Sustained Rolls */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold">Tiradas Sostenidas (Proyectos)</h3>
+                  <Button variant="outline" size="sm" onClick={() => addDiff('sustained')}>
+                    <Plus className="w-4 h-4 mr-2" /> Añadir Proyecto
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {(diffForm.sustained || []).map((diff: any, idx: number) => (
+                    <div key={idx} className="flex gap-2 items-start bg-muted/50 p-2 rounded-md">
+                      <div className="grid gap-2 flex-1">
+                        <div className="flex gap-2">
+                          <Input className="flex-1" value={diff.name} onChange={e => updateDiff('sustained', idx, 'name', e.target.value)} placeholder="Nombre (Ej: Difícil)" />
+                          <div className="flex items-center gap-2 bg-background border px-3 rounded-md w-32 shrink-0">
+                            <Input className="w-12 p-0 border-0 text-center h-8" type="number" value={diff.successes} onChange={e => updateDiff('sustained', idx, 'successes', Number(e.target.value))} />
+                            <span className="text-xs text-muted-foreground">Éxitos</span>
+                          </div>
+                        </div>
+                        <Input value={diff.desc} onChange={e => updateDiff('sustained', idx, 'desc', e.target.value)} placeholder="Descripción (Opcional)" className="text-sm" />
+                      </div>
+                      <Button variant="destructive" size="icon" onClick={() => removeDiff('sustained', idx)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {(!diffForm.sustained || diffForm.sustained.length === 0) && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No hay tiradas sostenidas configuradas.</p>
+                  )}
+                </div>
+              </div>
+
+            </CardContent>
           </Card>
         </TabsContent>
       
@@ -373,12 +494,73 @@ export default function RulesAdmin() {
               <Button onClick={saveStaminaCosts}>Guardar costes base</Button>
             </CardHeader>
             <CardContent className="space-y-6 pt-4 border-t border-border/50">
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2"><Label>Acción o golpe básico</Label><Input type="number" min={0} value={staminaCosts.baseAction} onChange={e => { setStaminaCostsDirty(true); setStaminaCosts({...staminaCosts, baseAction: Number(e.target.value)}); }} /></div>
                 <div className="space-y-2"><Label>Usar un objeto</Label><Input type="number" min={0} value={staminaCosts.objectUse} onChange={e => { setStaminaCostsDirty(true); setStaminaCosts({...staminaCosts, objectUse: Number(e.target.value)}); }} /></div>
+                <div className="space-y-2"><Label>Costo mínimo por técnica</Label><Input type="number" min={1} value={staminaCosts.minTechniqueCost ?? 1} onChange={e => { setStaminaCostsDirty(true); setStaminaCosts({...staminaCosts, minTechniqueCost: Number(e.target.value)}); }} /></div>
               </div>
               <div className="grid gap-4 lg:grid-cols-2">
-                {[['Técnica por nivel', 'techniqueByLevel'], ['Habilidad activa por nivel', 'skillByLevel']].map(([label, key]) => <div key={key} className="space-y-2"><Label>{label}</Label><div className="grid grid-cols-5 gap-2">{staminaCosts[key].map((entry: any, index: number) => <div key={entry.level}><span className="block text-center text-[10px] text-muted-foreground">N{entry.level}</span><Input aria-label={`${label} nivel ${entry.level}`} type="number" min={0} value={entry.cost} onChange={e => { const list = staminaCosts[key].map((item: any, itemIndex: number) => itemIndex === index ? {...item, cost: Number(e.target.value)} : item); setStaminaCostsDirty(true); setStaminaCosts({...staminaCosts, [key]: list}); }} /></div>)}</div></div>)}
+                {[['Técnica por nivel', 'techniqueByLevel'], ['Habilidad activa por nivel', 'skillByLevel']].map(([label, key]) => <div key={key} className="space-y-2"><Label>{label}</Label><div className="grid grid-cols-5 gap-2">{staminaCosts[key as keyof typeof staminaCosts]?.map((entry: any, index: number) => <div key={entry.level}><span className="block text-center text-[10px] text-muted-foreground">N{entry.level}</span><Input aria-label={`${label} nivel ${entry.level}`} type="number" min={0} value={entry.cost} onChange={e => { const list = (staminaCosts[key as keyof typeof staminaCosts] as any[]).map((item: any, itemIndex: number) => itemIndex === index ? {...item, cost: Number(e.target.value)} : item); setStaminaCostsDirty(true); setStaminaCosts({...staminaCosts, [key]: list}); }} /></div>)}</div></div>)}
+              </div>
+              <div className="space-y-4 pt-4 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-base font-bold">Dificultad de Técnicas de Soporte/Defensa</Label>
+                    <p className="text-sm text-muted-foreground">La RD a superar depende del Coste de Estamina final de la técnica.</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const newSupport = [...(staminaCosts.supportDifficulty || [])];
+                    newSupport.push({ maxCost: 0, difficultyId: "" });
+                    setStaminaCostsDirty(true);
+                    setStaminaCosts({ ...staminaCosts, supportDifficulty: newSupport });
+                  }}>
+                    <Plus className="w-4 h-4 mr-2" /> Añadir Rango
+                  </Button>
+                </div>
+                <div className="grid gap-2">
+                  {(staminaCosts.supportDifficulty || []).map((sd: any, idx: number) => (
+                    <div key={idx} className="flex gap-2 items-center bg-muted/30 p-2 rounded-md">
+                      <span className="text-sm shrink-0">Coste CE hasta:</span>
+                      <Input type="number" min={0} className="w-24" value={sd.maxCost} onChange={e => {
+                        const newSupport = [...(staminaCosts.supportDifficulty || [])];
+                        newSupport[idx] = { ...newSupport[idx], maxCost: Number(e.target.value) };
+                        setStaminaCostsDirty(true);
+                        setStaminaCosts({ ...staminaCosts, supportDifficulty: newSupport });
+                      }} />
+                      <span className="text-sm shrink-0">=&gt; RD:</span>
+                      <Select value={sd.difficultyId || ""} onValueChange={v => {
+                        const newSupport = [...(staminaCosts.supportDifficulty || [])];
+                        newSupport[idx] = { ...newSupport[idx], difficultyId: v };
+                        setStaminaCostsDirty(true);
+                        setStaminaCosts({ ...staminaCosts, supportDifficulty: newSupport });
+                      }}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Selecciona Dificultad">
+                            {sd.difficultyId 
+                              ? `${sd.difficultyId} (RD ${(diffForm.normal || []).find((d: any) => d.name === sd.difficultyId)?.rd || '?'})`
+                              : "Selecciona Dificultad"}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(diffForm.normal || []).map((d: any) => (
+                            <SelectItem key={d.name} value={d.name}>{d.name} (RD {d.rd})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button variant="destructive" size="icon" onClick={() => {
+                        const newSupport = [...(staminaCosts.supportDifficulty || [])];
+                        newSupport.splice(idx, 1);
+                        setStaminaCostsDirty(true);
+                        setStaminaCosts({ ...staminaCosts, supportDifficulty: newSupport });
+                      }}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {(!staminaCosts.supportDifficulty || staminaCosts.supportDifficulty.length === 0) && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No hay rangos configurados.</p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
