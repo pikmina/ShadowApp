@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
-import { ShoppingCart, Plus, Minus, Trash2, Edit, Save, X, Search, ShieldAlert } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Edit2, Save, X, Search, ShieldAlert } from "lucide-react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
 
@@ -288,8 +288,8 @@ export default function Shop() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Button variant="ghost" size="sm" onClick={() => setEditingOffer(shopData)}>
-                                <Edit className="w-4 h-4" />
+                              <Button variant="ghost" size="icon" onClick={() => setEditingOffer(shopData)}>
+                                <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
                               </Button>
                             </TableCell>
                           </TableRow>

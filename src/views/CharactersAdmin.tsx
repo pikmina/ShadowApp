@@ -300,7 +300,7 @@ export default function CharactersAdmin() {
                   <div className="my-2 border-t border-dashed border-border/50" />
                   <div className="flex items-center gap-1.5">
                     <Button variant="outline" size="icon" className="size-8 rounded bg-background/50 border-border/50 text-muted-foreground hover:text-foreground" onClick={() => window.open(`/sheet/${character.id}`, '_blank', 'noopener,noreferrer')} title="Ver ficha pública" aria-label="Ver ficha pública"><Eye className="size-3.5" /></Button>
-                    <Button variant="outline" size="icon" className="size-8 rounded bg-background/50 border-border/50 text-primary border-primary/30" onClick={() => { setSelectedCharacterId(character.id); setEditing(true); }} title="Editar ficha" aria-label="Editar ficha"><Edit2 className="size-3.5" /></Button>
+                    <Button variant="outline" size="icon" className="size-8 rounded bg-background/50 border-border/50 text-muted-foreground hover:text-foreground" onClick={() => { setSelectedCharacterId(character.id); setEditing(true); }} title="Editar ficha" aria-label="Editar ficha"><Edit2 className="size-3.5" /></Button>
                     <Button variant="outline" size="icon" className="size-8 rounded bg-background/50 border-border/50 text-muted-foreground hover:text-foreground" onClick={() => setRewardingCharId(character.id)} title="Administrar recompensas" aria-label="Administrar recompensas"><Award className="size-3.5" /></Button>
                     {dbUser?.role === 'superadmin' && (
                       <>
@@ -322,7 +322,7 @@ export default function CharactersAdmin() {
                           title={confirmDeleteId === character.id ? "¿Confirmar borrado?" : "Borrar personaje"} 
                           aria-label="Borrar personaje"
                         >
-                          {confirmDeleteId === character.id ? <Check className="size-3.5" /> : <Trash2 className="size-3.5" />}
+                          {confirmDeleteId === character.id ? <Check className="size-3.5" /> : <Trash2 className="size-3.5 text-destructive" />}
                         </Button>
                       </>
                     )}

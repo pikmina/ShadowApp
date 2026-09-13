@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
-import { Plus, Settings2, Trash2, Edit, Search, Eye, EyeOff } from "lucide-react";
+import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff } from "lucide-react";
 import { useMemo } from "react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -267,14 +267,14 @@ export default function CatalogAdmin() {
                       <Button variant="outline" size="icon" aria-label={el.status === "published" ? `Pasar a borrador ${el.name}` : `Publicar ${el.name}`} onClick={() => handleToggleStatus(el)}>
                         {el.status === "published" ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
-                      <Button variant="outline" size="icon" aria-label={`Editar ${el.name}`} onClick={() => handleOpenDialog(el)}><Edit className="w-4 h-4" /></Button>
+                      <Button variant="outline" size="icon" aria-label={`Editar ${el.name}`} onClick={() => handleOpenDialog(el)}><Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" /></Button>
                       {deleteConfirmId === el.id ? (
                         <div className="flex items-center gap-1">
                           <Button variant="destructive" size="sm" onClick={() => handleDelete(el.id)}>Confirmar</Button>
                           <Button variant="outline" size="icon" onClick={() => setDeleteConfirmId(null)}>X</Button>
                         </div>
                       ) : (
-                        <Button variant="destructive" size="icon" aria-label={`Eliminar ${el.name}`} onClick={() => setDeleteConfirmId(el.id)}><Trash2 className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" aria-label={`Eliminar ${el.name}`} onClick={() => setDeleteConfirmId(el.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                       )}
                     </div>
                   </TableCell>
@@ -399,7 +399,7 @@ export default function CatalogAdmin() {
                           )}
 
                           <Button variant="ghost" size="icon" className="text-red-500 ml-auto" onClick={() => removeRequirement(req._id)}>
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </div>
                       ))}

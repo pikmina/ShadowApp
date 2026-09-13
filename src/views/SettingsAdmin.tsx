@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Loader2, Calendar, Users, Plus, Trash } from "lucide-react";
+import { Loader2, Calendar, Users, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SettingsAdmin() {
@@ -228,7 +228,7 @@ export default function SettingsAdmin() {
                     <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => {
                       setGroups(groups.filter((_, i) => i !== index));
                     }}>
-                      <Trash className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
                   </div>
                 ))}

@@ -324,8 +324,8 @@ export default function RulesAdmin() {
                           <TableCell>{stage.baseDamage}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
-                              <Button variant="outline" size="sm" onClick={() => handleOpenStageDialog(idx)}>Editar</Button>
-                              <Button variant="destructive" size="sm" onClick={() => handleDeleteStage(idx)}>Borrar</Button>
+                              <Button variant="outline" size="icon" onClick={() => handleOpenStageDialog(idx)}><Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" /></Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleDeleteStage(idx)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -361,7 +361,7 @@ export default function RulesAdmin() {
                         <TableCell className="font-semibold">{attr.name}</TableCell>
                         <TableCell className="font-mono text-xs">{attr.abbrev}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{attr.desc}</TableCell>
-                        <TableCell className="text-right"><Button variant="outline" size="sm" onClick={() => handleOpenAttrDialog(idx, false)}>Editar</Button></TableCell>
+                        <TableCell className="text-right"><Button variant="outline" size="icon" onClick={() => handleOpenAttrDialog(idx, false)}><Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" /></Button></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -395,7 +395,7 @@ export default function RulesAdmin() {
                         <TableCell className="font-mono text-xs text-indigo-300 bg-indigo-500/20 px-2 py-1 rounded w-fit">{stat.formula}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{stat.desc}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="outline" size="sm" onClick={() => handleOpenAttrDialog(idx, true)}>Editar</Button>
+                          <Button variant="outline" size="icon" onClick={() => handleOpenAttrDialog(idx, true)}><Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -434,8 +434,8 @@ export default function RulesAdmin() {
                         </div>
                         <Input value={diff.desc} onChange={e => updateDiff('normal', idx, 'desc', e.target.value)} placeholder="Descripción (Opcional)" className="text-sm" />
                       </div>
-                      <Button variant="destructive" size="icon" onClick={() => removeDiff('normal', idx)}>
-                        <Trash2 className="w-4 h-4" />
+                      <Button variant="ghost" size="icon" onClick={() => removeDiff('normal', idx)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </div>
                   ))}
@@ -466,8 +466,8 @@ export default function RulesAdmin() {
                         </div>
                         <Input value={diff.desc} onChange={e => updateDiff('sustained', idx, 'desc', e.target.value)} placeholder="Descripción (Opcional)" className="text-sm" />
                       </div>
-                      <Button variant="destructive" size="icon" onClick={() => removeDiff('sustained', idx)}>
-                        <Trash2 className="w-4 h-4" />
+                      <Button variant="ghost" size="icon" onClick={() => removeDiff('sustained', idx)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </div>
                   ))}
@@ -547,13 +547,13 @@ export default function RulesAdmin() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button variant="destructive" size="icon" onClick={() => {
+                      <Button variant="ghost" size="icon" onClick={() => {
                         const newSupport = [...(staminaCosts.supportDifficulty || [])];
                         newSupport.splice(idx, 1);
                         setStaminaCostsDirty(true);
                         setStaminaCosts({ ...staminaCosts, supportDifficulty: newSupport });
                       }}>
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </div>
                   ))}

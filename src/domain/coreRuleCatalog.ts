@@ -12,7 +12,17 @@ export const coreId = (key: string) => `core.${key}`;
 
 /** Only CREATE / versioned migration uses these defaults. LOAD never calls this. */
 export function createCoreCategories(): SystemMechanicsConfig {
-  const categories = Object.entries(CORE_CATEGORIES).map(([key, name]) => ({ id: coreId(key), coreKey: key, name, description: name, logicalType: 'utility', scope: { techniques: true, objects: true, actions: true }, rules: [] as any[] }));
+  const getLogicalType = (key: string) => {
+    switch(key) {
+      case 'damage': case 'penalty': return 'offensive';
+      case 'healing': case 'bonus': return 'support';
+      case 'barrier': return 'defensive';
+      case 'status': return 'control';
+      case 'activation': case 'cooldown': case 'maintenance': case 'usage_limit': return 'limitation';
+      default: return 'utility';
+    }
+  };
+  const categories = Object.entries(CORE_CATEGORIES).map(([key, name]) => ({ id: coreId(key), coreKey: key, name, description: name, logicalType: getLogicalType(key) as any, scope: { techniques: true, objects: true, actions: true }, rules: [] as any[] }));
   function option(key: CoreCategoryKey, suffix: string, name: string, component: RuleComponent) {
     categories.find(c => c.coreKey === key)!.rules.push({ id: `${coreId(key)}.${suffix}`, name, cost: 0, ruleType: 'component', component });
   }

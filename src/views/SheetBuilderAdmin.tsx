@@ -259,10 +259,10 @@ export default function SheetBuilderAdmin() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(field)}>
-                            <Edit2 className="w-4 h-4 text-muted-foreground" />
+                            <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={() => handleDelete(field.id)}>
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </div>
                       </TableCell>
@@ -354,7 +354,7 @@ export default function SheetBuilderAdmin() {
                       <Badge key={idx} variant="outline" className="bg-card px-2 py-1 flex items-center gap-1">
                         {opt}
                         <span onClick={() => removeOption(idx)} className="cursor-pointer text-red-500 hover:text-red-700 flex items-center justify-center">
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3 h-3 text-destructive" />
                         </span>
                       </Badge>
                     ))}
