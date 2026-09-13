@@ -1,3 +1,4 @@
+import { resolvePassiveEffects } from "../domain/ruleEngine";
 import { appliedMechanicReferenceSchema, resolveAppliedMechanics, type SystemMechanicsConfig } from '../domain/systemMechanics';
 
 export interface ValidationResult {
@@ -90,7 +91,16 @@ export function calculateDerivedStats(profile: Record<string, any>, stages: any[
       const parsed = appliedMechanicReferenceSchema.safeParse(effect);
       return parsed.success ? [parsed.data] : [];
     });
-    const referencedEffects = references.length > 0 ? resolveAppliedMechanics(references, mechanics).effects : [];
+    const referencedEffects = references.length > 0 ? resolvePassiveEffects(references, mechanics, {
+      event: 'passive', eventId: 'projection', turn: 0,
+      periods: { turn: '', combat: '', mission: '', day: '' },
+      resources: {
+        ES: { current: profile.estamina_actual ?? 0, max: profile.estamina_maxima ?? 0 },
+        SA: { current: profile.salud_actual ?? 0, max: profile.salud_maxima ?? 0 },
+      },
+      signals: [], dice: [], activeAbilities: [], inventory: {},
+      targets: [{ id: 'bearer', kind: 'character', relationship: 'self', distance: 0, conscious: true, contacts: [] }],
+    }) : [];
     const directEffects = el.effects.filter((effect: unknown) => !appliedMechanicReferenceSchema.safeParse(effect).success);
 
     [...directEffects, ...referencedEffects].forEach((eff: any) => {

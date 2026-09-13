@@ -1,3 +1,4 @@
+import { validateCoreCategories } from "./src/domain/coreRuleCatalog.ts";
 import express from "express";
 import { z } from "zod";
 import path from "path";
@@ -18,7 +19,9 @@ async function startServer() {
   });
 
   // System Rules API
-  const { getRules, upsertRule, deleteRule } = await import("./src/db/rules.ts");
+  const { getRules, upsertRule, deleteRule, seedCoreRules } = await import("./src/db/rules.ts");
+
+  await seedCoreRules();
 
   app.get("/api/rules", async (req, res) => {
     try {
@@ -55,6 +58,7 @@ async function startServer() {
             details: mechanics.error,
           });
         }
+        if (!validateCoreCategories(mechanics.data)) return res.status(400).json({ error: "Las categorías core no se pueden borrar ni cambiar de identidad" });
         value = mechanics.data;
       }
       if (key === "stamina_execution_costs") {
@@ -67,12 +71,13 @@ async function startServer() {
       const rule = await upsertRule(key, type, value, description);
       res.json(rule);
     } catch (error: any) {
-      res.status(500).json({ error: "Failed to save rule" });
+      res.status(error.status ?? 500).json({ error: error.status ? error.message : "Failed to save rule" });
     }
   });
 
   app.delete("/api/rules/:key", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
+      if (["system_mechanics", "stamina_execution_costs"].includes(req.params.key)) return res.status(400).json({ error: "La configuración core no se puede eliminar" });
       await deleteRule(req.params.key);
       res.json({ success: true });
     } catch (error: any) {
@@ -120,6 +125,7 @@ async function startServer() {
           details: effects.errors,
         });
       }
+      if (parsed.data.status === "published" && (effects.legacyEffects.length || effects.canonicalEffects.length)) return res.status(400).json({ error: "Sustituye los efectos anteriores por referencias antes de publicar" });
       if (effects.appliedMechanics.length > 0) {
         const storedRules = await getRules();
         const storedMechanics = storedRules.find((rule: any) => rule.key === "system_mechanics")?.value;
@@ -132,7 +138,7 @@ async function startServer() {
       const item = await upsertElement(parsed.data);
       res.json(item);
     } catch (error: any) {
-      res.status(500).json({ error: "Failed to save element" });
+      res.status(error.status ?? 500).json({ error: error.status ? error.message : "Failed to save element" });
     }
   });
 

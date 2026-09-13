@@ -134,35 +134,6 @@ export default function TechniquesAdmin() {
     }
   };
 
-  const addRequirement = () => {
-    setForm(f => ({
-      ...f,
-      requirements: {
-        ...f.requirements,
-        requirements: [...f.requirements.requirements, { _id: nanoid(), type: "attribute", target: "FUE", min: 1 }]
-      }
-    }));
-  };
-
-  const removeRequirement = (id: string) => {
-    setForm(f => ({
-      ...f,
-      requirements: {
-        ...f.requirements,
-        requirements: f.requirements.requirements.filter(r => r._id !== id)
-      }
-    }));
-  };
-
-  const updateRequirement = (id: string, updates: any) => {
-    setForm(f => ({
-      ...f,
-      requirements: {
-        ...f.requirements,
-        requirements: f.requirements.requirements.map(r => r._id === id ? { ...r, ...updates } : r)
-      }
-    }));
-  };
 
   return (
     <div className="space-y-6">
@@ -245,7 +216,7 @@ export default function TechniquesAdmin() {
                 <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto h-auto p-1 gap-1 bg-card border border-border/50">
                   <TabsTrigger value="info" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">1. Info Básica</TabsTrigger>
                   <TabsTrigger value="effects" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">2. Efectos Mecánicos</TabsTrigger>
-                  <TabsTrigger value="reqs" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">3. Requisitos</TabsTrigger>
+                  <TabsTrigger value="reqs" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">3. Requisitos anteriores</TabsTrigger>
                 </TabsList>
               </div>
 
@@ -273,63 +244,7 @@ export default function TechniquesAdmin() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="reqs" className="mt-0 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-foreground">Árbol de Requisitos</h3>
-                    <Button variant="outline" size="sm" onClick={addRequirement}>
-                      <Plus className="w-4 h-4 mr-1" /> Añadir Requisito
-                    </Button>
-                  </div>
-                  
-                  {form.requirements.requirements.length === 0 ? (
-                    <div className="border border-dashed border-border rounded-lg p-8 text-center text-muted-foreground text-sm">
-                      No hay requisitos para obtener este elemento. (Cualquiera puede adquirirlo si está en la tienda).
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {form.requirements.requirements.map((req, idx) => (
-                        <div key={req._id} className="flex items-center gap-3 bg-muted border p-3 rounded-md">
-                          <Badge variant="secondary">{idx + 1}</Badge>
-                          <Select value={req.type} onValueChange={v => updateRequirement(req._id, { type: v })}>
-                            <SelectTrigger className="w-[180px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="attribute">Requiere Atributo</SelectItem>
-                              <SelectItem value="element">Requiere Elemento</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          
-                          {req.type === "attribute" ? (
-                            <>
-                              <Select value={req.target} onValueChange={v => updateRequirement(req._id, { target: v })}>
-                                <SelectTrigger className="w-[120px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="FUE">Fuerza</SelectItem>
-                                  <SelectItem value="DES">Destreza</SelectItem>
-                                  <SelectItem value="RES">Resistencia</SelectItem>
-                                  <SelectItem value="INT">Inteligencia</SelectItem>
-                                  <SelectItem value="VOL">Voluntad</SelectItem>
-                                  <SelectItem value="VEL">Velocidad</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <span className="text-sm font-medium">≥</span>
-                              <Input type="number" className="w-20" value={req.min} onChange={e => updateRequirement(req._id, { min: Number(e.target.value) })} />
-                            </>
-                          ) : (
-                            <Input placeholder="ID del Elemento..." className="flex-1" value={req.target} onChange={e => updateRequirement(req._id, { target: e.target.value })} />
-                          )}
-
-                          <Button variant="ghost" size="icon" className="text-red-500 ml-auto" onClick={() => removeRequirement(req._id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
+                <TabsContent value="reqs" className="space-y-3"><p className="text-sm text-muted-foreground">Los requisitos de ejecución se seleccionan desde Reglas del Sistema en Efectos Mecánicos. Los requisitos anteriores de adquisición se conservan sin reinterpretarlos.</p>{form.requirements.requirements.map((req, index) => <div key={req._id ?? index} className="rounded border p-3 text-sm">{req.type}: {req.target} {req.min !== undefined ? `≥ ${req.min}` : ''}</div>)}</TabsContent>
 
                 <TabsContent value="effects" className="mt-0">
                   <MechanicalEffectsEditor

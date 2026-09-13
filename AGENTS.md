@@ -737,10 +737,10 @@ The canonical contract centralizes reusable behavior and Stamina execution cost 
 Mandatory rules:
 
 * `CE` means `Coste de Estamina`. Never describe or implement it as design cost, construction points, power, balance, price, EXP, or currency.
-* A System Mechanic category is the source of truth for scope, targeting, target quantity, and resolution. Its executable options are the source of truth for effect type, semantic value, timing, duration, and additional CE.
+* System Rules are the source of truth for scope, executable effect values and additional CE. Independent component options define targeting, quantity, range, area, duration, activation, cooldown, conditions, usage and consequences. Category targeting remains a compatibility fallback. See the updated mechanical-effects contract.
 * Only the closed `effect.type` of a global option defines executable behavior. Names, descriptions, `logicalType`, badges, and icons never execute mechanics.
 * `offensive` is a classification and `damage` is the behavior that reduces Health. Do not create parallel effects or properties for synonyms such as Damage/Offensive or Healing/Support.
-* Catalog and Techniques MUST NOT recapture behavior already defined in System Rules. They persist only `applicationId`, `mechanicId`, and `ruleId`, and may combine multiple references.
+* Catalog and Techniques MUST NOT recapture behavior already defined in System Rules. They persist only `applicationId`, `mechanicId`, `ruleId`, and optional local `groupId`, and may combine multiple references. No mechanical values belong in the reference.
 * Do not persist copied `cost`, `ruleName`, `mechDesc`, dice, amount, target, or resolution in an applied reference. Resolve current values from `system_rules/system_mechanics`; broken references invalidate execution.
 * `system_rules/stamina_execution_costs` is the source of truth for minimum action, object-use, technique-level, and active-skill-level Stamina costs. Final CE is the greater of the contextual minimum and the sum of active option costs; never add the minimum twice.
 * Passive mechanics always cost 0 Stamina. They exist continuously on the bearer and must never be charged on equip, load, hydration, or turn processing.

@@ -10,7 +10,21 @@ Este plan es el contexto fundacional del repositorio. Sus contratos, invariantes
 
 Las afirmaciones de finalización del repositorio anterior no se heredan automáticamente. La sección siguiente registra el estado comprobado en ShadowApp; cuando exista una diferencia, ese estado prevalece para decidir qué código falta, pero no elimina la definición funcional del núcleo.
 
-## Estado actual de ShadowApp
+## Actualización: motor universal de reglas (12 septiembre 2026)
+
+El contrato vigente de composición se describe en `docs/mechanical-effects-contract.md`.
+Esta actualización prevalece sobre las secciones históricas que incrustan duración y destinatarios en cada opción o enumeran los motores como pendientes.
+
+- Se incorporan 35 categorías core con claves estables, semillas aditivas y protección de borrado.
+- Efectos y componentes de aplicación, duración, activación, cooldown, uso, condiciones y consecuencias son independientes; se combinan mediante referencias y `groupId`.
+- Catálogo y Técnicas comparten el selector. Reglas administra todos los valores semánticos y CE.
+- El dominio incorpora resolución, evaluación de predicados, estado temporal, operaciones y ejecución atómica en memoria, con pruebas.
+- Las escrituras de reglas y elementos validan las relaciones dentro de transacciones PostgreSQL coordinadas.
+- La ficha utiliza proyecciones de pasivos; las señales narrativas y la actividad de combate se suministran explícitamente al motor.
+- Continúa pendiente el módulo de combate persistido, que deberá guardar mundo y estado de ejecución conjuntamente. Los motores no escriben recursos durante LOAD.
+- No se migra el esquema SQL. Los formatos anteriores siguen legibles; publicar exige referencias globales válidas.
+
+## Estado histórico de ShadowApp
 
 ### Implementado
 

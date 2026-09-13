@@ -237,7 +237,7 @@ export default function SystemManual() {
             <section id="estamina" className="space-y-6 pt-8 border-t border-border/50">
               <div className="space-y-2">
                 <h2 className="text-2xl font-oxanium font-bold text-foreground flex items-center gap-2"><Zap className="w-6 h-6 text-primary" /> 2.1 Economía de Estamina</h2>
-                <p className="text-muted-foreground">Cualquier acción en combate requiere un mínimo de Estamina. A este mínimo se le suman los costes de las reglas mecánicas aplicadas a tu técnica.</p>
+                <p className="text-muted-foreground">Cualquier acción en combate requiere un mínimo de Estamina. El CE final es el mayor entre ese mínimo y la suma de las opciones activas. Las reglas pasivas no consumen Estamina.</p>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">

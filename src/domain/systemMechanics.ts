@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ruleComponentSchema, type RuleComponent } from "./ruleComponents";
 
 export const mechanicalEffectTypeSchema = z.enum([
   "attribute_modifier",
@@ -10,6 +11,8 @@ export const mechanicalEffectTypeSchema = z.enum([
   "currency",
   "rule_override",
   "choice",
+  "cost_adjustment",
+  "manual_resolution",
 ]);
 
 export const effectTimingSchema = z.enum([
@@ -96,6 +99,8 @@ const effectDefinitionBaseShape = {
 };
 
 export const mechanicalEffectDefinitionSchema = z.discriminatedUnion("type", [
+  z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("cost_adjustment"), scopeId: z.string().min(1), amount: z.number() }),
+  z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("manual_resolution"), message: z.string().min(1) }),
   z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("attribute_modifier"), attributeId: z.string().min(1), amount: z.number() }),
   z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("derived_stat_modifier"), statId: z.string().min(1), amount: z.number() }),
   z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("damage"), dice: z.string().min(1) }),
@@ -108,6 +113,8 @@ export const mechanicalEffectDefinitionSchema = z.discriminatedUnion("type", [
 ]);
 
 export const mechanicalEffectSchema = z.discriminatedUnion("type", [
+  z.strictObject({ ...baseEffectShape, type: z.literal("cost_adjustment"), scopeId: z.string().min(1), amount: z.number() }),
+  z.strictObject({ ...baseEffectShape, type: z.literal("manual_resolution"), message: z.string().min(1) }),
   z.strictObject({
     ...baseEffectShape,
     type: z.literal("attribute_modifier"),
@@ -164,6 +171,7 @@ export const canonicalMechanicalEffectsSchema = z.array(mechanicalEffectSchema);
 
 export const appliedMechanicReferenceSchema = z.strictObject({
   applicationId: z.string().min(1),
+  groupId: z.string().min(1).optional(),
   mechanicId: z.string().min(1),
   ruleId: z.string().min(1),
 });
@@ -183,11 +191,13 @@ const mechanicRuleSchema = z
     name: z.string().min(1),
     cost: z.number().finite(),
     mechDesc: z.string().optional(),
-    ruleType: z.enum(["effect", "cost_modifier"]).default("cost_modifier"),
+    ruleType: z.enum(["effect", "cost_modifier", "component"]).default("cost_modifier"),
     effect: mechanicalEffectDefinitionSchema.optional(),
+    component: ruleComponentSchema.optional(),
   })
   .passthrough()
   .superRefine((rule, ctx) => {
+    if ((rule.ruleType === "component") !== (rule.component !== undefined) || (rule.ruleType === "component" && rule.effect)) ctx.addIssue({ code: "custom", message: "Invalid rule component" });
     if (rule.ruleType === "effect" && !rule.effect) {
       ctx.addIssue({ code: "custom", path: ["effect"], message: "an effect rule must define executable behavior" });
     }
@@ -204,6 +214,7 @@ const mechanicCategorySchema = z
     id: z.string().min(1),
     name: z.string().min(1),
     description: z.string(),
+    coreKey: z.string().min(1).optional(),
     logicalType: z.enum([
       "offensive",
       "defensive",
@@ -337,9 +348,10 @@ export function validatePersistedMechanicalEffects(
 export type AppliedMechanicsResolution = {
   valid: boolean;
   effects: CanonicalMechanicalEffect[];
+  groups: ResolvedRuleGroup[];
   staminaCost: number | null;
   breakdown: MechanicalCostBreakdown[];
-  issues: Array<{ applicationId: string; mechanicId: string; ruleId: string; code: "duplicate_mechanic_reference" | "unknown_mechanic_reference" }>;
+  issues: Array<{ applicationId: string; mechanicId: string; ruleId: string; code: "duplicate_mechanic_reference" | "unknown_mechanic_reference" | "conflicting_components" }>;
 };
 
 /** Resolves element references against the current global rule set. Element records
@@ -348,39 +360,76 @@ export function resolveAppliedMechanics(
   references: AppliedMechanicReference[],
   categories: SystemMechanicsConfig,
 ): AppliedMechanicsResolution {
-  const effects: CanonicalMechanicalEffect[] = [];
   const breakdown: MechanicalCostBreakdown[] = [];
   const issues: AppliedMechanicsResolution["issues"] = [];
+  const groups = new Map<string, ResolvedRuleGroup>();
   const seen = new Set<string>();
-
+  const applicationIds = new Set<string>();
   for (const reference of references) {
-    const key = `${reference.mechanicId}:${reference.ruleId}`;
-    if (seen.has(key)) {
-      issues.push({ ...reference, code: "duplicate_mechanic_reference" });
+    const groupId = reference.groupId ?? 'default';
+    const key = JSON.stringify([groupId, reference.mechanicId, reference.ruleId]);
+    if (seen.has(key) || applicationIds.has(reference.applicationId)) {
+      issues.push({ ...reference, code: 'duplicate_mechanic_reference' });
       continue;
     }
-    seen.add(key);
-    const category = categories.find(candidate => candidate.id === reference.mechanicId);
-    const rule = category?.rules.find(candidate => candidate.id === reference.ruleId);
-    if (!category || !rule) {
-      issues.push({ ...reference, code: "unknown_mechanic_reference" });
-      continue;
+    seen.add(key); applicationIds.add(reference.applicationId);
+    const category = categories.find(c => c.id === reference.mechanicId);
+    const rule = category?.rules.find(r => r.id === reference.ruleId);
+    if (!category || !rule) { issues.push({ ...reference, code: 'unknown_mechanic_reference' }); continue; }
+    const group = groups.get(groupId) ?? { id: groupId, effects: [], components: [], references: [], cost: 0 };
+    groups.set(groupId, group);
+    group.references.push(reference);
+    const cost = rule.effect?.timing === 'passive' ? 0 : rule.cost;
+    group.cost += cost;
+    breakdown.push({ effectId: reference.applicationId, mechanicId: category.id, ruleId: rule.id, ruleName: rule.name, cost });
+    if (rule.component) {
+      const repeatable = ['condition', 'consequence', 'usage', 'cap'].includes(rule.component.kind);
+      const duplicate = group.components.some(c => c.kind === rule.component!.kind && (!repeatable || c.kind === 'usage' && rule.component!.kind === 'usage' && c.period === rule.component!.period || c.kind === 'cap' && rule.component!.kind === 'cap' && c.subject === rule.component!.subject));
+      if (duplicate) issues.push({ ...reference, code: 'conflicting_components' });
+      group.components.push(rule.component);
     }
-    breakdown.push({ effectId: reference.applicationId, mechanicId: category.id, ruleId: rule.id, ruleName: rule.name, cost: rule.cost });
-    if (rule.ruleType === "effect" && rule.effect) {
+    if (rule.ruleType === 'effect' && rule.effect) {
       const targeting = category.targeting ?? category.defaultTargeting ?? legacyCategoryTargeting(category.defaultTarget);
-      effects.push({ id: reference.applicationId, costRules: [], targeting, resolution: category.defaultResolution ?? "none", ...rule.effect } as CanonicalMechanicalEffect);
+      group.effects.push({ id: reference.applicationId, costRules: [], targeting, resolution: category.defaultResolution ?? 'none', ...rule.effect } as CanonicalMechanicalEffect);
     }
   }
-
-  return {
-    valid: issues.length === 0,
-    effects,
-    staminaCost: issues.length === 0 ? breakdown.reduce((sum, entry) => sum + entry.cost, 0) : null,
-    breakdown,
-    issues,
-  };
+  for (const group of groups.values()) {
+    const activation = group.components.find(c => c.kind === 'activation');
+    const target = group.components.find(c => c.kind === 'target');
+    const count = group.components.find(c => c.kind === 'target_count');
+    const area = group.components.find(c => c.kind === 'area');
+    const duration = group.components.find(c => c.kind === 'duration');
+    if ((target?.self && !target.allies && !target.enemies && (area || count && count.max !== 1)) || (duration?.duration.mode === 'while_condition' && !group.components.some(c => c.kind === 'condition')) || (activation?.passive && group.components.some(c => c.kind === 'consequence' || c.kind === 'maintenance' || c.kind === 'usage' || c.kind === 'cooldown'))) issues.push({ ...group.references[0], code: 'conflicting_components' });
+    if (activation?.passive || group.effects.length > 0 && group.effects.every(e => e.timing === 'passive')) group.cost = 0;
+    if (activation?.passive && group.effects.some(e => ['damage', 'healing', 'barrier', 'currency'].includes(e.type))) issues.push({ ...group.references[0], code: 'conflicting_components' });
+    group.effects = group.effects.map(effect => ({ ...effect,
+      timing: activation?.passive ? 'passive' : effect.timing,
+      ...(duration ? { duration: duration.duration.mode === 'turns' ? { value: duration.duration.turns, unit: 'turn' as const } : undefined } : {}),
+      targeting: { ...effect.targeting,
+        ...(target ? { relationship: target.self && !target.allies && !target.enemies ? 'self' as const : target.allies && !target.self && !target.enemies ? 'ally' as const : target.enemies && !target.self && !target.allies ? 'enemy' as const : 'any' as const } : {}),
+        ...(count ? { minTargets: count.min, maxTargets: count.max } : {}),
+        ...(area ? { selection: 'area' as const, ...(!count ? { maxTargets: null } : {}) } : {}),
+      },
+    }));
+  }
+  for (const group of groups.values()) {
+    if (group.effects.some(e => !effectTargetingSchema.safeParse(e.targeting).success)) issues.push({ ...group.references[0], code: 'conflicting_components' });
+    const hasContinuous = group.components.some(c => c.kind === 'duration' && c.duration.mode !== 'instant');
+    if (!hasContinuous && group.components.some(c => c.kind === 'maintenance' || c.kind === 'consequence' && (c.when === 'each_turn' || c.consequence.kind === 'attribute' && c.consequence.untilEnd))) issues.push({ ...group.references[0], code: 'conflicting_components' });
+  }
+  const resolvedGroups = [...groups.values()];
+  return { valid: issues.length === 0, groups: resolvedGroups,
+    effects: issues.length ? [] : resolvedGroups.flatMap(g => g.effects),
+    staminaCost: issues.length ? null : resolvedGroups.reduce((sum, g) => sum + g.cost, 0), breakdown, issues };
 }
+
+export type ResolvedRuleGroup = {
+  id: string;
+  effects: CanonicalMechanicalEffect[];
+  components: RuleComponent[];
+  references: AppliedMechanicReference[];
+  cost: number;
+};
 
 function legacyCategoryTargeting(relationship: "self" | "enemy" | "ally" | "any" | undefined): EffectTargeting {
   const resolved = relationship ?? "self";
@@ -404,6 +453,7 @@ export function calculateExecutionStaminaCost(
 ): number | null {
   const resolution = resolveAppliedMechanics(references, categories);
   if (!resolution.valid) return null;
+  if (resolution.groups.length > 0 && resolution.groups.every(g => g.components.some(c => c.kind === "activation" && c.passive) || g.effects.length > 0 && g.effects.every(e => e.timing === "passive"))) return 0;
   const base = context === "action" ? policy.baseAction
     : context === "object" ? policy.objectUse
     : context === "technique" ? policy.techniqueByLevel.find(item => item.level === level)?.cost
