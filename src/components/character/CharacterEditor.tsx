@@ -109,8 +109,8 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
       const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList);
       const finalProfileData: Record<string, any> = {
         ...formData,
-        salud_actual: formData.salud_actual ?? derived.salud,
-        estamina_actual: formData.estamina_actual ?? derived.estamina,
+        salud_actual: derived.salud,
+        estamina_actual: derived.estamina,
         salud_maxima: derived.salud,
         estamina_maxima: derived.estamina,
         evasion: derived.evasion,

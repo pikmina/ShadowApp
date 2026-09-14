@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Activity, BatteryCharging, Brain, Briefcase, Feather, FileText, Flame,
@@ -10,6 +10,7 @@ import { CyberFillerPanel } from '@/components/ui/cyber-filler-panel';
 import { CyberModule } from '@/components/ui/cyber-module';
 import { CyberSpacer } from '@/components/ui/cyber-spacer';
 import { EntityPanel } from '@/components/ui/entity-panel';
+import { calculateDerivedStats } from '@/lib/characterValidation';
 
 const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
 
@@ -63,18 +64,21 @@ export default function PublicSheet() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [elements, setElements] = useState<any[]>([]);
+  const [rules, setRules] = useState<any[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
     const loadCharacter = async () => {
       try {
-        const [response, elemResponse] = await Promise.all([
+        const [response, elemResponse, rulesResponse] = await Promise.all([
           fetch(`/api/public/character/${id}`, { signal: controller.signal }),
-          fetch('/api/elements', { signal: controller.signal }).catch(() => ({ ok: false, json: async () => [] }))
+          fetch('/api/elements', { signal: controller.signal }).catch(() => ({ ok: false, json: async () => [] })),
+          fetch('/api/rules', { signal: controller.signal }).catch(() => ({ ok: false, json: async () => [] }))
         ]);
         if (!response.ok) throw new Error('Character not found');
         setCharacter(await response.json());
         if ((elemResponse as any).ok) setElements(await (elemResponse as any).json());
+        if ((rulesResponse as any).ok) setRules(await (rulesResponse as any).json());
       } catch (requestError: any) {
         if (requestError.name !== 'AbortError') setError(true);
       } finally {
@@ -89,6 +93,21 @@ export default function PublicSheet() {
   if (error || !character) return <div className="flex min-h-screen items-center justify-center bg-background p-6 text-center font-oxanium text-sm text-destructive">Ficha no encontrada o no disponible.</div>;
 
   const profile = character.profileData || {};
+
+  const stagesList = useMemo(() => Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_stages')?.value || [] : [], [rules]);
+  const mechanicsList = useMemo(() => Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_mechanics')?.value || [] : [], [rules]);
+
+  const derived = useMemo(() => {
+    if (stagesList.length > 0) {
+      return calculateDerivedStats(profile, stagesList, elements, mechanicsList);
+    }
+    return null;
+  }, [profile, stagesList, elements, mechanicsList]);
+
+  const maxHealth = derived ? derived.salud : Number(readValue(profile, ['maxHealth', 'max_health', 'salud_maxima']) || 20);
+  const maxStamina = derived ? derived.estamina : Number(readValue(profile, ['maxStamina', 'max_stamina', 'estamina_maxima']) || 20);
+  const currentHealth = maxHealth;
+  const currentStamina = maxStamina;
   
   const getElementName = (id: string) => elements.find(el => el.id === id)?.name || id;
   const traits = Array.isArray(profile.traits) ? profile.traits : [];
@@ -115,14 +134,14 @@ export default function PublicSheet() {
     { label: 'Voluntad', value: readValue(profile, ['VOL', 'vol', 'voluntad']), icon: Flame }
   ];
   const derivedAttributes = [
-    ['Evasión', readValue(profile, ['eva', 'evasion', 'evasión'])],
-    ['Coraje', readValue(profile, ['cor', 'courage', 'coraje'])],
-    ['Daño base', readValue(profile, ['baseDamage', 'base_damage', 'dano_base', 'daño_base'])],
+    ['Evasión', derived?.evasion ?? readValue(profile, ['eva', 'evasion', 'evasión'])],
+    ['Coraje', derived?.coraje ?? readValue(profile, ['cor', 'courage', 'coraje'])],
+    ['Daño base', derived?.dañoBase ?? readValue(profile, ['baseDamage', 'base_damage', 'dano_base', 'daño_base'])],
     ['Plus Ultra', readValue(profile, ['plusUltra', 'plus_ultra'])],
-    ['Reducción de daño', readValue(profile, ['reduccionDano', 'reduccion_dano', 'dr', 'damageReduction', 'damage_reduction'])],
-    ['Iniciativa', readValue(profile, ['initiative', 'iniciativa'])],
-    ['Mod. FUE', readValue(profile, ['modFUE', 'mod_fue'])],
-    ['Mod. DES', readValue(profile, ['modDES', 'mod_des'])]
+    ['Reducción de daño', derived?.reduccionDano ?? readValue(profile, ['reduccionDano', 'reduccion_dano', 'dr', 'damageReduction', 'damage_reduction'])],
+    ['Iniciativa', derived?.iniciativa ?? readValue(profile, ['initiative', 'iniciativa'])],
+    ['Mod. FUE', derived?.modFue ?? readValue(profile, ['modFUE', 'mod_fue'])],
+    ['Mod. DES', derived?.modDes ?? readValue(profile, ['modDES', 'mod_des'])]
   ];
   const identityData = [
     ['Grupo sanguíneo', readValue(profile, ['basic_blood_type', 'bloodType', 'blood_type', 'sangre', 'grupo_sanguineo'])],
@@ -174,8 +193,8 @@ export default function PublicSheet() {
               {avatar ? <img src={String(avatar)} alt={fullName} className="size-full object-cover" /> : <div className="flex size-full flex-col items-center justify-center gap-2 text-text2/40"><User className="size-12" /><span className="text-[10px] uppercase tracking-widest">Sin imagen</span></div>}
               <Badge variant="outline" className="absolute bottom-3 left-3 bg-background/80 font-oxanium text-[9px] uppercase tracking-wider backdrop-blur">{status}</Badge>
             </div>
-            <VitalBar label="Salud" current={readValue(profile, ['currentHealth', 'current_health', 'salud_actual'])} maximum={readValue(profile, ['maxHealth', 'max_health', 'salud_maxima'])} icon={HeartPlus} barClass="bg-primary" />
-            <VitalBar label="Estamina" current={readValue(profile, ['currentStamina', 'current_stamina', 'estamina_actual'])} maximum={readValue(profile, ['maxStamina', 'max_stamina', 'estamina_maxima'])} icon={BatteryCharging} barClass="bg-indigo-400" />
+            <VitalBar label="Salud" current={currentHealth} maximum={maxHealth} icon={HeartPlus} barClass="bg-primary" />
+            <VitalBar label="Estamina" current={currentStamina} maximum={maxStamina} icon={BatteryCharging} barClass="bg-indigo-400" />
             <div className="border border-bg3 bg-bg2/40 p-3 text-xs">
               <h2 className="mb-3 flex items-center gap-2 border-b border-bg3 pb-2 text-[10px] font-bold uppercase tracking-widest text-text1"><Briefcase className="size-4 text-accent2" /> Ocupación</h2>
               {[

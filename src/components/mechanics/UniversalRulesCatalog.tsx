@@ -169,6 +169,24 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
     <div className="grid gap-6 sm:grid-cols-2 bg-card p-5 rounded-lg border">
       <div className="space-y-3"><Label className="text-sm font-semibold">Nombre</Label><Input value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></div>
       <div className="space-y-3"><Label className="text-sm font-semibold">Descripción</Label><Input value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></div>
+      <div className="space-y-3">
+        <Label className="text-sm font-semibold">Tipo Lógico</Label>
+        <Select value={draft.logicalType} onValueChange={(v: any) => setDraft({ ...draft, logicalType: v })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Selecciona un tipo">
+              {draft.logicalType ? getLogicalTypeLabel(draft.logicalType) : "Selecciona un tipo"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="offensive">Ofensiva</SelectItem>
+            <SelectItem value="defensive">Defensiva</SelectItem>
+            <SelectItem value="support">Soporte</SelectItem>
+            <SelectItem value="control">Control</SelectItem>
+            <SelectItem value="limitation">Limitación</SelectItem>
+            <SelectItem value="utility">Utilidad</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       {draft.coreKey && <div className="col-span-full"><p className="text-xs text-muted-foreground border-l-2 border-primary pl-2 py-1 bg-primary/5">Categoría core: su identidad y propósito estructural están protegidos por el motor. Puedes modificar sus opciones.</p></div>}
     </div>
     
@@ -249,7 +267,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                       {{ effect: "Efecto", component: "Aplicación", cost_modifier: "Ajuste CE" }[r.ruleType] || r.ruleType}
                     </span>
                   </div>
-                  {r.effect && <span className="text-xs text-muted-foreground line-clamp-1">{describeEffect(r.effect, {relationship: 'any', minTargets: 1, maxTargets: 1, allowedEntityKinds: ['character']})}</span>}
+                  {r.effect && <span className="text-xs text-muted-foreground line-clamp-1">{describeEffect(r.effect, { selection: 'direct', relationship: 'any', minTargets: 1, maxTargets: 1, allowedEntityKinds: ['character'] })}</span>}
                 </div>
                 <div className="flex gap-2">
                   <Button variant={isEditing ? "secondary" : "ghost"} size="icon" onClick={() => {
