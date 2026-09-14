@@ -13,7 +13,7 @@ export default function PublicRegistry() {
   const [searchTerm, setSearchTerm] = useState('');
 
   if (error) {
-    return <div className="p-8 text-center text-red-500">Error al cargar el registro.</div>;
+    return <div className="p-8 text-center text-red-500">Error al cargar el registro: {error?.message || String(error)}</div>;
   }
 
   if (!canonCharacters) {
@@ -81,34 +81,6 @@ export default function PublicRegistry() {
       )}
       {activeTab === 'employments' && <PublicEmployments />}
       {activeTab === 'classes' && <PublicClasses />}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((c: any) => (
-          <EntityPanel key={c.id} pattern="dots" className="relative p-5 bg-black/40 border-border/50 hover:border-primary/50 transition-colors">
-            <div className="flex justify-between items-start mb-2">
-              <h3 className="font-oxanium text-lg font-bold text-foreground">{c.name}</h3>
-              <Badge
-                variant={c.status === 'available' ? 'default' : c.status === 'occupied' ? 'destructive' : 'secondary'}
-                className="text-[10px] uppercase font-bold tracking-wider"
-              >
-                {c.status === 'available' ? 'Disponible' : c.status === 'occupied' ? 'Ocupado' : 'Reservado'}
-              </Badge>
-            </div>
-            {c.status === 'occupied' && c.linkedCharacterId && (
-              <div className="mt-4 pt-4 border-t border-border/50 text-right">
-                <Link to={`/sheet/${c.linkedCharacterId}`} className="text-xs font-oxanium text-primary hover:underline uppercase tracking-wide">
-                  Ver Ficha →
-                </Link>
-              </div>
-            )}
-          </EntityPanel>
-        ))}
-        {filtered.length === 0 && (
-          <div className="col-span-full py-12 text-center text-muted-foreground text-sm font-oxanium">
-            No se encontraron personajes canon con ese nombre.
-          </div>
-        )}
-      </div>
     </div>
   );
 }

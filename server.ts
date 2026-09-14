@@ -508,7 +508,7 @@ async function startServer() {
       const list = await getCanonCharacters();
       res.json(list);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch canon characters" });
+      console.error("canon-characters fetch error:", error); res.status(500).json({ error: error?.message || "Failed to fetch canon characters" });
     }
   });
 
@@ -786,7 +786,7 @@ async function startServer() {
       const list = await getCanonCharacters();
       res.json(list);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch canon characters" });
+      console.error("canon fetch error:", error); res.status(500).json({ error: error?.message || "Failed to fetch canon characters" });
     }
   });
 

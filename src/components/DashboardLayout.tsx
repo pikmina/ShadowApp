@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { BookOpen, ChevronRight, FileText, LayoutTemplate, Library, LogOut, Menu, Settings, ShieldCheck, ShoppingCart, Swords, UserRound, X, Component } from "lucide-react";
+import { BookOpen, Database, ChevronRight, FileText, LayoutTemplate, Library, LogOut, Menu, Settings, ShieldCheck, ShoppingCart, Swords, UserRound, X, Component } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "./ui/button";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "./ui/sheet";
@@ -20,6 +20,7 @@ const navigation = [
   ] },
   { label: "Documentación", roles: ["superadmin", "moderator", "user"], items: [
     { to: "/manual", label: "Manual del Sistema", icon: BookOpen },
+    { to: "/registry", label: "Registros", icon: Database },
   ] },
   { label: "Administración", roles: ["superadmin"], items: [
     { to: "/sheet-builder", label: "Diseño de ficha", icon: LayoutTemplate },
