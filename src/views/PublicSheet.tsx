@@ -29,34 +29,6 @@ const displayValue = (value: unknown, fallback = 'N/A') => {
   return String(value);
 };
 
-function VitalBar({ label, current, maximum, icon: Icon, barClass }: {
-  label: string;
-  current: unknown;
-  maximum: unknown;
-  icon: React.ComponentType<{ className?: string }>;
-  barClass: string;
-}) {
-  const currentNumber = Number(current);
-  const maximumNumber = Number(maximum);
-  const percentage = Number.isFinite(currentNumber) && Number.isFinite(maximumNumber) && maximumNumber > 0
-    ? Math.min(100, Math.max(0, (currentNumber / maximumNumber) * 100))
-    : 0;
-
-  return (
-    <div className="relative overflow-hidden border border-bg3 bg-bg1 p-3">
-      <Icon className="absolute left-2 top-1/2 size-8 -translate-y-1/2 text-text2 opacity-10" />
-      <div className="relative z-10 flex flex-col gap-2 pl-8">
-        <div className="flex justify-end text-[10px] font-bold uppercase tracking-widest text-text1">
-          <span className="mr-1 text-primary">{label}</span>
-          ({displayValue(current, '—')} / {displayValue(maximum, '—')})
-        </div>
-        <div className="h-3 w-full overflow-hidden border border-bg3 bg-bg2">
-          <div className={`h-full ${barClass}`} style={{ width: `${percentage}%` }} />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function PublicSheet() {
   const { id } = useParams();
@@ -80,7 +52,10 @@ export default function PublicSheet() {
         if ((elemResponse as any).ok) setElements(await (elemResponse as any).json());
         if ((rulesResponse as any).ok) setRules(await (rulesResponse as any).json());
       } catch (requestError: any) {
-        if (requestError.name !== 'AbortError') setError(true);
+        if (requestError.name !== 'AbortError') {
+          console.error("PublicSheet fetch error:", requestError);
+          setError(true);
+        }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -89,23 +64,25 @@ export default function PublicSheet() {
     return () => controller.abort();
   }, [id]);
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center bg-background font-oxanium text-sm text-muted-foreground">Cargando expediente...</div>;
-  if (error || !character) return <div className="flex min-h-screen items-center justify-center bg-background p-6 text-center font-oxanium text-sm text-destructive">Ficha no encontrada o no disponible.</div>;
-
-  const profile = character.profileData || {};
-
   const stagesList = useMemo(() => Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_stages')?.value || [] : [], [rules]);
   const mechanicsList = useMemo(() => Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_mechanics')?.value || [] : [], [rules]);
 
-  const derived = useMemo(() => {
-    if (stagesList.length > 0) {
-      return calculateDerivedStats(profile, stagesList, elements, mechanicsList);
-    }
-    return null;
-  }, [profile, stagesList, elements, mechanicsList]);
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-background font-oxanium text-sm text-muted-foreground">Cargando expediente...</div>;
+  if (error || !character) return <div className="flex min-h-screen items-center justify-center bg-background p-6 text-center font-oxanium text-sm text-destructive">Ficha no encontrada o no disponible (Revisa la consola).</div>;
+
+  const profile = character.profileData || {};
+
+  let derived = null;
+  try {
+    derived = (stagesList.length > 0) ? calculateDerivedStats(profile, stagesList, elements, mechanicsList) : null;
+  } catch (err) {
+    console.error("Error calculating derived stats:", err);
+  }
 
   const maxHealth = derived ? derived.salud : Number(readValue(profile, ['maxHealth', 'max_health', 'salud_maxima']) || 20);
   const maxStamina = derived ? derived.estamina : Number(readValue(profile, ['maxStamina', 'max_stamina', 'estamina_maxima']) || 20);
+  
+  // Siempre mostrar al máximo por defecto hasta que se implemente un gestor de daño
   const currentHealth = maxHealth;
   const currentStamina = maxStamina;
   
@@ -193,8 +170,6 @@ export default function PublicSheet() {
               {avatar ? <img src={String(avatar)} alt={fullName} className="size-full object-cover" /> : <div className="flex size-full flex-col items-center justify-center gap-2 text-text2/40"><User className="size-12" /><span className="text-[10px] uppercase tracking-widest">Sin imagen</span></div>}
               <Badge variant="outline" className="absolute bottom-3 left-3 bg-background/80 font-oxanium text-[9px] uppercase tracking-wider backdrop-blur">{status}</Badge>
             </div>
-            <VitalBar label="Salud" current={currentHealth} maximum={maxHealth} icon={HeartPlus} barClass="bg-primary" />
-            <VitalBar label="Estamina" current={currentStamina} maximum={maxStamina} icon={BatteryCharging} barClass="bg-indigo-400" />
             <div className="border border-bg3 bg-bg2/40 p-3 text-xs">
               <h2 className="mb-3 flex items-center gap-2 border-b border-bg3 pb-2 text-[10px] font-bold uppercase tracking-widest text-text1"><Briefcase className="size-4 text-accent2" /> Ocupación</h2>
               {[
@@ -211,6 +186,27 @@ export default function PublicSheet() {
               <h2 className="mb-4 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest text-accent2"><HeartPlus className="size-4" /> Atributos base</h2>
               <div className="grid grid-cols-2 gap-3">
                 {baseAttributes.map(({ label, value, icon: Icon }) => <div key={label} className="relative overflow-hidden border border-bg3 bg-bg1 p-2 text-right"><Icon className="absolute left-2 top-1/2 size-8 -translate-y-1/2 text-text2 opacity-10" /><span className="relative z-10 block text-[9px] uppercase tracking-widest text-primary">{label}</span><strong className="relative z-10 mt-1 block text-xl leading-none text-text1">{displayValue(value, '—')}</strong></div>)}
+              </div>
+            </div>
+            <div className="border border-bg3 bg-bg2/40 p-4">
+              <h2 className="mb-4 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest text-accent2"><Activity className="size-4" /> Estatus</h2>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="relative overflow-hidden border border-bg3 bg-bg1 p-2 text-right">
+                  <HeartPlus className="absolute left-2 top-1/2 size-8 -translate-y-1/2 text-text2 opacity-10" />
+                  <span className="relative z-10 block text-[9px] uppercase tracking-widest text-primary">Salud</span>
+                  <div className="relative z-10 mt-1 flex items-baseline justify-end gap-1 whitespace-nowrap">
+                    <strong className="text-xl leading-none text-text1">{currentHealth}</strong>
+                    <span className="text-[10px] font-bold text-text2/60">/ {maxHealth}</span>
+                  </div>
+                </div>
+                <div className="relative overflow-hidden border border-bg3 bg-bg1 p-2 text-right">
+                  <BatteryCharging className="absolute left-2 top-1/2 size-8 -translate-y-1/2 text-text2 opacity-10" />
+                  <span className="relative z-10 block text-[9px] uppercase tracking-widest text-primary">Estamina</span>
+                  <div className="relative z-10 mt-1 flex items-baseline justify-end gap-1 whitespace-nowrap">
+                    <strong className="text-xl leading-none text-text1">{currentStamina}</strong>
+                    <span className="text-[10px] font-bold text-text2/60">/ {maxStamina}</span>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="border border-bg3 bg-bg2/40 p-4">
