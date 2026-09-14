@@ -70,11 +70,13 @@ export async function updateCharacter(characterId: number, data: { name?: string
 export async function deleteCharacter(characterId: number) {
   await db.transaction(async (tx) => {
     await tx.delete(elementPossessions).where(eq(elementPossessions.characterId, characterId));
+    await tx.delete(characterEmployments).where(eq(characterEmployments.characterId, characterId));
+    await tx.delete(characterEnrollments).where(eq(characterEnrollments.characterId, characterId));
     await tx.delete(characters).where(eq(characters.id, characterId));
   });
 }
 
-import { elementPossessions, auditLogs, systemElements } from './schema.ts';
+import { elementPossessions, auditLogs, systemElements, characterEmployments, characterEnrollments } from './schema.ts';
 import { sql, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 

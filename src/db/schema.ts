@@ -1,5 +1,5 @@
 import {  relations } from 'drizzle-orm';
-import { integer, pgTable, serial, text, timestamp, jsonb, boolean, pgEnum , unique } from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, text, timestamp, jsonb, boolean, pgEnum, unique, varchar } from 'drizzle-orm/pg-core';
 
 export const roleEnum = pgEnum('role', ['player', 'moderator', 'superadmin']);
 export const elementKindEnum = pgEnum('element_kind', [
@@ -131,7 +131,9 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const charactersRelations = relations(characters, ({ one, many }) => ({
   user: one(users, { fields: [characters.userId], references: [users.id] }),
   possessions: many(elementPossessions),
-  canonCharacter: one(canonCharacters, { fields: [characters.canonCharacterId], references: [canonCharacters.id] })
+  canonCharacter: one(canonCharacters, { fields: [characters.canonCharacterId], references: [canonCharacters.id] }),
+  employments: many(characterEmployments),
+  enrollments: many(characterEnrollments)
 }));
 
 export const systemElementsRelations = relations(systemElements, ({ many }) => ({
@@ -146,4 +148,127 @@ export const shopOffersRelations = relations(shopOffers, ({ one }) => ({
 export const elementPossessionsRelations = relations(elementPossessions, ({ one }) => ({
   character: one(characters, { fields: [elementPossessions.characterId], references: [characters.id] }),
   element: one(systemElements, { fields: [elementPossessions.elementId], references: [systemElements.id] }),
+}));
+
+
+// ==========================================
+// EMPLOYS (Empleos)
+// ==========================================
+
+export const institutions = pgTable('institutions', {
+  id: varchar('id', { length: 100 }).primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  active: boolean('active').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const departments = pgTable('departments', {
+  id: varchar('id', { length: 100 }).primaryKey(),
+  institutionId: varchar('institution_id', { length: 100 }).references(() => institutions.id, { onDelete: 'restrict' }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  active: boolean('active').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const positions = pgTable('positions', {
+  id: varchar('id', { length: 100 }).primaryKey(),
+  departmentId: varchar('department_id', { length: 100 }).references(() => departments.id, { onDelete: 'restrict' }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  capacity: integer('capacity'), // null = unlimited
+  active: boolean('active').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const characterEmployments = pgTable('character_employments', {
+  id: varchar('id', { length: 100 }).primaryKey(),
+  characterId: integer('character_id').references(() => characters.id).notNull(),
+  positionId: varchar('position_id', { length: 100 }).references(() => positions.id, { onDelete: 'restrict' }).notNull(),
+  status: varchar('status', { length: 50 }).default('active').notNull(), // active, inactive, suspended
+  startedAt: timestamp('started_at'),
+  endedAt: timestamp('ended_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// ==========================================
+// CLASSES (Clases)
+// ==========================================
+
+export const academicYears = pgTable('academic_years', {
+  id: varchar('id', { length: 100 }).primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const classGroups = pgTable('class_groups', {
+  id: varchar('id', { length: 100 }).primaryKey(),
+  academicYearId: varchar('academic_year_id', { length: 100 }).references(() => academicYears.id, { onDelete: 'restrict' }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  capacity: integer('capacity').notNull(),
+  active: boolean('active').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const characterEnrollments = pgTable('character_enrollments', {
+  id: varchar('id', { length: 100 }).primaryKey(),
+  characterId: integer('character_id').references(() => characters.id).notNull(),
+  classGroupId: varchar('class_group_id', { length: 100 }).references(() => classGroups.id, { onDelete: 'restrict' }).notNull(),
+  status: varchar('status', { length: 50 }).default('active').notNull(), // active, inactive
+  enrolledAt: timestamp('enrolled_at'),
+  endedAt: timestamp('ended_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+
+// ==========================================
+// NEW RELATIONS
+// ==========================================
+
+export const institutionsRelations = relations(institutions, ({ many }) => ({
+  departments: many(departments),
+}));
+
+export const departmentsRelations = relations(departments, ({ one, many }) => ({
+  institution: one(institutions, { fields: [departments.institutionId], references: [institutions.id] }),
+  positions: many(positions),
+}));
+
+export const positionsRelations = relations(positions, ({ one, many }) => ({
+  department: one(departments, { fields: [positions.departmentId], references: [departments.id] }),
+  employments: many(characterEmployments),
+}));
+
+export const characterEmploymentsRelations = relations(characterEmployments, ({ one }) => ({
+  character: one(characters, { fields: [characterEmployments.characterId], references: [characters.id] }),
+  position: one(positions, { fields: [characterEmployments.positionId], references: [positions.id] }),
+}));
+
+export const academicYearsRelations = relations(academicYears, ({ many }) => ({
+  classGroups: many(classGroups),
+}));
+
+export const classGroupsRelations = relations(classGroups, ({ one, many }) => ({
+  academicYear: one(academicYears, { fields: [classGroups.academicYearId], references: [academicYears.id] }),
+  enrollments: many(characterEnrollments),
+}));
+
+export const characterEnrollmentsRelations = relations(characterEnrollments, ({ one }) => ({
+  character: one(characters, { fields: [characterEnrollments.characterId], references: [characters.id] }),
+  classGroup: one(classGroups, { fields: [characterEnrollments.classGroupId], references: [classGroups.id] }),
 }));

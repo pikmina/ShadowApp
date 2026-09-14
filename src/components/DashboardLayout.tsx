@@ -14,6 +14,8 @@ const navigation = [
   { label: "Gestión", roles: ["superadmin", "moderator"], items: [
     { to: "/character-editor", label: "Personajes", icon: UserRound },
     { to: "/canon", label: "Catálogo Canon", icon: Library },
+    { to: "/employments", label: "Empleos y Cargos", icon: FileText },
+    { to: "/classes", label: "Clases y Grupos", icon: FileText },
     { to: "/shop", label: "Tienda", icon: ShoppingCart },
   ] },
   { label: "Documentación", roles: ["superadmin", "moderator", "user"], items: [

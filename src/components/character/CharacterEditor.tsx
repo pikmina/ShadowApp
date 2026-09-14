@@ -14,6 +14,7 @@ import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart
 import { toast } from "sonner";
 import { validateCharacter, calculateDerivedStats } from "@/lib/characterValidation";
 import { Badge } from "@/components/ui/badge";
+import { CharacterEmployments, CharacterEnrollments } from "./CharacterRelations";
 
 
 export default function CharacterEditor({ character, initialCanonId, onSaved, onCancel }: { character?: any, initialCanonId?: string | null, onSaved: () => void, onCancel?: () => void }) {

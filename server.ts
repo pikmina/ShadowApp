@@ -569,6 +569,217 @@ async function startServer() {
     }
   });
 
+  
+  // --- Employments Admin API ---
+  app.get("/api/admin/employments/structure", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { getInstitutionsWithDepartmentsAndPositions } = await import("./src/db/employments.ts");
+      res.json(await getInstitutionsWithDepartmentsAndPositions());
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.post("/api/admin/institutions", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { createInstitution } = await import("./src/db/employments.ts");
+      const parsed = z.object({ name: z.string().min(1), description: z.string().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await createInstitution(parsed.data));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.put("/api/admin/institutions/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { updateInstitution } = await import("./src/db/employments.ts");
+      const parsed = z.object({ name: z.string().min(1).optional(), description: z.string().optional().nullable(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await updateInstitution(req.params.id, parsed.data));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.delete("/api/admin/institutions/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { deleteInstitution } = await import("./src/db/employments.ts");
+      await deleteInstitution(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) { res.status(409).json({ error: error.message }); }
+  });
+
+  app.post("/api/admin/departments", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { createDepartment } = await import("./src/db/employments.ts");
+      const parsed = z.object({ institutionId: z.string(), name: z.string().min(1), description: z.string().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await createDepartment(parsed.data));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.put("/api/admin/departments/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { updateDepartment } = await import("./src/db/employments.ts");
+      const parsed = z.object({ name: z.string().min(1).optional(), description: z.string().optional().nullable(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await updateDepartment(req.params.id, parsed.data));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.delete("/api/admin/departments/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { deleteDepartment } = await import("./src/db/employments.ts");
+      await deleteDepartment(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) { res.status(409).json({ error: error.message }); }
+  });
+
+  app.post("/api/admin/positions", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { createPosition } = await import("./src/db/employments.ts");
+      const parsed = z.object({ departmentId: z.string(), name: z.string().min(1), description: z.string().optional(), capacity: z.number().int().nullable().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await createPosition(parsed.data));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.put("/api/admin/positions/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { updatePosition } = await import("./src/db/employments.ts");
+      const parsed = z.object({ name: z.string().min(1).optional(), description: z.string().optional().nullable(), capacity: z.number().int().nullable().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await updatePosition(req.params.id, parsed.data));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.delete("/api/admin/positions/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { deletePosition } = await import("./src/db/employments.ts");
+      await deletePosition(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) { res.status(409).json({ error: error.message }); }
+  });
+
+  app.post("/api/admin/employments", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { assignCharacterEmployment } = await import("./src/db/employments.ts");
+      const parsed = z.object({ characterId: z.number().int(), positionId: z.string() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await assignCharacterEmployment(parsed.data.characterId, parsed.data.positionId));
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
+  });
+
+  app.delete("/api/admin/employments/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { removeCharacterEmployment } = await import("./src/db/employments.ts");
+      await removeCharacterEmployment(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
+  });
+
+  // --- Classes Admin API ---
+  app.get("/api/admin/classes/structure", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { getAcademicYearsWithClasses } = await import("./src/db/academicClasses.ts");
+      res.json(await getAcademicYearsWithClasses());
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.post("/api/admin/academic-years", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { createAcademicYear } = await import("./src/db/academicClasses.ts");
+      const parsed = z.object({ name: z.string().min(1), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await createAcademicYear(parsed.data));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.put("/api/admin/academic-years/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { updateAcademicYear } = await import("./src/db/academicClasses.ts");
+      const parsed = z.object({ name: z.string().min(1).optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await updateAcademicYear(req.params.id, parsed.data));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.delete("/api/admin/academic-years/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { deleteAcademicYear } = await import("./src/db/academicClasses.ts");
+      await deleteAcademicYear(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) { res.status(409).json({ error: error.message }); }
+  });
+
+  app.post("/api/admin/class-groups", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { createClassGroup } = await import("./src/db/academicClasses.ts");
+      const parsed = z.object({ academicYearId: z.string(), name: z.string().min(1), description: z.string().optional(), capacity: z.number().int(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await createClassGroup(parsed.data));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.put("/api/admin/class-groups/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { updateClassGroup } = await import("./src/db/academicClasses.ts");
+      const parsed = z.object({ name: z.string().min(1).optional(), description: z.string().optional().nullable(), capacity: z.number().int().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await updateClassGroup(req.params.id, parsed.data));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.delete("/api/admin/class-groups/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { deleteClassGroup } = await import("./src/db/academicClasses.ts");
+      await deleteClassGroup(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) { res.status(409).json({ error: error.message }); }
+  });
+
+  app.post("/api/admin/enrollments", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { enrollCharacter } = await import("./src/db/academicClasses.ts");
+      const parsed = z.object({ characterId: z.number().int(), classGroupId: z.string() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      res.json(await enrollCharacter(parsed.data.characterId, parsed.data.classGroupId));
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
+  });
+
+  app.delete("/api/admin/enrollments/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { removeCharacterEnrollment } = await import("./src/db/academicClasses.ts");
+      await removeCharacterEnrollment(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
+  });
+
+  // --- Character Specific ---
+  app.get("/api/admin/characters/:id/employments", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { getCharacterEmployments } = await import("./src/db/employments.ts");
+      res.json(await getCharacterEmployments(parseInt(req.params.id, 10)));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.get("/api/admin/characters/:id/enrollment", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { getCharacterEnrollment } = await import("./src/db/academicClasses.ts");
+      res.json(await getCharacterEnrollment(parseInt(req.params.id, 10)));
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  // --- Public Routes ---
+  app.get("/api/public/employments", async (req, res) => {
+    try {
+      const { getPublicEmployments } = await import("./src/db/employments.ts");
+      res.json(await getPublicEmployments());
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.get("/api/public/classes", async (req, res) => {
+    try {
+      const { getPublicClasses } = await import("./src/db/academicClasses.ts");
+      res.json(await getPublicClasses());
+    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
   app.get("/api/public/canon-characters", async (req, res) => {
     try {
       const { getCanonCharacters } = await import("./src/db/canonCharacters.ts");

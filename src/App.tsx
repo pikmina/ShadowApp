@@ -18,6 +18,8 @@ import SettingsAdmin from "./views/SettingsAdmin";
 
 import CharactersAdmin from "./views/CharactersAdmin";
 import CanonCharactersAdmin from "./views/CanonCharactersAdmin";
+import EmploymentsAdmin from "./views/EmploymentsAdmin";
+import ClassesAdmin from "./views/ClassesAdmin";
 import PublicSheet from "./views/PublicSheet";
 import ComponentShowcase from "./views/ComponentShowcase";
 import SystemManual from "./views/SystemManual";
@@ -90,6 +92,8 @@ function AppRoutes() {
         <Route path="sheet-builder" element={<SheetBuilderAdmin />} />
         <Route path="character-editor" element={<CharactersAdmin />} />
         <Route path="canon" element={<CanonCharactersAdmin />} />
+        <Route path="employments" element={<EmploymentsAdmin />} />
+        <Route path="classes" element={<ClassesAdmin />} />
         <Route path="shop" element={<Shop />} />
         <Route path="showcase" element={<ComponentShowcase />} />
         <Route path="audit" element={<div className="p-8 text-center text-muted-foreground">Log de Auditoría (Próxima Fase)</div>} />
