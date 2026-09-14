@@ -17,6 +17,7 @@ import SheetBuilderAdmin from "./views/SheetBuilderAdmin";
 import SettingsAdmin from "./views/SettingsAdmin";
 
 import CharactersAdmin from "./views/CharactersAdmin";
+import CanonCharactersAdmin from "./views/CanonCharactersAdmin";
 import PublicSheet from "./views/PublicSheet";
 import ComponentShowcase from "./views/ComponentShowcase";
 import SystemManual from "./views/SystemManual";
@@ -57,6 +58,8 @@ function IndexRedirector() {
   return <Navigate to="/character-editor" replace />;
 }
 
+import PublicRegistry from "./views/PublicRegistry";
+
 function AppRoutes() {
   const { user, loading } = useAuth();
 
@@ -68,6 +71,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/sheet/:id" element={<PublicSheet />} />
+      <Route path="/registry" element={<PublicRegistry />} />
       <Route path="/manual" element={<SystemManual />} />
 
       <Route
@@ -85,6 +89,7 @@ function AppRoutes() {
         <Route path="techniques" element={<TechniquesAdmin />} />
         <Route path="sheet-builder" element={<SheetBuilderAdmin />} />
         <Route path="character-editor" element={<CharactersAdmin />} />
+        <Route path="canon" element={<CanonCharactersAdmin />} />
         <Route path="shop" element={<Shop />} />
         <Route path="showcase" element={<ComponentShowcase />} />
         <Route path="audit" element={<div className="p-8 text-center text-muted-foreground">Log de Auditoría (Próxima Fase)</div>} />

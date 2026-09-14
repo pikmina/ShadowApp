@@ -309,23 +309,23 @@ async function startServer() {
         userId: z.number().optional(),
         name: z.string().optional(),
         profileData: z.record(z.string(), z.any()).optional(),
-        expectedUpdatedAt: z.string().optional()
+        expectedUpdatedAt: z.string().optional(),
+        canonCharacterId: z.string().nullable().optional()
       });
       const parsed = CharSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
-      const { characterId, name, profileData, expectedUpdatedAt, userId } = parsed.data;
-      console.log("POST /api/character request:", { characterId, name, expectedUpdatedAt, userId });
-
+      const { characterId, name, profileData, expectedUpdatedAt, userId, canonCharacterId } = parsed.data;
+      console.log("POST /api/character request:", { characterId, name, expectedUpdatedAt, userId, canonCharacterId });
       
       const { updateCharacter, createCharacter } = await import("./src/db/characters.ts");
       let character;
       if (characterId) {
-        character = await updateCharacter(characterId, { name, profileData, expectedUpdatedAt });
+        character = await updateCharacter(characterId, { name, profileData, expectedUpdatedAt, canonCharacterId });
       } else {
         // Must provide userId to create. Since moderators create characters for players, we probably need userId in the body.
         // For now, if no userId is provided, fail. Wait, the legacy code used req.dbUser.id.
         const targetUserId = userId || req.dbUser.id;
-        character = await createCharacter(targetUserId, name || "Unnamed", profileData || {});
+        character = await createCharacter(targetUserId, name || "Unnamed", profileData || {}, canonCharacterId || null);
       }
       res.json(character);
     } catch (error: any) {
@@ -482,6 +482,57 @@ async function startServer() {
       res.json(result);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/canon-characters", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { getCanonCharacters } = await import("./src/db/canonCharacters.ts");
+      const list = await getCanonCharacters();
+      res.json(list);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch canon characters" });
+    }
+  });
+
+  app.post("/api/admin/canon-characters", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { createCanonCharacter } = await import("./src/db/canonCharacters.ts");
+      const result = await createCanonCharacter(req.body);
+      res.json(result);
+    } catch (error) {
+      console.error("Error creating canon character:", error);
+      res.status(500).json({ error: "Failed to create canon character" });
+    }
+  });
+
+  app.put("/api/admin/canon-characters/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { updateCanonCharacter } = await import("./src/db/canonCharacters.ts");
+      const result = await updateCanonCharacter(req.params.id, req.body);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update canon character" });
+    }
+  });
+
+  app.delete("/api/admin/canon-characters/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { deleteCanonCharacter } = await import("./src/db/canonCharacters.ts");
+      await deleteCanonCharacter(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/public/canon-characters", async (req, res) => {
+    try {
+      const { getCanonCharacters } = await import("./src/db/canonCharacters.ts");
+      const list = await getCanonCharacters();
+      res.json(list);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch canon characters" });
     }
   });
 

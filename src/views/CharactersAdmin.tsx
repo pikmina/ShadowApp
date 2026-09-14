@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AlertCircle, AlertTriangle, CheckCircle, Award, Check, Copy, Edit2, Eye, Plus, Search, Trash2, User, Users } from 'lucide-react';
 import useSWR from 'swr';
 import { toast } from 'sonner';
@@ -24,9 +24,11 @@ const readProfile = (profile: Record<string, any>, keys: string[]) => {
   return undefined;
 };
 
-const isCanonCharacter = (profile: Record<string, any>) => {
+const isCanonCharacter = (character: Record<string, any>) => {
+  if (character.canonCharacterId !== null && character.canonCharacterId !== undefined) return true;
+  const profile = character.profileData || {};
   const value = readProfile(profile, ['isCanon', 'is_canon', 'canon', 'character_canon']);
-  return value === true || value === 'true' || value === 'Sí' || value === 'Si';
+  return value === true || value === 'true' || value === 'Sí' || value === 'Si' || String(value).toLowerCase() === 'true';
 };
 
 const getGroupColorClass = (group: string) => {
@@ -54,7 +56,12 @@ const getGroupColorClass = (group: string) => {
 export default function CharactersAdmin() {
   const { user, dbUser } = useAuth();
   const navigate = useNavigate();
-  const [editing, setEditing] = useState(false);
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const initialCanonId = searchParams.get('canonId');
+
+  const [editing, setEditing] = useState(!!initialCanonId);
+  const [initialNewCanonId, setInitialNewCanonId] = useState<string | null>(initialCanonId);
   const [rewardingCharId, setRewardingCharId] = useState<number | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
@@ -97,7 +104,7 @@ export default function CharactersAdmin() {
     return charactersList
       .filter((character: any) => {
         const profile = character.profileData || {};
-        if (activeTab === 'canon' && !isCanonCharacter(profile)) return false;
+        if (activeTab === 'canon' && !isCanonCharacter(character)) return false;
         
         const group = String(readProfile(profile, ['faction_group', 'group', 'grupo', 'faccion', 'facción']) || '');
         if (selectedGroup !== 'all' && group !== selectedGroup) return false;

@@ -16,11 +16,12 @@ import { validateCharacter, calculateDerivedStats } from "@/lib/characterValidat
 import { Badge } from "@/components/ui/badge";
 
 
-export default function CharacterEditor({ character, onSaved, onCancel }: { character?: any, onSaved: () => void, onCancel?: () => void }) {
+export default function CharacterEditor({ character, initialCanonId, onSaved, onCancel }: { character?: any, initialCanonId?: string | null, onSaved: () => void, onCancel?: () => void }) {
   const { user } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('');
   const [formData, setFormData] = useState<Record<string, any>>(character?.profileData || {});
+  const [canonId, setCanonId] = useState<string | null>(character?.canonCharacterId || initialCanonId || null);
 
   const { data: fields, error: fieldsError } = useSWR(user ? "/api/sheet-fields" : null, fetcher);
   const { data: settings, error: settingsError } = useSWR(user ? "/api/settings" : null, fetcher);
@@ -140,7 +141,6 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
             if (nName.includes('sangre') || nName.includes('sanguineo')) finalProfileData['basic_blood_type'] = val;
             if (nName.includes('faccion') || (nName.includes('grupo') && !nName.includes('sangre') && !nName.includes('sanguineo'))) finalProfileData['faction_group'] = val;
             if (nName.includes('estatus') || nName.includes('estado')) finalProfileData['status'] = val;
-            if (nName.includes('canon')) finalProfileData['is_canon'] = val;
             if (nName.includes('imagen') || nName.includes('avatar') || nName.includes('faceclaim')) finalProfileData['avatar_url'] = val;
           }
 
@@ -185,7 +185,8 @@ export default function CharacterEditor({ character, onSaved, onCancel }: { char
             return finalProfileData['basic_name'] || finalProfileData['nombre'] || character?.name || "Unnamed";
           })(),
           expectedUpdatedAt: character?.updatedAt,
-          profileData: finalProfileData
+          profileData: finalProfileData,
+          canonCharacterId: canonId
         })
       });
       if (res.status === 409) {

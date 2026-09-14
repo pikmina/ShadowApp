@@ -12,18 +12,28 @@ export async function getCharacterById(id: number) {
   return character || null;
 }
 
-export async function createCharacter(userId: number, name: string, profileData: any) {
+export async function createCharacter(userId: number, name: string, profileData: any, canonCharacterId?: string | null) {
   const [created] = await db.insert(characters)
-    .values({ userId, name, profileData })
+    .values({ userId, name, profileData, canonCharacterId: canonCharacterId || null })
     .returning();
   return created;
 }
 
-export async function updateCharacter(characterId: number, data: { name?: string, profileData?: any, expectedUpdatedAt: Date | string }) {
+export async function updateCharacter(characterId: number, data: { name?: string, profileData?: any, expectedUpdatedAt?: Date | string, canonCharacterId?: string | null }) {
   const updatePayload: any = { updatedAt: new Date() };
   if (data.name !== undefined) updatePayload.name = data.name;
   if (data.profileData !== undefined) updatePayload.profileData = data.profileData;
+  if (data.canonCharacterId !== undefined) updatePayload.canonCharacterId = data.canonCharacterId;
 
+  if (!data.expectedUpdatedAt) {
+    const [updated] = await db.update(characters).set(updatePayload).where(eq(characters.id, characterId)).returning();
+    if (!updated) {
+      const error = new Error("Character not found");
+      (error as any).status = 404;
+      throw error;
+    }
+    return updated;
+  }
   const expectedTime = new Date(data.expectedUpdatedAt);
 
   // Single update with condition

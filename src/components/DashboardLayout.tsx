@@ -13,6 +13,7 @@ const navigation = [
   ] },
   { label: "Gestión", roles: ["superadmin", "moderator"], items: [
     { to: "/character-editor", label: "Personajes", icon: UserRound },
+    { to: "/canon", label: "Catálogo Canon", icon: Library },
     { to: "/shop", label: "Tienda", icon: ShoppingCart },
   ] },
   { label: "Documentación", roles: ["superadmin", "moderator", "user"], items: [

@@ -49,7 +49,7 @@ export const requireAuth = async (
   }
 };
 
-export const requireRole = (allowedRoles: ('superadmin' | 'moderator')[]) => {
+export const requireRole = (allowedRoles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.dbUser) {
       res.status(401).json({ error: 'Unauthorized: User not resolved' });

@@ -1,7 +1,7 @@
 import {  relations } from 'drizzle-orm';
 import { integer, pgTable, serial, text, timestamp, jsonb, boolean, pgEnum , unique } from 'drizzle-orm/pg-core';
 
-export const roleEnum = pgEnum('role', ['moderator', 'superadmin']);
+export const roleEnum = pgEnum('role', ['player', 'moderator', 'superadmin']);
 export const elementKindEnum = pgEnum('element_kind', [
   'trait', 'weakness', 'skill', 'equipment', 'weapon', 
   'ammunition', 'consumable', 'license', 'permission', 
@@ -16,14 +16,29 @@ export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   uid: text('uid').notNull().unique(), // Firebase Auth UID
   email: text('email').notNull(),
-  role: roleEnum('role').notNull(),
+  role: roleEnum('role').default('player').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Canon Characters Table
+export const canonCharacters = pgTable('canon_characters', {
+  id: text('id').primaryKey(), // stable string ID
+  name: text('name').notNull(),
+  firstName: text('first_name'),
+  lastName: text('last_name'),
+  active: boolean('active').default(true).notNull(),
+  reserved: boolean('reserved').default(false).notNull(),
+  reservedUntil: timestamp('reserved_until'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 // Characters Table
 export const characters = pgTable('characters', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id).notNull(),
+  canonCharacterId: text('canon_character_id').references(() => canonCharacters.id, { onDelete: 'restrict' }).unique(),
   name: text('name').notNull(),
   exp: integer('exp').default(0).notNull(),
   yen: integer('yen').default(0).notNull(),
@@ -105,6 +120,10 @@ export const auditLogs = pgTable('audit_logs', {
 });
 
 // Relations
+export const canonCharactersRelations = relations(canonCharacters, ({ one }) => ({
+  character: one(characters, { fields: [canonCharacters.id], references: [characters.canonCharacterId] })
+}));
+
 export const usersRelations = relations(users, ({ many }) => ({
   characters: many(characters),
 }));
@@ -112,6 +131,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const charactersRelations = relations(characters, ({ one, many }) => ({
   user: one(users, { fields: [characters.userId], references: [users.id] }),
   possessions: many(elementPossessions),
+  canonCharacter: one(canonCharacters, { fields: [characters.canonCharacterId], references: [canonCharacters.id] })
 }));
 
 export const systemElementsRelations = relations(systemElements, ({ many }) => ({
