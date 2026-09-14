@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { Checkbox } from "../components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 
 export default function ClassesAdmin() {
@@ -53,6 +54,7 @@ export default function ClassesAdmin() {
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <h3 className="font-semibold text-primary">{cls.name} {!cls.active && <span className="text-red-500 text-sm">(Inactivo)</span>}</h3>
+                        {cls.courseType && <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1 mb-1">{cls.courseType}</p>}
                         {cls.description && <p className="text-xs text-muted-foreground">{cls.description}</p>}
                       </div>
                       <div className="flex gap-1">
@@ -108,7 +110,7 @@ function YearDialog({ year, mutate }: any) {
       <DialogContent>
         <DialogHeader><DialogTitle>{year ? "Editar" : "Nuevo"} Año Académico</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-2">
+                    <div className="space-y-2">
             <Label>Nombre</Label>
             <Input value={name} onChange={e => setName(e.target.value)} />
           </div>
@@ -136,6 +138,7 @@ function ClassGroupDialog({ cls, yearId, mutate }: any) {
   const [capacity, setCapacity] = useState(cls?.capacity?.toString() || "30");
   const [active, setActive] = useState(cls ? cls.active : true);
   const [sortOrder, setSortOrder] = useState(cls?.sortOrder || 0);
+  const [courseType, setCourseType] = useState(cls?.courseType || "");
 
   const handleSubmit = async () => {
     const url = cls ? `/api/admin/class-groups/${cls.id}` : `/api/admin/class-groups`;
@@ -143,7 +146,7 @@ function ClassGroupDialog({ cls, yearId, mutate }: any) {
     const res = await apiFetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ academicYearId: yearId, name, description, capacity: Number(capacity), active, sortOrder: Number(sortOrder) })
+      body: JSON.stringify({ academicYearId: yearId, name, description, capacity: Number(capacity), active, sortOrder: Number(sortOrder), courseType: (courseType && courseType !== "none") ? courseType : null })
     });
     if (res.ok) {
       toast.success("Grupo guardado");
@@ -162,6 +165,22 @@ function ClassGroupDialog({ cls, yearId, mutate }: any) {
       <DialogContent>
         <DialogHeader><DialogTitle>{cls ? "Editar" : "Nuevo"} Grupo / Clase</DialogTitle></DialogHeader>
         <div className="space-y-4">
+          
+          <div className="space-y-2">
+            <Label>Curso / Departamento</Label>
+            <Select value={courseType} onValueChange={setCourseType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona un tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin clasificar</SelectItem>
+                <SelectItem value="Departamento de Héroes">Departamento de Héroes</SelectItem>
+                <SelectItem value="Departamento de Soporte">Departamento de Soporte</SelectItem>
+                <SelectItem value="Departamento de Educación General">Departamento de Educación General</SelectItem>
+                <SelectItem value="Departamento de Gestión y Negocios">Departamento de Gestión y Negocios</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label>Nombre (ej. 1ºA, Héroes de 3º)</Label>
             <Input value={name} onChange={e => setName(e.target.value)} />

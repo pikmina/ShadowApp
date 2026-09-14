@@ -633,7 +633,7 @@ async function startServer() {
   app.post("/api/admin/positions", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { createPosition } = await import("./src/db/employments.ts");
-      const parsed = z.object({ departmentId: z.string(), name: z.string().min(1), description: z.string().optional(), capacity: z.number().int().nullable().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      const parsed = z.object({ departmentId: z.string(), name: z.string().min(1), description: z.string().optional().nullable(), capacity: z.number().int().nullable().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
       res.json(await createPosition(parsed.data));
     } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
@@ -710,7 +710,7 @@ async function startServer() {
   app.post("/api/admin/class-groups", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { createClassGroup } = await import("./src/db/academicClasses.ts");
-      const parsed = z.object({ academicYearId: z.string(), name: z.string().min(1), description: z.string().optional(), capacity: z.number().int(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      const parsed = z.object({ academicYearId: z.string(), name: z.string().min(1), description: z.string().optional().nullable(), capacity: z.number().int(), active: z.boolean().optional(), sortOrder: z.number().int().optional(), courseType: z.string().optional().nullable() }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
       res.json(await createClassGroup(parsed.data));
     } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
@@ -719,7 +719,7 @@ async function startServer() {
   app.put("/api/admin/class-groups/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { updateClassGroup } = await import("./src/db/academicClasses.ts");
-      const parsed = z.object({ name: z.string().min(1).optional(), description: z.string().optional().nullable(), capacity: z.number().int().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      const parsed = z.object({ name: z.string().min(1).optional(), description: z.string().optional().nullable(), capacity: z.number().int().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional(), courseType: z.string().optional().nullable() }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
       res.json(await updateClassGroup(req.params.id, parsed.data));
     } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }

@@ -45,6 +45,7 @@ export async function createAcademicYear(data: { name: string; active?: boolean;
     name: data.name,
     active: data.active ?? true,
     sortOrder: data.sortOrder ?? 0,
+    courseType: data.courseType || null,
   }).returning();
   return created;
 }
@@ -64,7 +65,7 @@ export async function deleteAcademicYear(id: string) {
 }
 
 // --- Class Groups ---
-export async function createClassGroup(data: { academicYearId: string; name: string; description?: string; capacity: number; active?: boolean; sortOrder?: number }) {
+export async function createClassGroup(data: { academicYearId: string; name: string; description?: string | null; capacity: number; active?: boolean | null; sortOrder?: number | null; courseType?: string | null }) {
   const id = nanoid(10);
   const [created] = await db.insert(classGroups).values({
     id,
@@ -74,6 +75,7 @@ export async function createClassGroup(data: { academicYearId: string; name: str
     capacity: data.capacity,
     active: data.active ?? true,
     sortOrder: data.sortOrder ?? 0,
+    courseType: data.courseType || null,
   }).returning();
   return created;
 }
