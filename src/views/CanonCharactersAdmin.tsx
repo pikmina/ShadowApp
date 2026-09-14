@@ -59,7 +59,7 @@ export default function CanonCharactersAdmin() {
     }
   };
 
-  const filtered = (canonCharacters || []).filter((c: any) => 
+  const filtered = (canonCharacters || []).filter((c: any) =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -80,20 +80,20 @@ export default function CanonCharactersAdmin() {
           </div>
 
           <div className="mt-4">
-            <Input 
-              value={searchTerm} 
-              onChange={e => setSearchTerm(e.target.value)} 
-              placeholder="Buscar canon..." 
-              className="max-w-sm" 
+            <Input
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Buscar canon..."
+              className="max-w-sm"
             />
           </div>
 
           {isCreating && (
             <div className="mt-4 flex flex-col sm:flex-row items-center gap-2 rounded-md border border-border bg-muted/20 p-3">
-              <Input 
-                value={formData.name} 
-                onChange={e => setFormData({ ...formData, name: e.target.value })} 
-                placeholder="Nombre del personaje" 
+              <Input
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Nombre del personaje"
               />
               <Button onClick={handleCreate}>Guardar</Button>
               <Button variant="ghost" onClick={() => setIsCreating(false)}>Cancelar</Button>
@@ -105,9 +105,9 @@ export default function CanonCharactersAdmin() {
               <div key={c.id} className="flex items-center justify-between rounded-md border border-border bg-background p-3">
                 {editingId === c.id ? (
                   <div className="flex flex-1 items-center gap-2">
-                    <Input 
-                      defaultValue={c.name} 
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
+                    <Input
+                      defaultValue={c.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     />
                     <Button onClick={() => handleUpdate(c.id, { name: formData.name })}>Guardar</Button>
                     <Button variant="ghost" onClick={() => setEditingId(null)}>Cancelar</Button>

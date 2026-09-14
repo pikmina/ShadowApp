@@ -10,16 +10,16 @@ import { Search, Library, Shield } from 'lucide-react';
 export default function PublicRegistry() {
   const { data: canonCharacters, error } = useSWR('/api/public/canon-characters', fetcher);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   if (error) {
     return <div className="p-8 text-center text-red-500">Error al cargar el registro.</div>;
   }
-  
+
   if (!canonCharacters) {
     return <div className="p-8 text-center text-muted-foreground">Cargando registro...</div>;
   }
 
-  const filtered = canonCharacters.filter((c: any) => 
+  const filtered = canonCharacters.filter((c: any) =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) && c.active !== false
   );
 
@@ -34,11 +34,11 @@ export default function PublicRegistry() {
       <div className="flex items-center gap-2 max-w-sm mx-auto mb-6">
         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input 
-            value={searchTerm} 
-            onChange={e => setSearchTerm(e.target.value)} 
-            placeholder="Buscar personaje..." 
-            className="pl-9 bg-background/50" 
+          <Input
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Buscar personaje..."
+            className="pl-9 bg-background/50"
           />
         </div>
       </div>
@@ -48,7 +48,7 @@ export default function PublicRegistry() {
           <EntityPanel key={c.id} pattern="dots" className="relative p-5 bg-black/40 border-border/50 hover:border-primary/50 transition-colors">
             <div className="flex justify-between items-start mb-2">
               <h3 className="font-oxanium text-lg font-bold text-foreground">{c.name}</h3>
-              <Badge 
+              <Badge
                 variant={c.status === 'available' ? 'default' : c.status === 'occupied' ? 'destructive' : 'secondary'}
                 className="text-[10px] uppercase font-bold tracking-wider"
               >

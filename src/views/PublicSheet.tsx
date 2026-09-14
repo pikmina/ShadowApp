@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Activity, BatteryCharging, Brain, Briefcase, Feather, FileText, Flame,
-  HandFist, Heart, HeartPlus, Info, PackageOpen, Shield, ShieldHalf, Sparkles,
+  HandFist, HeartPlus, Info, PackageOpen, Shield, ShieldHalf, Sparkles,
   Swords, User, Wind, Zap
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -192,14 +192,20 @@ export default function PublicSheet() {
               <h2 className="mb-4 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest text-accent2"><Activity className="size-4" /> Estatus</h2>
               <div className="grid grid-cols-2 gap-3">
                 <div className="relative overflow-hidden border border-bg3 bg-bg1 p-2 text-right">
-                  <Heart className="absolute left-2 top-1/2 size-8 -translate-y-1/2 text-text2 opacity-10" />
+                  <HeartPlus className="absolute left-2 top-1/2 size-8 -translate-y-1/2 text-text2 opacity-10" />
                   <span className="relative z-10 block text-[9px] uppercase tracking-widest text-primary">Salud</span>
-                  <strong className="relative z-10 mt-1 block text-xl leading-none text-text1">{currentHealth}</strong>
+                  <div className="relative z-10 mt-1 flex items-baseline justify-end gap-1 whitespace-nowrap">
+                    <strong className="text-xl leading-none text-text1">{currentHealth}</strong>
+                    <span className="text-[10px] font-bold text-text2/60">/ {maxHealth}</span>
+                  </div>
                 </div>
                 <div className="relative overflow-hidden border border-bg3 bg-bg1 p-2 text-right">
                   <BatteryCharging className="absolute left-2 top-1/2 size-8 -translate-y-1/2 text-text2 opacity-10" />
                   <span className="relative z-10 block text-[9px] uppercase tracking-widest text-primary">Estamina</span>
-                  <strong className="relative z-10 mt-1 block text-xl leading-none text-text1">{currentStamina}</strong>
+                  <div className="relative z-10 mt-1 flex items-baseline justify-end gap-1 whitespace-nowrap">
+                    <strong className="text-xl leading-none text-text1">{currentStamina}</strong>
+                    <span className="text-[10px] font-bold text-text2/60">/ {maxStamina}</span>
+                  </div>
                 </div>
               </div>
             </div>

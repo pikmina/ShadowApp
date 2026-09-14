@@ -25,10 +25,7 @@ const readProfile = (profile: Record<string, any>, keys: string[]) => {
 };
 
 const isCanonCharacter = (character: Record<string, any>) => {
-  if (character.canonCharacterId !== null && character.canonCharacterId !== undefined) return true;
-  const profile = character.profileData || {};
-  const value = readProfile(profile, ['isCanon', 'is_canon', 'canon', 'character_canon']);
-  return value === true || value === 'true' || value === 'Sí' || value === 'Si' || String(value).toLowerCase() === 'true';
+  return character.canonCharacterId !== null && character.canonCharacterId !== undefined;
 };
 
 const getGroupColorClass = (group: string) => {
@@ -175,8 +172,9 @@ export default function CharactersAdmin() {
       <div className="mx-auto max-w-5xl space-y-4">
         <CharacterEditor 
           character={displayCharacter}
-          onSaved={() => { setEditing(false); mutateAll(); }}
-          onCancel={() => setEditing(false)}
+          initialCanonId={initialNewCanonId}
+          onSaved={() => { setEditing(false); setInitialNewCanonId(null); if(initialCanonId) navigate('/character-editor', { replace: true }); mutateAll(); }}
+          onCancel={() => { setEditing(false); setInitialNewCanonId(null); if(initialCanonId) navigate('/character-editor', { replace: true }); }}
         />
       </div>
     );

@@ -317,6 +317,23 @@ async function startServer() {
       const { characterId, name, profileData, expectedUpdatedAt, userId, canonCharacterId } = parsed.data;
       console.log("POST /api/character request:", { characterId, name, expectedUpdatedAt, userId, canonCharacterId });
       
+      
+      if (canonCharacterId) {
+        const { db } = await import("./src/db/index.ts");
+        const { canonCharacters, characters } = await import("./src/db/schema.ts");
+        const { eq, and, ne } = await import("drizzle-orm");
+        
+        const [canon] = await db.select().from(canonCharacters).where(eq(canonCharacters.id, canonCharacterId));
+        if (!canon) {
+          return res.status(404).json({ error: "Canon character not found" });
+        }
+        
+        const [occupied] = await db.select().from(characters).where(eq(characters.canonCharacterId, canonCharacterId));
+        if (occupied && occupied.id !== characterId) {
+          return res.status(409).json({ error: "Canon character is already occupied" });
+        }
+      }
+      
       const { updateCharacter, createCharacter } = await import("./src/db/characters.ts");
       let character;
       if (characterId) {
@@ -495,10 +512,22 @@ async function startServer() {
     }
   });
 
+  
   app.post("/api/admin/canon-characters", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
+      const CanonSchema = z.object({
+        name: z.string().min(1),
+        firstName: z.string().optional().nullable(),
+        lastName: z.string().optional().nullable(),
+        active: z.boolean().optional(),
+        reserved: z.boolean().optional(),
+        reservedUntil: z.string().datetime().optional().nullable(),
+        sortOrder: z.number().int().optional()
+      });
+      const parsed = CanonSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
       const { createCanonCharacter } = await import("./src/db/canonCharacters.ts");
-      const result = await createCanonCharacter(req.body);
+      const result = await createCanonCharacter(parsed.data);
       res.json(result);
     } catch (error) {
       console.error("Error creating canon character:", error);
@@ -506,10 +535,24 @@ async function startServer() {
     }
   });
 
+  
   app.put("/api/admin/canon-characters/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
+      const CanonSchema = z.object({
+        name: z.string().min(1).optional(),
+        firstName: z.string().optional().nullable(),
+        lastName: z.string().optional().nullable(),
+        active: z.boolean().optional(),
+        reserved: z.boolean().optional(),
+        reservedUntil: z.string().datetime().optional().nullable(),
+        sortOrder: z.number().int().optional()
+      });
+      const parsed = CanonSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
       const { updateCanonCharacter } = await import("./src/db/canonCharacters.ts");
-      const result = await updateCanonCharacter(req.params.id, req.body);
+      const updateData: any = { ...parsed.data };
+      if (parsed.data.reservedUntil) updateData.reservedUntil = new Date(parsed.data.reservedUntil);
+      const result = await updateCanonCharacter(req.params.id, updateData);
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: "Failed to update canon character" });

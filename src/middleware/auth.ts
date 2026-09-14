@@ -49,7 +49,7 @@ export const requireAuth = async (
   }
 };
 
-export const requireRole = (allowedRoles: string[]) => {
+export const requireRole = (allowedRoles: ('superadmin' | 'moderator')[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.dbUser) {
       res.status(401).json({ error: 'Unauthorized: User not resolved' });
@@ -58,7 +58,7 @@ export const requireRole = (allowedRoles: string[]) => {
     
     const effectiveRole = req.dbUser.role;
     // superadmin can do everything a moderator can
-    if (allowedRoles.includes(effectiveRole) || effectiveRole === 'superadmin') {
+    if ((allowedRoles as string[]).includes(effectiveRole) || effectiveRole === 'superadmin') {
       next();
     } else {
       res.status(403).json({ error: `Forbidden: Requires one of ${allowedRoles.join(', ')}` });

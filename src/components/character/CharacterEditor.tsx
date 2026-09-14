@@ -17,7 +17,8 @@ import { Badge } from "@/components/ui/badge";
 
 
 export default function CharacterEditor({ character, initialCanonId, onSaved, onCancel }: { character?: any, initialCanonId?: string | null, onSaved: () => void, onCancel?: () => void }) {
-  const { user } = useAuth();
+  const { user, dbUser } = useAuth();
+  const isAdmin = dbUser?.role === 'superadmin' || dbUser?.role === 'moderator';
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('');
   const [formData, setFormData] = useState<Record<string, any>>(character?.profileData || {});
@@ -28,6 +29,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const { data: rules } = useSWR(user ? "/api/rules" : null, fetcher);
   const stagesList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_stages')?.value || [] : [];
   const mechanicsList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_mechanics')?.value || [] : [];
+  const { data: canonList } = useSWR('/api/public/canon-characters', fetcher);
   const { data: rawElements } = useSWR(user ? "/api/elements" : null, fetcher);
   const elements = Array.isArray(rawElements) ? rawElements.filter(el => el.status === 'published') : [];
 
@@ -615,6 +617,35 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         })()}
         {activeTab !== 'Atributos' && activeTab && groupedFields[activeTab] && (
           <div key={activeTab}>
+            <div>
+
+            {isAdmin && activeTab === 'Datos' && (
+              <div className="md:col-span-2 mb-6 p-4 border border-primary/20 bg-primary/5 rounded-md space-y-2">
+                <Label className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                  <Shield className="size-4" /> Vínculo con Catálogo Canon (Admin)
+                </Label>
+                <Select value={canonId || 'none'} onValueChange={(val) => setCanonId(val === 'none' ? null : val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Personaje Original (Sin vínculo)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Ninguno / Personaje Original</SelectItem>
+                    {(canonList || []).map((c: any) => {
+                      const isOccupied = c.status === 'occupied' && c.id !== canonId;
+                      const isReserved = c.status === 'reserved' && c.id !== canonId;
+                      const isDisabled = isOccupied || isReserved;
+                      return (
+                        <SelectItem key={c.id} value={c.id} disabled={isDisabled}>
+                          {c.name} {isOccupied ? '(Ocupado)' : isReserved ? '(Reservado)' : '(Disponible)'}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Selecciona un personaje canon para enlazar esta ficha con el catálogo público. Los personajes ocupados o reservados no pueden seleccionarse.</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {groupedFields[activeTab].sort((a: any, b: any) => {
                 if (activeTab === 'Datos') {
@@ -632,8 +663,9 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
               ))}
             </div>
           </div>
-        )}
           </div>
+        )}
+        </div>
           
           <div className="mt-8 pt-6 border-t border-border flex items-center justify-end gap-2">
             {onCancel && (
