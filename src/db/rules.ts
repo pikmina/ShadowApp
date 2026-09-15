@@ -5,6 +5,7 @@ import { systemElements } from "./schema.ts";
 import { db } from './index.ts';
 import { systemRules } from './schema.ts';
 import { eq, sql } from 'drizzle-orm';
+import { defaultEmploymentCompensation, employmentCompensationSchema } from '../domain/employmentCompensation.ts';
 
 export async function getRules() {
   try {
@@ -27,6 +28,7 @@ export async function getRule(key: string) {
 
 export async function upsertRule(key: string, type: string, value: any, description: string) {
   try {
+    if (key === 'employment_compensation') value = employmentCompensationSchema.parse(value);
     if (key === 'system_mechanics') {
       const parsed = systemMechanicsConfigSchema.parse(value);
       if (!validateCoreCategories(parsed)) throw new Error('Core categories are required');
@@ -57,7 +59,7 @@ export async function upsertRule(key: string, type: string, value: any, descript
 }
 
 export async function deleteRule(key: string) {
-  if (["system_mechanics", "stamina_execution_costs"].includes(key)) throw new Error("Core rules cannot be deleted");
+  if (["system_mechanics", "stamina_execution_costs", "employment_compensation"].includes(key)) throw new Error("Core rules cannot be deleted");
   try {
     await db.delete(systemRules).where(eq(systemRules.key, key));
   } catch (error) {
@@ -75,6 +77,10 @@ export async function seedCoreRules() {
     if (!stored || JSON.stringify(stored.value) !== JSON.stringify(value)) {
       await tx.insert(systemRules).values({ key: 'system_mechanics', type: 'json', value, description: 'Motor universal de reglas' }).onConflictDoUpdate({ target: systemRules.key, set: { value, updatedAt: new Date() } });
     }
+    await tx.insert(systemRules).values({
+      key: 'employment_compensation', type: 'json', value: defaultEmploymentCompensation,
+      description: 'Tablas de remuneración por nivel y riesgo para empleos',
+    }).onConflictDoNothing();
     await tx.insert(systemElements).values({ id: 'core.status.stunned', kind: 'altered_status', name: 'Aturdido', description: 'Estado Aturdido. La resolución específica se configura en el catálogo.', status: 'draft', effects: [] }).onConflictDoNothing();
   });
 }

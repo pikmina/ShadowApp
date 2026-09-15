@@ -5,6 +5,7 @@ import { db } from '../index.ts';
 import { canonCharacters, characterEmployments, characters, departments, institutions, positions, users } from '../schema.ts';
 import { createCanonCharacter, deleteCanonCharacter } from '../canonCharacters.ts';
 import { createCharacter, deleteCharacter } from '../characters.ts';
+import { seedCoreRules } from '../rules.ts';
 import {
   assignCanonEmployment,
   assignCharacterEmployment,
@@ -28,6 +29,7 @@ let institutionId = '';
 let departmentId = '';
 let positionId = '';
 let zeroCapacityPositionId = '';
+let restrictedPositionId = '';
 let canonEmploymentId = '';
 let originalEmploymentId = '';
 
@@ -40,6 +42,7 @@ try {
 
 describe.skipIf(!dbAvailable)('Employments Integration', () => {
   beforeAll(async () => {
+    await seedCoreRules();
     const suffix = nanoid(8);
     const [user] = await db.insert(users).values({
       uid: `employment_user_${suffix}`,
@@ -57,6 +60,11 @@ describe.skipIf(!dbAvailable)('Employments Integration', () => {
     departmentId = (await createDepartment({ institutionId, name: `Department ${suffix}` })).id;
     positionId = (await createPosition({ departmentId, name: `Position ${suffix}`, capacity: 1 })).id;
     zeroCapacityPositionId = (await createPosition({ departmentId, name: `Closed ${suffix}`, capacity: 0 })).id;
+    restrictedPositionId = (await createPosition({
+      departmentId, name: `Restricted ${suffix}`, capacity: 2, levelId: 'level_3', riskId: 'serious', minPosts: 4,
+      requirements: { operator: 'all', requirements: [{ id: 'adult', type: 'age', comparison: 'gte', value: 18 }] },
+      optionalBonuses: [{ id: 'rescue-bonus', name: 'Rescate', requirements: { operator: 'all', requirements: [] }, yen: 25, exp: 10 }],
+    })).id;
   });
 
   afterAll(async () => {
@@ -66,8 +74,8 @@ describe.skipIf(!dbAvailable)('Employments Integration', () => {
     if (linkedCharacterId || originalCharacterId) {
       await db.delete(characters).where(inArray(characters.id, [linkedCharacterId, originalCharacterId].filter(Boolean)));
     }
-    if (positionId || zeroCapacityPositionId) {
-      await db.delete(positions).where(inArray(positions.id, [positionId, zeroCapacityPositionId].filter(Boolean)));
+    if (positionId || zeroCapacityPositionId || restrictedPositionId) {
+      await db.delete(positions).where(inArray(positions.id, [positionId, zeroCapacityPositionId, restrictedPositionId].filter(Boolean)));
     }
     if (departmentId) await db.delete(departments).where(eq(departments.id, departmentId));
     if (institutionId) await db.delete(institutions).where(eq(institutions.id, institutionId));
@@ -80,6 +88,15 @@ describe.skipIf(!dbAvailable)('Employments Integration', () => {
     canonEmploymentId = employment.id;
     expect(employment.characterId).toBeNull();
     expect(employment.canonCharacterId).toBe(canonId);
+    expect(employment.requirementsVerified).toBe(true);
+  });
+
+  test('stores compensation metadata and enforces automatic requirements', async () => {
+    const structure = await getInstitutionsWithDepartmentsAndPositions();
+    const position = structure.flatMap(item => item.departments).flatMap(item => item.positions).find(item => item.id === restrictedPositionId);
+    expect(position).toMatchObject({ levelId: 'level_3', riskId: 'serious', minPosts: 4, bonusYen: 0, bonusExp: 0 });
+    expect(position?.optionalBonuses).toHaveLength(1);
+    await expect(assignCharacterEmployment(originalCharacterId, restrictedPositionId)).rejects.toMatchObject({ status: 409 });
   });
 
   test('2. resolves canon employment when queried through the linked sheet', async () => {

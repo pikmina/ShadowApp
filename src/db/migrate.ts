@@ -31,6 +31,7 @@ async function runMigration() {
     // 1 & 2. Create canon_characters and other missing tables (Idempotent)
     console.log("Creating new tables IF NOT EXISTS...");
     await adminDb.transaction(async (tx) => {
+    await tx.execute(sql`ALTER TYPE "element_kind" ADD VALUE IF NOT EXISTS 'certification';`);
     
     await tx.execute(sql`
       CREATE TABLE IF NOT EXISTS "canon_characters" (
@@ -157,6 +158,14 @@ async function runMigration() {
       ALTER TABLE "character_employments" ADD COLUMN IF NOT EXISTS "canon_character_id" text;
       ALTER TABLE "character_enrollments" ALTER COLUMN "character_id" DROP NOT NULL;
       ALTER TABLE "character_enrollments" ADD COLUMN IF NOT EXISTS "canon_character_id" text;
+      ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "level_id" varchar(100);
+      ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "risk_id" varchar(100);
+      ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "bonus_yen" integer DEFAULT 0 NOT NULL;
+      ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "bonus_exp" integer DEFAULT 0 NOT NULL;
+      ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "min_posts" integer;
+      ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "requirements" jsonb DEFAULT '{"operator":"all","requirements":[]}'::jsonb NOT NULL;
+      ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "optional_bonuses" jsonb DEFAULT '[]'::jsonb NOT NULL;
+      ALTER TABLE "character_employments" ADD COLUMN IF NOT EXISTS "requirements_verified" boolean DEFAULT false NOT NULL;
     `);
 
     // Canon-owned relations survive creation, unlinking, and deletion of their optional sheet.

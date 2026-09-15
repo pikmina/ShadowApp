@@ -1,7 +1,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { fetcher, apiFetch } from "@/lib/api";
-import { Plus, Trash2, Edit2, ShieldAlert, Briefcase } from "lucide-react";
+import { Plus, Trash2, Edit2, Briefcase, DollarSign, X, AlertTriangle } from "lucide-react";
 import { EntityPanel } from "@/components/ui/entity-panel";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -9,6 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { Checkbox } from "../components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { calculateEmploymentCompensation, employmentCompensationSchema } from "@/domain/employmentCompensation";
+import { nanoid } from "nanoid";
 
 
 export default function EmploymentsAdmin() {
@@ -72,6 +75,10 @@ export default function EmploymentsAdmin() {
                           <div className="text-xs mt-1 text-primary">
                             Ocupantes: {pos.occupiedSlots} / {pos.capacity === null ? 'Ilimitado' : pos.capacity}
                           </div>
+                          {(pos.levelId || pos.riskId) && <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                            {pos.levelId && <span>{employmentLevelFallbackLabel(pos.levelId)}</span>}{pos.riskId && <span>· {employmentRiskFallbackLabel(pos.riskId)}</span>}
+                            {pos.minPosts !== null && <span>· {pos.minPosts} posts mínimos</span>}
+                          </div>}
                         </div>
                         <div className="flex gap-2">
                           <PositionDialog position={pos} departmentId={dep.id} mutate={mutate} />
@@ -213,6 +220,43 @@ function PositionDialog({ position, departmentId, mutate }: any) {
   const [capacity, setCapacity] = useState(position?.capacity === null ? "" : position?.capacity?.toString() || "");
   const [active, setActive] = useState(position ? position.active : true);
   const [sortOrder, setSortOrder] = useState(position?.sortOrder || 0);
+  const [levelId, setLevelId] = useState(position ? position.levelId ?? "" : "level_4");
+  const [riskId, setRiskId] = useState(position ? position.riskId ?? "" : "moderate");
+  const [bonusYen, setBonusYen] = useState(position?.bonusYen ?? 0);
+  const [bonusExp, setBonusExp] = useState(position?.bonusExp ?? 0);
+  const [minPosts, setMinPosts] = useState(position?.minPosts === null || position?.minPosts === undefined ? "" : String(position.minPosts));
+  const [requirements, setRequirements] = useState<any>(position?.requirements ?? { operator: 'all', requirements: [] });
+  const [optionalBonuses, setOptionalBonuses] = useState<any[]>(position?.optionalBonuses ?? []);
+  const [reqType, setReqType] = useState<'owns_element' | 'skill_level' | 'attribute' | 'age'>('owns_element');
+  const [reqReference, setReqReference] = useState('');
+  const [reqValue, setReqValue] = useState(1);
+  const [reqOptional, setReqOptional] = useState(false);
+  const [reqBonusYen, setReqBonusYen] = useState(0);
+  const [reqBonusExp, setReqBonusExp] = useState(0);
+  const { data: rules } = useSWR(open ? '/api/rules' : null, fetcher);
+  const { data: elements } = useSWR(open ? '/api/admin/elements' : null, fetcher);
+  const compensationResult = employmentCompensationSchema.safeParse(rules?.find((rule: any) => rule.key === 'employment_compensation')?.value);
+  const compensation = compensationResult.success ? compensationResult.data : null;
+  const attributes = rules?.find((rule: any) => rule.key === 'system_attributes')?.value ?? [];
+  const validBonuses = Number.isSafeInteger(bonusYen) && bonusYen >= 0 && Number.isSafeInteger(bonusExp) && bonusExp >= 0;
+  const quote = compensation && levelId && riskId && validBonuses && compensation.levels.some(item => item.id === levelId) && compensation.risks.some(item => item.id === riskId)
+    ? calculateEmploymentCompensation(compensation, levelId, riskId, bonusYen, bonusExp)
+    : null;
+
+  const addRequirement = () => {
+    if (reqType !== 'age' && !reqReference) return toast.error('Selecciona la referencia del requisito');
+    const id = nanoid(10);
+    const requirement = reqType === 'owns_element' ? { id, type: reqType, elementId: reqReference, quantity: 1 }
+      : reqType === 'skill_level' ? { id, type: reqType, skillElementId: reqReference, comparison: 'gte', value: reqValue }
+      : reqType === 'attribute' ? { id, type: reqType, attributeId: reqReference, comparison: 'gte', value: reqValue }
+      : { id, type: reqType, comparison: 'gte', value: reqValue };
+    if (reqOptional) {
+      setOptionalBonuses(current => [...current, { id: nanoid(10), name: requirementLabel(requirement, elements, attributes), requirements: { operator: 'all', requirements: [requirement] }, yen: reqBonusYen, exp: reqBonusExp }]);
+    } else {
+      setRequirements((current: any) => ({ ...current, requirements: [...current.requirements, requirement] }));
+    }
+    setReqReference(''); setReqValue(1); setReqOptional(false); setReqBonusYen(0); setReqBonusExp(0);
+  };
 
   const handleSubmit = async () => {
     const url = position ? `/api/admin/positions/${position.id}` : `/api/admin/positions`;
@@ -222,7 +266,7 @@ function PositionDialog({ position, departmentId, mutate }: any) {
     const res = await apiFetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ departmentId, name, description, capacity: parsedCap, active, sortOrder: Number(sortOrder) })
+      body: JSON.stringify({ departmentId, name, description, capacity: parsedCap, active, sortOrder: Number(sortOrder), levelId: levelId || null, riskId: riskId || null, bonusYen, bonusExp, minPosts: minPosts === '' ? null : Number(minPosts), requirements, optionalBonuses })
     });
     if (res.ok) {
       toast.success("Posición guardada");
@@ -238,28 +282,38 @@ function PositionDialog({ position, departmentId, mutate }: any) {
       <DialogTrigger render={<Button variant={position ? "ghost" : "outline"} size={position ? "icon-sm" : "sm"} className={!position ? "h-7 font-oxanium text-[10px] uppercase tracking-wider" : ""} />}>
         {position ? <Edit2 className="size-4" /> : <><Plus className="size-3 mr-1" /> Nueva Posición </>}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="admin-dialog max-h-[92vh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader><DialogTitle>{position ? "Editar" : "Nueva"} Posición</DialogTitle></DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Nombre</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(280px,2fr)]">
+          <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Nombre del puesto</Label><Input value={name} onChange={e => setName(e.target.value)} /></div><div className="space-y-2"><Label>Capacidad</Label><Input type="number" min={0} placeholder="Ilimitada" value={capacity} onChange={e => setCapacity(e.target.value)} /></div></div>
+            <div className="space-y-2"><Label>Descripción</Label><Input value={description} onChange={e => setDescription(e.target.value)} /></div>
+            <div className="rounded-lg border p-4 space-y-4">
+              <div><h3 className="font-semibold">Requisitos del puesto</h3><p className="text-xs text-muted-foreground">Añade licencias, habilidades, atributos o edad mínima como en Shadowmore.</p></div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Select value={reqType} onValueChange={(value: any) => { setReqType(value); setReqReference(''); }}><SelectTrigger><SelectValue>{requirementTypeLabel(reqType)}</SelectValue></SelectTrigger><SelectContent><SelectItem value="owns_element">Elemento, licencia, permiso o certificación</SelectItem><SelectItem value="skill_level">Habilidad</SelectItem><SelectItem value="attribute">Atributo</SelectItem><SelectItem value="age">Edad mínima</SelectItem></SelectContent></Select>
+                {reqType === 'owns_element' && <Select value={reqReference} onValueChange={setReqReference}><SelectTrigger><SelectValue placeholder="Selecciona elemento">{reqReference ? requirementElementSelectLabel(reqReference, elements) : 'Selecciona elemento'}</SelectValue></SelectTrigger><SelectContent>{elements?.filter((item: any) => item.status === 'published').sort((a: any, b: any) => employmentElementKindOrder(a.kind) - employmentElementKindOrder(b.kind) || a.name.localeCompare(b.name)).map((item: any) => <SelectItem key={item.id} value={item.id}>[{employmentElementKindLabel(item.kind)}] {item.name}</SelectItem>)}</SelectContent></Select>}
+                {reqType === 'skill_level' && <Select value={reqReference} onValueChange={setReqReference}><SelectTrigger><SelectValue placeholder="Selecciona habilidad">{reqReference ? requirementElementSelectLabel(reqReference, elements, false) : 'Selecciona habilidad'}</SelectValue></SelectTrigger><SelectContent>{elements?.filter((item: any) => item.status === 'published' && item.kind === 'skill').map((item: any) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select>}
+                {reqType === 'attribute' && <Select value={reqReference} onValueChange={setReqReference}><SelectTrigger><SelectValue placeholder="Selecciona atributo">{reqReference ? attributes.find((item: any) => (item.abbrev ?? item.id) === reqReference)?.name ?? reqReference : 'Selecciona atributo'}</SelectValue></SelectTrigger><SelectContent>{attributes.map((item: any) => <SelectItem key={item.id} value={item.abbrev ?? item.id}>{item.name}</SelectItem>)}</SelectContent></Select>}
+                {reqType === 'age' && <div className="flex items-center rounded-md border px-3 text-sm text-muted-foreground">Edad comprobada desde la ficha</div>}
+              </div>
+              {reqType !== 'owns_element' && <div className="space-y-1"><Label>Valor mínimo</Label><Input type="number" min={0} value={reqValue} onChange={event => setReqValue(Number(event.target.value))} /></div>}
+              <div className="flex items-center gap-2"><Checkbox id={`optional-${position?.id ?? 'new'}`} checked={reqOptional} onCheckedChange={(checked: boolean) => setReqOptional(checked)} /><Label htmlFor={`optional-${position?.id ?? 'new'}`}>Requisito opcional con bonificación</Label></div>
+              {reqOptional && <div className="grid grid-cols-2 gap-3"><div><Label>Bono ¥</Label><Input type="number" min={0} value={reqBonusYen} onChange={e => setReqBonusYen(Number(e.target.value))} /></div><div><Label>Bono EXP</Label><Input type="number" min={0} value={reqBonusExp} onChange={e => setReqBonusExp(Number(e.target.value))} /></div></div>}
+              <Button type="button" variant="outline" onClick={addRequirement}><Plus className="size-4 mr-2" />Añadir requisito</Button>
+              <RequirementTags title="Obligatorios" items={requirements.requirements} elements={elements} attributes={attributes} onRemove={(id: string) => setRequirements((current: any) => ({ ...current, requirements: current.requirements.filter((item: any) => item.id !== id) }))} />
+              <div className="space-y-2"><p className="text-xs font-bold uppercase text-muted-foreground">Opcionales</p>{optionalBonuses.map(item => <div key={item.id} className="flex items-center justify-between rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-xs"><span>{item.name} · +¥{item.yen} / +{item.exp} EXP</span><Button variant="ghost" size="icon-sm" onClick={() => setOptionalBonuses(current => current.filter(entry => entry.id !== item.id))}><X className="size-3" /></Button></div>)}{optionalBonuses.length === 0 && <p className="text-xs text-muted-foreground">Sin bonificaciones opcionales.</p>}</div>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>Descripción</Label>
-            <Input value={description} onChange={e => setDescription(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Capacidad (Dejar vacío para ilimitado)</Label>
-            <Input type="number" value={capacity} onChange={e => setCapacity(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Orden</Label>
-            <Input type="number" value={sortOrder} onChange={e => setSortOrder(e.target.value)} />
-          </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox id="active-pos" checked={active} onCheckedChange={(c: boolean) => setActive(c)} />
-            <label htmlFor="active-pos" className="text-sm">Activo</label>
+          <div className="space-y-4 rounded-lg border border-amber-500/20 bg-muted/20 p-4">
+            <h3 className="flex items-center gap-2 font-semibold"><DollarSign className="size-4 text-amber-400" /> Nivel y remuneración tabulada</h3>
+            {!compensation && <p className="flex gap-2 text-xs text-destructive"><AlertTriangle className="size-4" />La regla de remuneración no está disponible.</p>}
+            <div className="space-y-2"><Label>Nivel de responsabilidad</Label><Select value={levelId} onValueChange={setLevelId}><SelectTrigger><SelectValue placeholder="Sin configurar">{compensation?.levels.find(item => item.id === levelId)?.name ?? 'Sin configurar'}</SelectValue></SelectTrigger><SelectContent>{compensation?.levels.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>Nivel de riesgo</Label><Select value={riskId} onValueChange={setRiskId}><SelectTrigger><SelectValue placeholder="Sin configurar">{compensation?.risks.find(item => item.id === riskId)?.name ?? 'Sin configurar'}</SelectValue></SelectTrigger><SelectContent>{compensation?.risks.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="grid grid-cols-2 gap-3"><div><Label>Bono extra ¥</Label><Input type="number" min={0} value={bonusYen} onChange={e => setBonusYen(Number(e.target.value))} /></div><div><Label>Bono extra EXP</Label><Input type="number" min={0} value={bonusExp} onChange={e => setBonusExp(Number(e.target.value))} /></div></div>
+            <div className="space-y-2"><Label>Posts mínimos del foro</Label><Input type="number" min={0} placeholder="Sin requisito" value={minPosts} onChange={e => setMinPosts(e.target.value)} /><p className="text-xs text-muted-foreground">Un moderador los comprobará manualmente al preparar el pago.</p></div>
+            {quote && <div className="rounded-lg border border-amber-500/30 bg-background p-4 space-y-2"><p className="text-xs font-bold uppercase">Sueldo calculado</p><div className="flex justify-between text-emerald-400"><span>Yenes</span><strong>¥{quote.totalYen}</strong></div><div className="flex justify-between text-cyan-400"><span>Experiencia</span><strong>+{quote.totalExp} EXP</strong></div><p className="border-t pt-2 text-[11px] text-muted-foreground">Base ¥{quote.levelYen}/{quote.levelExp} EXP · Riesgo +¥{quote.riskYen}/+{quote.riskExp} EXP</p></div>}
+            <div className="grid grid-cols-2 gap-3"><div><Label>Orden</Label><Input type="number" value={sortOrder} onChange={e => setSortOrder(e.target.value)} /></div><div className="flex items-end gap-2 pb-2"><Checkbox id="active-pos" checked={active} onCheckedChange={(c: boolean) => setActive(c)} /><Label htmlFor="active-pos">Activo</Label></div></div>
           </div>
         </div>
         <DialogFooter>
@@ -268,6 +322,44 @@ function PositionDialog({ position, departmentId, mutate }: any) {
       </DialogContent>
     </Dialog>
   );
+}
+
+function requirementLabel(requirement: any, elements: any[] = [], attributes: any[] = []) {
+  if (requirement.type === 'owns_element') return elements?.find(item => item.id === requirement.elementId)?.name ?? requirement.elementId;
+  if (requirement.type === 'skill_level') return `${elements?.find(item => item.id === requirement.skillElementId)?.name ?? requirement.skillElementId} (Nv. ${requirement.value})`;
+  if (requirement.type === 'attribute') return `${attributes?.find(item => (item.abbrev ?? item.id) === requirement.attributeId)?.name ?? requirement.attributeId} ≥ ${requirement.value}`;
+  if (requirement.type === 'age') return `Edad ≥ ${requirement.value}`;
+  return requirement.id;
+}
+
+function employmentElementKindLabel(kind: string) {
+  return ({ certification: 'Certificación', license: 'Licencia', permission: 'Permiso', skill: 'Habilidad', equipment: 'Equipo', trait: 'Rasgo' } as Record<string, string>)[kind] ?? 'Elemento';
+}
+
+function employmentElementKindOrder(kind: string) {
+  return ({ certification: 0, license: 1, permission: 2, skill: 3 } as Record<string, number>)[kind] ?? 10;
+}
+
+function requirementTypeLabel(type: string) {
+  return ({ owns_element: 'Elemento, licencia, permiso o certificación', skill_level: 'Habilidad', attribute: 'Atributo', age: 'Edad mínima' } as Record<string, string>)[type] ?? 'Requisito';
+}
+
+function requirementElementSelectLabel(id: string, elements: any[] = [], showKind = true) {
+  const element = elements?.find(item => item.id === id);
+  if (!element) return id;
+  return showKind ? `[${employmentElementKindLabel(element.kind)}] ${element.name}` : element.name;
+}
+
+function employmentLevelFallbackLabel(id: string) {
+  return ({ level_1: 'Nivel I', level_2: 'Nivel II', level_3: 'Nivel III', level_4: 'Nivel IV', level_5: 'Nivel V', level_6: 'Nivel VI', per_topic: 'Por tema', per_article: 'Por artículo', per_sale: 'Por venta' } as Record<string, string>)[id] ?? id;
+}
+
+function employmentRiskFallbackLabel(id: string) {
+  return ({ none: 'Ninguno', low: 'Leve', moderate: 'Moderado', serious: 'Grave', extreme: 'Extremo' } as Record<string, string>)[id] ?? id;
+}
+
+function RequirementTags({ title, items, elements, attributes, onRemove }: any) {
+  return <div className="space-y-2"><p className="text-xs font-bold uppercase text-muted-foreground">{title}</p><div className="flex flex-wrap gap-2">{items.map((item: any) => <div key={item.id} className="flex items-center gap-1 rounded-full border bg-muted px-3 py-1 text-xs"><span>{requirementLabel(item, elements, attributes)}</span><Button variant="ghost" size="icon-sm" className="size-5 rounded-full" onClick={() => onRemove(item.id)}><X className="size-3" /></Button></div>)}</div>{items.length === 0 && <p className="text-xs text-muted-foreground">Sin requisitos obligatorios.</p>}</div>;
 }
 
 function DeleteAction({ type, id, mutate }: { type: string, id: string, mutate: any }) {

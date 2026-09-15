@@ -6,6 +6,7 @@ import { createServer as createViteServer } from "vite";
 import { requireAuth, requireRole, AuthRequest } from "./src/middleware/auth.ts";
 import { resolveAppliedMechanics, staminaExecutionCostsSchema, systemMechanicsConfigSchema, validatePersistedMechanicalEffects } from "./src/domain/systemMechanics.ts";
 import { requirementGroupSchema } from "./src/domain/requirements.ts";
+import { employmentCompensationSchema, positionEmploymentRulesSchema } from "./src/domain/employmentCompensation.ts";
 
 
 async function startServer() {
@@ -68,6 +69,12 @@ async function startServer() {
         if (!costs.success) return res.status(400).json({ error: "Invalid Stamina execution costs", details: costs.error });
         value = costs.data;
       }
+      if (key === "employment_compensation") {
+        if (type !== "json") return res.status(400).json({ error: "employment_compensation must use the json rule type" });
+        const compensation = employmentCompensationSchema.safeParse(value);
+        if (!compensation.success) return res.status(400).json({ error: "Invalid employment compensation configuration", details: compensation.error });
+        value = compensation.data;
+      }
 
       const rule = await upsertRule(key, type, value, description);
       res.json(rule);
@@ -78,7 +85,7 @@ async function startServer() {
 
   app.delete("/api/rules/:key", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
-      if (["system_mechanics", "stamina_execution_costs"].includes(req.params.key)) return res.status(400).json({ error: "La configuración core no se puede eliminar" });
+      if (["system_mechanics", "stamina_execution_costs", "employment_compensation"].includes(req.params.key)) return res.status(400).json({ error: "La configuración core no se puede eliminar" });
       await deleteRule(req.params.key);
       res.json({ success: true });
     } catch (error: any) {
@@ -104,7 +111,7 @@ async function startServer() {
       id: z.string().optional(),
       kind: z.enum([
         'trait', 'weakness', 'skill', 'equipment', 'weapon',
-        'ammunition', 'consumable', 'license', 'permission',
+        'ammunition', 'consumable', 'license', 'permission', 'certification',
         'character_resource', 'attribute_upgrade', 'technique_entitlement',
         'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient'
       ]),
@@ -595,7 +602,7 @@ async function startServer() {
     try {
       const { getInstitutionsWithDepartmentsAndPositions } = await import("./src/db/employments.ts");
       res.json(await getInstitutionsWithDepartmentsAndPositions());
-    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+    } catch (error: any) { console.error(error); res.status(error.status ?? 500).json({ error: error.message }); }
   });
 
   app.post("/api/admin/institutions", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
@@ -604,7 +611,7 @@ async function startServer() {
       const parsed = z.object({ name: z.string().min(1), description: z.string().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
       res.json(await createInstitution(parsed.data));
-    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+    } catch (error: any) { console.error(error); res.status(error.status ?? 500).json({ error: error.message }); }
   });
 
   app.put("/api/admin/institutions/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
@@ -653,19 +660,19 @@ async function startServer() {
   app.post("/api/admin/positions", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { createPosition } = await import("./src/db/employments.ts");
-      const parsed = z.object({ departmentId: z.string(), name: z.string().min(1), description: z.string().optional().nullable(), capacity: z.number().int().nullable().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      const parsed = z.object({ departmentId: z.string(), name: z.string().min(1), description: z.string().optional().nullable(), capacity: z.number().int().min(0).nullable().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional(), ...positionEmploymentRulesSchema.shape }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
       res.json(await createPosition(parsed.data));
-    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+    } catch (error: any) { console.error(error); res.status(error.status ?? 500).json({ error: error.message }); }
   });
 
   app.put("/api/admin/positions/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { updatePosition } = await import("./src/db/employments.ts");
-      const parsed = z.object({ name: z.string().min(1).optional(), description: z.string().optional().nullable(), capacity: z.number().int().nullable().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      const parsed = z.object({ name: z.string().min(1).optional(), description: z.string().optional().nullable(), capacity: z.number().int().min(0).nullable().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional(), ...positionEmploymentRulesSchema.shape }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
       res.json(await updatePosition(req.params.id, parsed.data));
-    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+    } catch (error: any) { console.error(error); res.status(error.status ?? 500).json({ error: error.message }); }
   });
 
   app.delete("/api/admin/positions/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {

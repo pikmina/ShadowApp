@@ -259,6 +259,7 @@ type SystemElementKind =
   | 'consumable'
   | 'license'
   | 'permission'
+  | 'certification'
   | 'character_resource'
   | 'attribute_upgrade'
   | 'technique_entitlement'

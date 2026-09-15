@@ -34,6 +34,8 @@ import {
 } from "../components/ui/select";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { EmploymentCompensationRules } from "../components/EmploymentCompensationRules";
+import { employmentCompensationSchema } from "../domain/employmentCompensation";
 
 
 const defaultStage = {
@@ -128,6 +130,8 @@ export default function RulesAdmin() {
 
   const mechanicsRule = rules?.find((r: any) => r.key === 'system_mechanics') || { key: 'system_mechanics', type: 'json', value: [], description: 'Categorías Mecánicas y Coste de Estamina (CE)' };
   const mechanics = Array.isArray(mechanicsRule.value) ? mechanicsRule.value : [];
+  const employmentCompensationRule = rules?.find((r: any) => r.key === 'employment_compensation');
+  const employmentCompensation = employmentCompensationSchema.safeParse(employmentCompensationRule?.value);
   const staminaRule = rules?.find((r: any) => r.key === 'stamina_execution_costs');
   const [staminaCosts, setStaminaCosts] = useState<any>(defaultStaminaCosts);
   const [staminaCostsDirty, setStaminaCostsDirty] = useState(false);
@@ -280,6 +284,7 @@ export default function RulesAdmin() {
             <TabsTrigger value="limits" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Límites y RD</TabsTrigger>
             <TabsTrigger value="mechanics" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Categorías Mecánicas</TabsTrigger>
             <TabsTrigger value="stamina" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Costes de Estamina</TabsTrigger>
+            <TabsTrigger value="employment" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Empleos y nómina</TabsTrigger>
           </TabsList>
         </div>
 
@@ -564,6 +569,13 @@ export default function RulesAdmin() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="employment" className="mt-6">
+          {employmentCompensation.success ? <EmploymentCompensationRules value={employmentCompensation.data} onSave={async value => {
+            const response = await apiFetch('/api/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'employment_compensation', type: 'json', value, description: 'Tablas de remuneración por nivel y riesgo para empleos' }) });
+            if (!response.ok) throw new Error('No se pudo guardar la remuneración de empleos');
+            await mutate();
+          }} /> : <Card><CardHeader><CardTitle>Configuración no disponible</CardTitle><CardDescription>La regla de remuneración falta o no es válida. Reinicia el servidor para ejecutar la semilla aditiva antes de editarla.</CardDescription></CardHeader></Card>}
         </TabsContent>
 <TabsContent value="mechanics" className="mt-6"><UniversalRulesCatalog mechanics={mechanics} onSave={async value => { await apiFetch('/api/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'system_mechanics', type: 'json', value, description: mechanicsRule.description }) }); await mutate(); }} /></TabsContent>
 

@@ -1,8 +1,10 @@
 import { eq, or, and, isNull, isNotNull, asc, sql } from 'drizzle-orm';
 import { db } from './index.ts';
-import { institutions, departments, positions, characterEmployments, characters, canonCharacters } from './schema.ts';
+import { institutions, departments, positions, characterEmployments, characters, canonCharacters, elementPossessions, systemRules, systemElements } from './schema.ts';
 import { nanoid } from 'nanoid';
 import { alias } from 'drizzle-orm/pg-core';
+import { evaluateRequirements, requirementGroupSchema } from '../domain/requirements.ts';
+import { employmentCompensationSchema, positionEmploymentRulesSchema } from '../domain/employmentCompensation.ts';
 
 export type EmploymentOwner = { characterId?: number; canonCharacterId?: string };
 
@@ -13,13 +15,49 @@ async function resolveEmploymentOwner(tx: any, owner: EmploymentOwner) {
   if (owner.canonCharacterId) {
     const [canon] = await tx.select().from(canonCharacters).where(eq(canonCharacters.id, owner.canonCharacterId));
     if (!canon) throw Object.assign(new Error('Canon character not found'), { status: 404 });
-    return { characterId: null, canonCharacterId: canon.id };
+    const [linkedCharacter] = await tx.select().from(characters).where(eq(characters.canonCharacterId, canon.id));
+    return { characterId: null, canonCharacterId: canon.id, subjectCharacter: linkedCharacter ?? null };
   }
   const [character] = await tx.select().from(characters).where(eq(characters.id, owner.characterId));
   if (!character) throw Object.assign(new Error('Character not found'), { status: 404 });
   return character.canonCharacterId
-    ? { characterId: null, canonCharacterId: character.canonCharacterId }
-    : { characterId: character.id, canonCharacterId: null };
+    ? { characterId: null, canonCharacterId: character.canonCharacterId, subjectCharacter: character }
+    : { characterId: character.id, canonCharacterId: null, subjectCharacter: character };
+}
+
+async function validatePositionRules(tx: any, data: any, existing?: any) {
+  const parsed = positionEmploymentRulesSchema.parse(data);
+  const levelId = parsed.levelId !== undefined ? parsed.levelId : existing?.levelId ?? null;
+  const riskId = parsed.riskId !== undefined ? parsed.riskId : existing?.riskId ?? null;
+  const requirements = requirementGroupSchema.parse(parsed.requirements ?? existing?.requirements ?? { operator: 'all', requirements: [] });
+  const optionalBonuses = parsed.optionalBonuses ?? existing?.optionalBonuses ?? [];
+  if (levelId || riskId) {
+    const [stored] = await tx.select().from(systemRules).where(eq(systemRules.key, 'employment_compensation'));
+    const config = employmentCompensationSchema.parse(stored?.value);
+    if (levelId && !config.levels.some(entry => entry.id === levelId)) throw Object.assign(new Error('Unknown employment level'), { status: 400 });
+    if (riskId && !config.risks.some(entry => entry.id === riskId)) throw Object.assign(new Error('Unknown employment risk'), { status: 400 });
+  }
+  const flatten = (group: any): any[] => group.requirements.flatMap((entry: any) => entry.operator ? flatten(entry) : [entry]);
+  const allRequirements = [...flatten(requirements), ...optionalBonuses.flatMap((bonus: any) => flatten(bonus.requirements))];
+  const [catalog, rules] = await Promise.all([tx.select().from(systemElements), tx.select().from(systemRules)]);
+  const attributes = rules.find((rule: any) => rule.key === 'system_attributes')?.value;
+  const stages = rules.find((rule: any) => rule.key === 'system_stages')?.value;
+  for (const requirement of allRequirements) {
+    if (requirement.type === 'owns_element' || requirement.type === 'skill_level') {
+      const elementId = requirement.type === 'owns_element' ? requirement.elementId : requirement.skillElementId;
+      const element = catalog.find((item: any) => item.id === elementId);
+      if (!element || element.status !== 'published' || requirement.type === 'skill_level' && element.kind !== 'skill') {
+        throw Object.assign(new Error(`Invalid employment requirement element: ${elementId}`), { status: 400 });
+      }
+    }
+    if (requirement.type === 'attribute' && Array.isArray(attributes) && !attributes.some((item: any) => [item.id, item.abbrev].includes(requirement.attributeId))) {
+      throw Object.assign(new Error(`Invalid employment attribute: ${requirement.attributeId}`), { status: 400 });
+    }
+    if (requirement.type === 'stage' && Array.isArray(stages) && !stages.some((item: any) => [item.id, item.name].includes(requirement.stageId))) {
+      throw Object.assign(new Error(`Invalid employment stage: ${requirement.stageId}`), { status: 400 });
+    }
+  }
+  return { ...parsed, levelId, riskId, requirements, optionalBonuses };
 }
 
 // --- Institutions ---
@@ -115,26 +153,26 @@ export async function deleteDepartment(id: string) {
 }
 
 // --- Positions ---
-export async function createPosition(data: { departmentId: string; name: string; description?: string; capacity?: number | null; active?: boolean; sortOrder?: number }) {
-  const id = nanoid(10);
-  const [created] = await db.insert(positions).values({
-    id,
-    departmentId: data.departmentId,
-    name: data.name,
-    description: data.description || null,
-    capacity: data.capacity,
-    active: data.active ?? true,
-    sortOrder: data.sortOrder ?? 0,
-  }).returning();
-  return created;
+export async function createPosition(data: any) {
+  return db.transaction(async tx => {
+    const rules = await validatePositionRules(tx, data);
+    const [created] = await tx.insert(positions).values({
+      id: nanoid(10), departmentId: data.departmentId, name: data.name,
+      description: data.description ?? null, capacity: data.capacity,
+      active: data.active ?? true, sortOrder: data.sortOrder ?? 0, ...rules,
+    }).returning();
+    return created;
+  });
 }
 
 export async function updatePosition(id: string, data: Partial<typeof positions.$inferInsert>) {
-  const [updated] = await db.update(positions).set({
-    ...data,
-    updatedAt: new Date(),
-  }).where(eq(positions.id, id)).returning();
-  return updated;
+  return db.transaction(async tx => {
+    const [existing] = await tx.select().from(positions).where(eq(positions.id, id));
+    if (!existing) throw Object.assign(new Error('Position not found'), { status: 404 });
+    const rules = await validatePositionRules(tx, data, existing);
+    const [updated] = await tx.update(positions).set({ ...data, ...rules, updatedAt: new Date() }).where(eq(positions.id, id)).returning();
+    return updated;
+  });
 }
 
 export async function deletePosition(id: string) {
@@ -147,11 +185,24 @@ export async function deletePosition(id: string) {
 export async function assignEmployment(owner: EmploymentOwner, positionId: string) {
   return await db.transaction(async (tx) => {
     const resolved = await resolveEmploymentOwner(tx, owner);
+    const { subjectCharacter, ...employmentOwner } = resolved;
 
     // Check position
     const [pos] = await tx.select().from(positions).where(eq(positions.id, positionId));
     if (!pos) throw new Error("Position not found");
     if (!pos.active) throw new Error("Position is inactive");
+
+    let requirementsVerified = false;
+    const requirements = requirementGroupSchema.parse(pos.requirements);
+    if (subjectCharacter) {
+      const owned = await tx.select().from(elementPossessions).where(eq(elementPossessions.characterId, subjectCharacter.id));
+      const possessions = new Map(owned.map((item: any) => [item.elementId, { quantity: item.quantity, selectedChoices: item.selectedChoices as Record<string, unknown> }]));
+      const [stagesRule] = await tx.select().from(systemRules).where(eq(systemRules.key, 'system_stages'));
+      const stageIds = Array.isArray(stagesRule?.value) ? (stagesRule.value as any[]).map(stage => String(stage.id ?? stage.name)) : [];
+      const evaluation = evaluateRequirements(requirements, { profile: (subjectCharacter.profileData ?? {}) as Record<string, unknown>, possessions, stageIds });
+      if (!evaluation.passed) throw Object.assign(new Error(`Employment requirements not met: ${evaluation.failures.join(', ')}`), { status: 409 });
+      requirementsVerified = true;
+    }
 
     // Check duplicate active
     const ownerCondition = resolved.canonCharacterId
@@ -188,10 +239,11 @@ export async function assignEmployment(owner: EmploymentOwner, positionId: strin
 
     const [created] = await tx.insert(characterEmployments).values({
       id: nanoid(10),
-      ...resolved,
+      ...employmentOwner,
       positionId,
       status: 'active',
       startedAt: new Date(),
+      requirementsVerified,
     }).returning();
     return created;
   });

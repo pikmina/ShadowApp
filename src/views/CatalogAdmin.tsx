@@ -58,7 +58,15 @@ const KIND_TYPES: Record<string, string> = {
   equipment: "Equipamiento",
   weapon: "Arma",
   consumable: "Consumible",
-  ammunition: "Munición"
+  ammunition: "Munición",
+  license: "Licencia",
+  permission: "Permiso",
+  certification: "Certificación",
+  character_resource: "Recurso de personaje",
+  attribute_upgrade: "Mejora de atributo",
+  plus_ultra_effect: "Efecto Plus Ultra",
+  crafting_material: "Material de fabricación",
+  ingredient: "Ingrediente"
 };
 
 const STATUS_TYPES: Record<string, string> = {
@@ -354,6 +362,14 @@ export default function CatalogAdmin() {
                         <SelectItem value="weapon">Arma</SelectItem>
                         <SelectItem value="consumable">Consumible</SelectItem>
                         <SelectItem value="ammunition">Munición</SelectItem>
+                        <SelectItem value="license">Licencia</SelectItem>
+                        <SelectItem value="permission">Permiso</SelectItem>
+                        <SelectItem value="certification">Certificación</SelectItem>
+                        <SelectItem value="character_resource">Recurso de personaje</SelectItem>
+                        <SelectItem value="attribute_upgrade">Mejora de atributo</SelectItem>
+                        <SelectItem value="plus_ultra_effect">Efecto Plus Ultra</SelectItem>
+                        <SelectItem value="crafting_material">Material de fabricación</SelectItem>
+                        <SelectItem value="ingredient">Ingrediente</SelectItem>
 
                       </SelectContent>
                     </Select>

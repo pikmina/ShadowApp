@@ -4,7 +4,7 @@ import { integer, pgTable, serial, text, timestamp, jsonb, boolean, pgEnum, uniq
 export const roleEnum = pgEnum('role', ['player', 'moderator', 'superadmin']);
 export const elementKindEnum = pgEnum('element_kind', [
   'trait', 'weakness', 'skill', 'equipment', 'weapon', 
-  'ammunition', 'consumable', 'license', 'permission', 
+  'ammunition', 'consumable', 'license', 'permission', 'certification',
   'character_resource', 'attribute_upgrade', 'technique_entitlement', 
   'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient'
 ]);
@@ -186,6 +186,13 @@ export const positions = pgTable('positions', {
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
   capacity: integer('capacity'), // null = unlimited
+  levelId: varchar('level_id', { length: 100 }),
+  riskId: varchar('risk_id', { length: 100 }),
+  bonusYen: integer('bonus_yen').default(0).notNull(),
+  bonusExp: integer('bonus_exp').default(0).notNull(),
+  minPosts: integer('min_posts'),
+  requirements: jsonb('requirements').notNull().default({ operator: 'all', requirements: [] }),
+  optionalBonuses: jsonb('optional_bonuses').notNull().default([]),
   active: boolean('active').default(true).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -200,6 +207,7 @@ export const characterEmployments = pgTable('character_employments', {
   status: varchar('status', { length: 50 }).default('active').notNull(), // active, inactive, suspended
   startedAt: timestamp('started_at'),
   endedAt: timestamp('ended_at'),
+  requirementsVerified: boolean('requirements_verified').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
