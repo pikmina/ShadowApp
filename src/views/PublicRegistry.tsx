@@ -6,11 +6,32 @@ import { EntityPanel } from '@/components/ui/entity-panel';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search, Library, Shield } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function PublicRegistry() {
   const [activeTab, setActiveTab] = useState<'canon' | 'employments' | 'classes'>('canon');
   const { data: canonCharacters, error } = useSWR('/api/public/canon-characters', fetcher);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [affiliationFilter, setAffiliationFilter] = useState('all');
+  const [employmentFilter, setEmploymentFilter] = useState('all');
+  const [classFilter, setClassFilter] = useState('all');
+
+  const affiliations = React.useMemo(() => {
+    if (!canonCharacters) return [];
+    return Array.from(new Set(canonCharacters.map((c: any) => c.affiliation).filter(Boolean)));
+  }, [canonCharacters]);
+
+  const employments = React.useMemo(() => {
+    if (!canonCharacters) return [];
+    return Array.from(new Set(canonCharacters.flatMap((c: any) => c.employments?.map((e: any) => `${e.position.name} · ${e.institution.name}`) || []).filter(Boolean)));
+  }, [canonCharacters]);
+
+  const classes = React.useMemo(() => {
+    if (!canonCharacters) return [];
+    return Array.from(new Set(canonCharacters.map((c: any) => c.enrollment ? `${c.enrollment.academicYear.name} · ${c.enrollment.classGroup.name}` : null).filter(Boolean)));
+  }, [canonCharacters]);
 
   if (error) {
     return <div className="p-8 text-center text-red-500">Error al cargar el registro: {error?.message || String(error)}</div>;
@@ -20,9 +41,21 @@ export default function PublicRegistry() {
     return <div className="p-8 text-center text-muted-foreground">Cargando registro...</div>;
   }
 
-  const filtered = canonCharacters.filter((c: any) =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) && c.active !== false
-  );
+  const filtered = canonCharacters.filter((c: any) => {
+    if (c.active === false) return false;
+    if (searchTerm && !c.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    if (statusFilter !== 'all' && c.status !== statusFilter) return false;
+    if (affiliationFilter !== 'all' && c.affiliation !== affiliationFilter) return false;
+    if (employmentFilter !== 'all') {
+      const emps = c.employments?.map((e: any) => `${e.position.name} · ${e.institution.name}`) || [];
+      if (!emps.includes(employmentFilter)) return false;
+    }
+    if (classFilter !== 'all') {
+      const cls = c.enrollment ? `${c.enrollment.academicYear.name} · ${c.enrollment.classGroup.name}` : null;
+      if (cls !== classFilter) return false;
+    }
+    return true;
+  });
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4">
@@ -39,46 +72,134 @@ export default function PublicRegistry() {
 
       {activeTab === 'canon' && (
         <>
-          <div className="flex items-center gap-2 max-w-sm mx-auto mb-6">
-            <div className="relative w-full">
+          <div className="flex flex-col gap-4 mb-8">
+            <div className="relative w-full max-w-sm mx-auto">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder="Buscar personaje..."
-                className="pl-9 bg-background/50"
+                className="pl-9 bg-background/50 border-border/50 focus:border-primary/50"
               />
             </div>
+            
+            <div className="flex flex-wrap justify-center gap-3">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-fit min-w-[140px] h-8 text-[11px] uppercase tracking-wider font-oxanium bg-black/40 border-border/50">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="available">Disponible</SelectItem>
+                  <SelectItem value="occupied">Ocupado</SelectItem>
+                  <SelectItem value="reserved">Reservado</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {affiliations.length > 0 && (
+                <Select value={affiliationFilter} onValueChange={setAffiliationFilter}>
+                  <SelectTrigger className="w-fit min-w-[160px] h-8 text-[11px] uppercase tracking-wider font-oxanium bg-black/40 border-border/50">
+                    <SelectValue placeholder="Afiliación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las afiliaciones</SelectItem>
+                    {affiliations.map(aff => (
+                      <SelectItem key={aff as string} value={aff as string}>{aff as string}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              
+              {employments.length > 0 && (
+                <Select value={employmentFilter} onValueChange={setEmploymentFilter}>
+                  <SelectTrigger className="w-fit min-w-[160px] h-8 text-[11px] uppercase tracking-wider font-oxanium bg-black/40 border-border/50">
+                    <SelectValue placeholder="Empleo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los empleos</SelectItem>
+                    {employments.map(emp => (
+                      <SelectItem key={emp as string} value={emp as string}>{emp as string}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {classes.length > 0 && (
+                <Select value={classFilter} onValueChange={setClassFilter}>
+                  <SelectTrigger className="w-fit min-w-[160px] h-8 text-[11px] uppercase tracking-wider font-oxanium bg-black/40 border-border/50">
+                    <SelectValue placeholder="Clases" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las clases</SelectItem>
+                    {classes.map(cls => (
+                      <SelectItem key={cls as string} value={cls as string}>{cls as string}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filtered.map((c: any) => (
-              <EntityPanel key={c.id} pattern="dots" className="relative p-5 bg-black/40 border-border/50 hover:border-primary/50 transition-colors">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-oxanium text-lg font-bold text-foreground">{c.name}</h3>
-                  <Badge
-                    variant={c.status === 'available' ? 'default' : c.status === 'occupied' ? 'destructive' : 'secondary'}
-                    className="text-[10px] uppercase font-bold tracking-wider"
-                  >
-                    {c.status === 'available' ? 'Disponible' : c.status === 'occupied' ? 'Ocupado' : 'Reservado'}
-                  </Badge>
-                </div>
-                {c.affiliation && <p className="text-xs font-medium text-primary">{c.affiliation}</p>}
-                {Array.isArray(c.aliases) && c.aliases.length > 0 && <p className="mt-1 text-xs text-muted-foreground">También conocido como {c.aliases.join(', ')}</p>}
-                {c.summary && <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{c.summary}</p>}
-                {Array.isArray(c.employments) && c.employments.length > 0 && <p className="mt-3 text-xs text-muted-foreground">{c.employments.map((item: any) => `${item.position.name} · ${item.institution.name}`).join(' · ')}</p>}
-                {c.enrollment && <p className="mt-1 text-xs text-muted-foreground">{c.enrollment.academicYear.name} · {c.enrollment.classGroup.name}</p>}
-                {c.status === 'occupied' && c.linkedCharacterId && (
-                  <div className="mt-4 pt-4 border-t border-border/50 text-right">
-                    <Link to={`/sheet/${c.linkedCharacterId}`} className="text-xs font-oxanium text-primary hover:underline uppercase tracking-wide">
-                      Ver Ficha →
-                    </Link>
+              <div key={c.id} className="group relative h-[340px] rounded-xl border border-border/50 overflow-hidden flex flex-col hover:border-primary/50 transition-all duration-300">
+                {/* Background Image / Placeholder */}
+                {c.imageUrl ? (
+                  <img src={c.imageUrl} alt={c.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                ) : (
+                  <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-[#0a0a0a]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+                    <Shield className="size-16 text-muted-foreground/20" />
                   </div>
                 )}
-              </EntityPanel>
+                
+                {/* Gradient Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/10"></div>
+
+                {/* Badge Top Right */}
+                <div className="absolute top-4 right-4 z-20">
+                  <Badge
+                    variant={c.status === 'available' ? 'default' : c.status === 'occupied' ? 'destructive' : 'secondary'}
+                    className={`uppercase text-[10px] font-bold tracking-wider px-2.5 py-1 ${c.status === 'available' ? 'bg-slate-700/80 text-slate-200 hover:bg-slate-700/90 border-transparent' : c.status === 'occupied' ? 'bg-red-900/80 text-red-100 hover:bg-red-900/90 border-transparent' : 'bg-slate-800/90 text-slate-300 border-transparent backdrop-blur-sm'}`}
+                  >
+                    {c.status === 'available' ? 'DISPONIBLE' : c.status === 'occupied' ? 'OCUPADO' : 'RESERVADO'}
+                  </Badge>
+                </div>
+
+                {/* Content Overlay */}
+                <div className="relative z-10 p-5 h-full flex flex-col justify-end">
+                  <div>
+                    <h3 className="font-oxanium text-2xl font-bold text-white tracking-wide">{c.name}</h3>
+                    
+                    <div className="mt-1.5 text-cyan-400 text-sm font-medium">{c.affiliation || 'Sin afiliación'}</div>
+                    {Array.isArray(c.aliases) && c.aliases.length > 0 && (
+                      <div className="text-slate-300/80 text-xs mt-0.5">AKA: {c.aliases.join(', ')}</div>
+                    )}
+                    
+                    {c.summary && <p className="text-sm text-slate-300 mt-4 leading-relaxed line-clamp-3">{c.summary}</p>}
+                    
+                    <div className="mt-4 space-y-1">
+                      {Array.isArray(c.employments) && c.employments.length > 0 && (
+                        <p className="text-xs text-slate-400/90 line-clamp-2">{c.employments.map((item: any) => `${item.position.name} · ${item.institution.name}`).join(' | ')}</p>
+                      )}
+                      {c.enrollment && (
+                        <p className="text-xs text-slate-400/90">{c.enrollment.academicYear.name} · {c.enrollment.classGroup.name}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {c.status === 'occupied' && c.linkedCharacterId && (
+                    <div className="mt-4 pt-4 border-t border-white/10 text-right">
+                      <Link to={`/sheet/${c.linkedCharacterId}`} className="text-xs font-oxanium text-slate-300 hover:text-cyan-400 transition-colors uppercase tracking-widest inline-flex items-center gap-1">
+                        Ver Ficha <span aria-hidden="true">&rarr;</span>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
             ))}
             {filtered.length === 0 && (
               <div className="col-span-full py-12 text-center text-muted-foreground text-sm font-oxanium">
-                No se encontraron personajes canon con ese nombre.
+                No se encontraron personajes con esos filtros.
               </div>
             )}
           </div>
@@ -143,6 +264,16 @@ function PublicEmployments() {
   );
 }
 
+const getCourseStyles = (courseType: string | null) => {
+  if (!courseType) return { colorClass: 'text-primary', borderClass: 'border-border', bgClass: 'bg-primary/10', shortName: '' };
+  const lower = courseType.toLowerCase();
+  if (lower.includes('héroe') || lower.includes('heroico') || lower.includes('heróico')) return { colorClass: 'text-rose-400', borderClass: 'border-rose-400/30', bgClass: 'bg-rose-400/10', shortName: 'Héroes' };
+  if (lower.includes('soporte')) return { colorClass: 'text-cyan-400', borderClass: 'border-cyan-400/30', bgClass: 'bg-cyan-400/10', shortName: 'Soporte' };
+  if (lower.includes('general')) return { colorClass: 'text-emerald-400', borderClass: 'border-emerald-400/30', bgClass: 'bg-emerald-400/10', shortName: 'Generales' };
+  if (lower.includes('gestión') || lower.includes('negocio')) return { colorClass: 'text-purple-400', borderClass: 'border-purple-400/30', bgClass: 'bg-purple-400/10', shortName: 'Gestión' };
+  return { colorClass: 'text-primary', borderClass: 'border-border', bgClass: 'bg-primary/10', shortName: courseType };
+};
+
 function PublicClasses() {
   const { data, error, isLoading } = useSWR('/api/public/classes', fetcher);
   if (isLoading) return <div className="text-center p-8 text-muted-foreground">Cargando clases...</div>;
@@ -154,28 +285,38 @@ function PublicClasses() {
         <div key={year.id} className="border border-border bg-card p-6 rounded-lg">
           <h2 className="text-2xl font-bold mb-6 text-primary font-oxanium">{year.name}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {year.classes?.map((cls: any) => (
-              <EntityPanel key={cls.id} pattern="dots" className="p-4 bg-black/40 h-full flex flex-col">
-                <div className="flex justify-between items-start border-b border-border/50 pb-2 mb-3">
-                  <div>
-                    <h3 className="font-oxanium font-bold text-lg text-foreground">{cls.name}</h3>
-                    {cls.description && <p className="text-xs text-muted-foreground mt-1">{cls.description}</p>}
-                  </div>
-                  <Badge variant="outline" className="text-[10px]">
-                    {cls.usedSlots} / {cls.capacity === 0 ? '0' : cls.capacity}
-                  </Badge>
-                </div>
-                <div className="space-y-2 mt-2 flex-1">
-                  {cls.students.length === 0 && <span className="text-muted-foreground text-xs italic">Sin alumnos inscritos</span>}
-                  {cls.students.map((student: any) => (
-                    <div key={student.enrollmentId} className="flex items-center justify-between text-sm bg-muted/20 p-2 rounded">
-                      {student.characterId ? <Link to={`/sheet/${student.characterId}`} className="hover:text-primary transition-colors text-foreground truncate mr-2">{student.name}</Link> : <span className="truncate mr-2 text-foreground">{student.name}</span>}
-                      {student.canon && <Badge variant="secondary" className="text-[9px] shrink-0">Canon</Badge>}
+            {year.classes?.map((cls: any) => {
+              const styles = getCourseStyles(cls.courseType);
+              return (
+                <EntityPanel key={cls.id} pattern="dots" className="p-4 bg-black/40 h-full flex flex-col">
+                  <div className="flex justify-between items-start border-b border-border/50 pb-2 mb-3">
+                    <div className="flex-1 mr-4">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <h3 className="font-oxanium font-bold text-lg text-foreground leading-none">{cls.name}</h3>
+                        {cls.courseType && cls.courseType !== 'none' && (
+                          <Badge variant="outline" className={`text-[9px] uppercase tracking-wider ${styles.colorClass} ${styles.borderClass} ${styles.bgClass}`}>
+                            {styles.shortName}
+                          </Badge>
+                        )}
+                      </div>
+                      {cls.description && <p className="text-xs text-muted-foreground mt-1.5">{cls.description}</p>}
                     </div>
-                  ))}
-                </div>
-              </EntityPanel>
-            ))}
+                    <Badge variant="outline" className="text-[10px] shrink-0">
+                      {cls.usedSlots} / {cls.capacity === 0 ? '0' : cls.capacity}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2 mt-2 flex-1">
+                    {cls.students.length === 0 && <span className="text-muted-foreground text-xs italic">Sin alumnos inscritos</span>}
+                    {cls.students.map((student: any) => (
+                      <div key={student.enrollmentId} className="flex items-center justify-between text-sm bg-muted/20 p-2 rounded">
+                        {student.characterId ? <Link to={`/sheet/${student.characterId}`} className="hover:text-primary transition-colors text-foreground truncate mr-2">{student.name}</Link> : <span className="truncate mr-2 text-foreground">{student.name}</span>}
+                        {student.canon && <Badge variant="secondary" className="text-[9px] shrink-0">Canon</Badge>}
+                      </div>
+                    ))}
+                  </div>
+                </EntityPanel>
+              );
+            })}
           </div>
         </div>
       ))}

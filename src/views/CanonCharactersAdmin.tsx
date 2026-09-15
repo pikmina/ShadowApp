@@ -102,11 +102,11 @@ export default function CanonCharactersAdmin() {
             </div>
           )}
 
-          <div className="mt-6 space-y-2">
+          <div className="mt-6 space-y-4">
             {filtered.map((c: any) => (
-              <div key={c.id} className="rounded-md border border-border bg-background p-3">
+              <div key={c.id} className={`rounded-xl border border-border/50 bg-[#0a0a0a] overflow-hidden ${editingId === c.id ? 'p-4' : 'flex flex-col md:flex-row relative'}`} style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
                 {editingId === c.id ? (
-                  <div className="space-y-5">
+                  <div className="space-y-5 relative z-10 bg-[#0a0a0a]/80 p-2 rounded-lg">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Nombre" />
                       <Input value={formData.aliases} onChange={(e) => setFormData({ ...formData, aliases: e.target.value })} placeholder="Alias, separados por comas" />
@@ -125,30 +125,47 @@ export default function CanonCharactersAdmin() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex min-w-0 items-center gap-4">
-                      <div className="font-oxanium text-sm font-semibold">{c.name}</div>
-                      <Badge variant={c.status === 'available' ? 'default' : c.status === 'occupied' ? 'destructive' : 'secondary'} className="uppercase text-[10px]">
-                        {c.status === 'available' ? 'Disponible' : c.status === 'occupied' ? 'Ocupado' : 'Reservado'}
-                      </Badge>
-                      </div>
-                      {c.affiliation && <span className="truncate text-xs text-muted-foreground">{c.affiliation}</span>}
+                    <div className="w-full md:w-48 shrink-0 bg-black/40 relative min-h-[200px] md:min-h-0 border-r border-border/20">
+                      {c.imageUrl ? (
+                        <img src={c.imageUrl} alt={c.name} className="w-full h-full object-cover absolute inset-0" />
+                      ) : (
+                        <div className="w-full h-full absolute inset-0 flex items-center justify-center">
+                          <Shield className="size-8 text-muted-foreground/30" />
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      {c.status === 'available' && (
-                        <Button variant="outline" size="sm" onClick={() => navigate(`/character-editor?canonId=${c.id}`)}>Crear ficha</Button>
-                      )}
-                      {c.status === 'occupied' && c.linkedCharacterId && (
-                        <Button variant="outline" size="sm" onClick={() => navigate(`/sheet/${c.linkedCharacterId}`)}>Ver ficha</Button>
-                      )}
-                      {c.status === 'available' && (
-                        <Button variant="outline" size="sm" onClick={() => handleUpdate(c.id, { reserved: true })}><Lock className="mr-1 size-3" /> Reservar</Button>
-                      )}
-                      {c.status === 'reserved' && (
-                        <Button variant="outline" size="sm" onClick={() => handleUpdate(c.id, { reserved: false })}><Unlock className="mr-1 size-3" /> Liberar</Button>
-                      )}
-                      <Button variant="ghost" size="icon" onClick={() => { setFormData({ name: c.name, aliases: (c.aliases || []).join(', '), summary: c.summary || '', imageUrl: c.imageUrl || '', affiliation: c.affiliation || '', active: c.active, reserved: c.reserved }); setEditingId(c.id); }}><Edit2 className="size-3.5" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(c.id)} className="text-destructive"><Trash2 className="size-3.5" /></Button>
+                    
+                    <div className="p-5 flex-1 flex flex-col justify-between relative z-10">
+                      <div>
+                        <div className="flex justify-between items-start gap-4">
+                          <h3 className="font-oxanium text-2xl font-bold text-white tracking-wide">{c.name}</h3>
+                          <Badge variant={c.status === 'available' ? 'default' : c.status === 'occupied' ? 'destructive' : 'secondary'} className={`uppercase text-[10px] font-bold tracking-wider px-3 py-1 ${c.status === 'available' ? 'bg-slate-500/40 text-slate-100 hover:bg-slate-500/50 border-transparent' : ''}`}>
+                            {c.status === 'available' ? 'DISPONIBLE' : c.status === 'occupied' ? 'OCUPADO' : 'RESERVADO'}
+                          </Badge>
+                        </div>
+                        
+                        <div className="mt-3 text-cyan-500/80 text-sm font-medium">{c.affiliation || 'Sin afiliación'}</div>
+                        <div className="text-muted-foreground text-xs mt-1">También conocido como {c.aliases && c.aliases.length > 0 ? c.aliases.join(', ') : 'NA'}</div>
+                        
+                        {c.summary && <p className="text-sm text-slate-300 mt-5 leading-relaxed max-w-3xl">{c.summary}</p>}
+                      </div>
+                      
+                      <div className="flex items-center gap-2 pt-4 mt-4 border-t border-border/30 justify-end opacity-60 hover:opacity-100 transition-opacity">
+                        {c.status === 'available' && (
+                          <Button variant="outline" size="sm" onClick={() => navigate(`/character-editor?canonId=${c.id}`)}>Crear ficha</Button>
+                        )}
+                        {c.status === 'occupied' && c.linkedCharacterId && (
+                          <Button variant="outline" size="sm" onClick={() => navigate(`/sheet/${c.linkedCharacterId}`)}>Ver ficha</Button>
+                        )}
+                        {c.status === 'available' && (
+                          <Button variant="outline" size="sm" onClick={() => handleUpdate(c.id, { reserved: true })}><Lock className="mr-1 size-3" /> Reservar</Button>
+                        )}
+                        {c.status === 'reserved' && (
+                          <Button variant="outline" size="sm" onClick={() => handleUpdate(c.id, { reserved: false })}><Unlock className="mr-1 size-3" /> Liberar</Button>
+                        )}
+                        <Button variant="ghost" size="icon" onClick={() => { setFormData({ name: c.name, aliases: (c.aliases || []).join(', '), summary: c.summary || '', imageUrl: c.imageUrl || '', affiliation: c.affiliation || '', active: c.active, reserved: c.reserved }); setEditingId(c.id); }}><Edit2 className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(c.id)} className="text-destructive"><Trash2 className="size-3.5" /></Button>
+                      </div>
                     </div>
                   </>
                 )}
