@@ -5,6 +5,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { requireAuth, requireRole, AuthRequest } from "./src/middleware/auth.ts";
 import { resolveAppliedMechanics, staminaExecutionCostsSchema, systemMechanicsConfigSchema, validatePersistedMechanicalEffects } from "./src/domain/systemMechanics.ts";
+import { requirementGroupSchema } from "./src/domain/requirements.ts";
 
 
 async function startServer() {
@@ -86,11 +87,11 @@ async function startServer() {
   });
 
   // System Elements API
-  const { getElements, upsertElement, deleteElement } = await import("./src/db/elements.ts");
+  const { getElements, getPublishedElements, upsertElement, deleteElement } = await import("./src/db/elements.ts");
 
   app.get("/api/elements", async (req, res) => {
     try {
-      const items = await getElements();
+      const items = await getPublishedElements();
       res.json(items);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to fetch elements" });
@@ -105,14 +106,13 @@ async function startServer() {
         'trait', 'weakness', 'skill', 'equipment', 'weapon',
         'ammunition', 'consumable', 'license', 'permission',
         'character_resource', 'attribute_upgrade', 'technique_entitlement',
-        'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient',
-        'technique' // adding this just in case they need it based on frontend
+        'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient'
       ]),
       name: z.string().min(1),
       description: z.string(),
       status: z.enum(['draft', 'published', 'archived']).optional(),
       effects: z.array(z.any()).optional(),
-      requirements: z.any().optional(),
+      requirements: requirementGroupSchema.optional(),
       metadata: z.any().optional()
     });
     const parsed = ElementSchema.safeParse(req.body);
@@ -148,7 +148,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (error: any) {
       console.error("DELETE ELEMENT ROUTE ERROR:", error);
-      res.status(500).json({ error: "Failed to delete element: " + (error.message || String(error)) });
+      res.status(error.status ?? 500).json({ error: error.message || "Failed to delete element" });
     }
   });
 
@@ -310,11 +310,12 @@ async function startServer() {
         name: z.string().optional(),
         profileData: z.record(z.string(), z.any()).optional(),
         expectedUpdatedAt: z.string().optional(),
-        canonCharacterId: z.string().nullable().optional()
+        canonCharacterId: z.string().nullable().optional(),
+        elementIds: z.array(z.string().min(1)).optional()
       });
       const parsed = CharSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
-      const { characterId, name, profileData, expectedUpdatedAt, userId, canonCharacterId } = parsed.data;
+      const { characterId, name, profileData, expectedUpdatedAt, userId, canonCharacterId, elementIds } = parsed.data;
       console.log("POST /api/character request:", { characterId, name, expectedUpdatedAt, userId, canonCharacterId });
       
       
@@ -334,9 +335,20 @@ async function startServer() {
         }
       }
       
-      const { updateCharacter, createCharacter } = await import("./src/db/characters.ts");
+      const { updateCharacter, createCharacter, saveCharacterWithElementSelections } = await import("./src/db/characters.ts");
       let character;
-      if (characterId) {
+      if (elementIds !== undefined) {
+        character = await saveCharacterWithElementSelections({
+          characterId,
+          userId: userId || req.dbUser.id,
+          name: name || "Unnamed",
+          profileData: profileData || {},
+          expectedUpdatedAt,
+          canonCharacterId,
+          elementIds,
+          actorUid: req.dbUser.uid,
+        });
+      } else if (characterId) {
         character = await updateCharacter(characterId, { name, profileData, expectedUpdatedAt, canonCharacterId });
       } else {
         // Must provide userId to create. Since moderators create characters for players, we probably need userId in the body.
@@ -779,6 +791,14 @@ async function startServer() {
     } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
   });
 
+  app.get("/api/admin/elements", requireAuth, requireRole(["superadmin", "moderator"]), async (_req, res) => {
+    try {
+      res.json(await getElements());
+    } catch {
+      res.status(500).json({ error: "Failed to fetch elements" });
+    }
+  });
+
   app.get("/api/admin/canon-characters/:id/employments", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { getOwnerEmployments } = await import("./src/db/employments.ts");
@@ -820,10 +840,8 @@ async function startServer() {
 
   app.get("/api/admin/characters", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
-      const { db } = await import("./src/db/index.ts");
-      const { characters } = await import("./src/db/schema.ts");
-      const chars = await db.select().from(characters);
-      res.json(chars);
+      const { getCharactersWithPossessions } = await import("./src/db/characters.ts");
+      res.json(await getCharactersWithPossessions());
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch characters" });
     }
@@ -832,11 +850,8 @@ async function startServer() {
   
   app.get("/api/public/character/:id", async (req, res) => {
     try {
-      const { db } = await import("./src/db/index.ts");
-      const { characters } = await import("./src/db/schema.ts");
-      const { eq } = await import("drizzle-orm");
-      
-      const [character] = await db.select().from(characters).where(eq(characters.id, parseInt(req.params.id)));
+      const { getPublicCharacterById } = await import("./src/db/characters.ts");
+      const character = await getPublicCharacterById(parseInt(req.params.id));
       
       if (!character) {
         return res.status(404).json({ error: "Character not found" });

@@ -62,7 +62,7 @@ export default function TechniquesAdmin() {
   const mechanics = Array.isArray(mechanicsRule.value) ? mechanicsRule.value : [];
 
   const { data: rawElements, mutate } = useSWR(
-    user ? "/api/elements" : null, fetcher
+    user ? "/api/admin/elements" : null, fetcher
   );
 
   const elements = rawElements?.filter((el: any) => el.kind === "technique_entitlement");

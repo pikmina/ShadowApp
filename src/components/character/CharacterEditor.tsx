@@ -16,13 +16,23 @@ import { validateCharacter, calculateDerivedStats } from "@/lib/characterValidat
 import { Badge } from "@/components/ui/badge";
 import { CharacterEmployments, CharacterEnrollments } from "./CharacterRelations";
 
+const profileWithRelationalElements = (character?: any) => {
+  const profile = { ...(character?.profileData || {}) };
+  const rows = Array.isArray(character?.possessions) ? character.possessions : [];
+  const sheetRows = rows.filter((row: any) => ['trait', 'weakness'].includes(row?.element?.kind));
+  if (sheetRows.length > 0) {
+    profile.traits = sheetRows.filter((row: any) => row.element.kind === 'trait').map((row: any) => row.element.id);
+    profile.weaknesses = sheetRows.filter((row: any) => row.element.kind === 'weakness').map((row: any) => row.element.id);
+  }
+  return profile;
+};
 
 export default function CharacterEditor({ character, initialCanonId, onSaved, onCancel }: { character?: any, initialCanonId?: string | null, onSaved: () => void, onCancel?: () => void }) {
   const { user, dbUser } = useAuth();
   const isAdmin = dbUser?.role === 'superadmin' || dbUser?.role === 'moderator';
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('');
-  const [formData, setFormData] = useState<Record<string, any>>(character?.profileData || {});
+  const [formData, setFormData] = useState<Record<string, any>>(() => profileWithRelationalElements(character));
   const [canonId, setCanonId] = useState<string | null>(character?.canonCharacterId || initialCanonId || null);
 
   const { data: fields, error: fieldsError } = useSWR(user ? "/api/sheet-fields" : null, fetcher);
@@ -72,9 +82,9 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const [isDirty, setIsDirty] = useState(false);
   useEffect(() => {
     if (character?.profileData && !isDirty) {
-      setFormData(character.profileData);
+      setFormData(profileWithRelationalElements(character));
     }
-  }, [character?.profileData, isDirty]);
+  }, [character, isDirty]);
 
   // Derive current age and auto-assign stage based on birth date
   const dateField = processedFields?.find((f: any) => f.type === 'date' && (f.name.toLowerCase().includes('nacimiento') || f.name.toLowerCase().includes('birth')));
@@ -189,7 +199,11 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
           })(),
           expectedUpdatedAt: character?.updatedAt,
           profileData: finalProfileData,
-          canonCharacterId: canonId
+          canonCharacterId: canonId,
+          elementIds: [
+            ...(Array.isArray(finalProfileData.traits) ? finalProfileData.traits : []),
+            ...(Array.isArray(finalProfileData.weaknesses) ? finalProfileData.weaknesses : []),
+          ]
         })
       });
       if (res.status === 409) {

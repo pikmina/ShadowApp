@@ -70,7 +70,12 @@ export default function PublicSheet() {
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-background font-oxanium text-sm text-muted-foreground">Cargando expediente...</div>;
   if (error || !character) return <div className="flex min-h-screen items-center justify-center bg-background p-6 text-center font-oxanium text-sm text-destructive">Ficha no encontrada o no disponible (Revisa la consola).</div>;
 
-  const profile = character.profileData || {};
+  const storedProfile = character.profileData || {};
+  const possessionRows = Array.isArray(character.possessions) ? character.possessions : [];
+  const relationalTraits = possessionRows.filter((row: any) => row?.element?.kind === 'trait').map((row: any) => row.element.id);
+  const relationalWeaknesses = possessionRows.filter((row: any) => row?.element?.kind === 'weakness').map((row: any) => row.element.id);
+  const hasRelationalSelections = relationalTraits.length > 0 || relationalWeaknesses.length > 0;
+  const profile = hasRelationalSelections ? { ...storedProfile, traits: relationalTraits, weaknesses: relationalWeaknesses } : storedProfile;
 
   let derived = null;
   try {

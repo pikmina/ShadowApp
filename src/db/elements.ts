@@ -4,6 +4,7 @@ import { db } from './index.ts';
 import { systemElements, elementPossessions, shopOffers, systemRules } from './schema.ts';
 import { eq, desc, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { requirementGroupSchema } from '../domain/requirements.ts';
 
 export async function getElements() {
   try {
@@ -12,6 +13,10 @@ export async function getElements() {
     console.error("Database query failed:", error);
     throw new Error("Failed to fetch elements");
   }
+}
+
+export async function getPublishedElements() {
+  return db.select().from(systemElements).where(eq(systemElements.status, 'published')).orderBy(desc(systemElements.createdAt));
 }
 
 export async function getElement(id: string) {
@@ -30,6 +35,7 @@ export async function upsertElement(data: any) {
     const [existing] = data.id ? await tx.select().from(systemElements).where(eq(systemElements.id, data.id)) : [];
     if (data.id && !existing) throw Object.assign(new Error('Element not found'), { status: 404 });
     const effects = data.effects ?? existing?.effects ?? [];
+    const requirements = requirementGroupSchema.parse(data.requirements ?? existing?.requirements ?? { operator: 'all', requirements: [] });
     const status = data.status ?? existing?.status ?? 'draft';
     const [stored] = await tx.select().from(systemRules).where(eq(systemRules.key, 'system_mechanics'));
     const mechanics = systemMechanicsConfigSchema.parse(stored?.value ?? []);
@@ -37,13 +43,14 @@ export async function upsertElement(data: any) {
     if (existing) {
       const [updated] = await tx.update(systemElements).set({
         kind: data.kind, name: data.name, description: data.description, status: data.status,
-        effects: data.effects, requirements: data.requirements, metadata: data.metadata, updatedAt: new Date(),
+        effects: data.effects, requirements: data.requirements === undefined ? undefined : requirements, metadata: data.metadata,
+        revision: (existing.revision ?? 1) + 1, updatedAt: new Date(),
       }).where(eq(systemElements.id, existing.id)).returning();
       return updated;
     }
     const [created] = await tx.insert(systemElements).values({
       id: nanoid(10), kind: data.kind, name: data.name, description: data.description, status,
-      effects, requirements: data.requirements ?? { operator: 'all', requirements: [] }, metadata: data.metadata ?? {},
+      effects, requirements, metadata: data.metadata ?? {},
     }).returning();
     return created;
   });
@@ -52,11 +59,16 @@ export async function upsertElement(data: any) {
 export async function deleteElement(id: string) {
   try {
     await db.transaction(async (tx) => {
-      await tx.delete(elementPossessions).where(eq(elementPossessions.elementId, id));
-      await tx.delete(shopOffers).where(eq(shopOffers.elementId, id));
+      const [element] = await tx.select().from(systemElements).where(eq(systemElements.id, id));
+      if (!element) throw Object.assign(new Error('Element not found'), { status: 404 });
+      if (element.status !== 'draft') throw Object.assign(new Error('Only unused draft elements can be deleted; archive published elements instead'), { status: 409 });
+      const [possession] = await tx.select({ id: elementPossessions.id }).from(elementPossessions).where(eq(elementPossessions.elementId, id));
+      const [offer] = await tx.select({ id: shopOffers.id }).from(shopOffers).where(eq(shopOffers.elementId, id));
+      if (possession || offer) throw Object.assign(new Error('Element has related possessions or offers and cannot be deleted'), { status: 409 });
       await tx.delete(systemElements).where(eq(systemElements.id, id));
     });
   } catch (error) {
+    if (error instanceof Error && 'status' in error) throw error;
     console.error("Database query failed:", error);
     throw new Error("Failed to delete element");
   }

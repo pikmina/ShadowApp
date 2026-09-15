@@ -1,7 +1,8 @@
 import { db } from './index.ts';
-import { shopOffers, systemElements, characters, elementPossessions, auditLogs } from './schema.ts';
+import { shopOffers, systemElements, characters, elementPossessions, auditLogs, systemRules } from './schema.ts';
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { evaluateRequirements, requirementGroupSchema } from '../domain/requirements.ts';
 
 export async function getShopOffers() {
   try {
@@ -71,6 +72,13 @@ export async function processPurchase(moderatorUid: string, characterId: number,
     let totalYen = 0;
     const auditDetails: any[] = [];
     const possessionsToAdd: Record<string, number> = {}; // track by elementId to sum quantities
+    const currentPossessions = await tx.select().from(elementPossessions).where(eq(elementPossessions.characterId, characterId));
+    const possessionContext = new Map(currentPossessions.map(item => [item.elementId, {
+      quantity: item.quantity,
+      selectedChoices: item.selectedChoices as Record<string, unknown>,
+    }]));
+    const [stagesRule] = await tx.select().from(systemRules).where(eq(systemRules.key, 'system_stages'));
+    const stageIds = Array.isArray(stagesRule?.value) ? (stagesRule.value as any[]).map(stage => String(stage.id ?? stage.name)) : [];
 
     for (const item of cartItems) {
       const { offerId, quantity, selectedCurrency } = item;
@@ -90,6 +98,13 @@ export async function processPurchase(moderatorUid: string, characterId: number,
       if (!element || element.status !== 'published') {
          throw new Error(`Element for offer ${offerId} is not published`);
       }
+      const requirements = requirementGroupSchema.parse(element.requirements);
+      const evaluation = evaluateRequirements(requirements, {
+        profile: (character.profileData ?? {}) as Record<string, unknown>,
+        possessions: possessionContext,
+        stageIds,
+      });
+      if (!evaluation.passed) throw new Error(`Requirements not met for element ${element.id}: ${evaluation.failures.join(', ')}`);
       if (offer.perCharacterLimit !== null) {
         // Find existing possessions for this element
         const [existingPos] = await tx.select().from(elementPossessions).where(and(
@@ -131,6 +146,10 @@ export async function processPurchase(moderatorUid: string, characterId: number,
       }
 
       possessionsToAdd[offer.elementId] = (possessionsToAdd[offer.elementId] || 0) + quantity;
+      possessionContext.set(offer.elementId, {
+        quantity: (possessionContext.get(offer.elementId)?.quantity ?? 0) + quantity,
+        selectedChoices: possessionContext.get(offer.elementId)?.selectedChoices ?? {},
+      });
 
       auditDetails.push({
         offerId,

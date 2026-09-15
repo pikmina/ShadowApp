@@ -66,6 +66,21 @@ const STATUS_TYPES: Record<string, string> = {
   published: "Publicado"
 };
 
+const normalizeRequirements = (value: any) => ({
+  operator: ['all', 'any', 'none'].includes(value?.operator) ? value.operator : 'all',
+  requirements: Array.isArray(value?.requirements) ? value.requirements.map((requirement: any) => {
+    if (requirement.id) return requirement;
+    if (requirement.type === 'attribute' && requirement.target) return {
+      id: requirement._id || nanoid(), type: 'attribute', attributeId: requirement.target,
+      comparison: 'gte', value: Number(requirement.min ?? 0),
+    };
+    if (requirement.type === 'element' && requirement.target) return {
+      id: requirement._id || nanoid(), type: 'owns_element', elementId: requirement.target, quantity: 1,
+    };
+    return requirement;
+  }) : [],
+});
+
 export default function CatalogAdmin() {
   const { user } = useAuth();
 
@@ -84,7 +99,7 @@ export default function CatalogAdmin() {
   const mechanics = Array.isArray(mechanicsRule.value) ? mechanicsRule.value : [];
 
   const { data: rawElements, mutate } = useSWR(
-    user ? "/api/elements" : null, fetcher
+    user ? "/api/admin/elements" : null, fetcher
   );
 
   const elements = rawElements?.filter((el: any) => el.kind !== "technique" && el.kind !== "technique_entitlement");
@@ -118,7 +133,7 @@ export default function CatalogAdmin() {
         description: el.description,
         status: el.status,
         effects: el.effects || [],
-        requirements: el.requirements || { operator: "all", requirements: [] }
+        requirements: normalizeRequirements(el.requirements)
       });
     } else {
       setForm(defaultForm);
@@ -176,7 +191,7 @@ export default function CatalogAdmin() {
       ...f,
       requirements: {
         ...f.requirements,
-        requirements: [...f.requirements.requirements, { _id: nanoid(), type: "attribute", target: "FUE", min: 1 }]
+        requirements: [...f.requirements.requirements, { id: nanoid(), type: "attribute", attributeId: "FUE", comparison: "gte", value: 1 }]
       }
     }));
   };
@@ -186,7 +201,7 @@ export default function CatalogAdmin() {
       ...f,
       requirements: {
         ...f.requirements,
-        requirements: f.requirements.requirements.filter(r => r._id !== id)
+        requirements: f.requirements.requirements.filter(r => r.id !== id)
       }
     }));
   };
@@ -196,7 +211,19 @@ export default function CatalogAdmin() {
       ...f,
       requirements: {
         ...f.requirements,
-        requirements: f.requirements.requirements.map(r => r._id === id ? { ...r, ...updates } : r)
+        requirements: f.requirements.requirements.map(r => r.id === id ? { ...r, ...updates } : r)
+      }
+    }));
+  };
+
+  const updateRequirementType = (id: string, type: string) => {
+    setForm(f => ({
+      ...f,
+      requirements: {
+        ...f.requirements,
+        requirements: f.requirements.requirements.map(r => r.id !== id ? r : type === 'attribute'
+          ? { id, type: 'attribute', attributeId: 'FUE', comparison: 'gte', value: 1 }
+          : { id, type: 'owns_element', elementId: '', quantity: 1 })
       }
     }));
   };
@@ -364,21 +391,21 @@ export default function CatalogAdmin() {
                   ) : (
                     <div className="space-y-3">
                       {form.requirements.requirements.map((req, idx) => (
-                        <div key={req._id} className="flex items-center gap-3 bg-muted border p-3 rounded-md">
+                        <div key={req.id} className="flex items-center gap-3 bg-muted border p-3 rounded-md">
                           <Badge variant="secondary">{idx + 1}</Badge>
-                          <Select value={req.type} onValueChange={v => updateRequirement(req._id, { type: v })}>
+                          <Select value={req.type} onValueChange={v => updateRequirementType(req.id, v)}>
                             <SelectTrigger className="w-[180px]">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="attribute">Requiere Atributo</SelectItem>
-                              <SelectItem value="element">Requiere Elemento</SelectItem>
+                              <SelectItem value="owns_element">Requiere Elemento</SelectItem>
                             </SelectContent>
                           </Select>
                           
                           {req.type === "attribute" ? (
                             <>
-                              <Select value={req.target} onValueChange={v => updateRequirement(req._id, { target: v })}>
+                              <Select value={req.attributeId} onValueChange={v => updateRequirement(req.id, { attributeId: v })}>
                                 <SelectTrigger className="w-[120px]">
                                   <SelectValue />
                                 </SelectTrigger>
@@ -392,13 +419,16 @@ export default function CatalogAdmin() {
                                 </SelectContent>
                               </Select>
                               <span className="text-sm font-medium">≥</span>
-                              <Input type="number" className="w-20" value={req.min} onChange={e => updateRequirement(req._id, { min: Number(e.target.value) })} />
+                              <Input type="number" className="w-20" value={req.value} onChange={e => updateRequirement(req.id, { value: Number(e.target.value) })} />
                             </>
                           ) : (
-                            <Input placeholder="ID del Elemento..." className="flex-1" value={req.target} onChange={e => updateRequirement(req._id, { target: e.target.value })} />
+                            <Select value={req.elementId || undefined} onValueChange={v => updateRequirement(req.id, { elementId: v })}>
+                              <SelectTrigger className="flex-1"><SelectValue placeholder="Selecciona un elemento" /></SelectTrigger>
+                              <SelectContent>{elements.filter((el: any) => el.status === 'published').map((el: any) => <SelectItem key={el.id} value={el.id}>{el.name}</SelectItem>)}</SelectContent>
+                            </Select>
                           )}
 
-                          <Button variant="ghost" size="icon" className="text-red-500 ml-auto" onClick={() => removeRequirement(req._id)}>
+                          <Button variant="ghost" size="icon" className="text-red-500 ml-auto" onClick={() => removeRequirement(req.id)}>
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </div>
