@@ -38,6 +38,10 @@ async function runMigration() {
         "name" text NOT NULL,
         "first_name" text,
         "last_name" text,
+        "aliases" jsonb DEFAULT '[]'::jsonb NOT NULL,
+        "summary" text,
+        "image_url" text,
+        "affiliation" text,
         "active" boolean DEFAULT true NOT NULL,
         "reserved" boolean DEFAULT false NOT NULL,
         "reserved_until" timestamp,
@@ -45,6 +49,13 @@ async function runMigration() {
         "created_at" timestamp DEFAULT now(),
         "updated_at" timestamp DEFAULT now()
       );
+    `);
+
+    await tx.execute(sql`
+      ALTER TABLE "canon_characters" ADD COLUMN IF NOT EXISTS "aliases" jsonb DEFAULT '[]'::jsonb NOT NULL;
+      ALTER TABLE "canon_characters" ADD COLUMN IF NOT EXISTS "summary" text;
+      ALTER TABLE "canon_characters" ADD COLUMN IF NOT EXISTS "image_url" text;
+      ALTER TABLE "canon_characters" ADD COLUMN IF NOT EXISTS "affiliation" text;
     `);
 
     // 6. Employments and Classes tables
@@ -139,6 +150,28 @@ async function runMigration() {
       );
     `);
 
+    await tx.execute(sql`
+      ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "canon_character_id" text;
+      ALTER TABLE "class_groups" ADD COLUMN IF NOT EXISTS "course_type" varchar(100);
+      ALTER TABLE "character_employments" ALTER COLUMN "character_id" DROP NOT NULL;
+      ALTER TABLE "character_employments" ADD COLUMN IF NOT EXISTS "canon_character_id" text;
+      ALTER TABLE "character_enrollments" ALTER COLUMN "character_id" DROP NOT NULL;
+      ALTER TABLE "character_enrollments" ADD COLUMN IF NOT EXISTS "canon_character_id" text;
+    `);
+
+    // Canon-owned relations survive creation, unlinking, and deletion of their optional sheet.
+    await tx.execute(sql`
+      UPDATE "character_employments" employment
+      SET "canon_character_id" = character."canon_character_id", "character_id" = NULL
+      FROM "characters" character
+      WHERE employment."character_id" = character."id" AND character."canon_character_id" IS NOT NULL;
+
+      UPDATE "character_enrollments" enrollment
+      SET "canon_character_id" = character."canon_character_id", "character_id" = NULL
+      FROM "characters" character
+      WHERE enrollment."character_id" = character."id" AND character."canon_character_id" IS NOT NULL;
+    `);
+
     // 3. Add characters.canon_character_id as nullable
     console.log("Adding canon_character_id to characters if not exists...");
     await tx.execute(sql`
@@ -170,6 +203,14 @@ async function runMigration() {
           ALTER TABLE "character_employments" ADD CONSTRAINT "character_employments_position_id_positions_id_fk" FOREIGN KEY ("position_id") REFERENCES "public"."positions"("id") ON DELETE restrict ON UPDATE no action;
         END IF;
 
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'character_employments_canon_character_id_canon_characters_id_fk') THEN
+          ALTER TABLE "character_employments" ADD CONSTRAINT "character_employments_canon_character_id_canon_characters_id_fk" FOREIGN KEY ("canon_character_id") REFERENCES "public"."canon_characters"("id") ON DELETE restrict ON UPDATE no action;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'character_employments_exactly_one_owner') THEN
+          ALTER TABLE "character_employments" ADD CONSTRAINT "character_employments_exactly_one_owner" CHECK (num_nonnulls("character_id", "canon_character_id") = 1);
+        END IF;
+
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'class_groups_academic_year_id_academic_years_id_fk') THEN
           ALTER TABLE "class_groups" ADD CONSTRAINT "class_groups_academic_year_id_academic_years_id_fk" FOREIGN KEY ("academic_year_id") REFERENCES "public"."academic_years"("id") ON DELETE restrict ON UPDATE no action;
         END IF;
@@ -181,7 +222,26 @@ async function runMigration() {
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'character_enrollments_class_group_id_class_groups_id_fk') THEN
           ALTER TABLE "character_enrollments" ADD CONSTRAINT "character_enrollments_class_group_id_class_groups_id_fk" FOREIGN KEY ("class_group_id") REFERENCES "public"."class_groups"("id") ON DELETE restrict ON UPDATE no action;
         END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'character_enrollments_canon_character_id_canon_characters_id_fk') THEN
+          ALTER TABLE "character_enrollments" ADD CONSTRAINT "character_enrollments_canon_character_id_canon_characters_id_fk" FOREIGN KEY ("canon_character_id") REFERENCES "public"."canon_characters"("id") ON DELETE restrict ON UPDATE no action;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'character_enrollments_exactly_one_owner') THEN
+          ALTER TABLE "character_enrollments" ADD CONSTRAINT "character_enrollments_exactly_one_owner" CHECK (num_nonnulls("character_id", "canon_character_id") = 1);
+        END IF;
       END $$;
+    `);
+
+    await tx.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS "character_employments_active_character_position"
+        ON "character_employments" ("character_id", "position_id") WHERE "status" = 'active' AND "character_id" IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS "character_employments_active_canon_position"
+        ON "character_employments" ("canon_character_id", "position_id") WHERE "status" = 'active' AND "canon_character_id" IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS "character_enrollments_active_character"
+        ON "character_enrollments" ("character_id") WHERE "status" = 'active' AND "character_id" IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS "character_enrollments_active_canon"
+        ON "character_enrollments" ("canon_character_id") WHERE "status" = 'active' AND "canon_character_id" IS NOT NULL;
     `);
 
     // Verify duplicates before adding unique constraint

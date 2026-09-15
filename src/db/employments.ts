@@ -2,6 +2,25 @@ import { eq, or, and, isNull, isNotNull, asc, sql } from 'drizzle-orm';
 import { db } from './index.ts';
 import { institutions, departments, positions, characterEmployments, characters, canonCharacters } from './schema.ts';
 import { nanoid } from 'nanoid';
+import { alias } from 'drizzle-orm/pg-core';
+
+export type EmploymentOwner = { characterId?: number; canonCharacterId?: string };
+
+async function resolveEmploymentOwner(tx: any, owner: EmploymentOwner) {
+  if (Number(owner.characterId !== undefined) + Number(owner.canonCharacterId !== undefined) !== 1) {
+    throw Object.assign(new Error('Exactly one employment owner is required'), { status: 400 });
+  }
+  if (owner.canonCharacterId) {
+    const [canon] = await tx.select().from(canonCharacters).where(eq(canonCharacters.id, owner.canonCharacterId));
+    if (!canon) throw Object.assign(new Error('Canon character not found'), { status: 404 });
+    return { characterId: null, canonCharacterId: canon.id };
+  }
+  const [character] = await tx.select().from(characters).where(eq(characters.id, owner.characterId));
+  if (!character) throw Object.assign(new Error('Character not found'), { status: 404 });
+  return character.canonCharacterId
+    ? { characterId: null, canonCharacterId: character.canonCharacterId }
+    : { characterId: character.id, canonCharacterId: null };
+}
 
 // --- Institutions ---
 export async function getInstitutionsWithDepartmentsAndPositions() {
@@ -125,11 +144,9 @@ export async function deletePosition(id: string) {
 }
 
 // --- Employments ---
-export async function assignCharacterEmployment(characterId: number, positionId: string) {
+export async function assignEmployment(owner: EmploymentOwner, positionId: string) {
   return await db.transaction(async (tx) => {
-    // Check if character exists
-    const [char] = await tx.select().from(characters).where(eq(characters.id, characterId));
-    if (!char) throw new Error("Character not found");
+    const resolved = await resolveEmploymentOwner(tx, owner);
 
     // Check position
     const [pos] = await tx.select().from(positions).where(eq(positions.id, positionId));
@@ -137,8 +154,11 @@ export async function assignCharacterEmployment(characterId: number, positionId:
     if (!pos.active) throw new Error("Position is inactive");
 
     // Check duplicate active
+    const ownerCondition = resolved.canonCharacterId
+      ? eq(characterEmployments.canonCharacterId, resolved.canonCharacterId)
+      : eq(characterEmployments.characterId, resolved.characterId!);
     const [existing] = await tx.select().from(characterEmployments).where(and(
-      eq(characterEmployments.characterId, characterId),
+      ownerCondition,
       eq(characterEmployments.positionId, positionId),
       eq(characterEmployments.status, 'active')
     ));
@@ -168,7 +188,7 @@ export async function assignCharacterEmployment(characterId: number, positionId:
 
     const [created] = await tx.insert(characterEmployments).values({
       id: nanoid(10),
-      characterId,
+      ...resolved,
       positionId,
       status: 'active',
       startedAt: new Date(),
@@ -176,6 +196,9 @@ export async function assignCharacterEmployment(characterId: number, positionId:
     return created;
   });
 }
+
+export const assignCharacterEmployment = (characterId: number, positionId: string) => assignEmployment({ characterId }, positionId);
+export const assignCanonEmployment = (canonCharacterId: string, positionId: string) => assignEmployment({ canonCharacterId }, positionId);
 
 export async function removeCharacterEmployment(id: string) {
   // Instead of deleting, we can set status to inactive, but prompt says "retirar un empleo".
@@ -190,6 +213,15 @@ export async function removeCharacterEmployment(id: string) {
 }
 
 export async function getCharacterEmployments(characterId: number) {
+  const [character] = await db.select().from(characters).where(eq(characters.id, characterId));
+  if (!character) return [];
+  return getOwnerEmployments(character.canonCharacterId ? { canonCharacterId: character.canonCharacterId } : { characterId });
+}
+
+export async function getOwnerEmployments(owner: EmploymentOwner) {
+  const ownerCondition = owner.canonCharacterId
+    ? eq(characterEmployments.canonCharacterId, owner.canonCharacterId)
+    : eq(characterEmployments.characterId, owner.characterId!);
   return await db.select({
     employment: characterEmployments,
     position: positions,
@@ -201,13 +233,14 @@ export async function getCharacterEmployments(characterId: number) {
   .innerJoin(departments, eq(departments.id, positions.departmentId))
   .innerJoin(institutions, eq(institutions.id, departments.institutionId))
   .where(and(
-    eq(characterEmployments.characterId, characterId),
+    ownerCondition,
     eq(characterEmployments.status, 'active')
   ));
 }
 
 // Public registry employments
 export async function getPublicEmployments() {
+  const directCanon = alias(canonCharacters, 'employment_canon');
   const result = await db.select({
     institution: institutions,
     department: departments,
@@ -215,6 +248,7 @@ export async function getPublicEmployments() {
     employment: characterEmployments,
     character: characters,
     canon: canonCharacters,
+    directCanon,
   })
   .from(institutions)
   .innerJoin(departments, eq(departments.institutionId, institutions.id))
@@ -222,6 +256,7 @@ export async function getPublicEmployments() {
   .leftJoin(characterEmployments, and(eq(characterEmployments.positionId, positions.id), eq(characterEmployments.status, 'active')))
   .leftJoin(characters, eq(characters.id, characterEmployments.characterId))
   .leftJoin(canonCharacters, eq(canonCharacters.id, characters.canonCharacterId))
+  .leftJoin(directCanon, eq(directCanon.id, characterEmployments.canonCharacterId))
   .where(eq(institutions.active, true))
   .orderBy(asc(institutions.sortOrder), asc(departments.sortOrder), asc(positions.sortOrder));
 
@@ -254,12 +289,13 @@ export async function getPublicEmployments() {
     }
     const pos = dep.positions.get(row.position.id);
     
-    if (row.character && row.employment) {
+    if (row.employment && (row.character || row.directCanon)) {
+      const canon = row.directCanon || row.canon;
       pos.occupants.push({
         employmentId: row.employment.id,
-        characterId: row.character.id,
-        name: row.character.name,
-        canon: row.canon ? { id: row.canon.id, name: row.canon.name } : null
+        characterId: row.character?.id || null,
+        name: canon?.name || row.character?.name,
+        canon: canon ? { id: canon.id, name: canon.name } : null
       });
       pos.occupiedSlots++;
     }

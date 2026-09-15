@@ -3,11 +3,12 @@ import useSWR from "swr";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { toast } from "sonner";
+import { apiFetch, fetcher } from "@/lib/api";
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
-
-export function CharacterEmployments({ characterId }: { characterId: number }) {
-  const { data: employments, mutate: mutateEmployments } = useSWR(`/api/admin/characters/${characterId}/employments`, fetcher);
+export function CharacterEmployments({ characterId, canonCharacterId }: { characterId?: number; canonCharacterId?: string }) {
+  const ownerPath = canonCharacterId ? `/api/admin/canon-characters/${canonCharacterId}` : `/api/admin/characters/${characterId}`;
+  const ownerPayload = canonCharacterId ? { canonCharacterId } : { characterId };
+  const { data: employments, mutate: mutateEmployments } = useSWR(`${ownerPath}/employments`, fetcher);
   const { data: structure } = useSWR("/api/admin/employments/structure", fetcher);
   const [selectedPosition, setSelectedPosition] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -16,19 +17,16 @@ export function CharacterEmployments({ characterId }: { characterId: number }) {
     if (!selectedPosition) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/admin/employments", {
+      await apiFetch("/api/admin/employments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ characterId, positionId: selectedPosition })
+        body: JSON.stringify({ ...ownerPayload, positionId: selectedPosition })
       });
-      if (res.ok) {
-        toast.success("Empleo asignado");
-        setSelectedPosition("");
-        mutateEmployments();
-      } else {
-        const err = await res.json();
-        toast.error(err.error || "Error al asignar empleo");
-      }
+      toast.success("Empleo asignado");
+      setSelectedPosition("");
+      mutateEmployments();
+    } catch (error: any) {
+      toast.error(error.message || "Error al asignar empleo");
     } finally {
       setIsSubmitting(false);
     }
@@ -36,12 +34,12 @@ export function CharacterEmployments({ characterId }: { characterId: number }) {
 
   const handleRemove = async (id: string) => {
     if (!confirm("¿Retirar este empleo?")) return;
-    const res = await fetch(`/api/admin/employments/${id}`, { method: "DELETE" });
-    if (res.ok) {
+    try {
+      await apiFetch(`/api/admin/employments/${id}`, { method: "DELETE" });
       toast.success("Empleo retirado");
       mutateEmployments();
-    } else {
-      toast.error("Error al retirar empleo");
+    } catch (error: any) {
+      toast.error(error.message || "Error al retirar empleo");
     }
   };
 
@@ -90,8 +88,11 @@ export function CharacterEmployments({ characterId }: { characterId: number }) {
   );
 }
 
-export function CharacterEnrollments({ characterId, canonId }: { characterId: number, canonId: string | null }) {
-  const { data: enrollment, mutate: mutateEnrollment } = useSWR(`/api/admin/characters/${characterId}/enrollment`, fetcher);
+export function CharacterEnrollments({ characterId, canonId, canonCharacterId }: { characterId?: number; canonId?: string | null; canonCharacterId?: string }) {
+  const effectiveCanonId = canonCharacterId || canonId || null;
+  const ownerPath = canonCharacterId ? `/api/admin/canon-characters/${canonCharacterId}` : `/api/admin/characters/${characterId}`;
+  const ownerPayload = canonCharacterId ? { canonCharacterId } : { characterId };
+  const { data: enrollment, mutate: mutateEnrollment } = useSWR(`${ownerPath}/enrollment`, fetcher);
   const { data: structure } = useSWR("/api/admin/classes/structure", fetcher);
   const [selectedClass, setSelectedClass] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -100,19 +101,16 @@ export function CharacterEnrollments({ characterId, canonId }: { characterId: nu
     if (!selectedClass) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/admin/enrollments", {
+      await apiFetch("/api/admin/enrollments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ characterId, classGroupId: selectedClass })
+        body: JSON.stringify({ ...ownerPayload, classGroupId: selectedClass })
       });
-      if (res.ok) {
-        toast.success("Inscrito en clase");
-        setSelectedClass("");
-        mutateEnrollment();
-      } else {
-        const err = await res.json();
-        toast.error(err.error || "Error al inscribir");
-      }
+      toast.success("Inscrito en clase");
+      setSelectedClass("");
+      mutateEnrollment();
+    } catch (error: any) {
+      toast.error(error.message || "Error al inscribir");
     } finally {
       setIsSubmitting(false);
     }
@@ -120,12 +118,12 @@ export function CharacterEnrollments({ characterId, canonId }: { characterId: nu
 
   const handleRemove = async (id: string) => {
     if (!confirm("¿Retirar de esta clase?")) return;
-    const res = await fetch(`/api/admin/enrollments/${id}`, { method: "DELETE" });
-    if (res.ok) {
+    try {
+      await apiFetch(`/api/admin/enrollments/${id}`, { method: "DELETE" });
       toast.success("Inscripción retirada");
       mutateEnrollment();
-    } else {
-      toast.error("Error al retirar inscripción");
+    } catch (error: any) {
+      toast.error(error.message || "Error al retirar inscripción");
     }
   };
 
@@ -156,8 +154,8 @@ export function CharacterEnrollments({ characterId, canonId }: { characterId: nu
               {structure?.filter((y: any) => y.active)?.map((year: any) => (
                 <optgroup key={year.id} label={year.name}>
                   {year.classes?.filter((c: any) => c.active)?.map((cls: any) => (
-                    <option key={cls.id} value={cls.id} disabled={!canonId && cls.capacity !== 0 && cls.usedSlots >= cls.capacity}>
-                      {cls.name} {(!canonId && cls.capacity !== 0) ? `(${cls.usedSlots}/${cls.capacity})` : '(No cuenta hacia el límite)'}
+                    <option key={cls.id} value={cls.id} disabled={!effectiveCanonId && cls.capacity !== 0 && cls.usedSlots >= cls.capacity}>
+                      {cls.name} {(!effectiveCanonId && cls.capacity !== 0) ? `(${cls.usedSlots}/${cls.capacity})` : '(No cuenta hacia el límite)'}
                     </option>
                   ))}
                 </optgroup>

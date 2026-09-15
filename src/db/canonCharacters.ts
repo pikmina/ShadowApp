@@ -1,6 +1,8 @@
 import { eq, or, and, isNull, isNotNull, asc } from 'drizzle-orm';
 import { db } from './index.ts';
 import { canonCharacters, characters } from './schema.ts';
+import { getOwnerEmployments } from './employments.ts';
+import { getOwnerEnrollment } from './academicClasses.ts';
 
 export async function getCanonCharacters() {
   const result = await db
@@ -12,7 +14,7 @@ export async function getCanonCharacters() {
     .leftJoin(characters, eq(characters.canonCharacterId, canonCharacters.id))
     .orderBy(asc(canonCharacters.sortOrder), asc(canonCharacters.name));
 
-  return result.map(({ canon, characterId }) => {
+  return Promise.all(result.map(async ({ canon, characterId }) => {
     let status = 'available';
     if (characterId) {
       status = 'occupied';
@@ -20,21 +22,31 @@ export async function getCanonCharacters() {
       status = 'reserved';
     }
 
+    const [employments, enrollment] = await Promise.all([
+      getOwnerEmployments({ canonCharacterId: canon.id }),
+      getOwnerEnrollment({ canonCharacterId: canon.id }),
+    ]);
     return {
       ...canon,
       status,
       linkedCharacterId: characterId || null,
+      employments,
+      enrollment,
     };
-  });
+  }));
 }
 
-export async function createCanonCharacter(data: { name: string; firstName?: string; lastName?: string; active?: boolean }) {
+export async function createCanonCharacter(data: { name: string; firstName?: string | null; lastName?: string | null; aliases?: string[]; summary?: string | null; imageUrl?: string | null; affiliation?: string | null; active?: boolean }) {
   const id = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const [created] = await db.insert(canonCharacters).values({
     id,
     name: data.name,
     firstName: data.firstName || null,
     lastName: data.lastName || null,
+    aliases: data.aliases || [],
+    summary: data.summary || null,
+    imageUrl: data.imageUrl || null,
+    affiliation: data.affiliation || null,
     active: data.active ?? true,
     reserved: false,
   }).returning();

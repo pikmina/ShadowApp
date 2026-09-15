@@ -519,6 +519,10 @@ async function startServer() {
         name: z.string().min(1),
         firstName: z.string().optional().nullable(),
         lastName: z.string().optional().nullable(),
+        aliases: z.array(z.string()).optional(),
+        summary: z.string().optional().nullable(),
+        imageUrl: z.string().url().optional().nullable(),
+        affiliation: z.string().optional().nullable(),
         active: z.boolean().optional(),
         reserved: z.boolean().optional(),
         reservedUntil: z.string().datetime().optional().nullable(),
@@ -542,6 +546,10 @@ async function startServer() {
         name: z.string().min(1).optional(),
         firstName: z.string().optional().nullable(),
         lastName: z.string().optional().nullable(),
+        aliases: z.array(z.string()).optional(),
+        summary: z.string().optional().nullable(),
+        imageUrl: z.string().url().optional().nullable(),
+        affiliation: z.string().optional().nullable(),
         active: z.boolean().optional(),
         reserved: z.boolean().optional(),
         reservedUntil: z.string().datetime().optional().nullable(),
@@ -658,10 +666,13 @@ async function startServer() {
 
   app.post("/api/admin/employments", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
-      const { assignCharacterEmployment } = await import("./src/db/employments.ts");
-      const parsed = z.object({ characterId: z.number().int(), positionId: z.string() }).safeParse(req.body);
+      const { assignEmployment } = await import("./src/db/employments.ts");
+      const parsed = z.object({ characterId: z.number().int().positive().optional(), canonCharacterId: z.string().min(1).optional(), positionId: z.string().min(1) })
+        .refine(value => Number(Boolean(value.characterId)) + Number(Boolean(value.canonCharacterId)) === 1, { message: "Exactly one owner is required" })
+        .safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
-      res.json(await assignCharacterEmployment(parsed.data.characterId, parsed.data.positionId));
+      const owner = parsed.data.canonCharacterId ? { canonCharacterId: parsed.data.canonCharacterId } : { characterId: parsed.data.characterId! };
+      res.json(await assignEmployment(owner, parsed.data.positionId));
     } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
   });
 
@@ -735,10 +746,13 @@ async function startServer() {
 
   app.post("/api/admin/enrollments", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
-      const { enrollCharacter } = await import("./src/db/academicClasses.ts");
-      const parsed = z.object({ characterId: z.number().int(), classGroupId: z.string() }).safeParse(req.body);
+      const { enrollOwner } = await import("./src/db/academicClasses.ts");
+      const parsed = z.object({ characterId: z.number().int().positive().optional(), canonCharacterId: z.string().min(1).optional(), classGroupId: z.string().min(1) })
+        .refine(value => Number(Boolean(value.characterId)) + Number(Boolean(value.canonCharacterId)) === 1, { message: "Exactly one owner is required" })
+        .safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
-      res.json(await enrollCharacter(parsed.data.characterId, parsed.data.classGroupId));
+      const owner = parsed.data.canonCharacterId ? { canonCharacterId: parsed.data.canonCharacterId } : { characterId: parsed.data.characterId! };
+      res.json(await enrollOwner(owner, parsed.data.classGroupId));
     } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
   });
 
@@ -763,6 +777,20 @@ async function startServer() {
       const { getCharacterEnrollment } = await import("./src/db/academicClasses.ts");
       res.json(await getCharacterEnrollment(parseInt(req.params.id, 10)));
     } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.get("/api/admin/canon-characters/:id/employments", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { getOwnerEmployments } = await import("./src/db/employments.ts");
+      res.json(await getOwnerEmployments({ canonCharacterId: req.params.id }));
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
+  });
+
+  app.get("/api/admin/canon-characters/:id/enrollment", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { getOwnerEnrollment } = await import("./src/db/academicClasses.ts");
+      res.json(await getOwnerEnrollment({ canonCharacterId: req.params.id }));
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
   });
 
   // --- Public Routes ---

@@ -2,6 +2,25 @@ import { eq, and, asc, isNull, sql } from 'drizzle-orm';
 import { db } from './index.ts';
 import { academicYears, classGroups, characterEnrollments, characters, canonCharacters } from './schema.ts';
 import { nanoid } from 'nanoid';
+import { alias } from 'drizzle-orm/pg-core';
+
+export type EnrollmentOwner = { characterId?: number; canonCharacterId?: string };
+
+async function resolveEnrollmentOwner(tx: any, owner: EnrollmentOwner) {
+  if (Number(owner.characterId !== undefined) + Number(owner.canonCharacterId !== undefined) !== 1) {
+    throw Object.assign(new Error('Exactly one enrollment owner is required'), { status: 400 });
+  }
+  if (owner.canonCharacterId) {
+    const [canon] = await tx.select().from(canonCharacters).where(eq(canonCharacters.id, owner.canonCharacterId));
+    if (!canon) throw Object.assign(new Error('Canon character not found'), { status: 404 });
+    return { characterId: null, canonCharacterId: canon.id };
+  }
+  const [character] = await tx.select().from(characters).where(eq(characters.id, owner.characterId));
+  if (!character) throw Object.assign(new Error('Character not found'), { status: 404 });
+  return character.canonCharacterId
+    ? { characterId: null, canonCharacterId: character.canonCharacterId }
+    : { characterId: character.id, canonCharacterId: null };
+}
 
 // --- Academic Years ---
 export async function getAcademicYearsWithClasses() {
@@ -13,15 +32,16 @@ export async function getAcademicYearsWithClasses() {
     classGroupId: characterEnrollments.classGroupId,
     characterId: characterEnrollments.characterId,
     canonCharacterId: characters.canonCharacterId,
+    directCanonCharacterId: characterEnrollments.canonCharacterId,
   })
   .from(characterEnrollments)
-  .innerJoin(characters, eq(characters.id, characterEnrollments.characterId))
+  .leftJoin(characters, eq(characters.id, characterEnrollments.characterId))
   .where(eq(characterEnrollments.status, 'active'));
 
   const occupantsByClass: Record<string, number> = {};
   activeEnrollments.forEach(enr => {
     // Canon characters do NOT consume capacity
-    if (enr.canonCharacterId === null) {
+    if (enr.directCanonCharacterId === null && enr.canonCharacterId === null) {
       occupantsByClass[enr.classGroupId] = (occupantsByClass[enr.classGroupId] || 0) + 1;
     }
   });
@@ -45,7 +65,6 @@ export async function createAcademicYear(data: { name: string; active?: boolean;
     name: data.name,
     active: data.active ?? true,
     sortOrder: data.sortOrder ?? 0,
-    courseType: data.courseType || null,
   }).returning();
   return created;
 }
@@ -95,11 +114,9 @@ export async function deleteClassGroup(id: string) {
 }
 
 // --- Enrollments ---
-export async function enrollCharacter(characterId: number, classGroupId: string) {
+export async function enrollOwner(owner: EnrollmentOwner, classGroupId: string) {
   return await db.transaction(async (tx) => {
-    // Check character
-    const [char] = await tx.select().from(characters).where(eq(characters.id, characterId));
-    if (!char) throw new Error("Character not found");
+    const resolved = await resolveEnrollmentOwner(tx, owner);
 
     // Check class
     const [cls] = await tx.select().from(classGroups).where(eq(classGroups.id, classGroupId));
@@ -107,8 +124,11 @@ export async function enrollCharacter(characterId: number, classGroupId: string)
     if (!cls.active) throw new Error("Class is inactive");
 
     // "Un personaje sólo puede tener una inscripción académica activa a la vez."
+    const ownerCondition = resolved.canonCharacterId
+      ? eq(characterEnrollments.canonCharacterId, resolved.canonCharacterId)
+      : eq(characterEnrollments.characterId, resolved.characterId!);
     const [existingActive] = await tx.select().from(characterEnrollments).where(and(
-      eq(characterEnrollments.characterId, characterId),
+      ownerCondition,
       eq(characterEnrollments.status, 'active')
     ));
     if (existingActive) {
@@ -118,7 +138,7 @@ export async function enrollCharacter(characterId: number, classGroupId: string)
     }
 
     // Check capacity if the character is an original character (canonCharacterId == null)
-    if (char.canonCharacterId === null) {
+    if (resolved.canonCharacterId === null) {
       if (cls.capacity === 0) {
         const error = new Error("Class does not accept any occupants");
         (error as any).status = 409;
@@ -144,7 +164,7 @@ export async function enrollCharacter(characterId: number, classGroupId: string)
 
     const [created] = await tx.insert(characterEnrollments).values({
       id: nanoid(10),
-      characterId,
+      ...resolved,
       classGroupId,
       status: 'active',
       enrolledAt: new Date(),
@@ -152,6 +172,9 @@ export async function enrollCharacter(characterId: number, classGroupId: string)
     return created;
   });
 }
+
+export const enrollCharacter = (characterId: number, classGroupId: string) => enrollOwner({ characterId }, classGroupId);
+export const enrollCanonCharacter = (canonCharacterId: string, classGroupId: string) => enrollOwner({ canonCharacterId }, classGroupId);
 
 export async function removeCharacterEnrollment(id: string) {
   const [deleted] = await db.delete(characterEnrollments).where(eq(characterEnrollments.id, id)).returning();
@@ -164,6 +187,15 @@ export async function removeCharacterEnrollment(id: string) {
 }
 
 export async function getCharacterEnrollment(characterId: number) {
+  const [character] = await db.select().from(characters).where(eq(characters.id, characterId));
+  if (!character) return null;
+  return getOwnerEnrollment(character.canonCharacterId ? { canonCharacterId: character.canonCharacterId } : { characterId });
+}
+
+export async function getOwnerEnrollment(owner: EnrollmentOwner) {
+  const ownerCondition = owner.canonCharacterId
+    ? eq(characterEnrollments.canonCharacterId, owner.canonCharacterId)
+    : eq(characterEnrollments.characterId, owner.characterId!);
   const [enrollment] = await db.select({
     enrollment: characterEnrollments,
     classGroup: classGroups,
@@ -173,7 +205,7 @@ export async function getCharacterEnrollment(characterId: number) {
   .innerJoin(classGroups, eq(classGroups.id, characterEnrollments.classGroupId))
   .innerJoin(academicYears, eq(academicYears.id, classGroups.academicYearId))
   .where(and(
-    eq(characterEnrollments.characterId, characterId),
+    ownerCondition,
     eq(characterEnrollments.status, 'active')
   ));
   return enrollment || null;
@@ -181,18 +213,21 @@ export async function getCharacterEnrollment(characterId: number) {
 
 // Public registry classes
 export async function getPublicClasses() {
+  const directCanon = alias(canonCharacters, 'enrollment_canon');
   const result = await db.select({
     year: academicYears,
     classGroup: classGroups,
     enrollment: characterEnrollments,
     character: characters,
     canon: canonCharacters,
+    directCanon,
   })
   .from(academicYears)
   .innerJoin(classGroups, eq(classGroups.academicYearId, academicYears.id))
   .leftJoin(characterEnrollments, and(eq(characterEnrollments.classGroupId, classGroups.id), eq(characterEnrollments.status, 'active')))
   .leftJoin(characters, eq(characters.id, characterEnrollments.characterId))
   .leftJoin(canonCharacters, eq(canonCharacters.id, characters.canonCharacterId))
+  .leftJoin(directCanon, eq(directCanon.id, characterEnrollments.canonCharacterId))
   .where(eq(academicYears.active, true))
   .orderBy(asc(academicYears.sortOrder), asc(classGroups.sortOrder));
 
@@ -216,15 +251,16 @@ export async function getPublicClasses() {
     }
     const cls = year.classes.get(row.classGroup.id);
 
-    if (row.character && row.enrollment) {
+    if (row.enrollment && (row.character || row.directCanon)) {
+      const canon = row.directCanon || row.canon;
       cls.students.push({
         enrollmentId: row.enrollment.id,
-        characterId: row.character.id,
-        name: row.character.name,
-        canon: row.canon ? { id: row.canon.id, name: row.canon.name } : null
+        characterId: row.character?.id || null,
+        name: canon?.name || row.character?.name,
+        canon: canon ? { id: canon.id, name: canon.name } : null
       });
       // Increment used slots if original character
-      if (!row.character.canonCharacterId) {
+      if (!canon) {
         cls.usedSlots++;
       }
     }

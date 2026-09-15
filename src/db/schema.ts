@@ -1,5 +1,5 @@
-import {  relations } from 'drizzle-orm';
-import { integer, pgTable, serial, text, timestamp, jsonb, boolean, pgEnum, unique, varchar } from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
+import { integer, pgTable, serial, text, timestamp, jsonb, boolean, pgEnum, unique, varchar, check, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const roleEnum = pgEnum('role', ['player', 'moderator', 'superadmin']);
 export const elementKindEnum = pgEnum('element_kind', [
@@ -26,6 +26,10 @@ export const canonCharacters = pgTable('canon_characters', {
   name: text('name').notNull(),
   firstName: text('first_name'),
   lastName: text('last_name'),
+  aliases: jsonb('aliases').$type<string[]>().default([]).notNull(),
+  summary: text('summary'),
+  imageUrl: text('image_url'),
+  affiliation: text('affiliation'),
   active: boolean('active').default(true).notNull(),
   reserved: boolean('reserved').default(false).notNull(),
   reservedUntil: timestamp('reserved_until'),
@@ -190,14 +194,19 @@ export const positions = pgTable('positions', {
 
 export const characterEmployments = pgTable('character_employments', {
   id: varchar('id', { length: 100 }).primaryKey(),
-  characterId: integer('character_id').references(() => characters.id).notNull(),
+  characterId: integer('character_id').references(() => characters.id, { onDelete: 'cascade' }),
+  canonCharacterId: text('canon_character_id').references(() => canonCharacters.id, { onDelete: 'restrict' }),
   positionId: varchar('position_id', { length: 100 }).references(() => positions.id, { onDelete: 'restrict' }).notNull(),
   status: varchar('status', { length: 50 }).default('active').notNull(), // active, inactive, suspended
   startedAt: timestamp('started_at'),
   endedAt: timestamp('ended_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (table) => ({
+  ownerCheck: check('character_employments_exactly_one_owner', sql`num_nonnulls(${table.characterId}, ${table.canonCharacterId}) = 1`),
+  activeCharacterPosition: uniqueIndex('character_employments_active_character_position').on(table.characterId, table.positionId).where(sql`${table.status} = 'active' AND ${table.characterId} IS NOT NULL`),
+  activeCanonPosition: uniqueIndex('character_employments_active_canon_position').on(table.canonCharacterId, table.positionId).where(sql`${table.status} = 'active' AND ${table.canonCharacterId} IS NOT NULL`),
+}));
 
 // ==========================================
 // CLASSES (Clases)
@@ -217,6 +226,7 @@ export const classGroups = pgTable('class_groups', {
   academicYearId: varchar('academic_year_id', { length: 100 }).references(() => academicYears.id, { onDelete: 'restrict' }).notNull(),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
+  courseType: varchar('course_type', { length: 100 }),
   capacity: integer('capacity').notNull(),
   active: boolean('active').default(true).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
@@ -226,14 +236,19 @@ export const classGroups = pgTable('class_groups', {
 
 export const characterEnrollments = pgTable('character_enrollments', {
   id: varchar('id', { length: 100 }).primaryKey(),
-  characterId: integer('character_id').references(() => characters.id).notNull(),
+  characterId: integer('character_id').references(() => characters.id, { onDelete: 'cascade' }),
+  canonCharacterId: text('canon_character_id').references(() => canonCharacters.id, { onDelete: 'restrict' }),
   classGroupId: varchar('class_group_id', { length: 100 }).references(() => classGroups.id, { onDelete: 'restrict' }).notNull(),
   status: varchar('status', { length: 50 }).default('active').notNull(), // active, inactive
   enrolledAt: timestamp('enrolled_at'),
   endedAt: timestamp('ended_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (table) => ({
+  ownerCheck: check('character_enrollments_exactly_one_owner', sql`num_nonnulls(${table.characterId}, ${table.canonCharacterId}) = 1`),
+  activeCharacterEnrollment: uniqueIndex('character_enrollments_active_character').on(table.characterId).where(sql`${table.status} = 'active' AND ${table.characterId} IS NOT NULL`),
+  activeCanonEnrollment: uniqueIndex('character_enrollments_active_canon').on(table.canonCharacterId).where(sql`${table.status} = 'active' AND ${table.canonCharacterId} IS NOT NULL`),
+}));
 
 
 // ==========================================
@@ -256,6 +271,7 @@ export const positionsRelations = relations(positions, ({ one, many }) => ({
 
 export const characterEmploymentsRelations = relations(characterEmployments, ({ one }) => ({
   character: one(characters, { fields: [characterEmployments.characterId], references: [characters.id] }),
+  canonCharacter: one(canonCharacters, { fields: [characterEmployments.canonCharacterId], references: [canonCharacters.id] }),
   position: one(positions, { fields: [characterEmployments.positionId], references: [positions.id] }),
 }));
 
@@ -270,5 +286,6 @@ export const classGroupsRelations = relations(classGroups, ({ one, many }) => ({
 
 export const characterEnrollmentsRelations = relations(characterEnrollments, ({ one }) => ({
   character: one(characters, { fields: [characterEnrollments.characterId], references: [characters.id] }),
+  canonCharacter: one(canonCharacters, { fields: [characterEnrollments.canonCharacterId], references: [canonCharacters.id] }),
   classGroup: one(classGroups, { fields: [characterEnrollments.classGroupId], references: [classGroups.id] }),
 }));

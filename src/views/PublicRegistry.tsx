@@ -62,6 +62,11 @@ export default function PublicRegistry() {
                     {c.status === 'available' ? 'Disponible' : c.status === 'occupied' ? 'Ocupado' : 'Reservado'}
                   </Badge>
                 </div>
+                {c.affiliation && <p className="text-xs font-medium text-primary">{c.affiliation}</p>}
+                {Array.isArray(c.aliases) && c.aliases.length > 0 && <p className="mt-1 text-xs text-muted-foreground">También conocido como {c.aliases.join(', ')}</p>}
+                {c.summary && <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{c.summary}</p>}
+                {Array.isArray(c.employments) && c.employments.length > 0 && <p className="mt-3 text-xs text-muted-foreground">{c.employments.map((item: any) => `${item.position.name} · ${item.institution.name}`).join(' · ')}</p>}
+                {c.enrollment && <p className="mt-1 text-xs text-muted-foreground">{c.enrollment.academicYear.name} · {c.enrollment.classGroup.name}</p>}
                 {c.status === 'occupied' && c.linkedCharacterId && (
                   <div className="mt-4 pt-4 border-t border-border/50 text-right">
                     <Link to={`/sheet/${c.linkedCharacterId}`} className="text-xs font-oxanium text-primary hover:underline uppercase tracking-wide">
@@ -117,9 +122,12 @@ function PublicEmployments() {
                         {pos.occupants.map((occ: any) => (
                           <div key={occ.employmentId} className="flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary/70"></span>
-                            <Link to={`/sheet/${occ.characterId}`} className="hover:text-primary transition-colors text-foreground">
-                              {occ.name} {occ.canon ? <span className="text-xs text-muted-foreground">({occ.canon.name})</span> : ''}
-                            </Link>
+                            {occ.characterId ? (
+                              <Link to={`/sheet/${occ.characterId}`} className="hover:text-primary transition-colors text-foreground">{occ.name}</Link>
+                            ) : (
+                              <span className="text-foreground">{occ.name}</span>
+                            )}
+                            {occ.canon && <Badge variant="secondary" className="text-[9px]">Canon</Badge>}
                           </div>
                         ))}
                       </div>
@@ -161,9 +169,7 @@ function PublicClasses() {
                   {cls.students.length === 0 && <span className="text-muted-foreground text-xs italic">Sin alumnos inscritos</span>}
                   {cls.students.map((student: any) => (
                     <div key={student.enrollmentId} className="flex items-center justify-between text-sm bg-muted/20 p-2 rounded">
-                      <Link to={`/sheet/${student.characterId}`} className="hover:text-primary transition-colors text-foreground truncate mr-2">
-                        {student.name}
-                      </Link>
+                      {student.characterId ? <Link to={`/sheet/${student.characterId}`} className="hover:text-primary transition-colors text-foreground truncate mr-2">{student.name}</Link> : <span className="truncate mr-2 text-foreground">{student.name}</span>}
                       {student.canon && <Badge variant="secondary" className="text-[9px] shrink-0">Canon</Badge>}
                     </div>
                   ))}
