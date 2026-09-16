@@ -10,13 +10,17 @@ import { Badge } from '@/components/ui/badge';
 import { EntityPanel } from '@/components/ui/entity-panel';
 import { useNavigate } from 'react-router-dom';
 import { CharacterEmployments, CharacterEnrollments } from '@/components/character/CharacterRelations';
+import { coreProfileFields } from '@/domain/coreProfileFields';
+
+const emptyForm = { name: '', lastName: '', aliases: '', summary: '', imageUrl: '', affiliation: '', profileData: {} as Record<string, string>, active: true, reserved: false };
+const extraProfileFields = coreProfileFields.filter(field => !['basic_name', 'last_name', 'alias', 'avatar_url'].includes(field.key));
 
 export default function CanonCharactersAdmin() {
   const { data: canonCharacters, mutate } = useSWR('/api/admin/canon-characters', fetcher);
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', aliases: '', summary: '', imageUrl: '', affiliation: '', active: true, reserved: false });
+  const [formData, setFormData] = useState(emptyForm);
   const navigate = useNavigate();
 
   const handleCreate = async () => {
@@ -24,11 +28,11 @@ export default function CanonCharactersAdmin() {
       await apiFetch('/api/admin/canon-characters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formData.name, active: formData.active }),
+        body: JSON.stringify({ name: formData.name, firstName: formData.name, lastName: formData.lastName || null, aliases: formData.aliases.split(',').map(value => value.trim()).filter(Boolean), summary: formData.summary || null, imageUrl: formData.imageUrl || null, affiliation: formData.affiliation || null, profileData: formData.profileData, active: formData.active }),
       });
       toast.success('Personaje canon creado');
       setIsCreating(false);
-      setFormData({ name: '', aliases: '', summary: '', imageUrl: '', affiliation: '', active: true, reserved: false });
+      setFormData(emptyForm);
       mutate();
     } catch (e: any) {
       toast.error(e.message || 'Error al crear');
@@ -91,12 +95,18 @@ export default function CanonCharactersAdmin() {
           </div>
 
           {isCreating && (
-            <div className="mt-4 flex flex-col sm:flex-row items-center gap-2 rounded-md border border-border bg-muted/20 p-3">
+            <div className="mt-4 space-y-3 rounded-md border border-border bg-muted/20 p-3">
+              <div className="grid gap-3 sm:grid-cols-2">
               <Input
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Nombre del personaje"
               />
+              <Input value={formData.lastName} onChange={e => setFormData({ ...formData, lastName: e.target.value })} placeholder="Apellido" />
+              <Input value={formData.aliases} onChange={e => setFormData({ ...formData, aliases: e.target.value })} placeholder="Apodo o alias" />
+              <Input value={formData.imageUrl} onChange={e => setFormData({ ...formData, imageUrl: e.target.value })} placeholder="Enlace al avatar" />
+              <CanonExtraFields value={formData.profileData} onChange={profileData => setFormData({ ...formData, profileData })} />
+              </div>
               <Button onClick={handleCreate}>Guardar</Button>
               <Button variant="ghost" onClick={() => setIsCreating(false)}>Cancelar</Button>
             </div>
@@ -109,9 +119,11 @@ export default function CanonCharactersAdmin() {
                   <div className="space-y-5 relative z-10 bg-[#0a0a0a]/80 p-2 rounded-lg">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Nombre" />
+                      <Input value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} placeholder="Apellido" />
                       <Input value={formData.aliases} onChange={(e) => setFormData({ ...formData, aliases: e.target.value })} placeholder="Alias, separados por comas" />
                       <Input value={formData.affiliation} onChange={(e) => setFormData({ ...formData, affiliation: e.target.value })} placeholder="Afiliación" />
                       <Input value={formData.imageUrl} onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })} placeholder="URL de imagen" />
+                      <CanonExtraFields value={formData.profileData} onChange={profileData => setFormData({ ...formData, profileData })} />
                       <Textarea className="sm:col-span-2" value={formData.summary} onChange={(e) => setFormData({ ...formData, summary: e.target.value })} placeholder="Resumen público" />
                     </div>
                     <div className="grid gap-6 border-t border-border pt-4 lg:grid-cols-2">
@@ -119,7 +131,7 @@ export default function CanonCharactersAdmin() {
                       <CharacterEnrollments canonCharacterId={c.id} />
                     </div>
                     <div className="flex justify-end gap-2">
-                      <Button onClick={() => handleUpdate(c.id, { name: formData.name, aliases: formData.aliases.split(',').map(value => value.trim()).filter(Boolean), summary: formData.summary || null, imageUrl: formData.imageUrl || null, affiliation: formData.affiliation || null })}>Guardar</Button>
+                      <Button onClick={() => handleUpdate(c.id, { name: formData.name, firstName: formData.name, lastName: formData.lastName || null, aliases: formData.aliases.split(',').map(value => value.trim()).filter(Boolean), summary: formData.summary || null, imageUrl: formData.imageUrl || null, affiliation: formData.affiliation || null, profileData: formData.profileData })}>Guardar</Button>
                       <Button variant="ghost" onClick={() => setEditingId(null)}>Cancelar</Button>
                     </div>
                   </div>
@@ -163,7 +175,7 @@ export default function CanonCharactersAdmin() {
                         {c.status === 'reserved' && (
                           <Button variant="outline" size="sm" onClick={() => handleUpdate(c.id, { reserved: false })}><Unlock className="mr-1 size-3" /> Liberar</Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => { setFormData({ name: c.name, aliases: (c.aliases || []).join(', '), summary: c.summary || '', imageUrl: c.imageUrl || '', affiliation: c.affiliation || '', active: c.active, reserved: c.reserved }); setEditingId(c.id); }}><Edit2 className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => { setFormData({ name: c.firstName ?? c.name, lastName: c.lastName ?? '', aliases: (c.aliases || []).join(', '), summary: c.summary || '', imageUrl: c.imageUrl || '', affiliation: c.affiliation || '', profileData: c.profileData ?? {}, active: c.active, reserved: c.reserved }); setEditingId(c.id); }}><Edit2 className="size-3.5" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(c.id)} className="text-destructive"><Trash2 className="size-3.5" /></Button>
                       </div>
                     </div>
@@ -176,4 +188,8 @@ export default function CanonCharactersAdmin() {
       </EntityPanel>
     </div>
   );
+}
+
+function CanonExtraFields({ value, onChange }: { value: Record<string, string>; onChange: (next: Record<string, string>) => void }) {
+  return <>{extraProfileFields.map(field => <label key={field.key} className="space-y-1 text-xs text-muted-foreground"><span>{field.name}</span><Input type={field.type === 'date' ? 'date' : 'text'} value={value[field.key] ?? ''} onChange={event => onChange({ ...value, [field.key]: event.target.value })} /></label>)}</>;
 }

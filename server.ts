@@ -160,7 +160,8 @@ async function startServer() {
   });
 
   // Sheet Fields API
-  const { getSheetFields, upsertSheetField, deleteSheetField } = await import("./src/db/sheetFields.ts");
+  const { getSheetFields, upsertSheetField, deleteSheetField, seedCoreProfileFields } = await import("./src/db/sheetFields.ts");
+  await seedCoreProfileFields();
   app.get("/api/sheet-fields", async (req, res) => {
     try {
       const fields = await getSheetFields();
@@ -183,10 +184,10 @@ async function startServer() {
     const parsed = FieldSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
 
-      const field = await upsertSheetField(req.body);
+      const field = await upsertSheetField(parsed.data);
       res.json(field);
     } catch (error: any) {
-      res.status(500).json({ error: "Failed to save sheet field" });
+      res.status(error.status ?? 500).json({ error: error.message || "Failed to save sheet field" });
     }
   });
 
@@ -195,7 +196,7 @@ async function startServer() {
       await deleteSheetField(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ error: "Failed to delete sheet field" });
+      res.status(error.status ?? 500).json({ error: error.message || "Failed to delete sheet field" });
     }
   });
 
@@ -542,6 +543,7 @@ async function startServer() {
         summary: z.string().optional().nullable(),
         imageUrl: z.string().url().optional().nullable(),
         affiliation: z.string().optional().nullable(),
+        profileData: z.record(z.string(), z.unknown()).optional(),
         active: z.boolean().optional(),
         reserved: z.boolean().optional(),
         reservedUntil: z.string().datetime().optional().nullable(),
@@ -569,6 +571,7 @@ async function startServer() {
         summary: z.string().optional().nullable(),
         imageUrl: z.string().url().optional().nullable(),
         affiliation: z.string().optional().nullable(),
+        profileData: z.record(z.string(), z.unknown()).optional(),
         active: z.boolean().optional(),
         reserved: z.boolean().optional(),
         reservedUntil: z.string().datetime().optional().nullable(),

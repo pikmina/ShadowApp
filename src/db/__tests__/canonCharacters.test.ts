@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { updateCharacter, createCharacter } from '../characters.ts';
 import { 
   createCanonCharacter, 
+  updateCanonCharacter,
   getCanonCharacters, 
   deleteCanonCharacter, 
   reserveCanonCharacter, 
@@ -42,10 +43,17 @@ describe.skipIf(!dbAvailable)('Canon Characters Integration', () => {
 
   test('1. Create a CanonCharacter', async () => {
     const name = "Test Canon " + nanoid(4);
-    const created = await createCanonCharacter({ name });
+    const created = await createCanonCharacter({ name, profileData: { faceclaim: 'Actor de prueba', quirk_name: 'Don de prueba' } });
     expect(created).toBeDefined();
     expect(created.name).toBe(name);
+    expect(created.profileData).toMatchObject({ faceclaim: 'Actor de prueba', quirk_name: 'Don de prueba' });
     testCanonId = created.id;
+  });
+
+  test('updates canon profile without changing omitted profile values', async () => {
+    const updated = await updateCanonCharacter(testCanonId, { lastName: 'Prueba' });
+    expect(updated.lastName).toBe('Prueba');
+    expect(updated.profileData).toMatchObject({ faceclaim: 'Actor de prueba', quirk_name: 'Don de prueba' });
   });
 
   test('2. Link it when creating a character', async () => {

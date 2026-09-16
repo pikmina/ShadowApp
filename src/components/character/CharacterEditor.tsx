@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { validateCharacter, calculateDerivedStats } from "@/lib/characterValidation";
 import { Badge } from "@/components/ui/badge";
 import { CharacterEmployments, CharacterEnrollments } from "./CharacterRelations";
+import { profileValue, type CoreProfileKey } from "@/domain/coreProfileFields";
 
 const profileWithRelationalElements = (character?: any) => {
   const profile = { ...(character?.profileData || {}) };
@@ -82,18 +83,40 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   }, {});
 
   const [isDirty, setIsDirty] = useState(false);
+  const [birthDateEdited, setBirthDateEdited] = useState(false);
   useEffect(() => {
-    if (character?.profileData && !isDirty) {
-      setFormData(profileWithRelationalElements(character));
+    if (!fields || isDirty) return;
+    if (character) {
+      const profile = profileWithRelationalElements(character);
+      for (const field of fields) if (field.coreKey && profile[field.id] === undefined) {
+        const value = profileValue(profile, field.coreKey as CoreProfileKey);
+        if (value !== undefined) profile[field.id] = value;
+      }
+      setFormData(profile);
+    } else if (initialCanonId) {
+      const canon = canonList?.find((item: any) => item.id === initialCanonId);
+      if (!canon) return;
+      const source: Record<string, unknown> = {
+        ...(canon.profileData ?? {}), basic_name: canon.firstName ?? canon.name,
+        last_name: canon.lastName, alias: canon.aliases?.[0], avatar_url: canon.imageUrl,
+      };
+      setFormData(current => {
+        const next = { ...current };
+        for (const field of fields) if (field.coreKey && next[field.id] === undefined) {
+          const value = profileValue(source, field.coreKey as CoreProfileKey);
+          if (value !== undefined) next[field.id] = value;
+        }
+        return next;
+      });
     }
-  }, [character, isDirty]);
+  }, [character, fields, canonList, initialCanonId, isDirty]);
 
   // Derive current age and auto-assign stage based on birth date
-  const dateField = processedFields?.find((f: any) => f.type === 'date' && (f.name.toLowerCase().includes('nacimiento') || f.name.toLowerCase().includes('birth')));
+  const dateField = processedFields?.find((f: any) => f.coreKey === 'birth_date') ?? processedFields?.find((f: any) => f.type === 'date' && (f.name.toLowerCase().includes('nacimiento') || f.name.toLowerCase().includes('birth')));
   const birthDateValue = dateField ? formData[dateField.id] : undefined;
   
   useEffect(() => {
-    if (birthDateValue && settings?.gameDate && stagesList.length > 0) {
+    if (birthDateEdited && birthDateValue && settings?.gameDate && stagesList.length > 0) {
       const birth = new Date(birthDateValue);
       const game = new Date(settings.gameDate.year, settings.gameDate.month - 1, settings.gameDate.day);
       let age = game.getFullYear() - birth.getFullYear();
@@ -110,7 +133,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         }
       }
     }
-  }, [birthDateValue, settings?.gameDate, stagesList.length, formData['basic_stage']]);
+  }, [birthDateEdited, birthDateValue, settings?.gameDate, stagesList.length, formData['basic_stage']]);
 
   useEffect(() => {
     if (processedFields.length > 0 && !activeTab) {
@@ -156,7 +179,9 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             if (nName.includes('sangre') || nName.includes('sanguineo')) finalProfileData['basic_blood_type'] = val;
             if (nName.includes('faccion') || (nName.includes('grupo') && !nName.includes('sangre') && !nName.includes('sanguineo'))) finalProfileData['faction_group'] = val;
             if (nName.includes('estatus') || nName.includes('estado')) finalProfileData['status'] = val;
-            if (nName.includes('imagen') || nName.includes('avatar') || nName.includes('faceclaim')) finalProfileData['avatar_url'] = val;
+            if (['imagen', 'avatar', 'enlace_al_avatar', 'url_de_avatar', 'avatar_url'].includes(nName)) finalProfileData['avatar_url'] = val;
+            if (nName.includes('faceclaim')) finalProfileData['faceclaim'] = val;
+            if (f.coreKey) finalProfileData[f.coreKey] = val;
           }
 
           // Handle Quirk specific mappings
@@ -169,11 +194,11 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
           }
           
           // Handle specific standard types
-          if (f.type === 'image' && val) {
+          if (f.type === 'image' && val && f.coreKey === 'avatar_url') {
             finalProfileData['avatar_url'] = val;
           }
           
-          if (f.type === 'date' && val && settings?.gameDate) {
+          if (f.id === dateField?.id && val && settings?.gameDate && (!character || birthDateEdited)) {
              const birth = new Date(val);
              const game = new Date(settings.gameDate.year, settings.gameDate.month - 1, settings.gameDate.day);
              let age = game.getFullYear() - birth.getFullYear();
@@ -186,6 +211,9 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
              }
           }
         });
+        for (const field of fields) if (field.coreKey && formData[field.id] !== undefined) {
+          finalProfileData[field.coreKey] = formData[field.id];
+        }
       }
 
       const token = await user.getIdToken();
@@ -228,6 +256,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
 
   const updateField = (id: string, value: any) => {
     setIsDirty(true);
+    if (id === dateField?.id) setBirthDateEdited(true);
     setFormData(prev => ({ ...prev, [id]: value }));
   };
 

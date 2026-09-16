@@ -36,7 +36,7 @@ export async function getCanonCharacters() {
   }));
 }
 
-export async function createCanonCharacter(data: { name: string; firstName?: string | null; lastName?: string | null; aliases?: string[]; summary?: string | null; imageUrl?: string | null; affiliation?: string | null; active?: boolean }) {
+export async function createCanonCharacter(data: { name: string; firstName?: string | null; lastName?: string | null; aliases?: string[]; summary?: string | null; imageUrl?: string | null; affiliation?: string | null; profileData?: Record<string, unknown>; active?: boolean }) {
   const id = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const [created] = await db.insert(canonCharacters).values({
     id,
@@ -47,6 +47,7 @@ export async function createCanonCharacter(data: { name: string; firstName?: str
     summary: data.summary || null,
     imageUrl: data.imageUrl || null,
     affiliation: data.affiliation || null,
+    profileData: data.profileData ?? {},
     active: data.active ?? true,
     reserved: false,
   }).returning();

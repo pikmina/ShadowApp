@@ -30,6 +30,7 @@ export const canonCharacters = pgTable('canon_characters', {
   summary: text('summary'),
   imageUrl: text('image_url'),
   affiliation: text('affiliation'),
+  profileData: jsonb('profile_data').$type<Record<string, unknown>>().default({}).notNull(),
   active: boolean('active').default(true).notNull(),
   reserved: boolean('reserved').default(false).notNull(),
   reservedUntil: timestamp('reserved_until'),
@@ -104,6 +105,7 @@ export const systemRules = pgTable('system_rules', {
 // Character Sheet Layout/Fields Table (Form Builder)
 export const characterSheetFields = pgTable('character_sheet_fields', {
   id: text('id').primaryKey(),
+  coreKey: text('core_key').unique(),
   name: text('name').notNull(),
   type: text('type').notNull(), // 'text', 'textarea', 'number', 'select', 'multiselect', 'checkbox', 'switch'
   category: text('category').notNull(), // e.g., 'Datos Básicos', 'Apariencia'

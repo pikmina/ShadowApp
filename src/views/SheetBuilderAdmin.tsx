@@ -247,7 +247,7 @@ export default function SheetBuilderAdmin() {
                       <TableCell>
                         <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
                       </TableCell>
-                      <TableCell className="font-medium">{field.name}</TableCell>
+                      <TableCell className="font-medium">{field.name} {field.coreKey && <Badge variant="outline" className="ml-2">Básico</Badge>}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="font-normal text-xs">{FIELD_TYPES[field.type]}</Badge>
                       </TableCell>
@@ -261,9 +261,9 @@ export default function SheetBuilderAdmin() {
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(field)}>
                             <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={() => handleDelete(field.id)}>
+                          {!field.coreKey && <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={() => handleDelete(field.id)}>
                             <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
+                          </Button>}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -329,7 +329,7 @@ export default function SheetBuilderAdmin() {
 
             <div className="grid gap-2">
               <Label>Tipo de Input</Label>
-              <Select value={form.type} onValueChange={v => setForm({...form, type: v})}>
+              <Select value={form.type} onValueChange={v => setForm({...form, type: v})} disabled={Boolean((form as any).coreKey)}>
                 <SelectTrigger>
                   <SelectValue>{FIELD_TYPES[form.type] || "Selecciona un tipo"}</SelectValue>
                 </SelectTrigger>

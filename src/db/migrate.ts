@@ -57,6 +57,9 @@ async function runMigration() {
       ALTER TABLE "canon_characters" ADD COLUMN IF NOT EXISTS "summary" text;
       ALTER TABLE "canon_characters" ADD COLUMN IF NOT EXISTS "image_url" text;
       ALTER TABLE "canon_characters" ADD COLUMN IF NOT EXISTS "affiliation" text;
+      ALTER TABLE "canon_characters" ADD COLUMN IF NOT EXISTS "profile_data" jsonb DEFAULT '{}'::jsonb NOT NULL;
+      ALTER TABLE "character_sheet_fields" ADD COLUMN IF NOT EXISTS "core_key" text;
+      CREATE UNIQUE INDEX IF NOT EXISTS "character_sheet_fields_core_key_unique" ON "character_sheet_fields" ("core_key");
     `);
 
     // 6. Employments and Classes tables
