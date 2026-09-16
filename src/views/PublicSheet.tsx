@@ -107,6 +107,8 @@ export default function PublicSheet() {
   const quirkEvolution = displayValue(readValue(profile, ['quirk_evolution', 'quirkEvolution', 'nivel_quirk']), 'Nivel sin registrar');
   const quirkDescription = displayValue(readValue(profile, ['quirk_description', 'quirkDesc', 'quirk_desc', 'don_descripcion']), 'No se ha registrado información sobre este don.');
   const quirkLevelOne = displayValue(readValue(profile, ['quirk_lvl1', 'quirkLvl1', 'quirk_level_1', 'quirk_nivel_1']), 'Sin descripción de nivel.');
+  const quirkLevelTwo = readValue(profile, ['quirk_lvl2', 'quirkLvl2', 'quirk_level_2', 'quirk_nivel_2']);
+  const quirkLevelThree = readValue(profile, ['quirk_lvl3', 'quirkLvl3', 'quirk_level_3', 'quirk_nivel_3']);
 
   const baseAttributes = [
     { label: 'Fuerza', value: readValue(profile, ['FUE', 'fue', 'fuerza']), icon: HandFist },
@@ -230,9 +232,24 @@ export default function PublicSheet() {
                 <div className="mb-5 flex items-start justify-between gap-3 border-b border-border pb-4"><div className="rounded-md border border-border bg-bg3 p-3"><Zap className="size-6 text-primary" /></div><div className="text-right"><p className="text-3xl font-black tracking-wider text-primary">QUIRK</p><p className="mt-1 text-[9px] uppercase tracking-widest text-text2">{quirkEvolution}</p></div></div>
                 <h2 className="text-xl font-black italic text-text1">✦ {quirkName}</h2>
                 <p className="mt-3 text-sm leading-relaxed text-text2"><strong className="mr-2 uppercase text-text1">{quirkType} —</strong>{quirkDescription}</p>
-                <div className="mt-6">
-                  <CyberModule title="Nivel 1" subtitle="Despertar" variant="accent1" showTelemetry={false} />
-                  <p className="border-x border-b border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-text2">{quirkLevelOne}</p>
+                
+                <div className="mt-6 space-y-4">
+                  <div>
+                    <CyberModule title="Nivel 1" variant="accent1" showTelemetry={false} />
+                    <p className="border-x border-b border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-text2">{quirkLevelOne}</p>
+                  </div>
+                  {quirkLevelTwo && (
+                    <div>
+                      <CyberModule title="Nivel 2" variant="accent1" showTelemetry={false} />
+                      <p className="border-x border-b border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-text2">{quirkLevelTwo}</p>
+                    </div>
+                  )}
+                  {quirkLevelThree && (
+                    <div>
+                      <CyberModule title="Nivel 3" variant="accent1" showTelemetry={false} />
+                      <p className="border-x border-b border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-text2">{quirkLevelThree}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </EntityPanel>

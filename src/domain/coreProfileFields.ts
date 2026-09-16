@@ -8,6 +8,7 @@ export const coreProfileFields = [
   { key: 'faceclaim', name: 'Faceclaim', type: 'text', aliases: ['faceclaim', 'faceclaim_pb', 'pb'] },
   { key: 'quirk_type', name: 'Tipo de Quirk', type: 'text', aliases: ['tipo de quirk', 'tipo de don', 'quirk_type'] },
   { key: 'quirk_name', name: 'Quirk', type: 'quirk', aliases: ['quirk', 'nombre del quirk', 'nombre del don', 'quirk_name'] },
+  { key: 'quirk_levels', name: 'Niveles de Quirk', type: 'quirk', aliases: ['niveles de quirk', 'quirk_levels', 'niveles'] },
   { key: 'alias', name: 'Apodo', type: 'text', aliases: ['apodo', 'alias'] },
   { key: 'avatar_url', name: 'Enlace al avatar', type: 'image', aliases: ['avatar', 'enlace al avatar', 'url de avatar', 'url de imagen', 'avatar_url'] },
 ] as const;
@@ -28,8 +29,11 @@ export function profileValue(profile: Record<string, unknown>, key: CoreProfileK
     nationality: ['nationality', 'nacionalidad'], faceclaim: ['faceclaim', 'faceclaim_pb', 'pb'],
     quirk_type: ['quirk_type', 'quirkType', 'tipo_quirk', 'tipo_don'],
     quirk_name: ['quirk_name', 'quirkName', 'don_name', 'don'],
+    quirk_levels: ['quirk_levels', 'niveles_de_quirk'],
     alias: ['alias', 'nickname', 'apodo', 'hero_name'], avatar_url: ['avatar_url', 'avatarUrl', 'avatar', 'image', 'imagen'],
   };
+  
+  if (!candidates[key]) return profile[key];
   for (const candidate of candidates[key]) if (profile[candidate] !== undefined && profile[candidate] !== null) return profile[candidate];
   return undefined;
 }

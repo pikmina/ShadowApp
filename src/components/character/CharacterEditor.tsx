@@ -352,23 +352,19 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         return (
           <div className="space-y-4 p-4 border border-border rounded-md bg-muted/20">
             <div>
-              <Label className="text-xs mb-1 block">Nombre del Quirk/Poder</Label>
-              <Input value={formData[`${field.id}_name`] || ''} onChange={e => updateField(`${field.id}_name`, e.target.value)} placeholder="Ej. One For All" />
-            </div>
-            <div>
               <Label className="text-xs mb-1 block">Descripción General</Label>
               <Textarea value={formData[`${field.id}_desc`] || ''} onChange={e => updateField(`${field.id}_desc`, e.target.value)} />
             </div>
             <div className="space-y-2 border-t border-border pt-2">
-              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 1 (Despertar)</Label>
+              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 1</Label>
               <Textarea value={formData[`${field.id}_lvl1`] || ''} onChange={e => updateField(`${field.id}_lvl1`, e.target.value)} />
             </div>
             <div className="space-y-2 border-t border-border pt-2">
-              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 2 (Desarrollo)</Label>
+              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 2</Label>
               <Textarea value={formData[`${field.id}_lvl2`] || ''} onChange={e => updateField(`${field.id}_lvl2`, e.target.value)} />
             </div>
             <div className="space-y-2 border-t border-border pt-2">
-              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 3 (Maestría)</Label>
+              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 3</Label>
               <Textarea value={formData[`${field.id}_lvl3`] || ''} onChange={e => updateField(`${field.id}_lvl3`, e.target.value)} />
             </div>
           </div>

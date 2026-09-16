@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { CharacterEmployments, CharacterEnrollments } from '@/components/character/CharacterRelations';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const emptyForm = { summary: '', profileData: {} as Record<string, string>, active: true, reserved: false };
 
@@ -173,99 +174,121 @@ export default function CanonCharactersAdmin() {
             </div>
           )}
 
-          <div className="mt-6 space-y-4">
-            {filtered.map((c: any) => (
-              <div key={c.id} className={`rounded-xl border border-border/50 bg-[#0a0a0a] overflow-hidden ${editingId === c.id ? 'p-4' : 'flex flex-col md:flex-row relative'}`} style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
-                {editingId === c.id ? (
-                  <div className="space-y-5 relative z-10 bg-[#0a0a0a]/80 p-2 rounded-lg">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <CanonProfileFields fields={fields || []} value={formData.profileData} onChange={profileData => setFormData({ ...formData, profileData })} disabled={c.status === 'occupied'} />
-                      <div className="sm:col-span-2 space-y-1">
-                  <label className="text-xs text-muted-foreground block">Descripción breve</label>
-                  <Textarea value={formData.summary} onChange={(e) => setFormData({ ...formData, summary: e.target.value })} placeholder="Resumen público" />
-                </div>
-                    </div>
-                    <div className="grid gap-6 border-t border-border pt-4 lg:grid-cols-2">
-                      <CharacterEmployments canonCharacterId={c.id} />
-                      <CharacterEnrollments canonCharacterId={c.id} />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button onClick={() => handleUpdate(c.id)}>Guardar</Button>
-                      <Button variant="ghost" onClick={() => setEditingId(null)}>Cancelar</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="w-full md:w-48 shrink-0 bg-black/40 relative min-h-[200px] md:min-h-0 border-r border-border/20">
-                      {readProfile(c.profileData, ['avatar_url', 'avatarUrl', 'image', 'avatar']) || c.imageUrl ? (
-                        <img src={readProfile(c.profileData, ['avatar_url', 'avatarUrl', 'image', 'avatar']) || c.imageUrl} alt={c.name} className="w-full h-full object-cover absolute inset-0" />
-                      ) : (
-                        <div className="w-full h-full absolute inset-0 flex items-center justify-center">
-                          <Shield className="size-8 text-muted-foreground/30" />
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="p-5 flex-1 flex flex-col justify-between relative z-10">
-                      <div>
-                        <div className="flex justify-between items-start gap-4">
-                          <h3 className="font-oxanium text-2xl font-bold text-white tracking-wide">
+          <div className="mt-6">
+            <div className="rounded-md border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[80px]">Avatar</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Datos Básicos</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((c: any) => (
+                    <React.Fragment key={c.id}>
+                      <TableRow className="hover:bg-muted/10 transition-colors">
+                        <TableCell>
+                          <div className="w-12 h-12 rounded overflow-hidden bg-black/40 border border-border/20 flex items-center justify-center">
+                            {readProfile(c.profileData, ['avatar_url', 'avatarUrl', 'image', 'avatar']) || c.imageUrl ? (
+                              <img src={readProfile(c.profileData, ['avatar_url', 'avatarUrl', 'image', 'avatar']) || c.imageUrl} alt={c.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <Shield className="size-5 text-muted-foreground/30" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-oxanium text-base font-bold text-white tracking-wide">
                             {`${readProfile(c.profileData, ['basic_name', 'name', 'nombre']) || c.firstName || c.name} ${readProfile(c.profileData, ['last_name', 'apellido']) || c.lastName || ''}`.trim()}
-                          </h3>
+                          </div>
+                          <div className="text-muted-foreground text-[10px] uppercase">
+                             AKA: {readProfile(c.profileData, ['alias', 'hero_name']) || (c.aliases && c.aliases.length > 0 ? c.aliases.join(', ') : 'NA')}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-muted-foreground text-xs">Alineación: {readProfile(c.profileData, ['basic_alignment', 'alignment', 'alineamiento']) || 'Desconocida'}</div>
+                          <div className="text-muted-foreground text-xs">Quirk: {readProfile(c.profileData, ['quirk_name_name', 'quirk_name', 'quirkName', 'don_name', 'don']) || 'Sin don'}</div>
+                        </TableCell>
+                        <TableCell>
                           <Badge variant={c.status === 'available' ? 'default' : c.status === 'occupied' ? 'destructive' : 'secondary'} className={`uppercase text-[10px] font-bold tracking-wider px-3 py-1 ${c.status === 'available' ? 'bg-slate-500/40 text-slate-100 hover:bg-slate-500/50 border-transparent' : ''}`}>
                             {c.status === 'available' ? 'DISPONIBLE' : c.status === 'occupied' ? 'OCUPADO' : 'RESERVADO'}
                           </Badge>
-                        </div>
-                        
-                        <div className="mt-3 text-cyan-500/80 text-sm font-medium">Alineación: {readProfile(c.profileData, ['basic_alignment', 'alignment', 'alineamiento']) || 'Desconocida'}</div>
-                        <div className="text-muted-foreground text-xs mt-1">AKA: {readProfile(c.profileData, ['alias', 'hero_name']) || (c.aliases && c.aliases.length > 0 ? c.aliases.join(', ') : 'NA')}</div>
-                        <div className="text-muted-foreground text-xs mt-1">Quirk: {readProfile(c.profileData, ['quirk_name_name', 'quirk_name', 'quirkName', 'don_name', 'don']) || 'Sin don'}</div>
-                        <div className="text-muted-foreground text-xs mt-1">Grupo: {readProfile(c.profileData, ['faction_group', 'group', 'grupo', 'faccion', 'facción', 'affiliation']) || c.affiliation || 'Sin grupo'}</div>
-                        
-                        {c.summary && <p className="text-sm text-slate-300 mt-5 leading-relaxed max-w-3xl">{c.summary}</p>}
-                      </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {c.status === 'available' && (
+                              <Button variant="ghost" size="icon" title="Crear ficha" onClick={() => navigate(`/character-editor?canonId=${c.id}`)}>
+                                <Plus className="size-4" />
+                              </Button>
+                            )}
+                            {c.status === 'occupied' && c.linkedCharacterId && (
+                              <Button variant="ghost" size="icon" title="Ver ficha" onClick={() => navigate(`/sheet/${c.linkedCharacterId}`)}>
+                                <Eye className="size-4" />
+                              </Button>
+                            )}
+                            {c.status === 'available' && (
+                              <Button variant="ghost" size="icon" title="Reservar" onClick={() => {
+                                apiFetch(`/api/admin/canon-characters/${c.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reserved: true }) }).then(() => mutate());
+                              }}><Lock className="size-4" /></Button>
+                            )}
+                            {c.status === 'reserved' && (
+                              <Button variant="ghost" size="icon" title="Liberar" onClick={() => {
+                                apiFetch(`/api/admin/canon-characters/${c.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reserved: false }) }).then(() => mutate());
+                              }}><Unlock className="size-4" /></Button>
+                            )}
+                            <Button variant="ghost" size="icon" onClick={() => {
+                               if (editingId === c.id) {
+                                 setEditingId(null);
+                               } else {
+                                 setFormData({
+                                   summary: c.summary || '',
+                                   profileData: getMappedProfile(c),
+                                   active: c.active,
+                                   reserved: c.reserved
+                                 });
+                                 setEditingId(c.id);
+                               }
+                             }}><Edit2 className="size-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => setDeleteConfirmId(c.id)} className="text-destructive"><Trash2 className="size-4" /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                       
-                      <div className="flex items-center gap-2 pt-4 mt-4 border-t border-border/30 justify-end opacity-60 hover:opacity-100 transition-opacity">
-                        {c.status === 'available' && (
-                          <Button variant="outline" size="sm" onClick={() => navigate(`/character-editor?canonId=${c.id}`)}>Crear ficha</Button>
-                        )}
-                        {c.status === 'occupied' && c.linkedCharacterId && (
-                          <Button variant="outline" size="sm" onClick={() => navigate(`/sheet/${c.linkedCharacterId}`)}>Ver ficha</Button>
-                        )}
-                        {c.status === 'available' && (
-                          <Button variant="outline" size="sm" onClick={() => {
-                            apiFetch(`/api/admin/canon-characters/${c.id}`, {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ reserved: true })
-                            }).then(() => mutate());
-                          }}><Lock className="mr-1 size-3" /> Reservar</Button>
-                        )}
-                        {c.status === 'reserved' && (
-                          <Button variant="outline" size="sm" onClick={() => {
-                            apiFetch(`/api/admin/canon-characters/${c.id}`, {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ reserved: false })
-                            }).then(() => mutate());
-                          }}><Unlock className="mr-1 size-3" /> Liberar</Button>
-                        )}
-                        <Button variant="ghost" size="icon" onClick={() => { 
-                          setFormData({ 
-                            summary: c.summary || '', 
-                            profileData: getMappedProfile(c), 
-                            active: c.active, 
-                            reserved: c.reserved 
-                          }); 
-                          setEditingId(c.id); 
-                        }}><Edit2 className="size-3.5" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteConfirmId(c.id)} className="text-destructive"><Trash2 className="size-3.5" /></Button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
+                      {editingId === c.id && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="p-0 border-b-2 border-primary/20">
+                            <div className="bg-[#0a0a0a]/60 p-5 shadow-inner">
+                              <div className="grid gap-4 sm:grid-cols-2">
+                                {c.status !== 'occupied' && (
+                                  <CanonProfileFields fields={fields || []} value={formData.profileData} onChange={profileData => setFormData({ ...formData, profileData })} disabled={false} />
+                                )}
+                                <div className={c.status === 'occupied' ? "sm:col-span-2 space-y-1" : "sm:col-span-2 space-y-1 mt-4"}>
+                                  <label className="text-xs text-muted-foreground block">Descripción breve</label>
+                                  <Textarea value={formData.summary} onChange={(e) => setFormData({ ...formData, summary: e.target.value })} placeholder="Resumen público (solo para Catálogo Canon, no reemplaza la ficha)" className="h-24" />
+                                </div>
+                              </div>
+                              <div className="grid gap-6 border-t border-border mt-6 pt-6 lg:grid-cols-2">
+                                <CharacterEmployments canonCharacterId={c.id} />
+                                <CharacterEnrollments canonCharacterId={c.id} />
+                              </div>
+                              <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-border/50">
+                                <Button onClick={() => handleUpdate(c.id)}>Guardar Cambios</Button>
+                                <Button variant="ghost" onClick={() => setEditingId(null)}>Cerrar</Button>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {filtered.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">No se encontraron personajes canon con esos criterios.</div>
+            )}
           </div>
         </div>
       </EntityPanel>
@@ -278,7 +301,7 @@ function CanonProfileFields({ value, onChange, fields, disabled = false }: { val
   
   // Usar TODOS los campos que tengan coreKey (los campos básicos por defecto)
   // Ocultar ciertos campos básicos en este formulario específico
-  const hiddenKeys = ['nationality', 'faceclaim', 'basic_blood_type', 'quirk_type'];
+  const hiddenKeys = ['nationality', 'faceclaim', 'basic_blood_type'];
   const displayFields = fields.filter((f: any) => !!f.coreKey && !hiddenKeys.includes(f.coreKey));
   
   return (
@@ -310,10 +333,26 @@ function CanonProfileFields({ value, onChange, fields, disabled = false }: { val
             input = <Textarea value={String(val)} onChange={(e) => setVal(e.target.value)} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />;
             break;
           case 'quirk':
-            input = (
-              <Input value={String(value[`${field.id}_name`] || '')} onChange={e => { if (!disabled) onChange({ ...value, [`${field.id}_name`]: e.target.value }) }} placeholder="Nombre del quirk/poder..." disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />
+            return (
+              <div key={field.id} className="space-y-4 p-4 border border-border rounded-md bg-muted/20 col-span-1 sm:col-span-2">
+                <div>
+                  <Label className="text-xs mb-1 block">Descripción General</Label>
+                  <Textarea value={String(value[`${field.id}_desc`] || '')} onChange={e => { if (!disabled) onChange({ ...value, [`${field.id}_desc`]: e.target.value }) }} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />
+                </div>
+                <div className="space-y-2 border-t border-border pt-2">
+                  <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 1</Label>
+                  <Textarea value={String(value[`${field.id}_lvl1`] || '')} onChange={e => { if (!disabled) onChange({ ...value, [`${field.id}_lvl1`]: e.target.value }) }} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />
+                </div>
+                <div className="space-y-2 border-t border-border pt-2">
+                  <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 2</Label>
+                  <Textarea value={String(value[`${field.id}_lvl2`] || '')} onChange={e => { if (!disabled) onChange({ ...value, [`${field.id}_lvl2`]: e.target.value }) }} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />
+                </div>
+                <div className="space-y-2 border-t border-border pt-2">
+                  <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 3</Label>
+                  <Textarea value={String(value[`${field.id}_lvl3`] || '')} onChange={e => { if (!disabled) onChange({ ...value, [`${field.id}_lvl3`]: e.target.value }) }} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />
+                </div>
+              </div>
             );
-            break;
           default:
             input = <Input type="text" value={String(val)} onChange={(e) => setVal(e.target.value)} placeholder={field.name} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />;
             break;
