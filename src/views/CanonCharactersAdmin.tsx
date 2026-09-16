@@ -299,10 +299,8 @@ export default function CanonCharactersAdmin() {
 function CanonProfileFields({ value, onChange, fields, disabled = false }: { value: Record<string, string>; onChange: (next: Record<string, string>) => void; fields: any[], disabled?: boolean }) {
   if (!fields) return null;
   
-  // Usar TODOS los campos que tengan coreKey (los campos básicos por defecto)
-  // Ocultar ciertos campos básicos en este formulario específico
-  const hiddenKeys = ['nationality', 'faceclaim', 'basic_blood_type'];
-  const displayFields = fields.filter((f: any) => !!f.coreKey && !hiddenKeys.includes(f.coreKey));
+  const allowedKeys = ['basic_name', 'last_name', 'quirk_name', 'basic_alignment', 'alias', 'avatar_url'];
+  const displayFields = fields.filter((f: any) => !!f.coreKey && allowedKeys.includes(f.coreKey));
   
   return (
     <>
@@ -332,37 +330,16 @@ function CanonProfileFields({ value, onChange, fields, disabled = false }: { val
           case 'textarea':
             input = <Textarea value={String(val)} onChange={(e) => setVal(e.target.value)} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />;
             break;
-          case 'quirk':
-            return (
-              <div key={field.id} className="space-y-4 p-4 border border-border rounded-md bg-muted/20 col-span-1 sm:col-span-2">
-                <div>
-                  <Label className="text-xs mb-1 block">Descripción General</Label>
-                  <Textarea value={String(value[`${field.id}_desc`] || '')} onChange={e => { if (!disabled) onChange({ ...value, [`${field.id}_desc`]: e.target.value }) }} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />
-                </div>
-                <div className="space-y-2 border-t border-border pt-2">
-                  <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 1</Label>
-                  <Textarea value={String(value[`${field.id}_lvl1`] || '')} onChange={e => { if (!disabled) onChange({ ...value, [`${field.id}_lvl1`]: e.target.value }) }} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />
-                </div>
-                <div className="space-y-2 border-t border-border pt-2">
-                  <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 2</Label>
-                  <Textarea value={String(value[`${field.id}_lvl2`] || '')} onChange={e => { if (!disabled) onChange({ ...value, [`${field.id}_lvl2`]: e.target.value }) }} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />
-                </div>
-                <div className="space-y-2 border-t border-border pt-2">
-                  <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 3</Label>
-                  <Textarea value={String(value[`${field.id}_lvl3`] || '')} onChange={e => { if (!disabled) onChange({ ...value, [`${field.id}_lvl3`]: e.target.value }) }} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />
-                </div>
-              </div>
-            );
           default:
             input = <Input type="text" value={String(val)} onChange={(e) => setVal(e.target.value)} placeholder={field.name} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />;
             break;
         }
 
         return (
-          <label key={field.id} className="space-y-1 text-xs text-muted-foreground block">
-            <span>{field.name}</span>
+          <div key={field.id} className="space-y-1">
+            <Label className="text-xs text-muted-foreground block">{field.name}</Label>
             {input}
-          </label>
+          </div>
         );
       })}
     </>
