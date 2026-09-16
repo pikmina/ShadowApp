@@ -27,6 +27,7 @@ export function evaluatePredicate(predicate: RulePredicate, context: RuleContext
     case 'die': return context.dice.some(d => d >= predicate.min && d <= predicate.max);
     case 'ability_active': return context.activeAbilities.includes(predicate.abilityId);
     case 'item': return (context.inventory[predicate.elementId] ?? 0) >= predicate.quantity;
+    case 'consumable': return (context.inventory[predicate.elementId] ?? 0) >= predicate.quantity;
     case 'conscious': return context.targets.length > 0 && context.targets.every(t => t.conscious);
     case 'contact': return context.targets.length > 0 && context.targets.every(t => t.contacts.includes(predicate.sense));
     case 'resource': {
@@ -49,7 +50,13 @@ export function evaluateRuleGroup(group: ResolvedRuleGroup, context: RuleContext
   const activation = components.find(c => c.kind === 'activation');
   const duration = components.find(c => c.kind === 'duration')?.duration;
   const conditions = components.filter(c => c.kind === 'condition');
-  const passed = conditions.every(c => c.match === 'all' ? c.predicates.every(p => evaluatePredicate(p, context)) : c.predicates.some(p => evaluatePredicate(p, context)));
+  const checkPredicate = (p: RulePredicate): boolean => {
+    if (p.kind === 'consumable' && (state.phase === 'preparing' || state.phase === 'active')) {
+      return true;
+    }
+    return evaluatePredicate(p, context);
+  };
+  const passed = conditions.every(c => c.match === 'all' ? c.predicates.every(p => checkPredicate(p)) : c.predicates.some(p => checkPredicate(p)));
   const isPassive = activation?.passive || group.effects.length > 0 && group.effects.every(e => e.timing === 'passive');
   const resource = (resourceId: 'SA' | 'ES', amount: number, unavoidable = false) => operations.push({ kind: 'resource', resourceId, amount, ...(unavoidable ? { unavoidable: true } : {}) });
   const consequences = (when: 'activation' | 'each_turn' | 'end' | 'after_damage') => {
@@ -105,6 +112,18 @@ export function evaluateRuleGroup(group: ResolvedRuleGroup, context: RuleContext
     let ce = Math.max(context.minimumStamina ?? 0, group.cost);
     for (const c of components) if (c.kind === 'cap' && c.subject === 'stamina_cost') ce = Math.max(context.minimumStamina ?? 0, c.min, Math.min(c.max, ce));
     resource('ES', -ce);
+    for (const c of conditions) {
+      if (c.match === 'all') {
+        for (const p of c.predicates) {
+          if (p.kind === 'consumable') operations.push({ kind: 'consume', elementId: p.elementId, quantity: p.quantity });
+        }
+      } else {
+        const passedPred = c.predicates.find(p => evaluatePredicate(p, context));
+        if (passedPred && passedPred.kind === 'consumable') {
+          operations.push({ kind: 'consume', elementId: passedPred.elementId, quantity: passedPred.quantity });
+        }
+      }
+    }
     consequences('activation');
     state.readyAt = context.turn + (activation?.turns ?? 0);
     const cooldown = components.find(c => c.kind === 'cooldown');

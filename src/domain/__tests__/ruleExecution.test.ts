@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { createCoreCategories } from '../coreRuleCatalog';
-import { resolveAppliedMechanics } from '../systemMechanics';
+import { resolveAppliedMechanics, type ResolvedRuleGroup } from '../systemMechanics';
 import { applyRuleOperations, executeRuleGroup, expireRuleEffects, adjustedStaminaCost, type RuleWorld } from '../ruleExecution';
 import { createRuleRuntime, type RuleContext } from '../ruleEngine';
 
@@ -52,5 +52,32 @@ describe('Atomic effect execution', () => {
     expect(adjustedStaminaCost(2, 'quirk', [{ scopeId: 'quirk', amount: 1 }], 1)).toBe(3);
     expect(adjustedStaminaCost(2, 'object', [{ scopeId: 'quirk', amount: 1 }], 1)).toBe(2);
     expect(adjustedStaminaCost(2, 'quirk', [{ scopeId: 'quirk', amount: -5 }], 1)).toBe(1);
+  });
+  test('consumable condition consumes item from bearer inventory in world', () => {
+    const group: ResolvedRuleGroup = {
+      id: 'test-group',
+      references: [],
+      cost: 0,
+      effects: [],
+      components: [
+        {
+          kind: 'condition' as const,
+          role: 'requirement' as const,
+          match: 'all' as const,
+          predicates: [{ kind: 'consumable' as const, elementId: 'sugar', quantity: 1 }],
+        },
+      ],
+    };
+    const initialWorld = world();
+    initialWorld.self.inventory = { sugar: 1 };
+    const ctx = { ...context, inventory: initialWorld.self.inventory };
+    const result = executeRuleGroup(group, ctx, createRuleRuntime(), initialWorld, 'self', 'source');
+    expect(result.valid).toBe(true);
+    expect(result.world.self.inventory.sugar).toBe(0);
+
+    // Second execution with a new event fails because sugar was consumed
+    const ctx2 = { ...context, eventId: 'e2', inventory: result.world.self.inventory };
+    const result2 = executeRuleGroup(group, ctx2, result.state, result.world, 'self', 'source');
+    expect(result2.valid).toBe(false);
   });
 });

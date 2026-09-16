@@ -12,6 +12,7 @@ export const predicateSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('resource'), resourceId: z.enum(['ES', 'SA']), comparison: z.enum(['lte', 'gte']), percent: z.number().min(0).max(100) }),
   z.strictObject({ kind: z.literal('ability_active'), abilityId: z.string().min(1) }),
   z.strictObject({ kind: z.literal('item'), elementId: z.string().min(1), quantity: z.number().int().positive() }),
+  z.strictObject({ kind: z.literal('consumable'), elementId: z.string().min(1), quantity: z.number().int().positive() }),
   z.strictObject({ kind: z.literal('manual'), signalId: z.string().min(1) }),
   z.strictObject({ kind: z.literal('die'), min: z.number().int().positive(), max: z.number().int().positive() }),
 ]);

@@ -57,6 +57,7 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('resource_threshold', 'es50', 'ES ≤ 50%', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'resource', resourceId: 'ES', comparison: 'lte', percent: 50 }] });
   option('active_ability', 'required', 'Habilidad activa (configurar ID)', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'ability_active', abilityId: 'ability-id' }] });
   option('consumption', 'one', 'Consumir 1 (configurar ID)', { kind: 'consequence', role: 'cost', when: 'activation', consequence: { kind: 'consume', elementId: 'element-id', quantity: 1 } });
+  option('consumption', 'required', 'Consumible requerido (condición)', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'consumable', elementId: 'element-id', quantity: 1 }] });
   option('manual_condition', 'emotion', 'Emoción intensa', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'manual', signalId: 'intense_emotion' }] });
   option('die_condition', '1to5', 'Algún dado entre 1 y 5', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'die', min: 1, max: 5 }] });
   for (const [key, resourceId, amount] of [['stamina_cost', 'ES', 1], ['health_cost', 'SA', 1], ['self_damage', 'SA', 2]] as const) option(key, 'base', CORE_CATEGORIES[key], { kind: 'consequence', role: key === 'self_damage' ? 'consequence' : 'cost', when: 'activation', consequence: { kind: 'resource', resourceId, amount } });

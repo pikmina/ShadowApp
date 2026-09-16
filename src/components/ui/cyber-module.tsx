@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
-export interface CyberModuleProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface CyberModuleProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
   className?: string;
   glow?: boolean;
   icon?: React.ComponentType<{ className?: string }>;
