@@ -249,9 +249,12 @@ export default function CharactersAdmin() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filteredCharacters.map((character: any) => {
           const profile = character.profileData || {};
-          const name = String(readProfile(profile, ['basic_name', 'name', 'nombre']) || character.name || 'Sin nombre');
+          const firstName = String(readProfile(profile, ['basic_name', 'name', 'nombre']) || character.name || 'Sin nombre');
+          const lastName = String(readProfile(profile, ['last_name', 'apellido']) || '');
+          const name = `${firstName} ${lastName}`.trim();
+          
           const alias = String(readProfile(profile, ['alias', 'hero_name', 'nombre_heroe']) || 'Desconocido');
-          const quirk = String(readProfile(profile, ['quirk_name', 'quirkName', 'don_name', 'don']) || 'Sin don');
+          const quirk = String(readProfile(profile, ['quirk_name_name', 'quirk_name', 'quirkName', 'don_name', 'don']) || 'Sin don');
           const group = readProfile(profile, ['faction_group', 'group', 'grupo', 'faccion', 'facción']);
           const avatar = readProfile(profile, ['avatarUrl', 'avatar_url', 'avatar', 'image', 'imagen']);
           const isOwner = character.userId === dbUser?.id;
@@ -297,7 +300,7 @@ export default function CharactersAdmin() {
                     {group && <Badge variant="outline" className={`shrink-0 h-5 px-1.5 font-oxanium text-[9px] uppercase rounded tracking-wider ${getGroupColorClass(String(group))}`}>{String(group)}</Badge>}
                   </div>
                   <div className="mt-1 flex flex-col gap-0.5">
-                    <p className="truncate font-oxanium text-[11px] text-muted-foreground">«{alias}» • {stage} ({age}a)</p>
+                    <p className="truncate font-oxanium text-[11px] text-muted-foreground">AKA: {alias} • {stage} ({age}a)</p>
                     <p className="truncate font-oxanium text-[11px] text-muted-foreground">{bloodType} • {alignment}</p>
                     <p className="truncate font-oxanium text-[11px] text-muted-foreground">{quirk}</p>
                   </div>

@@ -60,6 +60,7 @@ function IndexRedirector() {
   return <Navigate to="/character-editor" replace />;
 }
 
+import DevVariablesShowcase from "./views/DevVariablesShowcase";
 import PublicRegistry from "./views/PublicRegistry";
 
 function AppRoutes() {
@@ -96,6 +97,7 @@ function AppRoutes() {
         <Route path="classes" element={<ClassesAdmin />} />
         <Route path="shop" element={<Shop />} />
         <Route path="showcase" element={<ComponentShowcase />} />
+        <Route path="showcase-variables" element={<DevVariablesShowcase />} />
         <Route path="audit" element={<div className="p-8 text-center text-muted-foreground">Log de Auditoría (Próxima Fase)</div>} />
       </Route>
     </Routes>

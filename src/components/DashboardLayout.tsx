@@ -26,6 +26,7 @@ const navigation = [
     { to: "/sheet-builder", label: "Diseño de ficha", icon: LayoutTemplate },
     { to: "/settings", label: "Ajustes globales", icon: Settings },
     { to: "/showcase", label: "Componentes UI", icon: Component },
+    { to: "/showcase-variables", label: "Guía de Variables", icon: FileText },
     { to: "/audit", label: "Auditoría", icon: FileText },
   ] },
 ];
