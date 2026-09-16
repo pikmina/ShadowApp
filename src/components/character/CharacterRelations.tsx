@@ -11,6 +11,7 @@ export function CharacterEmployments({ characterId, canonCharacterId }: { charac
   const { data: employments, mutate: mutateEmployments } = useSWR(`${ownerPath}/employments`, fetcher);
   const { data: structure } = useSWR("/api/admin/employments/structure", fetcher);
   const [selectedPosition, setSelectedPosition] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAdd = async () => {
@@ -32,14 +33,16 @@ export function CharacterEmployments({ characterId, canonCharacterId }: { charac
     }
   };
 
-  const handleRemove = async (id: string) => {
-    if (!confirm("¿Retirar este empleo?")) return;
+  const confirmRemove = async () => {
+    if (!deleteConfirmId) return;
     try {
-      await apiFetch(`/api/admin/employments/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/admin/employments/${deleteConfirmId}`, { method: "DELETE" });
       toast.success("Empleo retirado");
       mutateEmployments();
     } catch (error: any) {
       toast.error(error.message || "Error al retirar empleo");
+    } finally {
+      setDeleteConfirmId(null);
     }
   };
 
@@ -95,6 +98,7 @@ export function CharacterEnrollments({ characterId, canonId, canonCharacterId }:
   const { data: enrollment, mutate: mutateEnrollment } = useSWR(`${ownerPath}/enrollment`, fetcher);
   const { data: structure } = useSWR("/api/admin/classes/structure", fetcher);
   const [selectedClass, setSelectedClass] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAdd = async () => {
@@ -116,14 +120,16 @@ export function CharacterEnrollments({ characterId, canonId, canonCharacterId }:
     }
   };
 
-  const handleRemove = async (id: string) => {
-    if (!confirm("¿Retirar de esta clase?")) return;
+  const confirmRemove = async () => {
+    if (!deleteConfirmId) return;
     try {
-      await apiFetch(`/api/admin/enrollments/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/admin/enrollments/${deleteConfirmId}`, { method: "DELETE" });
       toast.success("Inscripción retirada");
       mutateEnrollment();
     } catch (error: any) {
       toast.error(error.message || "Error al retirar inscripción");
+    } finally {
+      setDeleteConfirmId(null);
     }
   };
 

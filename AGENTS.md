@@ -847,3 +847,7 @@ For every non-trivial visual change:
 ```
 
 Do not declare a visual task complete solely because it compiles. Confirm that the rendered result preserves readable hierarchy, compact spacing, responsive behavior, and the established Shadowmore identity.
+
+# ALERTS AND CONFIRMATIONS
+Never use \`window.confirm\` or native browser popups for confirmations, as they can be blocked by iframe sandbox policies.
+Always use Shadcn's \`AlertDialog\` component (\`src/components/ui/alert-dialog.tsx\`) for any deletion or destructive action confirmation.

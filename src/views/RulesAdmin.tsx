@@ -1,3 +1,4 @@
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { UniversalRulesCatalog } from "../components/mechanics/UniversalRulesCatalog";
 import { SectionHeader } from "../components/common/SectionHeader";
 import { BookOpen as SectionIcon, Hand, Shield, Heart, Activity, AlertTriangle, Clock, Target, Maximize, TrendingUp, Edit2, Trash2, Plus, GripVertical, Settings2, ArrowLeft } from "lucide-react";
@@ -64,6 +65,7 @@ const defaultStaminaCosts = {
 };
 
 export default function RulesAdmin() {
+  const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null);
   const { user } = useAuth();
   
   
@@ -246,9 +248,9 @@ export default function RulesAdmin() {
     }
   };
 
-  const handleDeleteStage = async (index: number) => {
-        if (!confirm(`¿Estás seguro de eliminar la etapa: ${stages[index].name}?`)) return;
-
+  const confirmDeleteStage = async () => {
+    if (deleteConfirmIndex === null) return;
+    const index = deleteConfirmIndex;
     let newStages = [...stages];
     newStages.splice(index, 1);
 
@@ -268,6 +270,8 @@ export default function RulesAdmin() {
     } catch (e) {
       console.error(e);
       alert("Error al eliminar la etapa.");
+    } finally {
+      setDeleteConfirmIndex(null);
     }
   };
 
@@ -330,7 +334,7 @@ export default function RulesAdmin() {
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
                               <Button variant="outline" size="icon" onClick={() => handleOpenStageDialog(idx)}><Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" /></Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleDeleteStage(idx)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                              <Button variant="ghost" size="icon" onClick={() => setDeleteConfirmIndex(idx)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -731,6 +735,21 @@ export default function RulesAdmin() {
       {/* MECHANIC CATEGORY DIALOG */}
       
 
+    
+      <AlertDialog open={deleteConfirmIndex !== null} onOpenChange={(open) => !open && setDeleteConfirmIndex(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar etapa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Seguro que deseas eliminar la etapa "{deleteConfirmIndex !== null ? stages[deleteConfirmIndex]?.name : ''}"?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteStage} className="bg-red-600 hover:bg-red-700">Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

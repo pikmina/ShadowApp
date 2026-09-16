@@ -79,7 +79,7 @@
     /* ================================================= */
     /* 🎨 COLORES BASE & ACENTOS                         */
     /* ================================================= */
-    
+
     --accent2: var(--ashes);
     --accent1: var(--dark-slate-blue);
     --accent4: #9b6a40;
@@ -135,13 +135,13 @@
     --text2: #a1a1a1;
     --text4: #000;
     --text5: #333;
-    
+
     --border1: 1px solid #3a3a3a96;
     --grad1: linear-gradient(45deg, var(--accent4) 52%, var(--accent3));
     --grad2: linear-gradient(45deg, var(--accent2) -32%, var(--accent3));
     --grad3: linear-gradient(-45deg, rgb(var(--accent1a) / 0.7), rgb(var(--accent2a) / 0.5));
     --grad4: linear-gradient(188deg, var(--bg1), var(--bg4));
-    
+
     --hbg1: color-mix(in srgb, var(--accent1) 1%, white);
     --htext1: color-mix(in srgb, var(--accent1) 30%, black);
     --accent1-bg1: color-mix(in srgb, var(--accent1) 10%, white);
@@ -164,19 +164,19 @@
     --bg6: #cecece;
     --bg7: rgb(0 0 0 / 16%);
     --bg8: #c8c8c8;
-    
+
     --text1: #202020;
     --text2: #484848;
     --text4: #fff;
     --text5: #cfcfcf;
-    
+
     --grad1: linear-gradient(45deg, rgb(var(--accent4a) / 0.7) 52%, rgb(var(--accent3a) / 0.7));
     --grad2: linear-gradient(45deg, rgb(var(--accent2a) / 0.7) -32%, rgb(var(--accent3a) / 0.7));
     --grad4: linear-gradient(188deg, #f3f3f3, var(--bg4));
-    
+
     --bggrain: url(https://dl.dropboxusercontent.com/scl/fi/jnl6w9alrd0xxaywvteol/bh-light-p-estudiantes.png?rlkey=2dvywfkrztm7pd4d8uszj207r&st=r4rodqg6&dl=0);
     --backchat: url(https://i.ibb.co/3ynMMGn0/chatbacklight.jpg);
-    
+
     --border1: 1px solid #b0b0b096;
   }
 }
@@ -197,7 +197,7 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  
+
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -221,7 +221,7 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

@@ -3,6 +3,7 @@ import useSWR from 'swr';
 import { fetcher, apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
 import { Plus, Trash2, Check, X, Shield, Lock, Unlock, Eye, Edit2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,6 +16,15 @@ import { Label } from '@/components/ui/label';
 
 const emptyForm = { summary: '', profileData: {} as Record<string, string>, active: true, reserved: false };
 
+const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
+const readProfile = (profile: Record<string, any> | undefined | null, keys: string[]) => {
+  if (!profile) return undefined;
+  for (const key of keys) {
+    if (hasValue(profile[key])) return profile[key];
+  }
+  return undefined;
+};
+
 export default function CanonCharactersAdmin() {
   const { data: canonCharacters, mutate } = useSWR('/api/admin/canon-characters', fetcher);
   const { data: fields } = useSWR('/api/sheet-fields', fetcher);
@@ -22,6 +32,7 @@ export default function CanonCharactersAdmin() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyForm);
   const navigate = useNavigate();
 
@@ -106,14 +117,16 @@ export default function CanonCharactersAdmin() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('¿Seguro que deseas eliminar este personaje del catálogo canon?')) return;
+  const confirmDeletion = async () => {
+    if (!deleteConfirmId) return;
     try {
-      await apiFetch(`/api/admin/canon-characters/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/admin/canon-characters/${deleteConfirmId}`, { method: 'DELETE' });
       toast.success('Personaje eliminado');
       mutate();
     } catch (e: any) {
       toast.error(e.message || 'Error al eliminar');
+    } finally {
+      setDeleteConfirmId(null);
     }
   };
 
@@ -149,8 +162,11 @@ export default function CanonCharactersAdmin() {
           {isCreating && (
             <div className="mt-4 space-y-3 rounded-md border border-border bg-muted/20 p-3">
               <div className="grid gap-3 sm:grid-cols-2">
-                <CanonProfileFields fields={fields || []} value={formData.profileData} onChange={profileData => setFormData({ ...formData, profileData })} />
-                <Textarea className="sm:col-span-2" value={formData.summary} onChange={(e) => setFormData({ ...formData, summary: e.target.value })} placeholder="Resumen público" />
+                <CanonProfileFields fields={fields || []} value={formData.profileData} onChange={profileData => setFormData({ ...formData, profileData })} disabled={false} />
+                <div className="sm:col-span-2 space-y-1">
+                  <label className="text-xs text-muted-foreground block">Descripción breve</label>
+                  <Textarea value={formData.summary} onChange={(e) => setFormData({ ...formData, summary: e.target.value })} placeholder="Resumen público" />
+                </div>
               </div>
               <Button onClick={handleCreate}>Guardar</Button>
               <Button variant="ghost" onClick={() => setIsCreating(false)}>Cancelar</Button>
@@ -163,8 +179,11 @@ export default function CanonCharactersAdmin() {
                 {editingId === c.id ? (
                   <div className="space-y-5 relative z-10 bg-[#0a0a0a]/80 p-2 rounded-lg">
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <CanonProfileFields fields={fields || []} value={formData.profileData} onChange={profileData => setFormData({ ...formData, profileData })} />
-                      <Textarea className="sm:col-span-2" value={formData.summary} onChange={(e) => setFormData({ ...formData, summary: e.target.value })} placeholder="Resumen público" />
+                      <CanonProfileFields fields={fields || []} value={formData.profileData} onChange={profileData => setFormData({ ...formData, profileData })} disabled={c.status === 'occupied'} />
+                      <div className="sm:col-span-2 space-y-1">
+                  <label className="text-xs text-muted-foreground block">Descripción breve</label>
+                  <Textarea value={formData.summary} onChange={(e) => setFormData({ ...formData, summary: e.target.value })} placeholder="Resumen público" />
+                </div>
                     </div>
                     <div className="grid gap-6 border-t border-border pt-4 lg:grid-cols-2">
                       <CharacterEmployments canonCharacterId={c.id} />
@@ -178,8 +197,8 @@ export default function CanonCharactersAdmin() {
                 ) : (
                   <>
                     <div className="w-full md:w-48 shrink-0 bg-black/40 relative min-h-[200px] md:min-h-0 border-r border-border/20">
-                      {c.profileData?.avatar_url || c.imageUrl ? (
-                        <img src={c.profileData?.avatar_url || c.imageUrl} alt={c.name} className="w-full h-full object-cover absolute inset-0" />
+                      {readProfile(c.profileData, ['avatar_url', 'avatarUrl', 'image', 'avatar']) || c.imageUrl ? (
+                        <img src={readProfile(c.profileData, ['avatar_url', 'avatarUrl', 'image', 'avatar']) || c.imageUrl} alt={c.name} className="w-full h-full object-cover absolute inset-0" />
                       ) : (
                         <div className="w-full h-full absolute inset-0 flex items-center justify-center">
                           <Shield className="size-8 text-muted-foreground/30" />
@@ -191,16 +210,17 @@ export default function CanonCharactersAdmin() {
                       <div>
                         <div className="flex justify-between items-start gap-4">
                           <h3 className="font-oxanium text-2xl font-bold text-white tracking-wide">
-                            {`${c.profileData?.basic_name || c.firstName || c.name} ${c.profileData?.last_name || c.lastName || ''}`.trim()}
+                            {`${readProfile(c.profileData, ['basic_name', 'name', 'nombre']) || c.firstName || c.name} ${readProfile(c.profileData, ['last_name', 'apellido']) || c.lastName || ''}`.trim()}
                           </h3>
                           <Badge variant={c.status === 'available' ? 'default' : c.status === 'occupied' ? 'destructive' : 'secondary'} className={`uppercase text-[10px] font-bold tracking-wider px-3 py-1 ${c.status === 'available' ? 'bg-slate-500/40 text-slate-100 hover:bg-slate-500/50 border-transparent' : ''}`}>
                             {c.status === 'available' ? 'DISPONIBLE' : c.status === 'occupied' ? 'OCUPADO' : 'RESERVADO'}
                           </Badge>
                         </div>
                         
-                        <div className="mt-3 text-cyan-500/80 text-sm font-medium">Alineación: {c.profileData?.basic_alignment || 'Desconocida'}</div>
-                        <div className="text-muted-foreground text-xs mt-1">AKA: {c.profileData?.alias || (c.aliases && c.aliases.length > 0 ? c.aliases.join(', ') : 'NA')}</div>
-                        <div className="text-muted-foreground text-xs mt-1">Quirk: {c.profileData?.quirk_name_name || c.profileData?.quirk_name || 'Sin don'}</div>
+                        <div className="mt-3 text-cyan-500/80 text-sm font-medium">Alineación: {readProfile(c.profileData, ['basic_alignment', 'alignment', 'alineamiento']) || 'Desconocida'}</div>
+                        <div className="text-muted-foreground text-xs mt-1">AKA: {readProfile(c.profileData, ['alias', 'hero_name']) || (c.aliases && c.aliases.length > 0 ? c.aliases.join(', ') : 'NA')}</div>
+                        <div className="text-muted-foreground text-xs mt-1">Quirk: {readProfile(c.profileData, ['quirk_name_name', 'quirk_name', 'quirkName', 'don_name', 'don']) || 'Sin don'}</div>
+                        <div className="text-muted-foreground text-xs mt-1">Grupo: {readProfile(c.profileData, ['faction_group', 'group', 'grupo', 'faccion', 'facción', 'affiliation']) || c.affiliation || 'Sin grupo'}</div>
                         
                         {c.summary && <p className="text-sm text-slate-300 mt-5 leading-relaxed max-w-3xl">{c.summary}</p>}
                       </div>
@@ -239,7 +259,7 @@ export default function CanonCharactersAdmin() {
                           }); 
                           setEditingId(c.id); 
                         }}><Edit2 className="size-3.5" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(c.id)} className="text-destructive"><Trash2 className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteConfirmId(c.id)} className="text-destructive"><Trash2 className="size-3.5" /></Button>
                       </div>
                     </div>
                   </>
@@ -253,26 +273,26 @@ export default function CanonCharactersAdmin() {
   );
 }
 
-function CanonProfileFields({ value, onChange, fields }: { value: Record<string, string>; onChange: (next: Record<string, string>) => void; fields: any[] }) {
+function CanonProfileFields({ value, onChange, fields, disabled = false }: { value: Record<string, string>; onChange: (next: Record<string, string>) => void; fields: any[], disabled?: boolean }) {
   if (!fields) return null;
   
-  // Solo usar los campos marcados como básicos requeridos (Nombre, Apellido, Apodo, Alineación, Quirk, Avatar)
-  const allowedCoreKeys = ['basic_name', 'last_name', 'alias', 'basic_alignment', 'quirk_name', 'avatar_url'];
-  
-  const displayFields = fields.filter((f: any) => allowedCoreKeys.includes(f.coreKey));
+  // Usar TODOS los campos que tengan coreKey (los campos básicos por defecto)
+  // Ocultar ciertos campos básicos en este formulario específico
+  const hiddenKeys = ['nationality', 'faceclaim', 'basic_blood_type', 'quirk_type'];
+  const displayFields = fields.filter((f: any) => !!f.coreKey && !hiddenKeys.includes(f.coreKey));
   
   return (
     <>
       {[...displayFields].sort((a, b) => a.order - b.order).map((field) => {
         const val = value[field.id] ?? '';
-        const setVal = (v: any) => onChange({ ...value, [field.id]: v });
+        const setVal = (v: any) => { if (!disabled) onChange({ ...value, [field.id]: v }); };
         
         let input;
         switch (field.type) {
           case 'select':
             input = (
-              <Select value={String(val)} onValueChange={setVal}>
-                <SelectTrigger>
+              <Select value={String(val)} onValueChange={setVal} disabled={disabled}>
+                <SelectTrigger className={disabled ? "opacity-50 cursor-not-allowed" : ""}>
                   <SelectValue placeholder={`Seleccionar ${field.name}`} />
                 </SelectTrigger>
                 <SelectContent>
@@ -284,22 +304,18 @@ function CanonProfileFields({ value, onChange, fields }: { value: Record<string,
             );
             break;
           case 'date':
-            input = <Input type="date" value={String(val)} onChange={(e) => setVal(e.target.value)} />;
+            input = <Input type="date" value={String(val)} onChange={(e) => setVal(e.target.value)} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />;
             break;
           case 'textarea':
-            input = <Textarea value={String(val)} onChange={(e) => setVal(e.target.value)} />;
+            input = <Textarea value={String(val)} onChange={(e) => setVal(e.target.value)} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />;
             break;
           case 'quirk':
             input = (
-              <Input 
-                value={String(value[`${field.id}_name`] || '')} 
-                onChange={e => onChange({ ...value, [`${field.id}_name`]: e.target.value })} 
-                placeholder="Nombre del quirk/poder..." 
-              />
+              <Input value={String(value[`${field.id}_name`] || '')} onChange={e => { if (!disabled) onChange({ ...value, [`${field.id}_name`]: e.target.value }) }} placeholder="Nombre del quirk/poder..." disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />
             );
             break;
           default:
-            input = <Input type="text" value={String(val)} onChange={(e) => setVal(e.target.value)} placeholder={field.name} />;
+            input = <Input type="text" value={String(val)} onChange={(e) => setVal(e.target.value)} placeholder={field.name} disabled={disabled} className={disabled ? "opacity-50 cursor-not-allowed" : ""} />;
             break;
         }
 

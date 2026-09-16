@@ -516,8 +516,8 @@ function RequirementTags({ title, items, elements, attributes, onRemove }: any) 
 }
 
 function DeleteAction({ type, id, mutate }: { type: string, id: string, mutate: any }) {
+  const [open, setOpen] = useState(false);
   const handleDelete = async () => {
-    if (!confirm("¿Seguro que deseas eliminar este registro?")) return;
     const res = await apiFetch(`/api/admin/${type}/${id}`, { method: "DELETE" });
     if (res.ok) {
       toast.success("Eliminado");
@@ -526,11 +526,28 @@ function DeleteAction({ type, id, mutate }: { type: string, id: string, mutate: 
       const err = await res.json();
       toast.error(err.error || "No se pudo eliminar, es posible que tenga registros hijos activos.");
     }
+    setOpen(false);
   };
-
+  
   return (
-    <Button variant="ghost" size="icon-sm" className="text-destructive hover:bg-destructive/10" onClick={handleDelete}>
-      <Trash2 className="size-4" />
-    </Button>
+    <>
+      <Button variant="ghost" size="icon-sm" className="text-destructive hover:bg-destructive/10" onClick={() => setOpen(true)}>
+        <Trash2 className="size-4" />
+      </Button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar registro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. ¿Seguro que deseas eliminar este registro?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

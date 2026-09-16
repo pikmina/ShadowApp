@@ -7,6 +7,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
@@ -46,6 +47,7 @@ export default function SheetBuilderAdmin() {
   );
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [newOption, setNewOption] = useState("");
   const [isNewCategory, setIsNewCategory] = useState(false);
@@ -85,16 +87,18 @@ export default function SheetBuilderAdmin() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("¿Seguro que deseas eliminar este campo?")) return;
+  const confirmDeletion = async () => {
+    if (!deleteConfirmId) return;
     try {
-      const res = await apiFetch(`/api/sheet-fields/${id}`, {
+      const res = await apiFetch(`/api/sheet-fields/${deleteConfirmId}`, {
         method: "DELETE" });
       if (!res.ok) throw new Error();
       toast.success("Campo eliminado");
       mutate();
     } catch (e) {
       toast.error("Error al eliminar");
+    } finally {
+      setDeleteConfirmId(null);
     }
   };
 
@@ -257,11 +261,11 @@ export default function SheetBuilderAdmin() {
                           : "—"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-2 transition-opacity">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(field)}>
                             <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
                           </Button>
-                          {!field.coreKey && <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={() => handleDelete(field.id)}>
+                          {!field.coreKey && <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={() => setDeleteConfirmId(field.id)}>
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>}
                         </div>
@@ -370,6 +374,21 @@ export default function SheetBuilderAdmin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar campo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Esto eliminará permanentemente este campo y los datos asociados en las fichas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeletion} className="bg-red-600 hover:bg-red-700">Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

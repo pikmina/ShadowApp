@@ -9,12 +9,13 @@ export async function getCanonCharacters() {
     .select({
       canon: canonCharacters,
       characterId: characters.id,
+      linkedProfileData: characters.profileData,
     })
     .from(canonCharacters)
     .leftJoin(characters, eq(characters.canonCharacterId, canonCharacters.id))
     .orderBy(asc(canonCharacters.sortOrder), asc(canonCharacters.name));
 
-  return Promise.all(result.map(async ({ canon, characterId }) => {
+  return Promise.all(result.map(async ({ canon, characterId, linkedProfileData }) => {
     let status = 'available';
     if (characterId) {
       status = 'occupied';
@@ -26,8 +27,12 @@ export async function getCanonCharacters() {
       getOwnerEmployments({ canonCharacterId: canon.id }),
       getOwnerEnrollment({ canonCharacterId: canon.id }),
     ]);
+    const finalProfileData = characterId && linkedProfileData 
+      ? linkedProfileData 
+      : canon.profileData;
     return {
       ...canon,
+      profileData: finalProfileData || {},
       status,
       linkedCharacterId: characterId || null,
       employments,
