@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { systemMechanicsConfigSchema, type SystemMechanicsConfig } from '../../domain/systemMechanics';
 import { createEffectDefinition, describeEffect, MechanicalEffectDefinitionEditor } from './MechanicalEffectDefinitionEditor';
 import { RuleComponentEditor, componentTemplates } from './RuleComponentEditor';
-import { Edit2, Plus, Trash2, Swords, Shield, HeartHandshake, Brain, Lock, Wrench, Package, HandFist, HeartPulse, BrickWall, UserRoundPlus, UserRoundMinus, BugOff, MessageSquareDiff, Handshake, Target, Hash, FoldHorizontal, LandPlot, Hourglass, Star, Clock, ArrowUpCircle, Ban, HandGrab, Eye, Ear, UserStar, Parentheses, KeyRound, CookingPot, Dices, BatteryCharging, BatteryPlus, BoneFracture, ClockArrowDown, Flame, LineDotRightHorizontal, ClockArrowRight, RefreshCw } from 'lucide-react';
+import { Edit2, Plus, Trash2, Swords, Shield, HeartHandshake, Brain, Lock, Wrench, Package, HandFist, HeartPulse, BrickWall, UserRoundPlus, UserRoundMinus, BugOff, MessageSquareDiff, Handshake, Target, Hash, FoldHorizontal, LandPlot, Hourglass, Star, Clock, ArrowUpCircle, Ban, HandGrab, Eye, Ear, UserStar, Parentheses, KeyRound, CookingPot, Dices, BatteryCharging, BatteryPlus, BoneFracture, ClockArrowDown, Flame, LineDotRightHorizontal, ClockArrowRight, RefreshCw, Settings2 } from 'lucide-react';
 
 type Category = SystemMechanicsConfig[number];
 
@@ -31,14 +31,10 @@ const CoreKeyIcon = ({ coreKey, className }: { coreKey?: string, className?: str
     case 'cooldown': return <Clock className={className} />;
     case 'maintenance': return <ArrowUpCircle className={className} />;
     case 'usage': return <Ban className={className} />;
-    case 'physical_contact': return <HandGrab className={className} />;
-    case 'visual_contact': return <Eye className={className} />;
-    case 'auditory_contact': return <Ear className={className} />;
-    case 'conscious': return <UserStar className={className} />;
     case 'resource_threshold': return <Parentheses className={className} />;
-    case 'active_ability': return <KeyRound className={className} />;
     case 'consumption': return <CookingPot className={className} />;
     case 'manual_condition': return <Handshake className={className} />;
+    case 'additional_requirement': return <Settings2 className={className} />;
     case 'die_condition': return <Dices className={className} />;
     case 'stamina_cost': return <BatteryCharging className={className} />;
     case 'health_cost': return <BatteryPlus className={className} />;

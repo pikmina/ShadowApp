@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import useSWR from "swr";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { apiFetch, fetcher } from "@/lib/api";
 
@@ -57,7 +58,7 @@ export function CharacterEmployments({ characterId, canonCharacterId }: { charac
               <p className="font-medium">{emp.position.name}</p>
               <p className="text-xs text-muted-foreground">{emp.institution.name} - {emp.department.name}</p>
             </div>
-            <Button variant="ghost" size="icon-sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleRemove(emp.employment.id)}>
+            <Button variant="ghost" size="icon-sm" className="text-destructive hover:bg-destructive/10" onClick={() => setDeleteConfirmId(emp.employment.id)}>
               <Trash2 className="size-4" />
             </Button>
           </div>
@@ -143,7 +144,7 @@ export function CharacterEnrollments({ characterId, canonId, canonCharacterId }:
             <p className="font-medium">{enrollment.classGroup.name}</p>
             <p className="text-xs text-muted-foreground">{enrollment.academicYear.name}</p>
           </div>
-          <Button variant="ghost" size="icon-sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleRemove(enrollment.enrollment.id)}>
+          <Button variant="ghost" size="icon-sm" className="text-destructive hover:bg-destructive/10" onClick={() => setDeleteConfirmId(enrollment.enrollment.id)}>
             <Trash2 className="size-4" />
           </Button>
         </div>

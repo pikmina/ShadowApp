@@ -57,7 +57,7 @@ export default function AdminRewardsDialog({ characterId, onClose }: { character
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-card p-6 rounded-md shadow-lg border border-border max-w-sm w-full">
         <h3 className="text-lg font-bold mb-4">Administrar Recompensas</h3>
-        <form onSubmit={handleInitialSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-xs mb-1 block">Tipo</label>
             <Select value={type} onValueChange={(v: any) => { setType(v); if (v === 'possession' && !amount) setAmount('1'); }}>
