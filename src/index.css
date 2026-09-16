@@ -80,8 +80,8 @@
     /* 🎨 COLORES BASE & ACENTOS                         */
     /* ================================================= */
     
-    --accent2: var(--dark-slate-blue);
-    --accent1: var(--ashes);
+    --accent2: var(--ashes);
+    --accent1: var(--dark-slate-blue);
     --accent4: #9b6a40;
     --accent3: #265743;
 

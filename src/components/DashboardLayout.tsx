@@ -65,7 +65,7 @@ export default function DashboardLayout() {
             <div className="space-y-1">
               {section.items.map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to} onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => `admin-nav-link ${isActive ? "admin-nav-link-active" : ""}`}>
-                  <Icon className="size-[18px] shrink-0 text-accent2" aria-hidden="true" /><span className="flex-1 font-oxanium">{label}</span>{location.pathname === to && <ChevronRight className="size-3.5" aria-hidden="true" />}
+                  <Icon className="size-[18px] shrink-0 text-accent1" aria-hidden="true" /><span className="flex-1 font-oxanium">{label}</span>{location.pathname === to && <ChevronRight className="size-3.5" aria-hidden="true" />}
                 </NavLink>
               ))}
             </div>

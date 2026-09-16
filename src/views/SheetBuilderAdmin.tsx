@@ -195,7 +195,7 @@ export default function SheetBuilderAdmin() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground">Diseñador de Fichas</h2>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground">
             Construye la plantilla de la hoja de personaje. Añade los campos que los jugadores deberán rellenar.
           </p>
         </div>
@@ -220,7 +220,7 @@ export default function SheetBuilderAdmin() {
       ) : (
         <div className="space-y-6">
           {Object.keys(groupedFields).map(category => (
-            <Card key={category} className="shadow-sm border-border overflow-hidden">
+            <Card key={category} className="shadow-sm border-border overflow-hidden mt-0">
               <CardHeader className="bg-muted py-3 border-b">
                 <CardTitle className="text-base font-medium text-foreground uppercase tracking-wider">{category}</CardTitle>
               </CardHeader>
