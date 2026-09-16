@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { createCoreCategories, migrateCoreCategories, validateCoreCategories } from '../coreRuleCatalog';
-import { resolveAppliedMechanics, systemMechanicsConfigSchema, validatePersistedMechanicalEffects, calculateExecutionStaminaCost } from '../systemMechanics';
+import { resolveAppliedMechanics, systemMechanicsConfigSchema, validatePersistedMechanicalEffects, calculateExecutionStaminaCost, type ResolvedRuleGroup } from '../systemMechanics';
 import { evaluateRuleGroup, type RuleContext } from '../ruleEngine';
 import { ruleComponentSchema } from '../ruleComponents';
 
@@ -130,5 +130,32 @@ describe('Composed universal rules', () => {
     const first = evaluateRuleGroup(g, context());
     const hit = evaluateRuleGroup(g, context({ event: 'after_damage', eventId: 'hit1', damageDealt: 9 }), first.state);
     expect(hit.operations).toContainEqual({ kind: 'resource', resourceId: 'SA', amount: -4, unavoidable: true });
+  });
+  test('consumable condition validates inventory and consumes upon activation', () => {
+    const g: ResolvedRuleGroup = {
+      id: 'test-group',
+      references: [],
+      cost: 0,
+      effects: [],
+      components: [
+        {
+          kind: 'condition',
+          role: 'requirement',
+          match: 'all',
+          predicates: [{ kind: 'consumable', elementId: 'sugar-item', quantity: 2 }],
+        },
+      ],
+    };
+    // Fails when inventory has insufficient quantity
+    const ctxNoItem = context({ inventory: { 'sugar-item': 1 } });
+    const failRes = evaluateRuleGroup(g, ctxNoItem);
+    expect(failRes.valid).toBe(false);
+    expect(failRes.operations).toEqual([]);
+
+    // Succeeds and generates consume operation when sufficient
+    const ctxWithItem = context({ inventory: { 'sugar-item': 3 } });
+    const passRes = evaluateRuleGroup(g, ctxWithItem);
+    expect(passRes.valid).toBe(true);
+    expect(passRes.operations).toContainEqual({ kind: 'consume', elementId: 'sugar-item', quantity: 2 });
   });
 });

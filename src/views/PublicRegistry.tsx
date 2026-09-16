@@ -284,7 +284,7 @@ function PublicClasses() {
       {data?.map((year: any) => (
         <div key={year.id} className="border border-border bg-card p-6 rounded-lg">
           <h2 className="text-2xl font-bold mb-6 text-primary font-oxanium">{year.name}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {year.classes?.map((cls: any) => {
               const styles = getCourseStyles(cls.courseType);
               return (

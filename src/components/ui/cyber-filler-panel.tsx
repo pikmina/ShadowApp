@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
-export interface CyberFillerPanelProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface CyberFillerPanelProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
   className?: string;
   icon?: React.ComponentType<{ className?: string }>;
   title?: React.ReactNode;

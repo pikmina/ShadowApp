@@ -3,6 +3,7 @@ import React, {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import { ThemeProvider } from "next-themes";
 import App from './App.tsx';
+import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import './index.css';
 
 const NextThemesProvider = ThemeProvider as unknown as React.FC<
@@ -12,7 +13,9 @@ const NextThemesProvider = ThemeProvider as unknown as React.FC<
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </NextThemesProvider>
   </StrictMode>,
 );

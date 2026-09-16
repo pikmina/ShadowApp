@@ -188,11 +188,12 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         });
       }
 
+      const token = await user.getIdToken();
       const res = await apiFetch('/api/character', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.accessToken}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
           characterId: character?.id,
