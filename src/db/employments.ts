@@ -1,10 +1,10 @@
 import { eq, or, and, isNull, isNotNull, asc, sql } from 'drizzle-orm';
 import { db } from './index.ts';
-import { institutions, departments, positions, characterEmployments, characters, canonCharacters, elementPossessions, systemRules, systemElements } from './schema.ts';
+import { institutions, departments, positions, characterEmployments, employmentPayments, characters, canonCharacters, elementPossessions, systemRules, systemElements, auditLogs } from './schema.ts';
 import { nanoid } from 'nanoid';
 import { alias } from 'drizzle-orm/pg-core';
 import { evaluateRequirements, requirementGroupSchema } from '../domain/requirements.ts';
-import { employmentCompensationSchema, positionEmploymentRulesSchema } from '../domain/employmentCompensation.ts';
+import { calculateEmploymentCompensation, employmentCompensationSchema, positionEmploymentRulesSchema } from '../domain/employmentCompensation.ts';
 
 export type EmploymentOwner = { characterId?: number; canonCharacterId?: string };
 
@@ -66,13 +66,11 @@ export async function getInstitutionsWithDepartmentsAndPositions() {
   const allDepartments = await db.select().from(departments).orderBy(asc(departments.sortOrder), asc(departments.name));
   const allPositions = await db.select().from(positions).orderBy(asc(positions.sortOrder), asc(positions.name));
 
-  // Get active employments to calculate capacity
-  const activeEmployments = await db.select({
-    positionId: characterEmployments.positionId,
-    characterId: characterEmployments.characterId,
-  })
-  .from(characterEmployments)
-  .where(eq(characterEmployments.status, 'active'));
+  const [activeEmployments, allCharacters, allCanonCharacters] = await Promise.all([
+    db.select().from(characterEmployments).where(eq(characterEmployments.status, 'active')),
+    db.select().from(characters),
+    db.select().from(canonCharacters),
+  ]);
 
   const occupantsByPosition: Record<string, number> = {};
   activeEmployments.forEach(emp => {
@@ -89,7 +87,22 @@ export async function getInstitutionsWithDepartmentsAndPositions() {
           ...dep,
           positions: depPos.map(pos => ({
             ...pos,
-            occupiedSlots: occupantsByPosition[pos.id] || 0
+            occupiedSlots: occupantsByPosition[pos.id] || 0,
+            occupants: activeEmployments
+              .filter(employment => employment.positionId === pos.id)
+              .map(employment => {
+                const directCharacter = employment.characterId ? allCharacters.find(item => item.id === employment.characterId) : null;
+                const canonId = employment.canonCharacterId ?? directCharacter?.canonCharacterId;
+                const character = directCharacter ?? (canonId ? allCharacters.find(item => item.canonCharacterId === canonId) : null);
+                const canon = canonId ? allCanonCharacters.find(item => item.id === canonId) : null;
+                return {
+                  employmentId: employment.id,
+                  characterId: character?.id ?? null,
+                  canonCharacterId: canon?.id ?? null,
+                  name: canon?.name ?? character?.name ?? 'Personaje no disponible',
+                  requirementsVerified: employment.requirementsVerified,
+                };
+              }),
           }))
         };
       })
@@ -268,6 +281,90 @@ export async function getCharacterEmployments(characterId: number) {
   const [character] = await db.select().from(characters).where(eq(characters.id, characterId));
   if (!character) return [];
   return getOwnerEmployments(character.canonCharacterId ? { canonCharacterId: character.canonCharacterId } : { characterId });
+}
+
+export type EmploymentPaymentItem = {
+  employmentId: string;
+  postsObserved: number;
+  minimumPostsApproved: boolean;
+  optionalBonusIds?: string[];
+};
+
+export async function payEmploymentBatch(moderatorUid: string, periodLabel: string, notes: string | null, items: EmploymentPaymentItem[]) {
+  const normalizedPeriod = periodLabel.trim();
+  if (!normalizedPeriod) throw Object.assign(new Error('Payment period is required'), { status: 400 });
+  if (items.length === 0 || new Set(items.map(item => item.employmentId)).size !== items.length) {
+    throw Object.assign(new Error('Select at least one unique employment'), { status: 400 });
+  }
+
+  return db.transaction(async tx => {
+    const [compensationRule] = await tx.select().from(systemRules).where(eq(systemRules.key, 'employment_compensation'));
+    const compensation = employmentCompensationSchema.parse(compensationRule?.value);
+    const batchId = nanoid(12);
+    const results: any[] = [];
+
+    for (const item of items) {
+      if (!Number.isSafeInteger(item.postsObserved) || item.postsObserved < 0) throw Object.assign(new Error('Observed posts must be a non-negative integer'), { status: 400 });
+      const [row] = await tx.select({ employment: characterEmployments, position: positions })
+        .from(characterEmployments)
+        .innerJoin(positions, eq(positions.id, characterEmployments.positionId))
+        .where(and(eq(characterEmployments.id, item.employmentId), eq(characterEmployments.status, 'active')));
+      if (!row) throw Object.assign(new Error('Active employment not found'), { status: 404 });
+      if (!row.position.levelId || !row.position.riskId) throw Object.assign(new Error(`Position ${row.position.name} has no complete compensation configuration`), { status: 409 });
+      if (!item.minimumPostsApproved) throw Object.assign(new Error(`Minimum posts were not approved for ${row.position.name}`), { status: 409 });
+      if (row.position.minPosts !== null && item.postsObserved < row.position.minPosts) {
+        throw Object.assign(new Error(`Minimum posts not met for ${row.position.name}`), { status: 409 });
+      }
+      const [alreadyPaid] = await tx.select({ id: employmentPayments.id }).from(employmentPayments).where(and(
+        eq(employmentPayments.employmentId, item.employmentId), eq(employmentPayments.periodLabel, normalizedPeriod),
+      ));
+      if (alreadyPaid) throw Object.assign(new Error(`${row.position.name} was already paid for ${normalizedPeriod}`), { status: 409 });
+
+      const [character] = row.employment.characterId
+        ? await tx.select().from(characters).where(eq(characters.id, row.employment.characterId))
+        : await tx.select().from(characters).where(eq(characters.canonCharacterId, row.employment.canonCharacterId!));
+      if (!character) throw Object.assign(new Error(`The holder of ${row.position.name} needs a linked character sheet before payment`), { status: 409 });
+
+      const optionalBonuses = Array.isArray(row.position.optionalBonuses) ? row.position.optionalBonuses as any[] : [];
+      const selectedIds = [...new Set(item.optionalBonusIds ?? [])];
+      const selectedBonuses = selectedIds.map(id => optionalBonuses.find(bonus => bonus.id === id));
+      if (selectedBonuses.some(bonus => !bonus)) throw Object.assign(new Error('Unknown optional employment bonus'), { status: 400 });
+      const owned = await tx.select().from(elementPossessions).where(eq(elementPossessions.characterId, character.id));
+      const possessions = new Map(owned.map((ownedItem: any) => [ownedItem.elementId, { quantity: ownedItem.quantity, selectedChoices: ownedItem.selectedChoices as Record<string, unknown> }]));
+      for (const bonus of selectedBonuses) {
+        const evaluation = evaluateRequirements(requirementGroupSchema.parse(bonus.requirements), { profile: (character.profileData ?? {}) as Record<string, unknown>, possessions });
+        if (!evaluation.passed) throw Object.assign(new Error(`${character.name} does not meet optional bonus ${bonus.name}`), { status: 409 });
+      }
+      const optionalYen = selectedBonuses.reduce((sum, bonus) => sum + bonus.yen, 0);
+      const optionalExp = selectedBonuses.reduce((sum, bonus) => sum + bonus.exp, 0);
+      const quote = calculateEmploymentCompensation(compensation, row.position.levelId, row.position.riskId, row.position.bonusYen + optionalYen, row.position.bonusExp + optionalExp);
+      const breakdown = {
+        compensationVersion: compensation.version,
+        level: compensation.levels.find(entry => entry.id === row.position.levelId),
+        risk: compensation.risks.find(entry => entry.id === row.position.riskId),
+        positionBonusYen: row.position.bonusYen,
+        positionBonusExp: row.position.bonusExp,
+        optionalBonuses: selectedBonuses.map(bonus => ({ id: bonus.id, name: bonus.name, yen: bonus.yen, exp: bonus.exp })),
+        quote,
+      };
+
+      await tx.update(characters).set({ yen: sql`${characters.yen} + ${quote.totalYen}`, exp: sql`${characters.exp} + ${quote.totalExp}`, updatedAt: new Date() }).where(eq(characters.id, character.id));
+      const [payment] = await tx.insert(employmentPayments).values({
+        id: nanoid(12), batchId, employmentId: row.employment.id, characterId: character.id, positionId: row.position.id,
+        characterName: character.name, positionName: row.position.name, periodLabel: normalizedPeriod,
+        postsObserved: item.postsObserved, minimumPostsApproved: true, breakdown, totalYen: quote.totalYen,
+        totalExp: quote.totalExp, notes: notes?.trim() || null, moderatorUid,
+      }).returning();
+      results.push(payment);
+    }
+
+    await tx.insert(auditLogs).values({ actorUid: moderatorUid, actionType: 'employment_payment_batch', targetId: batchId, details: { periodLabel: normalizedPeriod, paymentIds: results.map(item => item.id), notes: notes?.trim() || null } });
+    return { batchId, payments: results };
+  });
+}
+
+export async function getEmploymentPaymentHistory() {
+  return db.select().from(employmentPayments).orderBy(sql`${employmentPayments.createdAt} DESC`);
 }
 
 export async function getOwnerEmployments(owner: EmploymentOwner) {

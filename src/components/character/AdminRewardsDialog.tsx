@@ -15,7 +15,11 @@ export default function AdminRewardsDialog({ characterId, onClose }: { character
   const [reason, setReason] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
-  const { data: elements } = useSWR('/api/catalog', fetcher);
+  const { data: elements } = useSWR('/api/elements', fetcher);
+  const elementKindLabel = (kind: string) => ({
+    license: 'Licencia', permission: 'Permiso', certification: 'Certificación', trait: 'Rasgo', weakness: 'Debilidad',
+    skill: 'Habilidad', equipment: 'Equipamiento', weapon: 'Arma', ammunition: 'Munición', consumable: 'Consumible',
+  } as Record<string, string>)[kind] ?? 'Elemento';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,12 +60,12 @@ export default function AdminRewardsDialog({ characterId, onClose }: { character
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-xs mb-1 block">Tipo</label>
-            <Select value={type} onValueChange={(v: any) => setType(v)}>
+            <Select value={type} onValueChange={(v: any) => { setType(v); if (v === 'possession' && !amount) setAmount('1'); }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="exp">EXP</SelectItem>
                 <SelectItem value="yen">Yen</SelectItem>
-                <SelectItem value="possession">Posesión (Elemento)</SelectItem>
+                <SelectItem value="possession">Elemento del catálogo</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -72,14 +76,14 @@ export default function AdminRewardsDialog({ characterId, onClose }: { character
                 <SelectTrigger><SelectValue placeholder="Selecciona un elemento" /></SelectTrigger>
                 <SelectContent className="max-h-64">
                   {elements?.map((el: any) => (
-                    <SelectItem key={el.id} value={el.id}>{el.name} ({el.kind})</SelectItem>
+                    <SelectItem key={el.id} value={el.id}>[{elementKindLabel(el.kind)}] {el.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           )}
           <div>
-            <label className="text-xs mb-1 block">Cantidad (puede ser negativa)</label>
+            <label className="text-xs mb-1 block">{type === 'possession' ? 'Cantidad (1 para otorgar, -1 para retirar)' : 'Cantidad (puede ser negativa)'}</label>
             <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} />
           </div>
           <div>

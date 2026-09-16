@@ -26,6 +26,11 @@ async function resolveEnrollmentOwner(tx: any, owner: EnrollmentOwner) {
 export async function getAcademicYearsWithClasses() {
   const years = await db.select().from(academicYears).orderBy(asc(academicYears.sortOrder), asc(academicYears.name));
   const classes = await db.select().from(classGroups).orderBy(asc(classGroups.sortOrder), asc(classGroups.name));
+  const [allEnrollments, allCharacters, allCanon] = await Promise.all([
+    db.select().from(characterEnrollments).where(eq(characterEnrollments.status, 'active')),
+    db.select().from(characters),
+    db.select().from(canonCharacters),
+  ]);
   
   // Get active enrollments to calculate capacity
   const activeEnrollments = await db.select({
@@ -52,7 +57,13 @@ export async function getAcademicYearsWithClasses() {
       ...year,
       classes: yearClasses.map(cls => ({
         ...cls,
-        usedSlots: occupantsByClass[cls.id] || 0
+        usedSlots: occupantsByClass[cls.id] || 0,
+        students: allEnrollments.filter(enrollment => enrollment.classGroupId === cls.id).map(enrollment => {
+          const character = enrollment.characterId ? allCharacters.find(item => item.id === enrollment.characterId) : null;
+          const canonId = enrollment.canonCharacterId ?? character?.canonCharacterId;
+          const canon = canonId ? allCanon.find(item => item.id === canonId) : null;
+          return { enrollmentId: enrollment.id, characterId: character?.id ?? null, canonCharacterId: canon?.id ?? null, name: canon?.name ?? character?.name ?? 'Personaje no disponible' };
+        }),
       }))
     };
   });

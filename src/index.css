@@ -439,14 +439,14 @@
   background: var(--bg2);
 }
 .admin-nav-link {
-  display: flex; align-items: center; gap: .75rem; min-height: 44px;
-  padding: .625rem .75rem; border: 1px solid transparent; border-radius: .5rem;
+  display: flex; align-items: center; gap: .5rem; min-height: 44px;
+  padding: .625rem .75rem; border: 1px solid transparent;
   color: var(--muted-foreground); font-size: .8125rem; transition: background-color .15s, color .15s;
 }
 .admin-nav-link:hover { background: var(--muted); color: var(--foreground); }
-.admin-nav-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.admin-nav-link-active { color: var(--foreground); border-color: color-mix(in srgb, var(--primary) 35%, transparent); background: color-mix(in srgb, var(--primary) 12%, var(--card)); box-shadow: inset 2px 0 var(--primary); }
-.admin-nav-link-active > svg { color: var(--primary); }
+.admin-nav-link:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+.admin-nav-link-active { color: var(--foreground); border-color: color-mix(in srgb, var(--accent2) 35%, transparent); background: color-mix(in srgb, var(--primary) 12%, var(--card)); }
+.admin-nav-link-active > svg { color: var(--accent2); }
 .admin-workspace [data-slot="card"] { gap: 1.25rem; padding-block: 1.25rem; }
 .admin-workspace [data-slot="card-header"], .admin-workspace [data-slot="card-content"], .admin-workspace [data-slot="card-footer"] { padding-inline: 1.25rem; }
 .admin-workspace [data-slot="card-title"], .admin-dialog [data-slot="dialog-title"] { font-family: var(--font-oxanium); }

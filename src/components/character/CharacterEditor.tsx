@@ -43,6 +43,8 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const { data: canonList } = useSWR('/api/public/canon-characters', fetcher);
   const { data: rawElements } = useSWR(user ? "/api/elements" : null, fetcher);
   const elements = Array.isArray(rawElements) ? rawElements.filter(el => el.status === 'published') : [];
+  const credentials = (Array.isArray(character?.possessions) ? character.possessions : []).filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind));
+  const credentialKindLabel = (kind: string) => ({ license: 'Licencia', permission: 'Permiso', certification: 'Certificación' } as Record<string, string>)[kind] ?? kind;
 
   // Add the "Facción / Grupo" field virtually to basic data if groups exist
   let processedFields: any[] = [];
@@ -658,6 +660,13 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">Selecciona un personaje canon para enlazar esta ficha con el catálogo público. Los personajes ocupados o reservados no pueden seleccionarse.</p>
+              </div>
+            )}
+
+            {activeTab === 'Datos' && (
+              <div className="md:col-span-2 mb-6 rounded-md border border-border bg-muted/20 p-4">
+                <Label className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest"><Shield className="size-4 text-amber-400" /> Licencias, permisos y certificaciones</Label>
+                {credentials.length > 0 ? <div className="mt-3 flex flex-wrap gap-2">{credentials.map((row: any) => <Badge key={row.possession.id} variant="outline" className="gap-1"><span className="text-muted-foreground">{credentialKindLabel(row.element.kind)}:</span> {row.element.name}</Badge>)}</div> : <p className="mt-2 text-xs text-muted-foreground">No hay credenciales asignadas. Un moderador puede otorgarlas desde Administrar recompensas.</p>}
               </div>
             )}
 

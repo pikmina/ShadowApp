@@ -14,8 +14,8 @@ const navigation = [
   { label: "Gestión", roles: ["superadmin", "moderator"], items: [
     { to: "/character-editor", label: "Personajes", icon: UserRound },
     { to: "/canon", label: "Catálogo Canon", icon: Library },
-    { to: "/employments", label: "Empleos y Cargos", icon: FileText },
-    { to: "/classes", label: "Clases y Grupos", icon: FileText },
+    { to: "/employments", label: "Empleos", icon: FileText },
+    { to: "/classes", label: "Clases", icon: FileText },
     { to: "/shop", label: "Tienda", icon: ShoppingCart },
   ] },
   { label: "Documentación", roles: ["superadmin", "moderator", "user"], items: [
@@ -55,17 +55,17 @@ export default function DashboardLayout() {
       <div className="border-b border-border px-5 py-6">
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary"><ShieldCheck className="size-5" aria-hidden="true" /></div>
-          <div><p className="font-oxanium text-lg font-semibold tracking-wide text-foreground">SHADOWMORE</p><p className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Administración del sistema</p></div>
+          <div><p className="font-oxanium text-lg font-semibold tracking-wide text-foreground">SHADOWMORE</p><p className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">v 4.5.0</p></div>
         </div>
       </div>
-      <nav aria-label="Navegación principal" className="min-h-0 flex-1 space-y-7 overflow-y-auto px-3 py-6">
+      <nav aria-label="Navegación principal" className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-6">
         {filteredNavigation.map(section => (
           <div key={section.label}>
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{section.label}</p>
+            <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{section.label}</p>
             <div className="space-y-1">
               {section.items.map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to} onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => `admin-nav-link ${isActive ? "admin-nav-link-active" : ""}`}>
-                  <Icon className="size-[18px] shrink-0" aria-hidden="true" /><span className="flex-1">{label}</span>{location.pathname === to && <ChevronRight className="size-3.5" aria-hidden="true" />}
+                  <Icon className="size-[18px] shrink-0 text-accent2" aria-hidden="true" /><span className="flex-1 font-oxanium">{label}</span>{location.pathname === to && <ChevronRight className="size-3.5" aria-hidden="true" />}
                 </NavLink>
               ))}
             </div>

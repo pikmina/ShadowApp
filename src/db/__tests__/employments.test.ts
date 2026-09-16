@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { db } from '../index.ts';
-import { canonCharacters, characterEmployments, characters, departments, institutions, positions, users } from '../schema.ts';
+import { canonCharacters, characterEmployments, employmentPayments, characters, departments, institutions, positions, users } from '../schema.ts';
 import { createCanonCharacter, deleteCanonCharacter } from '../canonCharacters.ts';
 import { createCharacter, deleteCharacter } from '../characters.ts';
 import { seedCoreRules } from '../rules.ts';
@@ -16,7 +16,9 @@ import {
   getCharacterEmployments,
   getInstitutionsWithDepartmentsAndPositions,
   getOwnerEmployments,
+  getEmploymentPaymentHistory,
   getPublicEmployments,
+  payEmploymentBatch,
   removeCharacterEmployment,
 } from '../employments.ts';
 
@@ -58,7 +60,7 @@ describe.skipIf(!dbAvailable)('Employments Integration', () => {
 
     institutionId = (await createInstitution({ name: `Institution ${suffix}` })).id;
     departmentId = (await createDepartment({ institutionId, name: `Department ${suffix}` })).id;
-    positionId = (await createPosition({ departmentId, name: `Position ${suffix}`, capacity: 1 })).id;
+    positionId = (await createPosition({ departmentId, name: `Position ${suffix}`, capacity: 1, levelId: 'level_4', riskId: 'moderate', minPosts: 2 })).id;
     zeroCapacityPositionId = (await createPosition({ departmentId, name: `Closed ${suffix}`, capacity: 0 })).id;
     restrictedPositionId = (await createPosition({
       departmentId, name: `Restricted ${suffix}`, capacity: 2, levelId: 'level_3', riskId: 'serious', minPosts: 4,
@@ -68,6 +70,7 @@ describe.skipIf(!dbAvailable)('Employments Integration', () => {
   });
 
   afterAll(async () => {
+    await db.delete(employmentPayments).where(eq(employmentPayments.positionId, positionId));
     if (canonEmploymentId || originalEmploymentId) {
       await db.delete(characterEmployments).where(inArray(characterEmployments.id, [canonEmploymentId, originalEmploymentId].filter(Boolean)));
     }
@@ -117,6 +120,11 @@ describe.skipIf(!dbAvailable)('Employments Integration', () => {
       .find((entry) => entry.id === positionId);
 
     expect(position?.occupiedSlots).toBe(1);
+    expect(position?.occupants).toContainEqual(expect.objectContaining({
+      employmentId: canonEmploymentId,
+      canonCharacterId: canonId,
+      requirementsVerified: true,
+    }));
     await expect(assignCharacterEmployment(originalCharacterId, positionId)).rejects.toMatchObject({ status: 409 });
   });
 
@@ -133,7 +141,21 @@ describe.skipIf(!dbAvailable)('Employments Integration', () => {
     }));
   });
 
-  test('6. preserves canon employment after deleting its linked sheet', async () => {
+  test('6. pays an approved employment once per period and preserves its snapshot', async () => {
+    const before = (await db.select().from(characters).where(eq(characters.id, linkedCharacterId)))[0];
+    const result = await payEmploymentBatch('test-moderator', 'September 2026', 'Forum reviewed', [{
+      employmentId: canonEmploymentId, postsObserved: 3, minimumPostsApproved: true,
+    }]);
+    expect(result.payments).toHaveLength(1);
+    expect(result.payments[0]).toMatchObject({ totalYen: 230, totalExp: 210, postsObserved: 3, minimumPostsApproved: true });
+    const after = (await db.select().from(characters).where(eq(characters.id, linkedCharacterId)))[0];
+    expect(after.yen).toBe(before.yen + 230);
+    expect(after.exp).toBe(before.exp + 210);
+    expect((await getEmploymentPaymentHistory()).find(item => item.id === result.payments[0].id)?.breakdown).toMatchObject({ compensationVersion: 1 });
+    await expect(payEmploymentBatch('test-moderator', 'September 2026', null, [{ employmentId: canonEmploymentId, postsObserved: 3, minimumPostsApproved: true }])).rejects.toMatchObject({ status: 409 });
+  });
+
+  test('7. preserves canon employment after deleting its linked sheet', async () => {
     await deleteCharacter(linkedCharacterId);
     linkedCharacterId = 0;
 
@@ -142,12 +164,12 @@ describe.skipIf(!dbAvailable)('Employments Integration', () => {
     expect(employments[0].employment.id).toBe(canonEmploymentId);
   });
 
-  test('7. protects related canon and position from deletion', async () => {
+  test('8. protects related canon and position from deletion', async () => {
     await expect(deleteCanonCharacter(canonId)).rejects.toBeDefined();
     await expect(deletePosition(positionId)).rejects.toThrow('assigned characters');
   });
 
-  test('8. releases capacity after removing employment and enforces zero capacity', async () => {
+  test('9. releases capacity after removing employment and enforces zero capacity', async () => {
     await removeCharacterEmployment(canonEmploymentId);
     canonEmploymentId = '';
     const employment = await assignCharacterEmployment(originalCharacterId, positionId);

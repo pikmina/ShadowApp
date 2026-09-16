@@ -191,7 +191,7 @@ export default function CharactersAdmin() {
               </h1>
               <p className="mt-0.5 text-[11px] text-muted-foreground">Base de datos automatizada Shadowmore OS 4.1.2 — Sincronización instantánea de estadísticas y técnicas.</p>
             </div>
-            <Button size="sm" className="h-9 font-oxanium text-xs uppercase tracking-wider bg-secondary/80 hover:bg-secondary text-secondary-foreground border border-border/50" onClick={() => { setSelectedCharacterId(null); setEditing(true); }}>
+            <Button size="sm" className="h-9" onClick={() => { setSelectedCharacterId(null); setEditing(true); }}>
               <Plus className="size-3.5 mr-1" /> Nuevo Personaje
             </Button>
           </div>

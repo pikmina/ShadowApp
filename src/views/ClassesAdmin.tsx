@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import useSWR from "swr";
 import { fetcher, apiFetch } from "@/lib/api";
-import { Plus, Trash2, Edit2, GraduationCap, Copy, Users, BookOpen, RefreshCw, UserMinus, Search, X, Activity } from "lucide-react";
+import { Plus, Trash2, Edit2, GraduationCap, Users, BookOpen, Search, X, Activity, CalendarDays } from "lucide-react";
 import { EntityPanel } from "@/components/ui/entity-panel";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -42,14 +42,12 @@ export default function ClassesAdmin() {
   let totalAulas = 0;
   let alumnosMatriculados = 0;
   let capacidadTotal = 0;
-  let tutoresAssigned = 0; // Mocked
 
   data?.forEach((year: any) => {
     year.classes?.forEach((cls: any) => {
       totalAulas++;
       alumnosMatriculados += cls.usedSlots || 0;
       capacidadTotal += cls.capacity || 0;
-      // In a real scenario, we'd check if cls has a tutor assigned
     });
   });
 
@@ -77,8 +75,10 @@ export default function ClassesAdmin() {
     flattenedClasses = flattenedClasses.filter(cls => cls.yearName === activeYear);
   }
 
-  if (searchTerm) {
-    flattenedClasses = flattenedClasses.filter(cls => cls.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  if (searchTerm.trim()) {
+    const query = searchTerm.trim().toLocaleLowerCase('es');
+    flattenedClasses = flattenedClasses.filter(cls => [cls.name, cls.description, cls.yearName, cls.courseType, ...(cls.students ?? []).map((student: any) => student.name)]
+      .filter(Boolean).join(' ').toLocaleLowerCase('es').includes(query));
   }
 
   const allYears = ['Todos los Años', ...new Set(data?.map((y: any) => y.name) || [])];
@@ -96,21 +96,15 @@ export default function ClassesAdmin() {
             <div>
               <h1 className="font-oxanium text-xl font-bold text-foreground">Aulas y Estudiantes de la Academia U.A.</h1>
               <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-                Estructura oficial en 4 departamentos de estudio, tutores elegidos de empleados U.A. y cupos de alumnos.
+                Administra años académicos, departamentos de estudio, aulas, cupos y alumnos matriculados.
               </p>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-            <Button variant="outline" size="sm" className="bg-background border-border/50 text-muted-foreground">
-              <UserMinus className="size-3.5 mr-2" /> Limpiar personajes eliminados
-            </Button>
-            <Button variant="outline" size="sm" className="bg-background border-border/50 text-muted-foreground">
-              <RefreshCw className="size-3.5 mr-2" /> Restaurar Estructura Oficial
-            </Button>
-            {/* We still need YearDialog for creating years, let's just make it a general config button or keep Year/Class dialogs */}
-            <ClassGroupDialog yearId={data?.[0]?.id} mutate={mutate} customButton={
-              <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white border-none">
-                <Plus className="size-3.5 mr-2" /> Nueva Aula U.A.
+            <YearDialog mutate={mutate} customButton={<Button variant="outline" size="sm" className="h-9"><CalendarDays className="size-3.5 mr-2" /> Nuevo Año</Button>} />
+            <ClassGroupDialog years={data} mutate={mutate} customButton={
+              <Button size="sm" className="h-9">
+                <Plus className="size-3.5 mr-2" /> Nueva Aula
               </Button>
             } />
           </div>
@@ -145,16 +139,16 @@ export default function ClassesAdmin() {
         </EntityPanel>
         <EntityPanel className="p-4 bg-black/40 border-border/50 flex flex-col justify-center">
           <div className="flex items-center gap-2 text-yellow-500 font-oxanium text-xs font-bold uppercase tracking-wider mb-2">
-            <GraduationCap className="size-4" /> TUTORES U.A.
+            <CalendarDays className="size-4" /> AÑOS ACADÉMICOS
           </div>
-          <div className="text-3xl font-bold text-yellow-500">{tutoresAssigned} <span className="text-sm font-normal text-muted-foreground">/ {totalAulas}</span></div>
+          <div className="text-3xl font-bold text-yellow-500">{data?.length ?? 0}</div>
         </EntityPanel>
       </div>
 
       {/* Departments Legend */}
       <EntityPanel className="p-5 bg-black/40 border-border/50">
         <h3 className="flex items-center gap-2 font-oxanium text-sm font-semibold text-foreground mb-4">
-          <BookOpen className="size-4 text-primary" /> Departamentos de Estudio Oficiales de la Academia U.A.:
+          <BookOpen className="size-4 text-primary" /> Departamentos de Estudio de la Academia U.A.
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {DEPARTMENTS.map(dept => (
@@ -171,8 +165,8 @@ export default function ClassesAdmin() {
 
       {/* Filters */}
       <EntityPanel className="p-4 bg-black/40 border-border/50">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-4 flex-1">
+        <div className="space-y-4">
+          <div className="space-y-4">
             <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-hide">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground shrink-0">Área de estudio:</span>
               <div className="flex gap-2">
@@ -213,12 +207,12 @@ export default function ClassesAdmin() {
             </div>
           </div>
           
-          <div className="relative w-full md:w-72 shrink-0">
+          <div className="relative w-full border-t border-border/50 pt-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input 
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              placeholder="Buscar aula, tutor o alumno..." 
+              placeholder="Buscar por aula, año, área, descripción o alumno..." 
               className="pl-9 bg-background/50"
             />
           </div>
@@ -242,8 +236,7 @@ export default function ClassesAdmin() {
                   </Badge>
                 </div>
                 <div className="flex gap-1 text-muted-foreground">
-                  <Button variant="ghost" size="icon-sm" className="h-6 w-6"><Copy className="size-3.5" /></Button>
-                  <ClassGroupDialog cls={cls} yearId={cls.yearId} mutate={mutate} customButton={
+                  <ClassGroupDialog cls={cls} yearId={cls.yearId} years={data} mutate={mutate} customButton={
                     <Button variant="ghost" size="icon-sm" className="h-6 w-6"><Edit2 className="size-3.5" /></Button>
                   } />
                   <DeleteAction type="class-groups" id={cls.id} mutate={mutate} />
@@ -251,17 +244,6 @@ export default function ClassesAdmin() {
               </div>
               
               <h2 className="text-2xl font-black font-oxanium text-white mb-6">{cls.name}</h2>
-
-              {/* Tutor Section */}
-              <div className="mb-6 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <GraduationCap className="size-4" /> Tutor Responsable (Academia U.A.):
-                  </div>
-                  <Badge variant="outline" className="text-[10px] text-orange-400 border-orange-400/30 bg-orange-400/10">Sin verificar</Badge>
-                </div>
-                <div className="font-semibold text-foreground pl-6">(Sin tutor asignado)</div>
-              </div>
 
               {/* Students Progress Section */}
               <div className="mb-6 space-y-3">
@@ -271,7 +253,7 @@ export default function ClassesAdmin() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-400/30 bg-emerald-400/10">{(cls.capacity || 0) - (cls.usedSlots || 0)} vacantes</Badge>
-                    <button className="text-[10px] text-muted-foreground hover:text-foreground underline decoration-muted-foreground/50 underline-offset-2">Ajustar Máx.</button>
+                    <ClassGroupDialog cls={cls} yearId={cls.yearId} years={data} mutate={mutate} customButton={<button className="text-[10px] text-muted-foreground hover:text-foreground underline decoration-muted-foreground/50 underline-offset-2">Ajustar máximo</button>} />
                   </div>
                 </div>
                 {/* Progress Bar */}
@@ -289,35 +271,10 @@ export default function ClassesAdmin() {
                   <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-yellow-500">
                     <BookOpen className="size-3.5" /> LISTA DE ALUMNOS:
                   </div>
-                  <button className="text-xs font-bold text-yellow-500 hover:text-yellow-400 flex items-center gap-1">
-                    <Plus className="size-3.5" /> Matricular Alumno
-                  </button>
+                  <EnrollmentDialog cls={cls} mutate={mutate} />
                 </div>
                 
-                <div className="border border-dashed border-border/50 rounded-lg p-4 bg-black/20 text-center text-sm text-muted-foreground">
-                  Sin alumnos matriculados aún en esta aula.
-                </div>
-                
-                {/* Example of a populated student (commented out as per design request to not fully implement yet, but showing structural readiness) */}
-                {/* 
-                <div className="border border-border/50 rounded-md p-2 bg-background flex items-center justify-between mt-2 group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-muted overflow-hidden">
-                      <img src="/placeholder-avatar.jpg" alt="Avatar" className="w-full h-full object-cover" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm">Izuku Midoriya</span>
-                        <Badge className="text-[9px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20 px-1 py-0 h-4">1er Año</Badge>
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">One For All • Novato</div>
-                    </div>
-                  </div>
-                  <button className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity">
-                    <X className="size-4" />
-                  </button>
-                </div> 
-                */}
+                {cls.students?.length ? <div className="space-y-2">{cls.students.map((student: any) => <div key={student.enrollmentId} className="flex items-center justify-between rounded-md border border-border/50 bg-background p-2"><span className="text-sm font-semibold">{student.name}</span><Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={async () => { const response = await apiFetch(`/api/admin/enrollments/${student.enrollmentId}`, { method: 'DELETE' }); if (response.ok) { toast.success('Alumno retirado'); await mutate(); } }}><X className="size-4" /></Button></div>)}</div> : <div className="border border-dashed border-border/50 rounded-lg p-4 bg-black/20 text-center text-sm text-muted-foreground">Sin alumnos matriculados aún en esta aula.</div>}
               </div>
 
             </EntityPanel>
@@ -394,7 +351,7 @@ function YearDialog({ year, mutate, customButton }: any) {
   );
 }
 
-function ClassGroupDialog({ cls, yearId, mutate, customButton }: any) {
+function ClassGroupDialog({ cls, yearId, years = [], mutate, customButton }: any) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(cls?.name || "");
   const [description, setDescription] = useState(cls?.description || "");
@@ -402,14 +359,16 @@ function ClassGroupDialog({ cls, yearId, mutate, customButton }: any) {
   const [active, setActive] = useState(cls ? cls.active : true);
   const [sortOrder, setSortOrder] = useState(cls?.sortOrder || 0);
   const [courseType, setCourseType] = useState(cls?.courseType || "");
+  const [academicYearId, setAcademicYearId] = useState(yearId || "");
 
   const handleSubmit = async () => {
+    if (!cls && !academicYearId) return toast.error('Selecciona un año académico');
     const url = cls ? `/api/admin/class-groups/${cls.id}` : `/api/admin/class-groups`;
     const method = cls ? "PUT" : "POST";
     const res = await apiFetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ academicYearId: yearId, name, description, capacity: Number(capacity), active, sortOrder: Number(sortOrder), courseType: (courseType && courseType !== "none") ? courseType : null })
+      body: JSON.stringify({ academicYearId: academicYearId || yearId, name, description, capacity: Number(capacity), active, sortOrder: Number(sortOrder), courseType: (courseType && courseType !== "none") ? courseType : null })
     });
     if (res.ok) {
       toast.success("Grupo guardado");
@@ -434,12 +393,13 @@ function ClassGroupDialog({ cls, yearId, mutate, customButton }: any) {
       <DialogContent>
         <DialogHeader><DialogTitle>{cls ? "Editar" : "Nuevo"} Grupo / Clase</DialogTitle></DialogHeader>
         <div className="space-y-4">
+          {!cls && <div className="space-y-2"><Label>Año académico</Label><Select value={academicYearId} onValueChange={setAcademicYearId}><SelectTrigger><SelectValue placeholder="Selecciona un año">{years.find((item: any) => item.id === academicYearId)?.name ?? 'Selecciona un año'}</SelectValue></SelectTrigger><SelectContent>{years.filter((item: any) => item.active).map((item: any) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>}
           
           <div className="space-y-2">
             <Label>Curso / Departamento</Label>
             <Select value={courseType} onValueChange={setCourseType}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecciona un tipo" />
+                <SelectValue placeholder="Selecciona un tipo">{courseType && courseType !== 'none' ? courseType : 'Sin clasificar'}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Sin clasificar</SelectItem>
@@ -476,6 +436,28 @@ function ClassGroupDialog({ cls, yearId, mutate, customButton }: any) {
       </DialogContent>
     </Dialog>
   );
+}
+
+function EnrollmentDialog({ cls, mutate }: any) {
+  const [open, setOpen] = useState(false);
+  const [selection, setSelection] = useState('');
+  const { data: characters } = useSWR(open ? '/api/admin/characters' : null, fetcher);
+  const { data: canonCharacters } = useSWR(open ? '/api/admin/canon-characters' : null, fetcher);
+  const options = [
+    ...(characters ?? []).filter((item: any) => !item.canonCharacterId).map((item: any) => ({ value: `character:${item.id}`, label: item.name })),
+    ...(canonCharacters ?? []).map((item: any) => ({ value: `canon:${item.id}`, label: `${item.name} (canon)` })),
+  ].filter(option => !(cls.students ?? []).some((student: any) => option.value === `character:${student.characterId}` || option.value === `canon:${student.canonCharacterId}`));
+
+  const enroll = async () => {
+    const [kind, id] = selection.split(':');
+    if (!kind || !id) return;
+    try {
+      await apiFetch('/api/admin/enrollments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ classGroupId: cls.id, ...(kind === 'canon' ? { canonCharacterId: id } : { characterId: Number(id) }) }) });
+      toast.success('Alumno matriculado'); setOpen(false); setSelection(''); await mutate();
+    } catch (error: any) { toast.error(error.message || 'No se pudo matricular'); }
+  };
+
+  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger render={<button className="text-xs font-bold text-yellow-500 hover:text-yellow-400 flex items-center gap-1"><Plus className="size-3.5" /> Matricular alumno</button>} /><DialogContent><DialogHeader><DialogTitle>Matricular alumno en {cls.name}</DialogTitle></DialogHeader><div className="space-y-2"><Label>Personaje</Label><Select value={selection} onValueChange={setSelection}><SelectTrigger><SelectValue placeholder="Selecciona un personaje">{options.find(option => option.value === selection)?.label ?? 'Selecciona un personaje'}</SelectValue></SelectTrigger><SelectContent>{options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select>{options.length === 0 && <p className="text-xs text-muted-foreground">No hay personajes disponibles para matricular.</p>}</div><DialogFooter><Button onClick={enroll} disabled={!selection}>Matricular</Button></DialogFooter></DialogContent></Dialog>;
 }
 
 function DeleteAction({ type, id, mutate }: { type: string, id: string, mutate: any }) {

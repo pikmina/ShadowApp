@@ -76,7 +76,7 @@ export default function CanonCharactersAdmin() {
               </h1>
               <p className="mt-0.5 text-[11px] text-muted-foreground">Gestiona el catálogo de personajes oficiales (Reservados, Ocupados y Disponibles).</p>
             </div>
-            <Button size="sm" onClick={() => setIsCreating(true)} className="h-9 font-oxanium text-xs uppercase tracking-wider bg-secondary/80 hover:bg-secondary text-secondary-foreground border border-border/50">
+            <Button size="sm" onClick={() => setIsCreating(true)} className="h-9">
               <Plus className="size-3.5 mr-1" /> Nuevo Personaje Canon
             </Button>
           </div>

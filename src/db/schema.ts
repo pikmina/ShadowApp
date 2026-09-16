@@ -216,6 +216,27 @@ export const characterEmployments = pgTable('character_employments', {
   activeCanonPosition: uniqueIndex('character_employments_active_canon_position').on(table.canonCharacterId, table.positionId).where(sql`${table.status} = 'active' AND ${table.canonCharacterId} IS NOT NULL`),
 }));
 
+export const employmentPayments = pgTable('employment_payments', {
+  id: varchar('id', { length: 100 }).primaryKey(),
+  batchId: varchar('batch_id', { length: 100 }).notNull(),
+  employmentId: varchar('employment_id', { length: 100 }).notNull(),
+  characterId: integer('character_id').notNull(),
+  positionId: varchar('position_id', { length: 100 }).notNull(),
+  characterName: varchar('character_name', { length: 255 }).notNull(),
+  positionName: varchar('position_name', { length: 255 }).notNull(),
+  periodLabel: varchar('period_label', { length: 100 }).notNull(),
+  postsObserved: integer('posts_observed').notNull(),
+  minimumPostsApproved: boolean('minimum_posts_approved').notNull(),
+  breakdown: jsonb('breakdown').notNull(),
+  totalYen: integer('total_yen').notNull(),
+  totalExp: integer('total_exp').notNull(),
+  notes: text('notes'),
+  moderatorUid: text('moderator_uid').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  onePaymentPerPeriod: uniqueIndex('employment_payments_employment_period_unique').on(table.employmentId, table.periodLabel),
+}));
+
 // ==========================================
 // CLASSES (Clases)
 // ==========================================

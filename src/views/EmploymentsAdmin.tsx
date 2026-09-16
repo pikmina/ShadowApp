@@ -1,7 +1,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { fetcher, apiFetch } from "@/lib/api";
-import { Plus, Trash2, Edit2, Briefcase, DollarSign, X, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Edit2, Briefcase, DollarSign, X, AlertTriangle, UserPlus, CheckCircle2, HandCoins } from "lucide-react";
 import { EntityPanel } from "@/components/ui/entity-panel";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -31,7 +31,7 @@ export default function EmploymentsAdmin() {
               </h1>
               <p className="mt-0.5 text-[11px] text-muted-foreground">Administra instituciones, departamentos y posiciones laborales.</p>
             </div>
-            <InstitutionDialog mutate={mutate} />
+            <div className="flex gap-2"><EmploymentPaymentsDialog structure={data ?? []} /><InstitutionDialog mutate={mutate} /></div>
           </div>
           <div className="mt-6 space-y-4">
         {data?.length === 0 && <p className="text-muted-foreground">No hay instituciones registradas.</p>}
@@ -68,8 +68,9 @@ export default function EmploymentsAdmin() {
                   <div className="space-y-2 pl-4 border-l-2 border-border/50">
                     {dep.positions?.length === 0 && <p className="text-xs text-muted-foreground">Sin posiciones.</p>}
                     {dep.positions?.map((pos: any) => (
-                      <div key={pos.id} className="flex justify-between items-center bg-muted/30 p-2 rounded text-sm">
-                        <div>
+                      <div key={pos.id} className="rounded bg-muted/30 p-3 text-sm">
+                        <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
                           <span className="font-medium">{pos.name}</span> {!pos.active && <span className="text-red-500 text-xs">(Inactivo)</span>}
                           {pos.description && <p className="text-xs text-muted-foreground">{pos.description}</p>}
                           <div className="text-xs mt-1 text-primary">
@@ -81,8 +82,28 @@ export default function EmploymentsAdmin() {
                           </div>}
                         </div>
                         <div className="flex gap-2">
+                          <EmploymentAssignmentDialog position={pos} mutate={mutate} />
                           <PositionDialog position={pos} departmentId={dep.id} mutate={mutate} />
                           <DeleteAction type="positions" id={pos.id} mutate={mutate} />
+                        </div>
+                        </div>
+                        <div className="mt-3 border-t border-border/50 pt-3">
+                          <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Personajes asignados</p>
+                          {pos.occupants?.length ? <div className="flex flex-wrap gap-2">{pos.occupants.map((occupant: any) => (
+                            <div key={occupant.employmentId} className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1">
+                              {occupant.requirementsVerified && <CheckCircle2 className="size-3 text-emerald-500" />}
+                              <span className="text-xs font-medium">{occupant.name}</span>
+                              <Button variant="ghost" size="icon-sm" className="size-5 rounded-full text-muted-foreground hover:text-destructive" aria-label={`Retirar a ${occupant.name}`} onClick={async () => {
+                                try {
+                                  await apiFetch(`/api/admin/employments/${occupant.employmentId}`, { method: 'DELETE' });
+                                  toast.success(`${occupant.name} fue retirado del puesto`);
+                                  await mutate();
+                                } catch (error: any) {
+                                  toast.error(error.message || 'No se pudo retirar el empleo');
+                                }
+                              }}><X className="size-3" /></Button>
+                            </div>
+                          ))}</div> : <p className="text-xs text-muted-foreground">Todavía no hay personajes asignados.</p>}
                         </div>
                       </div>
                     ))}
@@ -97,6 +118,138 @@ export default function EmploymentsAdmin() {
       </EntityPanel>
     </div>
   );
+}
+
+function EmploymentPaymentsDialog({ structure }: any) {
+  const [open, setOpen] = useState(false);
+  const [periodLabel, setPeriodLabel] = useState('');
+  const [notes, setNotes] = useState('');
+  const [selected, setSelected] = useState<Record<string, { postsObserved: number; approved: boolean; optionalBonusIds: string[] }>>({});
+  const [saving, setSaving] = useState(false);
+  const { data: history, mutate: mutateHistory } = useSWR(open ? '/api/admin/employment-payments' : null, fetcher);
+  const { data: rules } = useSWR(open ? '/api/rules' : null, fetcher);
+  const compensationResult = employmentCompensationSchema.safeParse(rules?.find((rule: any) => rule.key === 'employment_compensation')?.value);
+  const compensation = compensationResult.success ? compensationResult.data : null;
+  const rows = structure.flatMap((institution: any) => institution.departments.flatMap((department: any) => department.positions.flatMap((position: any) =>
+    (position.occupants ?? []).map((occupant: any) => ({ ...occupant, position }))
+  )));
+  const selectedRows = rows.filter((row: any) => selected[row.employmentId]);
+  const quoteFor = (row: any) => {
+    if (!compensation || !row.position.levelId || !row.position.riskId) return null;
+    const chosen = (row.position.optionalBonuses ?? []).filter((bonus: any) => selected[row.employmentId]?.optionalBonusIds.includes(bonus.id));
+    return calculateEmploymentCompensation(compensation, row.position.levelId, row.position.riskId,
+      row.position.bonusYen + chosen.reduce((sum: number, bonus: any) => sum + bonus.yen, 0),
+      row.position.bonusExp + chosen.reduce((sum: number, bonus: any) => sum + bonus.exp, 0));
+  };
+  const totals = selectedRows.reduce((sum: any, row: any) => { const quote = quoteFor(row); return { yen: sum.yen + (quote?.totalYen ?? 0), exp: sum.exp + (quote?.totalExp ?? 0) }; }, { yen: 0, exp: 0 });
+
+  const toggle = (row: any, checked: boolean) => setSelected(current => {
+    const next = { ...current };
+    if (checked) next[row.employmentId] = { postsObserved: row.position.minPosts ?? 0, approved: false, optionalBonusIds: [] };
+    else delete next[row.employmentId];
+    return next;
+  });
+  const patchSelection = (id: string, patch: Partial<{ postsObserved: number; approved: boolean; optionalBonusIds: string[] }>) => setSelected(current => ({ ...current, [id]: { ...current[id], ...patch } }));
+  const pay = async () => {
+    if (!periodLabel.trim()) return toast.error('Indica el periodo de pago');
+    if (selectedRows.length === 0) return toast.error('Selecciona al menos un empleo');
+    if (selectedRows.some((row: any) => !row.characterId)) return toast.error('Los personajes sin ficha vinculada no pueden recibir saldo');
+    if (selectedRows.some((row: any) => !selected[row.employmentId].approved)) return toast.error('Aprueba manualmente los posts de cada pago');
+    setSaving(true);
+    try {
+      await apiFetch('/api/admin/employment-payments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        periodLabel, notes, items: selectedRows.map((row: any) => ({ employmentId: row.employmentId, postsObserved: selected[row.employmentId].postsObserved, minimumPostsApproved: true, optionalBonusIds: selected[row.employmentId].optionalBonusIds })),
+      }) });
+      toast.success(`${selectedRows.length} pago${selectedRows.length === 1 ? '' : 's'} aplicado${selectedRows.length === 1 ? '' : 's'}`);
+      setSelected({}); setNotes(''); await mutateHistory();
+    } catch (error: any) { toast.error(error.message || 'No se pudo completar el lote de pagos'); }
+    finally { setSaving(false); }
+  };
+
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <DialogTrigger render={<Button variant="outline" size="sm" className="h-9" />}><HandCoins className="mr-2 size-4" /> Preparar pagos</DialogTrigger>
+    <DialogContent className="admin-dialog max-h-[92vh] overflow-y-auto sm:max-w-5xl">
+      <DialogHeader><DialogTitle>Pagos manuales de empleos</DialogTitle></DialogHeader>
+      <div className="space-y-5">
+        <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label>Periodo</Label><Input value={periodLabel} onChange={event => setPeriodLabel(event.target.value)} placeholder="Ej. Septiembre 2026" /></div><div className="space-y-2"><Label>Notas del moderador</Label><Input value={notes} onChange={event => setNotes(event.target.value)} placeholder="Revisión del foro, incidencias..." /></div></div>
+        <div className="space-y-2">
+          {rows.length === 0 && <p className="rounded border border-dashed p-4 text-sm text-muted-foreground">No hay empleados activos para pagar.</p>}
+          {rows.map((row: any) => { const entry = selected[row.employmentId]; const quote = entry ? quoteFor(row) : null; return <div key={row.employmentId} className="rounded-md border p-3">
+            <div className="flex items-start gap-3"><Checkbox checked={Boolean(entry)} onCheckedChange={(checked: boolean) => toggle(row, checked)} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">{row.name}</p><p className="text-xs text-muted-foreground">{row.position.name}{!row.characterId ? ' · Sin ficha vinculada' : ''}</p></div>{quote && <p className="font-mono text-sm text-emerald-400">¥{quote.totalYen} · +{quote.totalExp} EXP</p>}</div>
+            {entry && <div className="mt-3 grid gap-3 border-t pt-3 md:grid-cols-2"><div className="space-y-2"><Label>Posts observados</Label><Input type="number" min={0} value={entry.postsObserved} onChange={event => patchSelection(row.employmentId, { postsObserved: Number(event.target.value) })} /><p className="text-[11px] text-muted-foreground">Mínimo del puesto: {row.position.minPosts ?? 'sin mínimo'}</p></div><div className="flex items-center gap-2"><Checkbox checked={entry.approved} onCheckedChange={(approved: boolean) => patchSelection(row.employmentId, { approved })} /><Label>Posts revisados y aprobados</Label></div>
+            {(row.position.optionalBonuses ?? []).length > 0 && <div className="space-y-2 md:col-span-2"><Label>Bonificaciones aplicables</Label>{row.position.optionalBonuses.map((bonus: any) => <label key={bonus.id} className="flex items-center gap-2 text-xs"><Checkbox checked={entry.optionalBonusIds.includes(bonus.id)} onCheckedChange={(checked: boolean) => patchSelection(row.employmentId, { optionalBonusIds: checked ? [...entry.optionalBonusIds, bonus.id] : entry.optionalBonusIds.filter((id: string) => id !== bonus.id) })} /><span>{bonus.name} · +¥{bonus.yen} / +{bonus.exp} EXP</span></label>)}</div>}</div>}
+            </div></div>
+          </div>; })}
+        </div>
+        <div className="flex flex-col gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase">Total del lote</p><p className="text-lg font-bold text-emerald-400">¥{totals.yen} <span className="text-cyan-400">· +{totals.exp} EXP</span></p></div><Button onClick={pay} disabled={saving || selectedRows.length === 0}>{saving ? 'Aplicando...' : `Confirmar ${selectedRows.length} pago${selectedRows.length === 1 ? '' : 's'}`}</Button></div>
+        <div className="space-y-2"><h3 className="font-semibold">Historial reciente</h3>{history?.slice(0, 10).map((payment: any) => <div key={payment.id} className="flex flex-wrap justify-between gap-2 rounded border p-2 text-xs"><span><strong>{payment.characterName}</strong> · {payment.positionName} · {payment.periodLabel}</span><span className="text-emerald-400">¥{payment.totalYen} · +{payment.totalExp} EXP</span></div>)}{history?.length === 0 && <p className="text-xs text-muted-foreground">Todavía no hay pagos registrados.</p>}</div>
+      </div>
+    </DialogContent>
+  </Dialog>;
+}
+
+function EmploymentAssignmentDialog({ position, mutate }: any) {
+  const [open, setOpen] = useState(false);
+  const [selection, setSelection] = useState('');
+  const [saving, setSaving] = useState(false);
+  const { data: characters } = useSWR(open ? '/api/admin/characters' : null, fetcher);
+  const { data: canonCharacters } = useSWR(open ? '/api/admin/canon-characters' : null, fetcher);
+
+  const assigned = new Set((position.occupants ?? []).flatMap((occupant: any) => [
+    occupant.characterId ? `character:${occupant.characterId}` : null,
+    occupant.canonCharacterId ? `canon:${occupant.canonCharacterId}` : null,
+  ].filter(Boolean)));
+  const options = [
+    ...(characters ?? []).filter((item: any) => !item.canonCharacterId).map((item: any) => ({ value: `character:${item.id}`, label: item.name })),
+    ...(canonCharacters ?? []).map((item: any) => ({ value: `canon:${item.id}`, label: `${item.name} (canon)` })),
+  ].filter(option => !assigned.has(option.value));
+  const full = position.capacity !== null && position.occupiedSlots >= position.capacity;
+
+  const assign = async () => {
+    const [kind, id] = selection.split(':');
+    if (!kind || !id) return;
+    setSaving(true);
+    try {
+      await apiFetch('/api/admin/employments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positionId: position.id, ...(kind === 'canon' ? { canonCharacterId: id } : { characterId: Number(id) }) }),
+      });
+      toast.success('Empleo asignado');
+      setSelection('');
+      setOpen(false);
+      await mutate();
+    } catch (error: any) {
+      const message = String(error.message ?? '');
+      if (message.includes('Employment requirements not met')) toast.error('El personaje no cumple los requisitos obligatorios del puesto.');
+      else if (message.includes('capacity')) toast.error('El puesto ya alcanzó su capacidad máxima.');
+      else if (message.includes('already holds')) toast.error('El personaje ya ocupa este puesto.');
+      else toast.error(message || 'No se pudo asignar el empleo');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <DialogTrigger render={<Button variant="outline" size="sm" disabled={!position.active || full} className="h-7 font-oxanium text-[10px] uppercase tracking-wider" />}>
+      <UserPlus className="mr-1 size-3" /> {full ? 'Sin cupos' : 'Asignar'}
+    </DialogTrigger>
+    <DialogContent>
+      <DialogHeader><DialogTitle>Asignar personaje a {position.name}</DialogTitle></DialogHeader>
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">Al confirmar, el sistema comprobará la capacidad y, cuando exista una ficha, sus requisitos obligatorios. Los personajes canon sin ficha quedarán pendientes de verificación manual.</p>
+        <div className="space-y-2">
+          <Label>Personaje</Label>
+          <Select value={selection} onValueChange={setSelection}>
+            <SelectTrigger><SelectValue placeholder="Selecciona un personaje">{options.find(option => option.value === selection)?.label ?? 'Selecciona un personaje'}</SelectValue></SelectTrigger>
+            <SelectContent>{options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+          </Select>
+          {options.length === 0 && <p className="text-xs text-muted-foreground">No hay personajes disponibles para este puesto.</p>}
+        </div>
+      </div>
+      <DialogFooter><Button onClick={assign} disabled={!selection || saving}>{saving ? 'Comprobando...' : 'Comprobar y asignar'}</Button></DialogFooter>
+    </DialogContent>
+  </Dialog>;
 }
 
 function InstitutionDialog({ institution, mutate }: any) {
@@ -125,7 +278,7 @@ function InstitutionDialog({ institution, mutate }: any) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant={institution ? "ghost" : "default"} size={institution ? "icon-sm" : "sm"} className={!institution ? "h-9 font-oxanium text-xs uppercase tracking-wider bg-secondary/80 hover:bg-secondary text-secondary-foreground border border-border/50" : ""} />}>
+      <DialogTrigger render={<Button variant={institution ? "ghost" : "default"} size={institution ? "icon-sm" : "sm"} className={!institution ? "h-9" : ""} />}>
         {institution ? <Edit2 className="size-4" /> : <><Plus className="size-3.5 mr-1" /> Nueva Institución </>}
       </DialogTrigger>
       <DialogContent>

@@ -703,6 +703,29 @@ async function startServer() {
     } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
   });
 
+  app.get("/api/admin/employment-payments", requireAuth, requireRole(["superadmin", "moderator"]), async (_req: AuthRequest, res) => {
+    try {
+      const { getEmploymentPaymentHistory } = await import("./src/db/employments.ts");
+      res.json(await getEmploymentPaymentHistory());
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
+  });
+
+  app.post("/api/admin/employment-payments", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const parsed = z.object({
+        periodLabel: z.string().trim().min(1).max(100),
+        notes: z.string().max(2000).optional().nullable(),
+        items: z.array(z.object({
+          employmentId: z.string().min(1), postsObserved: z.number().int().min(0), minimumPostsApproved: z.literal(true),
+          optionalBonusIds: z.array(z.string().min(1)).optional(),
+        })).min(1).max(100),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payment payload" });
+      const { payEmploymentBatch } = await import("./src/db/employments.ts");
+      res.json(await payEmploymentBatch(req.dbUser.uid, parsed.data.periodLabel, parsed.data.notes ?? null, parsed.data.items));
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
+  });
+
   // --- Classes Admin API ---
   app.get("/api/admin/classes/structure", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {

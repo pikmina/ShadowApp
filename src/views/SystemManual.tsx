@@ -1,4 +1,4 @@
-import { BookOpen, AlertTriangle, Shield, Heart, Zap, Crosshair, ChevronRight, Activity, Hand, Target, ArrowLeft } from "lucide-react";
+import { BookOpen, AlertTriangle, Shield, Heart, Zap, Crosshair, ChevronRight, Activity, Hand, Target, ArrowLeft, BadgeCheck } from "lucide-react";
 import useSWR from "swr";
 import { fetcher } from "../lib/api";
 import { useEffect } from "react";
@@ -65,6 +65,7 @@ export default function SystemManual() {
               <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">3. Mecánicas</h3>
               <ul className="space-y-1 text-sm">
                 <li><button onClick={() => navigateToSection('categorias')} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-muted text-foreground/80 hover:text-foreground">3.1 Categorías Disponibles</button></li>
+                <li><button onClick={() => navigateToSection('credenciales')} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-muted text-foreground/80 hover:text-foreground">3.2 Credenciales</button></li>
               </ul>
             </div>
           </div>
@@ -417,6 +418,23 @@ export default function SystemManual() {
                     No hay mecánicas de sistema configuradas en la base de datos.
                   </div>
                 )}
+              </div>
+            </section>
+
+            <section id="credenciales" className="space-y-6 pt-8 border-t border-border/50">
+              <div className="space-y-2">
+                <h2 className="flex items-center gap-2 text-2xl font-oxanium font-bold text-foreground"><BadgeCheck className="size-6 text-amber-400" /> 3.2 Licencias, permisos y certificaciones</h2>
+                <p className="text-muted-foreground">Son elementos persistentes del catálogo que un moderador asigna a una ficha. Pueden utilizarse como requisitos verificables para empleos, compras y otras reglas del sistema.</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-lg border border-border bg-card p-4"><h3 className="font-bold text-amber-400">Licencia</h3><p className="mt-2 text-sm text-muted-foreground">Autoriza una actividad regulada o el uso de un recurso. Ejemplos: licencia profesional de héroe o licencia de conducir.</p></div>
+                <div className="rounded-lg border border-border bg-card p-4"><h3 className="font-bold text-cyan-400">Permiso</h3><p className="mt-2 text-sm text-muted-foreground">Concede una autorización concreta, normalmente limitada por una institución, lugar o circunstancia.</p></div>
+                <div className="rounded-lg border border-border bg-card p-4"><h3 className="font-bold text-emerald-400">Certificación</h3><p className="mt-2 text-sm text-muted-foreground">Acredita formación, evaluación o competencia demostrada. No implica por sí sola autorización legal para actuar.</p></div>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 p-5 text-sm text-muted-foreground">
+                <h3 className="mb-2 font-bold text-foreground">Funcionamiento</h3>
+                <ol className="list-decimal space-y-2 pl-5"><li>Un administrador crea el elemento en el Catálogo y lo publica.</li><li>Un moderador lo otorga o retira desde la administración del personaje, indicando un motivo.</li><li>La credencial aparece en la ficha y queda registrada como posesión del elemento mediante su identificador estable.</li><li>Cuando un puesto la exige, ShadowApp comprueba automáticamente que el personaje la posea antes de permitir la asignación.</li></ol>
+                <p className="mt-3">Los borradores no pueden asignarse. Retirar una credencial puede provocar que el personaje deje de cumplir requisitos futuros, pero no elimina automáticamente un empleo ya concedido.</p>
               </div>
             </section>
           </div>

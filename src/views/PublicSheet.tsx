@@ -74,6 +74,7 @@ export default function PublicSheet() {
   const possessionRows = Array.isArray(character.possessions) ? character.possessions : [];
   const relationalTraits = possessionRows.filter((row: any) => row?.element?.kind === 'trait').map((row: any) => row.element.id);
   const relationalWeaknesses = possessionRows.filter((row: any) => row?.element?.kind === 'weakness').map((row: any) => row.element.id);
+  const credentials = possessionRows.filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind));
   const hasRelationalSelections = relationalTraits.length > 0 || relationalWeaknesses.length > 0;
   const profile = hasRelationalSelections ? { ...storedProfile, traits: relationalTraits, weaknesses: relationalWeaknesses } : storedProfile;
 
@@ -245,6 +246,9 @@ export default function PublicSheet() {
         <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           <EntityPanel title="Técnicas" icon={<Swords className="size-4" />} cornerTicks><CyberFillerPanel icon={Swords} title="Sin datos públicos" subtitle="Módulo pendiente de conexión" className="min-h-28 p-4" /></EntityPanel>
           <EntityPanel title="Inventario" icon={<PackageOpen className="size-4" />} pattern="dots" cornerTicks><CyberFillerPanel icon={PackageOpen} title="Sin datos públicos" subtitle="Módulo pendiente de conexión" className="min-h-28 p-4" /></EntityPanel>
+          <EntityPanel title="Credenciales" icon={<ShieldHalf className="size-4" />} cornerTicks>
+            {credentials.length > 0 ? <div className="space-y-2 p-4 text-sm text-text2">{credentials.map((row: any) => <div key={row.possession.id}><span className="mr-2 text-[9px] font-bold uppercase tracking-wider text-amber-400">{{ license: 'Licencia', permission: 'Permiso', certification: 'Certificación' }[row.element.kind] ?? row.element.kind}</span>{row.element.name}</div>)}</div> : <CyberFillerPanel icon={ShieldHalf} title="Sin credenciales" subtitle="No posee licencias, permisos ni certificaciones" className="min-h-28 p-4" />}
+          </EntityPanel>
           <EntityPanel title="Rasgos" icon={<FileText className="size-4" />} cornerTicks>
             {traits.length > 0 ? (
               <div className="space-y-2 p-4 text-sm text-text2">

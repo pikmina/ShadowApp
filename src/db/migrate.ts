@@ -152,6 +152,29 @@ async function runMigration() {
     `);
 
     await tx.execute(sql`
+      CREATE TABLE IF NOT EXISTS "employment_payments" (
+        "id" varchar(100) PRIMARY KEY NOT NULL,
+        "batch_id" varchar(100) NOT NULL,
+        "employment_id" varchar(100) NOT NULL,
+        "character_id" integer NOT NULL,
+        "position_id" varchar(100) NOT NULL,
+        "character_name" varchar(255) NOT NULL,
+        "position_name" varchar(255) NOT NULL,
+        "period_label" varchar(100) NOT NULL,
+        "posts_observed" integer NOT NULL,
+        "minimum_posts_approved" boolean NOT NULL,
+        "breakdown" jsonb NOT NULL,
+        "total_yen" integer NOT NULL,
+        "total_exp" integer NOT NULL,
+        "notes" text,
+        "moderator_uid" text NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "employment_payments_employment_period_unique"
+        ON "employment_payments" ("employment_id", "period_label");
+    `);
+
+    await tx.execute(sql`
       ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "canon_character_id" text;
       ALTER TABLE "class_groups" ADD COLUMN IF NOT EXISTS "course_type" varchar(100);
       ALTER TABLE "character_employments" ALTER COLUMN "character_id" DROP NOT NULL;
@@ -301,7 +324,7 @@ async function runMigration() {
     console.log("Verification step: checking required tables and columns...");
     const requiredTables = [
       'canon_characters', 'institutions', 'departments', 'positions', 
-      'character_employments', 'academic_years', 'class_groups', 'character_enrollments'
+      'character_employments', 'employment_payments', 'academic_years', 'class_groups', 'character_enrollments'
     ];
     for (const table of requiredTables) {
       const tableCheck = await tx.execute(sql`
