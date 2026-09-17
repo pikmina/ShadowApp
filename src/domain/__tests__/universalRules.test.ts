@@ -17,7 +17,7 @@ const allies = [1, 2, 3].map(i => ({ id: `ally${i}`, kind: 'character' as const,
 describe('Core catalog and compatibility', () => {
   test('seeds all core categories with stable IDs, preserves edited options and is idempotent', () => {
     expect(validateCoreCategories(categories)).toBe(true);
-    expect(categories).toHaveLength(35);
+    expect(categories).toHaveLength(30);
     const edited = structuredClone(categories); edited[0].name = 'Impacto'; edited[0].rules[0].cost = 0; edited[1].rules = [];
     expect(migrateCoreCategories(edited)).toEqual(edited);
     expect(validateCoreCategories(edited.slice(1))).toBe(false);
@@ -123,7 +123,7 @@ describe('Composed universal rules', () => {
     const c = context(); c.resources.ES.current = 0;
     const result = evaluateRuleGroup(g, c);
     expect(result.valid).toBe(false); expect(result.state.uses).toEqual({}); expect(result.operations).toEqual([]);
-    expect(evaluateRuleGroup(group('barrier.30', 'consumption.one'), context()).valid).toBe(false);
+    expect(evaluateRuleGroup(group('barrier.30', 'additional_requirement.consumption'), context()).valid).toBe(false);
   });
   test('recoil uses damage after mitigation and floor rounding', () => {
     const g = group('damage.4d8', 'recoil.half');

@@ -74,7 +74,81 @@ export function createCoreCategories(): SystemMechanicsConfig {
 }
 
 export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig {
-  const parsed = systemMechanicsConfigSchema.parse(existing ?? []);
+  let parsed = systemMechanicsConfigSchema.parse(existing ?? []);
+  
+  const manualCondition = parsed.find(m => m.id === 'core.manual_condition');
+  if (manualCondition) {
+    const toMoveToManual = ['core.visual_contact', 'core.physical_contact', 'core.auditory_contact', 'core.conscious'];
+    toMoveToManual.forEach(id => {
+      const catIndex = parsed.findIndex(m => m.id === id);
+      if (catIndex !== -1) {
+        const cat = parsed[catIndex];
+        cat.rules.forEach(r => {
+          if (id === 'core.conscious') {
+            r.id = 'core.manual_condition.conscious';
+            r.name = 'Objetivo consciente';
+          } else {
+            r.name = cat.name;
+          }
+        });
+        manualCondition.rules.push(...cat.rules);
+        parsed.splice(catIndex, 1);
+      }
+    });
+  }
+
+  let addReq = parsed.find(m => m.id === 'core.additional_requirement');
+  if (!addReq) {
+    addReq = {
+      id: "core.additional_requirement",
+      name: "Requisito adicional",
+      rules: [],
+      scope: { actions: true, objects: true, techniques: true },
+      coreKey: "additional_requirement",
+      description: "Requisito adicional",
+      logicalType: "utility"
+    } as any;
+    parsed.push(addReq as any);
+  }
+
+  const toMoveToAdditional = ['core.active_ability', 'core.consumption'];
+  toMoveToAdditional.forEach(id => {
+    const catIndex = parsed.findIndex(m => m.id === id);
+    if (catIndex !== -1) {
+      const cat = parsed[catIndex];
+      if (id === 'core.active_ability') {
+        cat.rules.forEach(r => {
+          r.name = r.name.replace('Habilidad', 'Técnica').replace('habilidad', 'técnica');
+        });
+      } else if (id === 'core.consumption') {
+        cat.rules = [
+          {
+            id: "core.additional_requirement.consumption",
+            cost: 0,
+            name: "Consumir algo",
+            ruleType: "component",
+            component: {
+              kind: "condition",
+              role: "requirement",
+              match: "all",
+              predicates: [{ kind: "manual", signalId: "consume_something" }]
+            }
+          }
+        ];
+      }
+      addReq!.rules.push(...cat.rules);
+      parsed.splice(catIndex, 1);
+    }
+  });
+
+  parsed = parsed.map(c => {
+    if (c.coreKey && !(c.coreKey in CORE_CATEGORIES)) {
+      const { coreKey, ...rest } = c;
+      return rest as any;
+    }
+    return c;
+  });
+
   const missing = createCoreCategories().filter(core => !parsed.some(category => category.id === core.id));
   const result = systemMechanicsConfigSchema.parse([...parsed, ...missing]);
   if (!validateCoreCategories(result)) throw new Error("Reserved core category identity collision");
