@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles } from "lucide-react";
+import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package } from "lucide-react";
 import { toast } from "sonner";
 import { validateCharacter, calculateDerivedStats } from "@/lib/characterValidation";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,14 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const elements = Array.isArray(rawElements) ? rawElements.filter(el => el.status === 'published') : [];
   const credentials = (Array.isArray(character?.possessions) ? character.possessions : []).filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind));
   const credentialKindLabel = (kind: string) => ({ license: 'Licencia', permission: 'Permiso', certification: 'Certificación' } as Record<string, string>)[kind] ?? kind;
+  const inventoryPossessions = (Array.isArray(character?.possessions) ? character.possessions : []).filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness'].includes(row?.element?.kind));
+  const elementKindMap: Record<string, string> = {
+    license: 'Licencia', permission: 'Permiso', certification: 'Certificación', trait: 'Rasgo', weakness: 'Debilidad',
+    skill: 'Habilidad', equipment: 'Equipamiento', weapon: 'Arma', ammunition: 'Munición', consumable: 'Consumible',
+    character_resource: 'Recurso', attribute_upgrade: 'Mejora', technique_entitlement: 'Técnica',
+    altered_status: 'Estado Alterado', plus_ultra_effect: 'Plus Ultra', crafting_material: 'Material',
+    ingredient: 'Ingrediente'
+  };
 
   // Add the "Facción / Grupo" field virtually to basic data if groups exist
   let processedFields: any[] = [];
@@ -786,10 +794,27 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             )}
 
             {activeTab === 'Datos' && (
-              <div className="md:col-span-2 mb-6 rounded-md border border-border bg-muted/20 p-4">
-                <Label className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest"><Shield className="size-4 text-amber-400" /> Licencias, permisos y certificaciones</Label>
-                {credentials.length > 0 ? <div className="mt-3 flex flex-wrap gap-2">{credentials.map((row: any) => <Badge key={row.possession.id} variant="outline" className="gap-1"><span className="text-muted-foreground">{credentialKindLabel(row.element.kind)}:</span> {row.element.name}</Badge>)}</div> : <p className="mt-2 text-xs text-muted-foreground">No hay credenciales asignadas. Un moderador puede otorgarlas desde Administrar recompensas.</p>}
-              </div>
+              <>
+                <div className="md:col-span-2 mb-4 rounded-md border border-border bg-muted/20 p-4">
+                  <Label className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest"><Shield className="size-4 text-amber-400" /> Licencias, permisos y certificaciones</Label>
+                  {credentials.length > 0 ? <div className="mt-3 flex flex-wrap gap-2">{credentials.map((row: any) => <Badge key={row.possession.id} variant="outline" className="gap-1"><span className="text-muted-foreground">{credentialKindLabel(row.element.kind)}:</span> {row.element.name}</Badge>)}</div> : <p className="mt-2 text-xs text-muted-foreground">No hay credenciales asignadas. Un moderador puede otorgarlas desde Administrar recompensas.</p>}
+                </div>
+
+                {inventoryPossessions.length > 0 && (
+                  <div className="md:col-span-2 mb-6 rounded-md border border-border bg-muted/20 p-4">
+                    <Label className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest"><Package className="size-4 text-primary" /> Inventario y Posesiones Asignadas</Label>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {inventoryPossessions.map((row: any) => (
+                        <Badge key={row.possession.id} variant="outline" className="gap-1.5 text-xs py-1 px-2.5">
+                          <span className="text-muted-foreground font-mono text-[10px]">[{elementKindMap[row.element.kind] || row.element.kind}]:</span>
+                          <span className="font-medium text-foreground">{row.element.name}</span>
+                          <span className="font-mono text-primary font-bold">x{row.possession.quantity}</span>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

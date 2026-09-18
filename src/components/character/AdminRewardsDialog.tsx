@@ -1,98 +1,306 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Search, X, Loader2, Package, Coins, Sparkles, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import useSWR from 'swr';
 
 const fetcher = (url: string) => apiFetch(url).then(res => res.json());
 
-export default function AdminRewardsDialog({ characterId, onClose }: { characterId: number, onClose: () => void }) {
-  const [type, setType] = useState<'exp' | 'yen' | 'possession'>('exp');
-  const [amount, setAmount] = useState<string>('');
+interface AdminRewardsDialogProps {
+  characterId: number;
+  character?: any;
+  onClose: () => void;
+}
+
+export default function AdminRewardsDialog({ characterId, character, onClose }: AdminRewardsDialogProps) {
+  const [type, setType] = useState<'exp' | 'yen' | 'possession'>('possession');
+  const [amount, setAmount] = useState<string>('1');
   const [elementId, setElementId] = useState<string>('');
+  const [elementSearch, setElementSearch] = useState<string>('');
   const [reason, setReason] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
-  const { data: elements } = useSWR('/api/elements', fetcher);
+  const { data: rawElements } = useSWR('/api/elements', fetcher);
   const elementKindLabel = (kind: string) => ({
     license: 'Licencia', permission: 'Permiso', certification: 'Certificación', trait: 'Rasgo', weakness: 'Debilidad',
     skill: 'Habilidad', equipment: 'Equipamiento', weapon: 'Arma', ammunition: 'Munición', consumable: 'Consumible',
+    character_resource: 'Recurso de Personaje', attribute_upgrade: 'Mejora de Atributo', technique_entitlement: 'Técnica',
+    altered_status: 'Estado Alterado', plus_ultra_effect: 'Efecto Plus Ultra', crafting_material: 'Material de Fabricación',
+    ingredient: 'Ingrediente'
   } as Record<string, string>)[kind] ?? 'Elemento';
+
+  // Strictly filter to published elements
+  const publishedElements = useMemo(() => {
+    if (!Array.isArray(rawElements)) return [];
+    return rawElements.filter((el: any) => el.status === 'published');
+  }, [rawElements]);
+
+  // Filter published elements by search query
+  const filteredElements = useMemo(() => {
+    const q = elementSearch.trim().toLowerCase();
+    if (!q) return publishedElements;
+    return publishedElements.filter((el: any) => {
+      const name = (el.name || '').toLowerCase();
+      const kindLabel = (elementKindLabel(el.kind) || '').toLowerCase();
+      const id = (el.id || '').toLowerCase();
+      return name.includes(q) || kindLabel.includes(q) || id.includes(q);
+    });
+  }, [publishedElements, elementSearch]);
+
+  const selectedElement = useMemo(() => {
+    if (!elementId) return null;
+    return publishedElements.find((el: any) => el.id === elementId) ?? null;
+  }, [publishedElements, elementId]);
+
+  // Existing possession quantity of this character
+  const currentQuantityInPossession = useMemo(() => {
+    if (!selectedElement || !character?.possessions || !Array.isArray(character.possessions)) return 0;
+    const match = character.possessions.find((p: any) => p.element?.id === selectedElement.id || p.possession?.elementId === selectedElement.id);
+    return match?.possession?.quantity ?? 0;
+  }, [selectedElement, character]);
+
+  // Ensure selected element is always in the options list for Radix Select to display it
+  const displayElements = useMemo(() => {
+    if (!selectedElement) return filteredElements;
+    if (filteredElements.some((el: any) => el.id === selectedElement.id)) {
+      return filteredElements;
+    }
+    return [selectedElement, ...filteredElements];
+  }, [filteredElements, selectedElement]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || parseInt(amount) === 0) return toast.error("La cantidad no puede ser 0");
-    if (!reason) return toast.error("Debes proporcionar un motivo");
-    
-    if (!window.confirm("¿Confirmar esta transacción?")) return;
+    const parsedAmount = parseInt(amount || '1', 10);
+    if (isNaN(parsedAmount) || parsedAmount === 0) {
+      return toast.error("La cantidad debe ser un número entero diferente de 0");
+    }
+
+    const finalReason = reason.trim() || (type === 'possession' ? 'Asignación de elemento por administración' : 'Recompensa por administración');
 
     setLoading(true);
     try {
       if (type === 'possession') {
-         if (!elementId) throw new Error("Debes especificar el elemento");
-         const res = await apiFetch(`/api/admin/character/${characterId}/possession`, {
-           method: 'POST',
-           body: JSON.stringify({ elementId, quantity: parseInt(amount), reason })
-         });
-         if (!res.ok) throw new Error(await res.text());
+        if (!elementId) {
+          setLoading(false);
+          return toast.error("Debes seleccionar un elemento del catálogo");
+        }
+        await apiFetch(`/api/admin/character/${characterId}/possession`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ elementId, quantity: parsedAmount, reason: finalReason })
+        });
+        toast.success(`Posesión actualizada (${selectedElement?.name || 'Elemento'}: ${parsedAmount > 0 ? `+${parsedAmount}` : parsedAmount})`);
       } else {
-         const res = await apiFetch(`/api/admin/character/${characterId}/reward`, {
-           method: 'POST',
-           body: JSON.stringify({ type, amount: parseInt(amount), reason })
-         });
-         if (!res.ok) throw new Error(await res.text());
+        await apiFetch(`/api/admin/character/${characterId}/reward`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, amount: parsedAmount, reason: finalReason })
+        });
+        toast.success(`Recompensa asignada (${type === 'exp' ? `${parsedAmount} EXP` : `¥${parsedAmount}`})`);
       }
-      toast.success("Transacción exitosa");
       onClose();
     } catch (err: any) {
-      toast.error(err.message || "Error en la transacción");
+      toast.error(err.message || "Error al procesar la transacción");
     } finally {
       setLoading(false);
     }
   };
 
+  const typeDisplayLabels: Record<string, string> = {
+    possession: 'Elemento del Catálogo (Posesión)',
+    exp: 'Experiencia (EXP)',
+    yen: 'Yenes (¥)',
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-card p-6 rounded-md shadow-lg border border-border max-w-sm w-full">
-        <h3 className="text-lg font-bold mb-4">Administrar Recompensas</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+      <div className="bg-card p-6 rounded-lg shadow-xl border border-border max-w-md w-full max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between pb-3 border-b border-border/60">
           <div>
-            <label className="text-xs mb-1 block">Tipo</label>
-            <Select value={type} onValueChange={(v: any) => { setType(v); if (v === 'possession' && !amount) setAmount('1'); }}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <h3 className="text-base font-bold font-oxanium text-foreground tracking-wide">
+              Administrar Recompensas y Posesiones
+            </h3>
+            {character?.name && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                <User className="size-3 text-primary" />
+                <span className="font-semibold text-foreground">{character.name}</span>
+                <span className="text-muted-foreground/60">•</span>
+                <span className="text-amber-400 font-mono text-[11px]">{character.exp ?? 0} EXP</span>
+                <span className="text-muted-foreground/60">•</span>
+                <span className="text-emerald-400 font-mono text-[11px]">¥ {character.yen ?? 0}</span>
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors"
+            title="Cerrar diálogo"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4 overflow-y-auto pr-0.5">
+          <div>
+            <label className="text-xs mb-1.5 block font-medium text-foreground">Tipo de Recompensa</label>
+            <Select 
+              value={type} 
+              onValueChange={(v: any) => { 
+                setType(v); 
+                if (v === 'possession' && (!amount || amount === '0')) setAmount('1'); 
+              }}
+            >
+              <SelectTrigger className="text-xs">
+                <SelectValue placeholder="Selecciona un tipo">
+                  {typeDisplayLabels[type] || 'Selecciona un tipo'}
+                </SelectValue>
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="exp">EXP</SelectItem>
-                <SelectItem value="yen">Yen</SelectItem>
-                <SelectItem value="possession">Elemento del catálogo</SelectItem>
+                <SelectItem value="possession" className="text-xs">
+                  <div className="flex items-center gap-2">
+                    <Package className="size-3.5 text-primary" />
+                    <span>Elemento del Catálogo (Posesión)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="exp" className="text-xs">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="size-3.5 text-amber-400" />
+                    <span>Experiencia (EXP)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="yen" className="text-xs">
+                  <div className="flex items-center gap-2">
+                    <Coins className="size-3.5 text-emerald-400" />
+                    <span>Yenes (¥)</span>
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
+
           {type === 'possession' && (
-            <div>
-              <label className="text-xs mb-1 block">Elemento</label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium block text-foreground">Elemento del Catálogo</label>
+                <span className="text-[11px] text-emerald-500 font-medium">● Solo publicados</span>
+              </div>
+
+              {/* Buscador de elementos */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="text"
+                  placeholder="Buscar por nombre, tipo o ID..."
+                  value={elementSearch}
+                  onChange={e => setElementSearch(e.target.value)}
+                  className="h-8 pl-8 pr-7 text-xs bg-background/50"
+                />
+                {elementSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setElementSearch('')}
+                    className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                    title="Limpiar búsqueda"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Selector con elementos filtrados */}
               <Select value={elementId} onValueChange={setElementId}>
-                <SelectTrigger><SelectValue placeholder="Selecciona un elemento" /></SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {elements?.map((el: any) => (
-                    <SelectItem key={el.id} value={el.id}>[{elementKindLabel(el.kind)}] {el.name}</SelectItem>
-                  ))}
+                <SelectTrigger className="text-xs">
+                  <SelectValue placeholder={publishedElements.length === 0 ? "No hay elementos disponibles" : "Selecciona un elemento..."}>
+                    {selectedElement ? `[${elementKindLabel(selectedElement.kind)}] ${selectedElement.name}` : undefined}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {displayElements.length === 0 ? (
+                    <div className="p-3 text-xs text-muted-foreground text-center">
+                      No se encontraron elementos publicados
+                    </div>
+                  ) : (
+                    displayElements.map((el: any) => (
+                      <SelectItem key={el.id} value={el.id} className="text-xs">
+                        <span className="text-muted-foreground font-mono text-[10px] mr-1.5">
+                          [{elementKindLabel(el.kind)}]
+                        </span>
+                        <span className="font-medium">{el.name}</span>
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
+
+              {/* Ficha de detalles del elemento seleccionado */}
+              {selectedElement && (
+                <div className="p-3 rounded-md bg-muted/40 border border-border/70 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-foreground truncate">{selectedElement.name}</span>
+                    <Badge variant="secondary" className="text-[10px] uppercase font-mono px-1.5 py-0 h-4 shrink-0">
+                      {elementKindLabel(selectedElement.kind)}
+                    </Badge>
+                  </div>
+                  {selectedElement.description && (
+                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                      {selectedElement.description}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[11px]">
+                    <span className="text-muted-foreground">
+                      Actualmente en inventario:
+                    </span>
+                    <span className="font-mono font-bold text-foreground">
+                      {currentQuantityInPossession} unidad(es)
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>
+                  {filteredElements.length} de {publishedElements.length} elemento(s) disponible(s)
+                </span>
+              </div>
             </div>
           )}
+
           <div>
-            <label className="text-xs mb-1 block">{type === 'possession' ? 'Cantidad (1 para otorgar, -1 para retirar)' : 'Cantidad (puede ser negativa)'}</label>
-            <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} />
+            <label className="text-xs mb-1 block font-medium text-foreground">
+              {type === 'possession' ? 'Cantidad (número positivo para otorgar, negativo para retirar)' : 'Cantidad (puede ser positiva o negativa)'}
+            </label>
+            <Input 
+              type="number" 
+              value={amount} 
+              onChange={e => setAmount(e.target.value)} 
+              placeholder={type === 'possession' ? '1' : '100'}
+              className="text-xs"
+            />
           </div>
+
           <div>
-            <label className="text-xs mb-1 block">Motivo</label>
-            <Input value={reason} onChange={e => setReason(e.target.value)} placeholder="Ej: Recompensa de misión" />
+            <label className="text-xs mb-1 block font-medium text-foreground">Motivo (Opcional)</label>
+            <Input 
+              value={reason} 
+              onChange={e => setReason(e.target.value)} 
+              placeholder="Ej: Recompensa de misión, compra de evento, ajuste" 
+              className="text-xs"
+            />
           </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>Confirmar</Button>
+
+          <div className="flex gap-2 justify-end pt-3 border-t border-border/40">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={loading}>
+              Cancelar
+            </Button>
+            <Button type="submit" size="sm" disabled={loading || (type === 'possession' && !elementId)} className="gap-1.5">
+              {loading && <Loader2 className="size-3.5 animate-spin" />}
+              <span>{loading ? "Guardando..." : "Confirmar"}</span>
+            </Button>
           </div>
         </form>
       </div>

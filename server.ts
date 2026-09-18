@@ -488,7 +488,7 @@ async function startServer() {
         reason: z.string().optional()
       });
       const parsed = RewardSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
       const { type, amount, reason } = parsed.data;
 
       
@@ -510,7 +510,7 @@ async function startServer() {
         reason: z.string().optional()
       });
       const parsed = PosSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
       const { elementId, quantity, reason } = parsed.data;
 
       

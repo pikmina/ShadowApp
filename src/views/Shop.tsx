@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -39,10 +39,28 @@ export default function Shop() {
   const { user, dbUser } = useAuth();
   const role = dbUser?.role;
   const { data: offers, mutate: mutateOffers } = useSWR(user ? "/api/shop/offers" : null, fetcher);
-  const { data: elements } = useSWR(user ? "/api/admin/elements" : null, fetcher);
+  const { data: rawElements } = useSWR(user ? "/api/admin/elements" : null, fetcher);
   const { data: characters } = useSWR(role && user ? "/api/admin/characters" : null, fetcher);
 
   const [activeTab, setActiveTab] = useState("store");
+  const [storeSearch, setStoreSearch] = useState("");
+  const [offerElementSearch, setOfferElementSearch] = useState("");
+
+  // Only published elements for offers
+  const publishedElements = useMemo(() => {
+    return (Array.isArray(rawElements) ? rawElements : []).filter((el: any) => el.status === 'published');
+  }, [rawElements]);
+
+  const filteredOfferElements = useMemo(() => {
+    const q = offerElementSearch.trim().toLowerCase();
+    if (!q) return publishedElements;
+    return publishedElements.filter((el: any) => {
+      const name = (el.name || '').toLowerCase();
+      const kind = (el.kind || '').toLowerCase();
+      const id = (el.id || '').toLowerCase();
+      return name.includes(q) || kind.includes(q) || id.includes(q);
+    });
+  }, [publishedElements, offerElementSearch]);
   
   // Cart state
   const [cart, setCart] = useState<any[]>([]);
@@ -154,9 +172,37 @@ export default function Shop() {
 
           <TabsContent value="store" className="flex-1 overflow-hidden m-0 data-[state=active]:flex">
             {/* Split view: items on left, cart on right */}
-            <div className="flex-1 overflow-auto p-6">
+            <div className="flex-1 overflow-auto p-6 space-y-4">
+              <div className="relative max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="text"
+                  placeholder="Buscar en la tienda por nombre o tipo..."
+                  value={storeSearch}
+                  onChange={e => setStoreSearch(e.target.value)}
+                  className="h-9 pl-9 pr-8 text-xs bg-background/60"
+                />
+                {storeSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setStoreSearch('')}
+                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                    title="Limpiar búsqueda"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {offers?.filter((o:any) => o.shop_offers.status === 'available').map((offer: any) => {
+                {offers?.filter((o:any) => {
+                  if (o.shop_offers.status !== 'available') return false;
+                  const el = o.system_elements;
+                  if (!el) return false;
+                  if (!storeSearch.trim()) return true;
+                  const q = storeSearch.trim().toLowerCase();
+                  return el.name.toLowerCase().includes(q) || el.kind.toLowerCase().includes(q) || (el.description || '').toLowerCase().includes(q);
+                }).map((offer: any) => {
                   const element = offer.system_elements;
                   const shopData = offer.shop_offers;
                   if (!element) return null;
@@ -248,7 +294,7 @@ export default function Shop() {
                <div className="p-6 border-b border-border flex justify-between items-center">
                  <h2 className="font-bold text-xl uppercase tracking-wider">Gestión de Ofertas</h2>
                  <Button onClick={() => setEditingOffer({
-                   elementId: elements?.[0]?.id || "",
+                   elementId: publishedElements?.[0]?.id || "",
                    status: "draft",
                    prices: [{ currency: "exp", amount: 100 }]
                  })} className="gap-2">
@@ -361,18 +407,47 @@ export default function Shop() {
           </DialogHeader>
           <div className="flex-1 px-6 py-4 space-y-4 overflow-y-auto">
             <div className="space-y-2">
-              <Label>Elemento del Catálogo</Label>
+              <div className="flex items-center justify-between">
+                <Label>Elemento del Catálogo</Label>
+                <span className="text-[11px] text-emerald-500 font-medium">● Solo publicados</span>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="text"
+                  placeholder="Buscar elemento por nombre, tipo o ID..."
+                  value={offerElementSearch}
+                  onChange={e => setOfferElementSearch(e.target.value)}
+                  className="h-8 pl-8 pr-7 text-xs bg-background/50"
+                />
+                {offerElementSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setOfferElementSearch('')}
+                    className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                    title="Limpiar búsqueda"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
               <Select 
                 value={editingOffer?.elementId} 
                 onValueChange={v => setEditingOffer({...editingOffer, elementId: v})}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder={publishedElements.length === 0 ? "No hay elementos disponibles" : "Selecciona un elemento..."} />
                 </SelectTrigger>
-                <SelectContent>
-                  {elements?.map((el: any) => (
-                    <SelectItem key={el.id} value={el.id}>{el.name} ({el.kind})</SelectItem>
-                  ))}
+                <SelectContent className="max-h-60">
+                  {filteredOfferElements.length === 0 ? (
+                    <div className="p-3 text-xs text-muted-foreground text-center">
+                      No se encontraron elementos publicados
+                    </div>
+                  ) : (
+                    filteredOfferElements.map((el: any) => (
+                      <SelectItem key={el.id} value={el.id}>{el.name} ({el.kind})</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

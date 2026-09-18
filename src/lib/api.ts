@@ -10,6 +10,10 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
     headers.set('Authorization', `Bearer ${token}`);
   }
   
+  if (options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
   const res = await fetch(url, {
     ...options,
     headers,
@@ -17,7 +21,20 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
   
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`API error: ${res.status} ${res.statusText} - ${errorText}`);
+    let message = errorText;
+    try {
+      const parsed = JSON.parse(errorText);
+      if (parsed?.error) {
+        message = typeof parsed.error === 'string' ? parsed.error : JSON.stringify(parsed.error);
+        if (parsed.details && Array.isArray(parsed.details)) {
+          const detailMsgs = parsed.details.map((d: any) => d.message || JSON.stringify(d)).join(", ");
+          if (detailMsgs) message += ` (${detailMsgs})`;
+        }
+      }
+    } catch {
+      // not JSON, keep errorText
+    }
+    throw new Error(message || `API error: ${res.status} ${res.statusText}`);
   }
   
   return res;

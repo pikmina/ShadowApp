@@ -304,6 +304,15 @@ export default function CharactersAdmin() {
                     <p className="truncate font-oxanium text-[11px] text-muted-foreground">{bloodType} • {alignment}</p>
                     <p className="truncate font-oxanium text-[11px] text-muted-foreground">{quirk}</p>
                   </div>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
+                    <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20" title="Experiencia actual">
+                      {character.exp ?? 0} EXP
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Yenes disponibles">
+                      ¥ {character.yen ?? 0}
+                    </span>
+                  </div>
                 </div>
 
                 <div>
@@ -353,7 +362,13 @@ export default function CharactersAdmin() {
         </EntityPanel>
       )}
 
-      {rewardingCharId && <AdminRewardsDialog characterId={rewardingCharId} onClose={() => { setRewardingCharId(null); mutateAll(); }} />}
+      {rewardingCharId && (
+        <AdminRewardsDialog 
+          characterId={rewardingCharId} 
+          character={charactersList.find((c: any) => c.id === rewardingCharId)}
+          onClose={() => { setRewardingCharId(null); mutateAll(); }} 
+        />
+      )}
     </div>
   );
 }
