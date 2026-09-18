@@ -413,10 +413,22 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
       <Card className="border-border shadow-sm bg-card overflow-hidden">
         <div className="flex bg-muted/20 border-b border-border/50 overflow-x-auto custom-scrollbar p-1.5 gap-1 items-center">
         {(() => {
-          const allCats = Object.keys(groupedFields);
+          const allCats = Object.keys(groupedFields).sort((a, b) => {
+            const minA = Math.min(...groupedFields[a].map((f: any) => f.order));
+            const minB = Math.min(...groupedFields[b].map((f: any) => f.order));
+            return minA - minB;
+          });
           const quirkCat = allCats.find(c => c.toLowerCase().includes('quirk')) || 'Quirk';
           
-          return ['Datos', 'Rasgos', quirkCat, 'Atributos', ...allCats.filter(c => !['Datos', 'Rasgos', quirkCat, 'Atributos'].includes(c))].map(category => (
+          // Reordenar las categorías combinadas ('Datos' y 'Atributos' toman el orden mínimo de sus campos internos)
+          let sortedCats = [...new Set([...allCats, 'Atributos'])].sort((a, b) => {
+            const quirkMin = Math.min(...(groupedFields[quirkCat] || []).map((f: any) => f.order), -10);
+            const minA = a === 'Atributos' ? quirkMin + 1 : Math.min(...(groupedFields[a] || []).map((f: any) => f.order), 99999);
+            const minB = b === 'Atributos' ? quirkMin + 1 : Math.min(...(groupedFields[b] || []).map((f: any) => f.order), 99999);
+            return minA - minB;
+          });
+          
+          return sortedCats.map(category => (
             <Button
               key={category}
               variant="ghost"

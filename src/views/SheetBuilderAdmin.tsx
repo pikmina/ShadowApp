@@ -145,6 +145,84 @@ export default function SheetBuilderAdmin() {
     }
   };
 
+  const [draggedCatName, setDraggedCatName] = useState<string | null>(null);
+
+  const handleCategoryDragStart = (e: React.DragEvent, category: string) => {
+    // Avoid triggering if we drag a field
+    setDraggedCatName(category);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleCategoryDragOver = (e: React.DragEvent, category: string) => {
+    if (draggedCatName && draggedCatName !== category) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    }
+  };
+
+  const handleCategoryDrop = async (e: React.DragEvent, targetCategory: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedCatName || draggedCatName === targetCategory) {
+      setDraggedCatName(null);
+      return;
+    }
+
+    const orderedCats = Object.keys(groupedFields).sort((a, b) => {
+      const minA = Math.min(...groupedFields[a].map((f: any) => f.order));
+      const minB = Math.min(...groupedFields[b].map((f: any) => f.order));
+      return minA - minB;
+    });
+
+    const draggedIdx = orderedCats.indexOf(draggedCatName);
+    const targetIdx = orderedCats.indexOf(targetCategory);
+
+    if (draggedIdx === -1 || targetIdx === -1) return;
+
+    const [draggedItem] = orderedCats.splice(draggedIdx, 1);
+    orderedCats.splice(targetIdx, 0, draggedItem);
+
+    let globalOrder = 0;
+    const updatedFields: any[] = [];
+
+    orderedCats.forEach(cat => {
+      const catFields = [...groupedFields[cat]].sort((a: any, b: any) => a.order - b.order);
+      catFields.forEach(f => {
+        globalOrder += 10;
+        if (f.order !== globalOrder) {
+          updatedFields.push({ ...f, order: globalOrder });
+        }
+      });
+    });
+
+    if (updatedFields.length === 0) {
+      setDraggedCatName(null);
+      return;
+    }
+
+    const newFields = fields.map((f: any) => {
+      const update = updatedFields.find(uf => uf.id === f.id);
+      return update ? update : f;
+    });
+    mutate(newFields, false);
+
+    try {
+      const updates = updatedFields.map((f: any) => 
+        apiFetch("/api/sheet-fields", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...f }),
+        })
+      );
+      await Promise.all(updates);
+    } catch (error) {
+      toast.error("Error al reordenar categorías");
+    } finally {
+      mutate();
+      setDraggedCatName(null);
+    }
+  };
+
   const handleDrop = async (e: React.DragEvent, targetFieldId: string, category: string) => {
     e.preventDefault();
     if (!draggedFieldId || draggedFieldId === targetFieldId || draggedCategory !== category) {
@@ -163,25 +241,39 @@ export default function SheetBuilderAdmin() {
     categoryFields.splice(targetIdx, 0, draggedItem);
     
         
-    // Mutate locally instantly
-    mutate(
-      fields.map((f: any) => {
-        const catIdx = categoryFields.findIndex((cf: any) => cf.id === f.id);
-        if (catIdx !== -1) {
-          return { ...f, order: catIdx * 10 };
+    e.stopPropagation();
+    
+    const orderedCats = Object.keys(groupedFields).sort((a, b) => {
+      const minA = Math.min(...groupedFields[a].map((f: any) => f.order));
+      const minB = Math.min(...groupedFields[b].map((f: any) => f.order));
+      return minA - minB;
+    });
+
+    let globalOrder = 0;
+    const updatedFields: any[] = [];
+
+    orderedCats.forEach(cat => {
+      const catFields = cat === category ? categoryFields : [...groupedFields[cat]].sort((a: any, b: any) => a.order - b.order);
+      catFields.forEach(f => {
+        globalOrder += 10;
+        if (f.order !== globalOrder) {
+          updatedFields.push({ ...f, order: globalOrder });
         }
-        return f;
-      }),
-      false
-    );
+      });
+    });
+
+    const newFields = fields.map((f: any) => {
+      const update = updatedFields.find(uf => uf.id === f.id);
+      return update ? update : f;
+    });
+    mutate(newFields, false);
 
     try {
-      // Send updates to backend
-      const updates = categoryFields.map((f: any, idx: number) => 
+      const updates = updatedFields.map((f: any) => 
         apiFetch("/api/sheet-fields", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...f, order: idx * 10 }),
+          body: JSON.stringify({ ...f }),
         })
       );
       await Promise.all(updates);
@@ -223,9 +315,19 @@ export default function SheetBuilderAdmin() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {Object.keys(groupedFields).map(category => (
+          {Object.keys(groupedFields).sort((a, b) => {
+            const minA = Math.min(...groupedFields[a].map((f: any) => f.order));
+            const minB = Math.min(...groupedFields[b].map((f: any) => f.order));
+            return minA - minB;
+          }).map(category => (
             <Card key={category} className="shadow-sm border-border overflow-hidden mt-0">
-              <CardHeader className="bg-muted py-3 border-b">
+              <CardHeader 
+                className={`bg-muted py-3 border-b cursor-grab active:cursor-grabbing ${draggedCatName === category ? 'opacity-50' : ''}`}
+                draggable
+                onDragStart={(e) => handleCategoryDragStart(e, category)}
+                onDragOver={(e) => handleCategoryDragOver(e, category)}
+                onDrop={(e) => handleCategoryDrop(e, category)}
+              >
                 <CardTitle className="text-base font-medium text-foreground uppercase tracking-wider">{category}</CardTitle>
               </CardHeader>
               <Table>

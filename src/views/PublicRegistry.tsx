@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 export default function PublicRegistry() {
   const [activeTab, setActiveTab] = useState<'canon' | 'employments' | 'classes'>('canon');
   const { data: canonCharacters, error } = useSWR('/api/public/canon-characters', fetcher);
+  const { data: fields } = useSWR('/api/sheet-fields', fetcher);
   const [searchTerm, setSearchTerm] = useState('');
   
   const [statusFilter, setStatusFilter] = useState('all');
@@ -25,10 +26,22 @@ export default function PublicRegistry() {
     }
     return undefined;
   };
+
+  const getProfileValueByCoreKey = (profileData: any, coreKey: string, fallbacks: string[] = []) => {
+    if (!profileData) return undefined;
+    if (fields) {
+      const field = fields.find((f: any) => f.coreKey === coreKey || fallbacks.includes(f.coreKey));
+      if (field) {
+         if (profileData[field.id] !== undefined && profileData[field.id] !== null && profileData[field.id] !== '') return profileData[field.id];
+         if (profileData[`${field.id}_name`] !== undefined && profileData[`${field.id}_name`] !== null && profileData[`${field.id}_name`] !== '') return profileData[`${field.id}_name`];
+      }
+    }
+    return readProfile(profileData, [coreKey, ...fallbacks]);
+  };
   const affiliations = React.useMemo(() => {
     if (!canonCharacters) return [];
-    return Array.from(new Set(canonCharacters.map((c: any) => readProfile(c.profileData, ['faction_group', 'group', 'grupo', 'faccion', 'facción', 'affiliation']) || c.affiliation).filter(Boolean)));
-  }, [canonCharacters]);
+    return Array.from(new Set(canonCharacters.map((c: any) => getProfileValueByCoreKey(c.profileData, 'faction_group', ['group', 'grupo', 'faccion', 'facción', 'affiliation']) || c.affiliation).filter(Boolean)));
+  }, [canonCharacters, fields]);
 
   const employments = React.useMemo(() => {
     if (!canonCharacters) return [];
@@ -52,7 +65,7 @@ export default function PublicRegistry() {
     if (c.active === false) return false;
     if (searchTerm && !c.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     if (statusFilter !== 'all' && c.status !== statusFilter) return false;
-    if (affiliationFilter !== 'all' && (readProfile(c.profileData, ['faction_group', 'group', 'grupo', 'faccion', 'facción', 'affiliation']) || c.affiliation) !== affiliationFilter) return false;
+    if (affiliationFilter !== 'all' && (getProfileValueByCoreKey(c.profileData, 'faction_group', ['group', 'grupo', 'faccion', 'facción', 'affiliation']) || c.affiliation) !== affiliationFilter) return false;
     if (employmentFilter !== 'all') {
       const emps = c.employments?.map((e: any) => `${e.position.name} · ${e.institution.name}`) || [];
       if (!emps.includes(employmentFilter)) return false;
@@ -175,13 +188,13 @@ export default function PublicRegistry() {
                 {/* Content Overlay */}
                 <div className="relative z-10 p-5 h-full flex flex-col justify-end">
                   <div>
-                    <h3 className="font-oxanium text-2xl font-bold text-white tracking-wide">{String(readProfile(c.profileData, ['basic_name', 'name', 'nombre']) || c.firstName || c.name) + " " + String(readProfile(c.profileData, ['last_name', 'apellido']) || c.lastName || '')}</h3>
+                    <h3 className="font-oxanium text-2xl font-bold text-white tracking-wide">{String(getProfileValueByCoreKey(c.profileData, 'basic_name', ['name', 'nombre']) || c.firstName || c.name).trim() + " " + String(getProfileValueByCoreKey(c.profileData, 'last_name', ['apellido']) || c.lastName || '').trim()}</h3>
                     
-                    <div className="mt-1.5 text-cyan-400 text-sm font-medium">{readProfile(c.profileData, ['faction_group', 'group', 'grupo', 'faccion', 'facción', 'affiliation']) || c.affiliation || 'Sin afiliación'}</div>
-                    {(readProfile(c.profileData, ['alias', 'hero_name']) || (Array.isArray(c.aliases) && c.aliases.length > 0 ? c.aliases.join(', ') : null)) && (
-      <div className="text-slate-300/80 text-xs mt-0.5">AKA: {readProfile(c.profileData, ['alias', 'hero_name']) || c.aliases.join(', ')}</div>
+                    <div className="mt-1.5 text-cyan-400 text-sm font-medium">{getProfileValueByCoreKey(c.profileData, 'faction_group', ['group', 'grupo', 'faccion', 'facción', 'affiliation']) || c.affiliation || 'Sin afiliación'}</div>
+                    {(getProfileValueByCoreKey(c.profileData, 'alias', ['hero_name']) || (Array.isArray(c.aliases) && c.aliases.length > 0 ? c.aliases.join(', ') : null)) && (
+      <div className="text-slate-300/80 text-xs mt-0.5">AKA: {getProfileValueByCoreKey(c.profileData, 'alias', ['hero_name']) || c.aliases.join(', ')}</div>
   )}
-  <div className="text-slate-400 text-xs mt-0.5">Quirk: {readProfile(c.profileData, ['quirk_name_name', 'quirk_name', 'quirkName', 'don_name', 'don']) || 'Sin don'}</div>
+  <div className="text-slate-400 text-xs mt-0.5">Quirk: {getProfileValueByCoreKey(c.profileData, 'quirk_name', ['quirkName', 'don_name', 'don']) || 'Sin don'}</div>
                     
                     {c.summary && <p className="text-sm text-slate-300 mt-4 leading-relaxed line-clamp-3">{c.summary}</p>}
                     
