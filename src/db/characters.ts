@@ -93,11 +93,17 @@ export async function getCharacterPossessions(characterId: number) {
 export async function getPublicCharacterById(id: number) {
   const character = await getCharacterById(id);
   if (!character) return null;
-  const possessions = await db.select({ possession: elementPossessions, element: systemElements })
-    .from(elementPossessions)
-    .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
-    .where(and(eq(elementPossessions.characterId, id), eq(systemElements.status, 'published')));
-  return { ...character, possessions };
+  const { getCharacterEmployments } = await import('./employments.ts');
+  const { getCharacterEnrollment } = await import('./academicClasses.ts');
+  const [possessions, employments, enrollment] = await Promise.all([
+    db.select({ possession: elementPossessions, element: systemElements })
+      .from(elementPossessions)
+      .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
+      .where(and(eq(elementPossessions.characterId, id), eq(systemElements.status, 'published'))),
+    getCharacterEmployments(id).catch(() => []),
+    getCharacterEnrollment(id).catch(() => null),
+  ]);
+  return { ...character, possessions, employments, enrollment };
 }
 
 export async function getCharactersWithPossessions() {

@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, Flame, Wind } from "lucide-react";
+import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { validateCharacter, calculateDerivedStats } from "@/lib/characterValidation";
 import { Badge } from "@/components/ui/badge";
@@ -146,8 +146,11 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
     setIsSaving(true);
     try {
       const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList);
+      const pu = Math.max(0, parseInt(String(formData['plus_ultra'] ?? formData['plusUltra'] ?? 0), 10) || 0);
       const finalProfileData: Record<string, any> = {
         ...formData,
+        plus_ultra: pu,
+        plusUltra: pu,
         salud_actual: derived.salud,
         estamina_actual: derived.estamina,
         salud_maxima: derived.salud,
@@ -183,6 +186,11 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             if (['imagen', 'avatar', 'enlace_al_avatar', 'url_de_avatar', 'avatar_url'].includes(nName)) finalProfileData['avatar_url'] = val;
             if (nName.includes('faceclaim')) finalProfileData['faceclaim'] = val;
             if (f.coreKey) finalProfileData[f.coreKey] = val;
+            if (f.coreKey === 'quirk_level' || (nName.includes('nivel') && nName.includes('quirk'))) {
+              finalProfileData['quirk_level'] = val;
+              finalProfileData['quirk_evolution'] = val;
+              finalProfileData['quirkEvolution'] = val;
+            }
           }
 
           // Handle Quirk specific mappings
@@ -476,7 +484,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             <Card className="border-border">
               <CardHeader className="border-b bg-muted/30 pb-3">
                 <CardTitle className="text-base uppercase tracking-wider text-primary flex items-center gap-2">
-                  <Brain className="size-5" /> Rasgos y Debilidades
+                  <BrainCircuit className="size-5" /> Rasgos y Debilidades
                 </CardTitle>
                 <CardDescription>
                   {stage ? (
@@ -490,7 +498,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between border-b pb-2">
-                    <h3 className="font-bold font-oxanium text-lg text-foreground flex items-center gap-2"><Zap className="size-4 text-cyan-500" /> Rasgos</h3>
+                    <h3 className="font-bold font-oxanium text-lg text-foreground flex items-center gap-2"><BrainCircuit className="size-4 text-cyan-500" /> Rasgos</h3>
                     <Badge variant="outline">{selectedTraits.length} / {maxTraits > 0 ? maxTraits : '∞'}</Badge>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -516,7 +524,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between border-b pb-2">
-                    <h3 className="font-bold font-oxanium text-lg text-foreground flex items-center gap-2"><AlertTriangle className="size-4 text-red-500" /> Debilidades</h3>
+                    <h3 className="font-bold font-oxanium text-lg text-foreground flex items-center gap-2"><HeartCrack className="size-4 text-red-500" /> Debilidades</h3>
                     <Badge variant="outline">{selectedWeaknesses.length} / Mínimo {minWeaknesses}</Badge>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -667,6 +675,77 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                     <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
                       <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Daño de Rango</span>
                       <strong className="text-xl font-mono text-blue-400">{derived.dañoRango}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg border border-accent2/40 bg-bg2/40">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="size-5 text-accent2" />
+                        <span className="text-sm font-bold uppercase tracking-widest text-accent2">Plus Ultra</span>
+                        <Badge variant="outline" className="text-[10px] uppercase border-accent2/40 text-accent2 bg-accent2/5">
+                          Recurso Heroico Extraordinario
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground max-w-md">
+                        Puntos otorgados por el Narrador por acciones extraordinarias. Permiten realizar proezas como repetir tiradas de acción o actuar al límite en combate. No tienen límite máximo ni se recuperan automáticamente.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 self-start sm:self-auto">
+                      {isAdmin ? (
+                        <div className="flex items-center gap-2 border border-border bg-bg1 p-1.5 rounded-md">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-foreground hover:bg-muted"
+                            disabled={(Number(formData['plus_ultra'] ?? formData['plusUltra'] ?? 0)) <= 0}
+                            onClick={() => {
+                              const current = Math.max(0, parseInt(String(formData['plus_ultra'] ?? formData['plusUltra'] ?? 0), 10) || 0);
+                              const next = Math.max(0, current - 1);
+                              updateField('plus_ultra', next);
+                              updateField('plusUltra', next);
+                            }}
+                          >
+                            <span className="text-lg font-bold leading-none">-</span>
+                          </Button>
+                          <Input
+                            type="number"
+                            min="0"
+                            className="w-16 h-8 text-center font-mono text-lg font-bold bg-background text-accent2 border border-border focus-visible:ring-1 focus-visible:ring-accent2"
+                            value={Number(formData['plus_ultra'] ?? formData['plusUltra'] ?? 0)}
+                            onChange={(e) => {
+                              const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                              updateField('plus_ultra', val);
+                              updateField('plusUltra', val);
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-foreground hover:bg-muted"
+                            onClick={() => {
+                              const current = Math.max(0, parseInt(String(formData['plus_ultra'] ?? formData['plusUltra'] ?? 0), 10) || 0);
+                              const next = current + 1;
+                              updateField('plus_ultra', next);
+                              updateField('plusUltra', next);
+                            }}
+                          >
+                            <span className="text-lg font-bold leading-none">+</span>
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3 border border-border bg-bg1 px-4 py-2 rounded-md">
+                          <span className="text-xs text-muted-foreground uppercase tracking-widest">Reserva:</span>
+                          <strong className="text-2xl font-mono text-accent2">
+                            {Number(formData['plus_ultra'] ?? formData['plusUltra'] ?? 0)}
+                          </strong>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

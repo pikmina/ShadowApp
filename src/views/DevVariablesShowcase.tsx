@@ -57,6 +57,7 @@ export function TarjetaFicha({ character }) {
 
   // 3. Quirk (Campos Compuestos)
   const quirkType = readProfile(character.profileData, ['quirk_type', 'tipo_quirk']) || 'Desconocido';
+  const quirkLevel = readProfile(character.profileData, ['quirk_level', 'quirk_evolution', 'quirkEvolution', 'nivel_de_quirk']) || 'Nivel 1. Despertar';
   const quirkName = character.profileData?.['quirk_name_name'] || character.profileData?.['quirk_name'] || 'Sin don';
   const quirkDesc = character.profileData?.['quirk_name_desc'] || 'No hay descripción registrada.';
   const quirkLvl1 = character.profileData?.['quirk_name_lvl1'] || '-'; 
@@ -87,7 +88,7 @@ export function TarjetaFicha({ character }) {
         {/* ⚡ Quirk Completo */}
         <div className="quirk-details mt-4 border-t border-border/50 pt-4">
           <h3 className="text-md font-bold text-primary">
-            Don: {quirkName} <span className="text-xs font-normal text-muted-foreground">({quirkType})</span>
+            Don: {quirkName} <span className="text-xs font-normal text-muted-foreground">({quirkType} · {quirkLevel})</span>
           </h3>
           <p className="text-sm text-muted-foreground my-2 italic">{quirkDesc}</p>
           

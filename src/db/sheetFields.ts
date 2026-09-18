@@ -10,11 +10,20 @@ export async function seedCoreProfileFields() {
     const profiles = await tx.select({ profileData: characters.profileData }).from(characters);
     const claimed = new Set(existing.filter(field => field.coreKey).map(field => field.id));
     for (const [index, definition] of coreProfileFields.entries()) {
-      const compatible = (field: typeof existing[number]) => field.type === definition.type || definition.type === 'text' && field.type === 'select';
+      const compatible = (field: typeof existing[number]) => field.type === definition.type || (definition.type === 'text' && field.type === 'select') || (definition.type === 'select' && field.type === 'select');
       const legacy = existing.find(field => field.id !== definition.key && !claimed.has(field.id) && compatible(field) &&
         definition.aliases.some(alias => normalizedFieldName(alias) === normalizedFieldName(field.name)));
       const current = existing.find(field => field.coreKey === definition.key);
       if (current) {
+        if (('options' in definition && definition.options) && (!Array.isArray(current.options) || current.options.length === 0)) {
+          await tx.update(characterSheetFields).set({ options: [...definition.options] }).where(eq(characterSheetFields.id, current.id));
+        }
+        if (('category' in definition && definition.category) && (!current.category || current.category === 'Datos Básicos')) {
+          await tx.update(characterSheetFields).set({ category: definition.category }).where(eq(characterSheetFields.id, current.id));
+        }
+        if (definition.key === 'quirk_level' && current.order === 90) {
+          await tx.update(characterSheetFields).set({ order: 15 }).where(eq(characterSheetFields.id, current.id));
+        }
         if (current.id === definition.key && legacy && profiles.every(row => {
           const profile = (row.profileData ?? {}) as Record<string, unknown>;
           return profile[current.id] === undefined || profile[legacy.id] === undefined || JSON.stringify(profile[current.id]) === JSON.stringify(profile[legacy.id]);
@@ -30,12 +39,21 @@ export async function seedCoreProfileFields() {
         field.id === definition.key || compatible(field) && definition.aliases.some(alias => normalizedFieldName(alias) === normalizedFieldName(field.name))
       ));
       if (match) {
-        await tx.update(characterSheetFields).set({ coreKey: definition.key }).where(eq(characterSheetFields.id, match.id));
+        const updateData: Record<string, unknown> = { coreKey: definition.key };
+        if (('options' in definition && definition.options) && (!Array.isArray(match.options) || match.options.length === 0)) {
+          updateData.options = [...definition.options];
+        }
+        if (('category' in definition && definition.category) && (!match.category || match.category === 'Datos Básicos')) {
+          updateData.category = definition.category;
+        }
+        await tx.update(characterSheetFields).set(updateData).where(eq(characterSheetFields.id, match.id));
         claimed.add(match.id);
       } else {
+        const defCategory = ('category' in definition && definition.category) ? definition.category : 'Datos Básicos';
+        const defOptions = ('options' in definition && definition.options) ? [...definition.options] : [];
         await tx.insert(characterSheetFields).values({
           id: definition.key, coreKey: definition.key, name: definition.name, type: definition.type,
-          category: 'Datos Básicos', options: [], order: index * 10,
+          category: defCategory, options: defOptions, order: index * 10,
         }).onConflictDoNothing();
       }
     }

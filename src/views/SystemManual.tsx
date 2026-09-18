@@ -1,4 +1,4 @@
-import { BookOpen, AlertTriangle, Shield, Heart, Zap, Crosshair, ChevronRight, Activity, Hand, Target, ArrowLeft, BadgeCheck } from "lucide-react";
+import { BookOpen, AlertTriangle, Shield, Heart, Zap, Crosshair, ChevronRight, Activity, Hand, Target, ArrowLeft, BadgeCheck, Sparkles } from "lucide-react";
 import useSWR from "swr";
 import { fetcher } from "../lib/api";
 import { useEffect } from "react";
@@ -59,6 +59,7 @@ export default function SystemManual() {
               <ul className="space-y-1 text-sm">
                 <li><button onClick={() => navigateToSection('estamina')} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-muted text-foreground/80 hover:text-foreground">2.1 Economía de Estamina</button></li>
                 <li><button onClick={() => navigateToSection('dano')} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-muted text-foreground/80 hover:text-foreground">2.2 Tipos de Daño</button></li>
+                <li><button onClick={() => navigateToSection('plus-ultra')} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-muted text-foreground/80 hover:text-foreground">2.3 Recurso Plus Ultra</button></li>
               </ul>
             </div>
             <div>
@@ -356,6 +357,39 @@ export default function SystemManual() {
                   <h3 className="text-lg font-bold font-oxanium mb-2 text-orange-400">Daño Fijo (Ej. 3)</h3>
                   <p className="text-sm text-muted-foreground mb-3">Un valor inmutable que se resta a la salud enemiga. No requiere tirada. Seguro y constante.</p>
                   <div className="text-xs bg-muted p-2 rounded text-muted-foreground font-mono border border-border/50">3 significa literalmente 3 puntos exactos de daño.</div>
+                </div>
+              </div>
+            </section>
+
+            <section id="plus-ultra" className="space-y-6 pt-8 border-t border-border/50">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-oxanium font-bold text-foreground flex items-center gap-2">
+                  <Sparkles className="w-6 h-6 text-orange-400" /> 2.3 Recurso Heroico: Plus Ultra
+                </h2>
+                <p className="text-muted-foreground">
+                  Puntos extraordinarios concedidos manualmente por el Narrador para premiar el heroísmo, la creatividad táctica o momentos cumbres de la narrativa.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-lg border border-orange-500/30 bg-orange-500/5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded border border-orange-500/40 bg-orange-500/10 text-orange-400">
+                    Regla de Meta-Recurso
+                  </span>
+                  <span className="text-xs text-muted-foreground">Otorgado exclusivamente por el Narrador</span>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Los puntos <strong>Plus Ultra</strong> no tienen un límite máximo prefijado y nunca se recuperan automáticamente al descansar ni con el paso del tiempo. Son una reserva que permite romper los límites del personaje cuando la situación es crítica.
+                </p>
+                <div className="grid sm:grid-cols-2 gap-3 pt-2">
+                  <div className="bg-background/60 p-3 rounded border border-border text-xs space-y-1">
+                    <strong className="text-foreground block">Repetición de Tiradas</strong>
+                    <span className="text-muted-foreground">Permite volver a tirar los dados de una acción crucial o técnica que haya fallado.</span>
+                  </div>
+                  <div className="bg-background/60 p-3 rounded border border-border text-xs space-y-1">
+                    <strong className="text-foreground block">Acción al Límite</strong>
+                    <span className="text-muted-foreground">Permite realizar un ataque o acción heroica incluso cuando la Estamina del personaje está en cero.</span>
+                  </div>
                 </div>
               </div>
             </section>

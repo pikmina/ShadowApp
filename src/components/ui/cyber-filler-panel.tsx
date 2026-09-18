@@ -17,6 +17,7 @@ export const CyberFillerPanel: React.FC<CyberFillerPanelProps> = ({
   subtitle,
   variant = 'default',
   pattern = 'dots',
+  children,
   ...props
 }) => {
   const variantStyles = {
@@ -107,7 +108,7 @@ export const CyberFillerPanel: React.FC<CyberFillerPanelProps> = ({
       />
 
       {/* Centered Content */}
-      <div className="flex flex-col items-center justify-center text-center relative z-10 gap-2 opacity-40 group-hover:opacity-80 transition-opacity">
+      <div className="flex flex-col items-center justify-center text-center relative z-10 gap-2 opacity-50 group-hover:opacity-90 transition-opacity w-full">
         {Icon && (
           <div className={cn("transition-transform group-hover:scale-110 duration-300", styleConfig.iconText)}>
             <Icon className="w-8 h-8 stroke-[1.5]" />
@@ -128,6 +129,8 @@ export const CyberFillerPanel: React.FC<CyberFillerPanelProps> = ({
             )}
           </div>
         )}
+
+        {children}
       </div>
 
       {/* Subtle Corner Tech Ticks */}

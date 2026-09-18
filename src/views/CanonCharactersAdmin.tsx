@@ -335,7 +335,7 @@ export default function CanonCharactersAdmin() {
 function CanonProfileFields({ value, onChange, fields, disabled = false }: { value: Record<string, string>; onChange: (next: Record<string, string>) => void; fields: any[], disabled?: boolean }) {
   if (!fields) return null;
   
-  const allowedKeys = ['basic_name', 'last_name', 'quirk_name', 'basic_alignment', 'alias', 'avatar_url', 'faction_group'];
+  const allowedKeys = ['basic_name', 'last_name', 'quirk_name', 'quirk_type', 'quirk_level', 'basic_alignment', 'alias', 'avatar_url', 'faction_group'];
   const displayFields = fields.filter((f: any) => !!f.coreKey && allowedKeys.includes(f.coreKey));
   
   return (

@@ -9,6 +9,9 @@ export interface EntityPanelProps extends React.HTMLAttributes<HTMLDivElement> {
   accent?: 'accent1' | 'accent2' | 'accent3' | 'accent4' | 'default';
   glow?: boolean;
   cornerTicks?: boolean;
+  compact?: boolean;
+  headerClassName?: string;
+  contentClassName?: string;
   title?: string;
   subtitle?: React.ReactNode;
   badge?: string;
@@ -47,6 +50,9 @@ export const EntityPanel: React.FC<EntityPanelProps> = ({
   accent = 'default',
   glow = false,
   cornerTicks = false,
+  compact = false,
+  headerClassName,
+  contentClassName,
   title,
   subtitle,
   badge,
@@ -129,19 +135,42 @@ export const EntityPanel: React.FC<EntityPanelProps> = ({
       >
         {renderPattern()}
         {renderTicks()}
-        <CardHeader className="p-4 pb-3 sm:p-5 sm:pb-3 border-b border-border/50 relative z-10">
+        <CardHeader
+          className={cn(
+            compact
+              ? "p-2.5 px-3.5 pb-2 border-b border-border/40 relative z-10"
+              : "p-4 pb-3 sm:p-5 sm:pb-3 border-b border-border/50 relative z-10",
+            headerClassName
+          )}
+        >
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               {icon && <div className="text-primary shrink-0">{icon}</div>}
               <div>
-                {title && <CardTitle className="text-base font-oxanium text-foreground uppercase">{title}</CardTitle>}
+                {title && (
+                  <CardTitle
+                    className={cn(
+                      "font-oxanium text-foreground uppercase",
+                      compact ? "text-xs sm:text-sm font-bold tracking-wider" : "text-base"
+                    )}
+                  >
+                    {title}
+                  </CardTitle>
+                )}
                 {subtitle && <CardDescription className="text-xs text-muted-foreground">{subtitle}</CardDescription>}
               </div>
             </div>
-            {badge && <Badge variant="default" className="bg-primary/20 text-primary hover:bg-primary/30 border-transparent">{badge}</Badge>}
+            {badge && <Badge variant="default" className="bg-primary/20 text-primary hover:bg-primary/30 border-transparent text-[10px] py-0 px-1.5">{badge}</Badge>}
           </div>
         </CardHeader>
-        <CardContent className="p-4 sm:p-5 relative z-10">{children}</CardContent>
+        <CardContent
+          className={cn(
+            compact ? "p-2.5 sm:p-3 relative z-10" : "p-4 sm:p-5 relative z-10",
+            contentClassName
+          )}
+        >
+          {children}
+        </CardContent>
       </Card>
     );
   }

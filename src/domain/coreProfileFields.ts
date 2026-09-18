@@ -6,9 +6,10 @@ export const coreProfileFields = [
   { key: 'basic_alignment', name: 'Alineación', type: 'text', aliases: ['alineación', 'alineacion', 'alineamiento', 'basic_alignment'] },
   { key: 'nationality', name: 'Nacionalidad', type: 'text', aliases: ['nacionalidad', 'nationality'] },
   { key: 'faceclaim', name: 'Faceclaim', type: 'text', aliases: ['faceclaim', 'faceclaim_pb', 'pb'] },
-  { key: 'quirk_type', name: 'Tipo de Quirk', type: 'text', aliases: ['tipo de quirk', 'tipo de don', 'quirk_type'] },
-  { key: 'quirk_name', name: 'Quirk', type: 'quirk', aliases: ['quirk', 'nombre del quirk', 'nombre del don', 'quirk_name'] },
-  { key: 'quirk_levels', name: 'Niveles de Quirk', type: 'quirk', aliases: ['niveles de quirk', 'quirk_levels', 'niveles'] },
+  { key: 'quirk_type', name: 'Tipo de Quirk', type: 'text', category: 'Quirk & Poder', options: ['Transformador', 'Emisor', 'Mutante', 'Sin quirk'], aliases: ['tipo de quirk', 'tipo de don', 'quirk_type'] },
+  { key: 'quirk_name', name: 'Quirk', type: 'quirk', category: 'Quirk & Poder', aliases: ['quirk', 'nombre del quirk', 'nombre del don', 'quirk_name'] },
+  { key: 'quirk_level', name: 'Nivel de Quirk', type: 'select', category: 'Quirk & Poder', options: ['Nivel 1. Despertar', 'Nivel 2. Dominio', 'Nivel 3. Trascendencia'], order: 15, aliases: ['nivel de quirk', 'nivel del quirk', 'nivel de don', 'nivel del don', 'quirk_level', 'nivel_de_quirk', 'nivel_quirk', 'quirk_evolution', 'quirkEvolution'] },
+  { key: 'quirk_levels', name: 'Niveles de Quirk', type: 'quirk', category: 'Quirk & Poder', aliases: ['niveles de quirk', 'quirk_levels', 'niveles'] },
   { key: 'alias', name: 'Apodo', type: 'text', aliases: ['apodo', 'alias'] },
   { key: 'avatar_url', name: 'Enlace al avatar', type: 'image', aliases: ['avatar', 'enlace al avatar', 'url de avatar', 'url de imagen', 'avatar_url'] },
 ] as const;
@@ -29,6 +30,7 @@ export function profileValue(profile: Record<string, unknown>, key: CoreProfileK
     nationality: ['nationality', 'nacionalidad'], faceclaim: ['faceclaim', 'faceclaim_pb', 'pb'],
     quirk_type: ['quirk_type', 'quirkType', 'tipo_quirk', 'tipo_don'],
     quirk_name: ['quirk_name', 'quirkName', 'don_name', 'don'],
+    quirk_level: ['quirk_level', 'quirk_evolution', 'quirkEvolution', 'nivel_de_quirk', 'nivel_quirk'],
     quirk_levels: ['quirk_levels', 'niveles_de_quirk'],
     alias: ['alias', 'nickname', 'apodo', 'hero_name'], avatar_url: ['avatar_url', 'avatarUrl', 'avatar', 'image', 'imagen'],
   };
