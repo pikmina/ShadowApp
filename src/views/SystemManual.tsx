@@ -219,7 +219,7 @@ export default function SystemManual() {
                       <th className="px-4 py-3 font-medium text-center">Máx. por Atributo</th>
                       <th className="px-4 py-3 font-medium text-center">Salud Base</th>
                       <th className="px-4 py-3 font-medium text-center">Estamina Base</th>
-                      <th className="px-4 py-3 font-medium text-center">Daño Base</th>
+                      <th className="px-4 py-3 font-medium text-center">Dado Base</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border bg-card">

@@ -80,14 +80,13 @@
     /* 🎨 COLORES BASE & ACENTOS                         */
     /* ================================================= */
 
-    --accent2: var(--ashes);
-    --accent1: var(--dark-slate-blue);
-    --accent4: #9b6a40;
-    --accent3: #265743;
-
+    --accent1: var(--green);
+    --accent2: var(--orange);
+    
+  
     --ashes: #607d8b;
-    --green: #30956f;
-    --orange:#ab6338;
+    --green: #265743;
+    --orange:#9b6a40;
     --purple: #4949E7;
     --cornflower: #78abdf;
     --pink: #f56ea6;

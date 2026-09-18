@@ -159,7 +159,7 @@ export default function RulesAdmin() {
   const attrsRule = rules?.find((r: any) => r.key === 'system_attributes') || { value: [{"id":"fue","name":"Fuerza","abbrev":"FUE","desc":"Capacidad física, levantamiento y daño cuerpo a cuerpo pesado."},{"id":"des","name":"Destreza","abbrev":"DES","desc":"Agilidad, puntería, reflejos y habilidades manuales precisas."},{"id":"res","name":"Resistencia","abbrev":"RES","desc":"Tolerancia al daño físico, enfermedades y fatiga extrema."},{"id":"int","name":"Inteligencia","abbrev":"INT","desc":"Capacidad analítica, memoria, percepción y uso de tecnología."},{"id":"vol","name":"Voluntad","abbrev":"VOL","desc":"Fuerza mental, resistencia psíquica y control de emociones/quirks."},{"id":"vel","name":"Velocidad","abbrev":"VEL","desc":"Capacidad de movimiento, iniciativa en combate y evasión rápida."}] };
   const attributes = attrsRule.value;
   
-  const derivedRule = rules?.find((r: any) => r.key === 'system_derived') || { value: [{"id":"sa","name":"Salud (SA)","formula":"Salud Base de Etapa + RES","desc":"Llega a 0: Desmayo. Llega a -10: Muerte. (Gastar 2 ES recupera 3 SA)."},{"id":"es","name":"Estamina (ES)","formula":"Salud Base de Etapa + DES","desc":"Capacidad para realizar acciones, usar Quirks y Técnicas sin cansarse."},{"id":"eva","name":"Evasión (EVA)","formula":"10 + VEL","desc":"Dificultad (RD) que un enemigo debe superar para acertar un ataque físico."},{"id":"cor","name":"Coraje (COR)","formula":"10 + VOL","desc":"Dificultad (RD) que un enemigo debe superar para acertar un ataque mental."},{"id":"mod","name":"Modificadores (FUE / DES)","formula":"Floor(Atributo / 2)","desc":"Escala de poder. Ej: Atributo 0-1 = +0 | 2-3 = +1 | 4-5 = +2 | 10 = +5."},{"id":"db","name":"Daño Base (DB)","formula":"Dado de Etapa + Mod. FUE","desc":"Daño a puño limpio. Ej: 1D8 + 2 (si FUE es 4)."},{"id":"ini","name":"Iniciativa (INI)","formula":"Floor( (INT + VEL) / 2 ) / 2","desc":"Velocidad de reacción. Promedio de INT+VEL aplicado a la tabla de Modificadores (0-1=0, 2-3=1, etc)."}] };
+  const derivedRule = rules?.find((r: any) => r.key === 'system_derived') || { value: [{"id":"sa","name":"Salud (SA)","formula":"Salud Base de Etapa + RES","desc":"Llega a 0: Desmayo. Llega a -10: Muerte. (Gastar 2 ES recupera 3 SA)."},{"id":"es","name":"Estamina (ES)","formula":"Salud Base de Etapa + DES","desc":"Capacidad para realizar acciones, usar Quirks y Técnicas sin cansarse."},{"id":"eva","name":"Evasión (EVA)","formula":"10 + VEL","desc":"Dificultad (RD) que un enemigo debe superar para acertar un ataque físico."},{"id":"cor","name":"Coraje (COR)","formula":"10 + VOL","desc":"Dificultad (RD) que un enemigo debe superar para acertar un ataque mental."},{"id":"mod","name":"Modificadores (FUE / DES)","formula":"Floor(Atributo / 2)","desc":"Escala de poder. Ej: Atributo 0-1 = +0 | 2-3 = +1 | 4-5 = +2 | 10 = +5."},{"id":"df","name":"Daño Físico (DF)","formula":"Dado de Etapa + Mod. FUE","desc":"Daño cuerpo a cuerpo. Ej: 1D8 + 2 (si FUE es 4)."},{"id":"dr","name":"Daño de Rango (DR)","formula":"Dado de Etapa + Mod. DES","desc":"Daño a distancia. Ej: 1D8 + 2 (si DES es 4)."},{"id":"ini","name":"Iniciativa (INI)","formula":"Floor( (INT + VEL) / 2 ) / 2","desc":"Velocidad de reacción. Promedio de INT+VEL aplicado a la tabla de Modificadores (0-1=0, 2-3=1, etc)."}] };
   const derived = derivedRule.value;
 
   const [isAttrDialogOpen, setIsAttrDialogOpen] = useState(false);
@@ -313,7 +313,7 @@ export default function RulesAdmin() {
                       <TableHead>Exp / Yenes</TableHead>
                       <TableHead>Salud / Def</TableHead>
                       <TableHead>Atributos (Pts/Max)</TableHead>
-                      <TableHead>Daño Base</TableHead>
+                      <TableHead>Dado Base</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -672,7 +672,7 @@ export default function RulesAdmin() {
                 <Input type="number" value={stageForm.baseDefenses} onChange={e => setStageForm({...stageForm, baseDefenses: Number(e.target.value)})} />
               </div>
               <div className="grid gap-2">
-                <Label>Daño Base</Label>
+                <Label>Dado Base</Label>
                 <Select value={stageForm.baseDamage} onValueChange={v => setStageForm({...stageForm, baseDamage: v})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona el dado" />

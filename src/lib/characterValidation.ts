@@ -142,10 +142,14 @@ export function calculateDerivedStats(profile: Record<string, any>, stages: any[
   const iniciativa = calculateModifier(Math.floor((int + vel) / 2)) + extraIni;
   const reduccionDano = extraRed;
   
-  // Daño base format: "1D8 + 2" (or just "1D8" if mod is 0, or "1D8 - 1" if negative)
-  let dbStr = baseDamage;
-  if (modFue > 0) dbStr += ` + ${modFue}`;
-  else if (modFue < 0) dbStr += ` - ${Math.abs(modFue)}`;
+  // Daño Físico format: "1D8 + 2" (or just "1D8" if mod is 0, or "1D8 - 1" if negative)
+  let dfStr = baseDamage;
+  if (modFue > 0) dfStr += ` + ${modFue}`;
+  else if (modFue < 0) dfStr += ` - ${Math.abs(modFue)}`;
+
+  let drStr = baseDamage;
+  if (modDes > 0) drStr += ` + ${modDes}`;
+  else if (modDes < 0) drStr += ` - ${Math.abs(modDes)}`;
 
   return {
     salud,
@@ -155,7 +159,8 @@ export function calculateDerivedStats(profile: Record<string, any>, stages: any[
     modFue,
     modDes,
     iniciativa,
-    dañoBase: dbStr,
+    dañoFisico: dfStr,
+    dañoRango: drStr,
     reduccionDano
   };
 }

@@ -121,8 +121,8 @@ export default function PublicSheet() {
   const derivedAttributes = [
     ['Evasión', derived?.evasion ?? readValue(profile, ['eva', 'evasion', 'evasión'])],
     ['Coraje', derived?.coraje ?? readValue(profile, ['cor', 'courage', 'coraje'])],
-    ['Daño base', derived?.dañoBase ?? readValue(profile, ['baseDamage', 'base_damage', 'dano_base', 'daño_base'])],
-    ['Plus Ultra', readValue(profile, ['plusUltra', 'plus_ultra'])],
+    ['Daño Físico', derived?.dañoFisico ?? readValue(profile, ['baseDamage', 'base_damage', 'dano_base', 'daño_base', 'dano_fisico', 'daño_fisico'])],
+    ['Daño de Rango', derived?.dañoRango ?? readValue(profile, ['dano_rango', 'daño_rango'])],
     ['Reducción de daño', derived?.reduccionDano ?? readValue(profile, ['reduccionDano', 'reduccion_dano', 'dr', 'damageReduction', 'damage_reduction'])],
     ['Iniciativa', derived?.iniciativa ?? readValue(profile, ['initiative', 'iniciativa'])],
     ['Mod. FUE', derived?.modFue ?? readValue(profile, ['modFUE', 'mod_fue'])],
@@ -221,6 +221,10 @@ export default function PublicSheet() {
               <h2 className="mb-4 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest text-accent2"><Activity className="size-4" /> Atributos derivados</h2>
               <div className="grid grid-cols-2 gap-3">
                 {derivedAttributes.map(([label, value]) => <div key={String(label)} className="border border-bg3 bg-bg1 p-2 text-center"><span className="block text-[9px] uppercase tracking-widest text-primary">{String(label)}</span><strong className="mt-1 block text-lg leading-none text-text1">{displayValue(value, '—')}</strong></div>)}
+                <div className="col-span-2 border border-bg3 bg-bg1 p-2 text-center">
+                   <span className="block text-[9px] uppercase tracking-widest text-primary">Plus Ultra</span>
+                   <strong className="mt-1 block text-lg leading-none text-text1">{displayValue(readValue(profile, ['plusUltra', 'plus_ultra']), '—')}</strong>
+                </div>
               </div>
             </div>
             <CyberFillerPanel icon={Activity} title="ATTR.SYNC" subtitle="READ ONLY" variant="accent1" pattern="grid" className="min-h-24 p-4" />

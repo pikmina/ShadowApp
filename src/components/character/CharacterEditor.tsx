@@ -157,7 +157,8 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         mod_fue: derived.modFue,
         mod_des: derived.modDes,
         iniciativa: derived.iniciativa,
-        daño_base: derived.dañoBase,
+        daño_fisico: derived.dañoFisico,
+        daño_rango: derived.dañoRango,
         reduccion_dano: derived.reduccionDano,
       };
 
@@ -660,8 +661,12 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                       <strong className="text-xl font-mono text-foreground">{derived.modDes > 0 ? `+${derived.modDes}` : derived.modDes}</strong>
                     </div>
                     <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
-                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Daño Base</span>
-                      <strong className="text-xl font-mono text-red-400">{derived.dañoBase}</strong>
+                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Daño Físico</span>
+                      <strong className="text-xl font-mono text-red-400">{derived.dañoFisico}</strong>
+                    </div>
+                    <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
+                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Daño de Rango</span>
+                      <strong className="text-xl font-mono text-blue-400">{derived.dañoRango}</strong>
                     </div>
                   </div>
                 </div>
