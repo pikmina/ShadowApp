@@ -118,36 +118,99 @@ export async function getCharactersWithPossessions() {
 }
 
 export async function saveCharacterWithElementSelections(data: {
-  characterId?: number | null; userId: number; name: string; profileData: Record<string, any>;
-  expectedUpdatedAt?: Date | string; canonCharacterId?: string | null; elementIds: string[]; actorUid: string;
+  characterId?: number | null;
+  userId: number;
+  name: string;
+  profileData: Record<string, any>;
+  expectedUpdatedAt?: Date | string;
+  canonCharacterId?: string | null;
+  elementIds?: string[];
+  exp?: number;
+  yen?: number;
+  inventoryPossessions?: Array<{ elementId: string; quantity: number }>;
+  credentialPossessions?: Array<{ elementId: string; quantity?: number }>;
+  actorUid: string;
 }) {
   return db.transaction(async tx => {
-    const uniqueElementIds = [...new Set(data.elementIds)];
-    const selectedElements = uniqueElementIds.length
-      ? await tx.select().from(systemElements).where(inArray(systemElements.id, uniqueElementIds))
-      : [];
-    if (selectedElements.length !== uniqueElementIds.length) throw Object.assign(new Error('One or more selected elements do not exist'), { status: 400 });
-    if (selectedElements.some(element => element.status !== 'published')) throw Object.assign(new Error('Only published elements can be assigned'), { status: 409 });
-    if (selectedElements.some(element => !['trait', 'weakness'].includes(element.kind))) throw Object.assign(new Error('Character sheet selections must be traits or weaknesses'), { status: 400 });
+    // 1. Process traits & weaknesses (elementIds)
+    const traitAndWeaknessIds = data.elementIds !== undefined ? [...new Set(data.elementIds)] : undefined;
+    if (traitAndWeaknessIds) {
+      const selectedTraits = traitAndWeaknessIds.length
+        ? await tx.select().from(systemElements).where(inArray(systemElements.id, traitAndWeaknessIds))
+        : [];
+      if (selectedTraits.length !== traitAndWeaknessIds.length) throw Object.assign(new Error('One or more selected traits/weaknesses do not exist'), { status: 400 });
+      if (selectedTraits.some(element => element.status !== 'published')) throw Object.assign(new Error('Only published elements can be assigned'), { status: 409 });
+      if (selectedTraits.some(element => !['trait', 'weakness'].includes(element.kind))) throw Object.assign(new Error('Character sheet selections must be traits or weaknesses'), { status: 400 });
 
-    const possessionContext = new Map(uniqueElementIds.map(id => [id, { quantity: 1, selectedChoices: {} }]));
-    for (const element of selectedElements) {
-      const requirements = requirementGroupSchema.parse(element.requirements);
-      const result = evaluateRequirements(requirements, { profile: data.profileData, possessions: possessionContext });
-      if (!result.passed) throw Object.assign(new Error(`Requirements not met for element ${element.id}: ${result.failures.join(', ')}`), { status: 409 });
+      const possessionContext = new Map(traitAndWeaknessIds.map(id => [id, { quantity: 1, selectedChoices: {} }]));
+      for (const element of selectedTraits) {
+        const requirements = requirementGroupSchema.parse(element.requirements);
+        const result = evaluateRequirements(requirements, { profile: data.profileData, possessions: possessionContext });
+        if (!result.passed) throw Object.assign(new Error(`Requirements not met for element ${element.id}: ${result.failures.join(', ')}`), { status: 409 });
+      }
+    }
+
+    // 2. Process credentials (license, permission, certification)
+    let validCredentials: Array<{ elementId: string; quantity: number }> | undefined = undefined;
+    if (data.credentialPossessions !== undefined) {
+      const credMap = new Map<string, number>();
+      for (const item of data.credentialPossessions) {
+        if (item.elementId && (item.quantity ?? 1) > 0) {
+          credMap.set(item.elementId, 1);
+        }
+      }
+      const credIds = Array.from(credMap.keys());
+      if (credIds.length > 0) {
+        const selectedCreds = await tx.select().from(systemElements).where(inArray(systemElements.id, credIds));
+        if (selectedCreds.length !== credIds.length) throw Object.assign(new Error('One or more selected credentials do not exist'), { status: 400 });
+        if (selectedCreds.some(element => element.status !== 'published')) throw Object.assign(new Error('Only published credentials can be assigned'), { status: 409 });
+        if (selectedCreds.some(element => !['license', 'permission', 'certification'].includes(element.kind))) {
+          throw Object.assign(new Error('Credential selections must be licenses, permissions, or certifications'), { status: 400 });
+        }
+      }
+      validCredentials = credIds.map(elementId => ({ elementId, quantity: 1 }));
+    }
+
+    // 3. Process inventory items (equipment, weapons, consumables, resources, etc.)
+    let validInventory: Array<{ elementId: string; quantity: number }> | undefined = undefined;
+    if (data.inventoryPossessions !== undefined) {
+      const invMap = new Map<string, number>();
+      for (const item of data.inventoryPossessions) {
+        if (item.elementId && item.quantity > 0) {
+          invMap.set(item.elementId, (invMap.get(item.elementId) || 0) + item.quantity);
+        }
+      }
+      const invIds = Array.from(invMap.keys());
+      if (invIds.length > 0) {
+        const selectedInv = await tx.select().from(systemElements).where(inArray(systemElements.id, invIds));
+        if (selectedInv.length !== invIds.length) throw Object.assign(new Error('One or more selected inventory items do not exist'), { status: 400 });
+        if (selectedInv.some(element => element.status !== 'published')) throw Object.assign(new Error('Only published inventory items can be assigned'), { status: 409 });
+        if (selectedInv.some(element => ['trait', 'weakness', 'license', 'permission', 'certification'].includes(element.kind))) {
+          throw Object.assign(new Error('Inventory items cannot be traits, weaknesses, or credentials'), { status: 400 });
+        }
+      }
+      validInventory = Array.from(invMap.entries()).map(([elementId, quantity]) => ({ elementId, quantity }));
     }
 
     const { traits: _legacyTraits, weaknesses: _legacyWeaknesses, ...cleanProfileData } = data.profileData;
     const now = new Date();
     let character: typeof characters.$inferSelect;
+
+    const charValues: any = {
+      name: data.name,
+      profileData: cleanProfileData,
+      canonCharacterId: data.canonCharacterId ?? null,
+      updatedAt: now,
+    };
+    if (data.exp !== undefined && data.exp >= 0) charValues.exp = data.exp;
+    if (data.yen !== undefined && data.yen >= 0) charValues.yen = data.yen;
+
     if (data.characterId) {
       const expected = data.expectedUpdatedAt ? new Date(data.expectedUpdatedAt).toISOString() : null;
       const condition = expected
         ? and(eq(characters.id, data.characterId), sql`date_trunc('milliseconds', ${characters.updatedAt}) = date_trunc('milliseconds', ${expected}::timestamptz AT TIME ZONE 'UTC')`)
         : eq(characters.id, data.characterId);
-      const [updated] = await tx.update(characters).set({
-        name: data.name, profileData: cleanProfileData, canonCharacterId: data.canonCharacterId, updatedAt: now,
-      }).where(condition).returning();
+      const [updated] = await tx.update(characters).set(charValues).where(condition).returning();
       if (!updated) {
         const [existing] = await tx.select({ id: characters.id }).from(characters).where(eq(characters.id, data.characterId));
         throw Object.assign(new Error(existing ? 'Conflict' : 'Character not found'), { status: existing ? 409 : 404 });
@@ -155,22 +218,78 @@ export async function saveCharacterWithElementSelections(data: {
       character = updated;
     } else {
       [character] = await tx.insert(characters).values({
-        userId: data.userId, name: data.name, profileData: cleanProfileData, canonCharacterId: data.canonCharacterId ?? null,
+        userId: data.userId,
+        name: data.name,
+        profileData: cleanProfileData,
+        canonCharacterId: data.canonCharacterId ?? null,
+        exp: data.exp ?? 0,
+        yen: data.yen ?? 0,
       }).returning();
     }
 
-    const currentSheetPossessions = await tx.select({ id: elementPossessions.id })
-      .from(elementPossessions)
-      .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
-      .where(and(eq(elementPossessions.characterId, character.id), inArray(systemElements.kind, ['trait', 'weakness'])));
-    if (currentSheetPossessions.length) await tx.delete(elementPossessions).where(inArray(elementPossessions.id, currentSheetPossessions.map(item => item.id)));
-    for (const elementId of uniqueElementIds) {
-      await tx.insert(elementPossessions).values({ id: nanoid(10), characterId: character.id, elementId, quantity: 1 }).onConflictDoNothing();
+    // Synchronize Traits & Weaknesses if passed
+    if (traitAndWeaknessIds !== undefined) {
+      const currentSheetPossessions = await tx.select({ id: elementPossessions.id })
+        .from(elementPossessions)
+        .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
+        .where(and(eq(elementPossessions.characterId, character.id), inArray(systemElements.kind, ['trait', 'weakness'])));
+      if (currentSheetPossessions.length) {
+        await tx.delete(elementPossessions).where(inArray(elementPossessions.id, currentSheetPossessions.map(item => item.id)));
+      }
+      for (const elementId of traitAndWeaknessIds) {
+        await tx.insert(elementPossessions).values({ id: nanoid(10), characterId: character.id, elementId, quantity: 1 }).onConflictDoNothing();
+      }
     }
+
+    // Synchronize Credentials (Licenses, Permissions, Certifications) if passed
+    if (validCredentials !== undefined) {
+      const currentCredPossessions = await tx.select({ id: elementPossessions.id })
+        .from(elementPossessions)
+        .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
+        .where(and(eq(elementPossessions.characterId, character.id), inArray(systemElements.kind, ['license', 'permission', 'certification'])));
+      if (currentCredPossessions.length) {
+        await tx.delete(elementPossessions).where(inArray(elementPossessions.id, currentCredPossessions.map(item => item.id)));
+      }
+      for (const cred of validCredentials) {
+        await tx.insert(elementPossessions).values({ id: nanoid(10), characterId: character.id, elementId: cred.elementId, quantity: 1 }).onConflictDoNothing();
+      }
+    }
+
+    // Synchronize Inventory Items if passed
+    if (validInventory !== undefined) {
+      const currentAllPossessions = await tx.select({ id: elementPossessions.id, kind: systemElements.kind })
+        .from(elementPossessions)
+        .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
+        .where(eq(elementPossessions.characterId, character.id));
+      const currentInvPossessions = currentAllPossessions.filter(item => !['trait', 'weakness', 'license', 'permission', 'certification'].includes(item.kind));
+      if (currentInvPossessions.length) {
+        await tx.delete(elementPossessions).where(inArray(elementPossessions.id, currentInvPossessions.map(item => item.id)));
+      }
+      for (const inv of validInventory) {
+        await tx.insert(elementPossessions).values({ id: nanoid(10), characterId: character.id, elementId: inv.elementId, quantity: inv.quantity }).onConflictDoNothing();
+      }
+    }
+
     await tx.insert(auditLogs).values({
-      actorUid: data.actorUid, actionType: 'character_elements_sync', targetId: String(character.id), details: { elementIds: uniqueElementIds },
+      actorUid: data.actorUid,
+      actionType: 'character_elements_sync',
+      targetId: String(character.id),
+      details: {
+        elementIds: traitAndWeaknessIds,
+        credentialsCount: validCredentials?.length,
+        inventoryCount: validInventory?.length,
+        exp: data.exp,
+        yen: data.yen,
+      },
     });
-    return { ...character, possessions: await tx.select({ possession: elementPossessions, element: systemElements }).from(elementPossessions).innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId)).where(eq(elementPossessions.characterId, character.id)) };
+
+    return {
+      ...character,
+      possessions: await tx.select({ possession: elementPossessions, element: systemElements })
+        .from(elementPossessions)
+        .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
+        .where(eq(elementPossessions.characterId, character.id))
+    };
   });
 }
 

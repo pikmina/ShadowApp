@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package } from "lucide-react";
+import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus } from "lucide-react";
 import { toast } from "sonner";
 import { validateCharacter, calculateDerivedStats } from "@/lib/characterValidation";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,38 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const [formData, setFormData] = useState<Record<string, any>>(() => profileWithRelationalElements(character));
   const [canonId, setCanonId] = useState<string | null>(character?.canonCharacterId || initialCanonId || null);
 
+  // Experience and Yen progression state
+  const [exp, setExp] = useState<number>(() => Number(character?.exp ?? 0));
+  const [yen, setYen] = useState<number>(() => Number(character?.yen ?? 0));
+
+  // Inventory items state
+  const [inventoryItems, setInventoryItems] = useState<Array<{ elementId: string; quantity: number; element?: any }>>(() => {
+    const rows = Array.isArray(character?.possessions) ? character.possessions : [];
+    return rows
+      .filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness'].includes(row?.element?.kind))
+      .map((row: any) => ({
+        elementId: row?.element?.id || row?.possession?.elementId,
+        quantity: row?.possession?.quantity || 1,
+        element: row?.element
+      }));
+  });
+
+  // Credential items state
+  const [credentialItems, setCredentialItems] = useState<Array<{ elementId: string; element?: any }>>(() => {
+    const rows = Array.isArray(character?.possessions) ? character.possessions : [];
+    return rows
+      .filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind))
+      .map((row: any) => ({
+        elementId: row?.element?.id || row?.possession?.elementId,
+        element: row?.element
+      }));
+  });
+
+  // Controls for adding elements
+  const [selectedInvElementId, setSelectedInvElementId] = useState<string>('');
+  const [invQuantity, setInvQuantity] = useState<number>(1);
+  const [selectedCredElementId, setSelectedCredElementId] = useState<string>('');
+
   const { data: fields, error: fieldsError } = useSWR(user ? "/api/sheet-fields" : null, fetcher);
   const { data: settings, error: settingsError } = useSWR(user ? "/api/settings" : null, fetcher);
   const { data: rules } = useSWR(user ? "/api/rules" : null, fetcher);
@@ -43,10 +75,9 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const mechanicsList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_mechanics')?.value || [] : [];
   const { data: canonList } = useSWR('/api/public/canon-characters', fetcher);
   const { data: rawElements } = useSWR(user ? "/api/elements" : null, fetcher);
-  const elements = Array.isArray(rawElements) ? rawElements.filter(el => el.status === 'published') : [];
-  const credentials = (Array.isArray(character?.possessions) ? character.possessions : []).filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind));
+  const elements = useMemo(() => Array.isArray(rawElements) ? rawElements.filter(el => el.status === 'published') : [], [rawElements]);
+  
   const credentialKindLabel = (kind: string) => ({ license: 'Licencia', permission: 'Permiso', certification: 'Certificación' } as Record<string, string>)[kind] ?? kind;
-  const inventoryPossessions = (Array.isArray(character?.possessions) ? character.possessions : []).filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness'].includes(row?.element?.kind));
   const elementKindMap: Record<string, string> = {
     license: 'Licencia', permission: 'Permiso', certification: 'Certificación', trait: 'Rasgo', weakness: 'Debilidad',
     skill: 'Habilidad', equipment: 'Equipamiento', weapon: 'Arma', ammunition: 'Munición', consumable: 'Consumible',
@@ -54,6 +85,14 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
     altered_status: 'Estado Alterado', plus_ultra_effect: 'Plus Ultra', crafting_material: 'Material',
     ingredient: 'Ingrediente'
   };
+
+  const publishedInventoryElements = useMemo(() => {
+    return elements.filter(el => !['trait', 'weakness', 'license', 'permission', 'certification'].includes(el.kind));
+  }, [elements]);
+
+  const publishedCredentialElements = useMemo(() => {
+    return elements.filter(el => ['license', 'permission', 'certification'].includes(el.kind));
+  }, [elements]);
 
   // Add the "Facción / Grupo" field virtually to basic data if groups exist
   let processedFields: any[] = [];
@@ -92,6 +131,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
 
   const [isDirty, setIsDirty] = useState(false);
   const [birthDateEdited, setBirthDateEdited] = useState(false);
+
   useEffect(() => {
     if (!fields || isDirty) return;
     if (character) {
@@ -101,6 +141,26 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         if (value !== undefined) profile[field.id] = value;
       }
       setFormData(profile);
+      setExp(Number(character.exp ?? 0));
+      setYen(Number(character.yen ?? 0));
+      const rows = Array.isArray(character.possessions) ? character.possessions : [];
+      setInventoryItems(
+        rows
+          .filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness'].includes(row?.element?.kind))
+          .map((row: any) => ({
+            elementId: row?.element?.id || row?.possession?.elementId,
+            quantity: row?.possession?.quantity || 1,
+            element: row?.element
+          }))
+      );
+      setCredentialItems(
+        rows
+          .filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind))
+          .map((row: any) => ({
+            elementId: row?.element?.id || row?.possession?.elementId,
+            element: row?.element
+          }))
+      );
     } else if (initialCanonId) {
       const canon = canonList?.find((item: any) => item.id === initialCanonId);
       if (!canon) return;
@@ -118,6 +178,82 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
       });
     }
   }, [character, fields, canonList, initialCanonId, isDirty]);
+
+  const handleExpChange = (newExp: number) => {
+    setExp(Math.max(0, Math.floor(newExp)));
+    setIsDirty(true);
+  };
+
+  const handleYenChange = (newYen: number) => {
+    setYen(Math.max(0, Math.floor(newYen)));
+    setIsDirty(true);
+  };
+
+  const handleAddInventoryItem = () => {
+    if (!selectedInvElementId) {
+      toast.error("Selecciona un objeto del catálogo");
+      return;
+    }
+    const el = elements.find(e => e.id === selectedInvElementId);
+    if (!el) return;
+    const qty = Math.max(1, Math.floor(Number(invQuantity) || 1));
+    
+    setInventoryItems(prev => {
+      const existingIndex = prev.findIndex(item => item.elementId === selectedInvElementId);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + qty,
+          element: el
+        };
+        return updated;
+      }
+      return [...prev, { elementId: selectedInvElementId, quantity: qty, element: el }];
+    });
+    setIsDirty(true);
+    setSelectedInvElementId('');
+    setInvQuantity(1);
+    toast.success(`Añadido al inventario: ${el.name} (x${qty})`);
+  };
+
+  const handleRemoveInventoryItem = (elementId: string) => {
+    setInventoryItems(prev => prev.filter(item => item.elementId !== elementId));
+    setIsDirty(true);
+  };
+
+  const handleUpdateInventoryQuantity = (elementId: string, deltaOrValue: number, isAbsolute: boolean = false) => {
+    setInventoryItems(prev => prev.map(item => {
+      if (item.elementId === elementId) {
+        const newQty = isAbsolute ? Math.max(1, deltaOrValue) : Math.max(1, item.quantity + deltaOrValue);
+        return { ...item, quantity: newQty };
+      }
+      return item;
+    }));
+    setIsDirty(true);
+  };
+
+  const handleAddCredential = () => {
+    if (!selectedCredElementId) {
+      toast.error("Selecciona una credencial del catálogo");
+      return;
+    }
+    const el = elements.find(e => e.id === selectedCredElementId);
+    if (!el) return;
+    if (credentialItems.some(c => c.elementId === selectedCredElementId)) {
+      toast.error("El personaje ya posee esta credencial");
+      return;
+    }
+    setCredentialItems(prev => [...prev, { elementId: selectedCredElementId, element: el }]);
+    setIsDirty(true);
+    setSelectedCredElementId('');
+    toast.success(`Credencial añadida: ${el.name}`);
+  };
+
+  const handleRemoveCredential = (elementId: string) => {
+    setCredentialItems(prev => prev.filter(item => item.elementId !== elementId));
+    setIsDirty(true);
+  };
 
   // Derive current age and auto-assign stage based on birth date
   const dateField = processedFields?.find((f: any) => f.coreKey === 'birth_date') ?? processedFields?.find((f: any) => f.type === 'date' && (f.name.toLowerCase().includes('nacimiento') || f.name.toLowerCase().includes('birth')));
@@ -248,10 +384,20 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
           expectedUpdatedAt: character?.updatedAt,
           profileData: finalProfileData,
           canonCharacterId: canonId,
+          exp: Number(exp) || 0,
+          yen: Number(yen) || 0,
           elementIds: [
             ...(Array.isArray(finalProfileData.traits) ? finalProfileData.traits : []),
             ...(Array.isArray(finalProfileData.weaknesses) ? finalProfileData.weaknesses : []),
-          ]
+          ],
+          inventoryPossessions: inventoryItems.map(item => ({
+            elementId: item.elementId,
+            quantity: Number(item.quantity) || 1
+          })),
+          credentialPossessions: credentialItems.map(item => ({
+            elementId: item.elementId,
+            quantity: 1
+          }))
         })
       });
       if (res.status === 409) {
@@ -427,6 +573,122 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         </div>
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 flex flex-col justify-between gap-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                <Sparkles className="size-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Puntos de Experiencia (EXP)</span>
+                <p className="text-[11px] text-muted-foreground">Progreso y desarrollo de habilidades</p>
+              </div>
+            </div>
+            <Badge variant="outline" className="font-mono text-xs border-amber-500/40 text-amber-400 bg-amber-500/10">
+              {exp.toLocaleString('es-ES')} EXP
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Input 
+                type="number" 
+                min={0}
+                value={exp} 
+                onChange={(e) => handleExpChange(parseInt(e.target.value, 10) || 0)}
+                className="font-mono font-bold text-sm bg-background/80 border-amber-500/30 focus:border-amber-400"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-amber-500/20 hover:text-amber-400 border-amber-500/20"
+                onClick={() => handleExpChange(exp + 50)}
+              >
+                +50
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-amber-500/20 hover:text-amber-400 border-amber-500/20"
+                onClick={() => handleExpChange(exp + 100)}
+              >
+                +100
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-amber-500/20 hover:text-amber-400 border-amber-500/20"
+                onClick={() => handleExpChange(exp + 500)}
+              >
+                +500
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-lg border border-emerald-500/30 bg-emerald-500/5 flex flex-col justify-between gap-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <Coins className="size-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Fondos Monetarios (Yenes)</span>
+                <p className="text-[11px] text-muted-foreground">Moneda para comercio y equipamiento</p>
+              </div>
+            </div>
+            <Badge variant="outline" className="font-mono text-xs border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+              ¥ {yen.toLocaleString('es-ES')}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Input 
+                type="number" 
+                min={0}
+                value={yen} 
+                onChange={(e) => handleYenChange(parseInt(e.target.value, 10) || 0)}
+                className="font-mono font-bold text-sm bg-background/80 border-emerald-500/30 focus:border-emerald-400"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-emerald-500/20 hover:text-emerald-400 border-emerald-500/20"
+                onClick={() => handleYenChange(yen + 1000)}
+              >
+                +1k
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-emerald-500/20 hover:text-emerald-400 border-emerald-500/20"
+                onClick={() => handleYenChange(yen + 10000)}
+              >
+                +10k
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-emerald-500/20 hover:text-emerald-400 border-emerald-500/20"
+                onClick={() => handleYenChange(yen + 50000)}
+              >
+                +50k
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <Card className="border-border shadow-sm bg-card overflow-hidden">
         <div className="flex bg-muted/20 border-b border-border/50 overflow-x-auto custom-scrollbar p-1.5 gap-1 items-center">
         {(() => {
@@ -435,14 +697,21 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             const minB = Math.min(...groupedFields[b].map((f: any) => f.order));
             return minA - minB;
           });
-          const quirkCat = allCats.find(c => c.toLowerCase().includes('quirk')) || 'Quirk';
           
-          // Reordenar las categorías combinadas ('Datos' y 'Atributos' toman el orden mínimo de sus campos internos)
-          let sortedCats = [...new Set([...allCats, 'Atributos'])].sort((a, b) => {
-            const quirkMin = Math.min(...(groupedFields[quirkCat] || []).map((f: any) => f.order), -10);
-            const minA = a === 'Atributos' ? quirkMin + 1 : Math.min(...(groupedFields[a] || []).map((f: any) => f.order), 99999);
-            const minB = b === 'Atributos' ? quirkMin + 1 : Math.min(...(groupedFields[b] || []).map((f: any) => f.order), 99999);
-            return minA - minB;
+          // Reordenar las pestañas estándar y personalizadas ('Datos', 'Quirk', 'Atributos', 'Rasgos', 'Inventario', 'Licencias y Permisos'...)
+          const customTabs = ['Atributos', 'Inventario', 'Licencias y Permisos'];
+          let sortedCats = [...new Set([...allCats, ...customTabs])].sort((a, b) => {
+            const getOrder = (cat: string) => {
+              if (cat === 'Datos') return 1;
+              if (cat.toLowerCase().includes('quirk')) return 2;
+              if (cat === 'Atributos') return 3;
+              if (cat === 'Rasgos') return 4;
+              if (cat === 'Inventario') return 5;
+              if (cat === 'Licencias y Permisos' || cat.toLowerCase().includes('licencia')) return 6;
+              const minOrder = groupedFields[cat] ? Math.min(...groupedFields[cat].map((f: any) => f.order)) : 999;
+              return 100 + minOrder;
+            };
+            return getOrder(a) - getOrder(b);
           });
           
           return sortedCats.map(category => (
@@ -762,7 +1031,288 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             </Card>
           );
         })()}
-        {activeTab !== 'Atributos' && activeTab && groupedFields[activeTab] && (
+        {activeTab === 'Inventario' && (
+          <Card className="border-border">
+            <CardHeader className="border-b bg-muted/30 pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base uppercase tracking-wider text-primary flex items-center gap-2">
+                  <Package className="size-5" /> Inventario y Posesiones
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Objetos, armas, equipamiento, consumibles y materiales asignados a este personaje.
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="font-mono text-xs">
+                {inventoryItems.length} {inventoryItems.length === 1 ? 'objeto' : 'objetos'}
+              </Badge>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              {/* Añadir objeto al inventario */}
+              <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 space-y-3">
+                <Label className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-2">
+                  <Plus className="size-4" /> Añadir Objeto al Inventario
+                </Label>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-7">
+                    <Select 
+                      value={selectedInvElementId} 
+                      onValueChange={setSelectedInvElementId}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Seleccionar objeto del catálogo..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {publishedInventoryElements.map(el => (
+                          <SelectItem key={el.id} value={el.id}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{el.name}</span>
+                              <span className="text-[10px] uppercase font-mono text-muted-foreground">({elementKindMap[el.kind] || el.kind})</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Input 
+                      type="number" 
+                      min={1} 
+                      value={invQuantity} 
+                      onChange={(e) => setInvQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                      placeholder="Cant."
+                      className="font-mono text-center"
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <Button 
+                      type="button" 
+                      className="w-full"
+                      disabled={!selectedInvElementId}
+                      onClick={handleAddInventoryItem}
+                    >
+                      <Plus className="size-4 mr-1" /> Añadir
+                    </Button>
+                  </div>
+                </div>
+                {selectedInvElementId && (() => {
+                  const el = elements.find(e => e.id === selectedInvElementId);
+                  if (!el) return null;
+                  return (
+                    <div className="mt-2 text-xs text-muted-foreground bg-background/60 p-2.5 rounded border border-border/50">
+                      <span className="font-semibold text-foreground">{el.name}</span> ({elementKindMap[el.kind] || el.kind}): {el.description || 'Sin descripción'}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Lista de objetos en inventario */}
+              {inventoryItems.length === 0 ? (
+                <div className="text-center py-12 border border-dashed border-border/80 rounded-lg bg-muted/10">
+                  <Package className="size-10 text-muted-foreground/40 mx-auto mb-3" />
+                  <h4 className="text-sm font-semibold text-foreground">Inventario vacío</h4>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
+                    Usa el selector superior para añadir objetos, equipamiento o consumibles a la ficha.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {inventoryItems.map((item) => {
+                    const el = item.element || elements.find(e => e.id === item.elementId) || { name: item.elementId, kind: 'item', description: '' };
+                    return (
+                      <div 
+                        key={item.elementId}
+                        className="p-3.5 rounded-lg border border-border bg-card/80 flex flex-col justify-between gap-2.5 transition-colors hover:border-primary/40"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-semibold text-sm text-foreground font-oxanium leading-snug">
+                              {el.name}
+                            </span>
+                            <Badge variant="secondary" className="font-mono text-[10px] uppercase shrink-0">
+                              {elementKindMap[el.kind] || el.kind}
+                            </Badge>
+                          </div>
+                          {el.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {el.description}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                          <div className="flex items-center gap-1.5">
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              size="icon" 
+                              className="size-7"
+                              onClick={() => handleUpdateInventoryQuantity(item.elementId, -1)}
+                            >
+                              <Minus className="size-3" />
+                            </Button>
+                            <Input 
+                              type="number" 
+                              min={1}
+                              value={item.quantity} 
+                              onChange={(e) => handleUpdateInventoryQuantity(item.elementId, parseInt(e.target.value, 10) || 1, true)}
+                              className="w-14 h-7 text-xs font-mono font-bold text-center px-1"
+                            />
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              size="icon" 
+                              className="size-7"
+                              onClick={() => handleUpdateInventoryQuantity(item.elementId, 1)}
+                            >
+                              <Plus className="size-3" />
+                            </Button>
+                          </div>
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive px-2"
+                            onClick={() => handleRemoveInventoryItem(item.elementId)}
+                          >
+                            <Trash2 className="size-3.5 mr-1" /> Quitar
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === 'Licencias y Permisos' && (
+          <Card className="border-border">
+            <CardHeader className="border-b bg-muted/30 pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                  <Shield className="size-5" /> Licencias, Permisos y Certificaciones
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Habilitaciones oficiales, permisos especiales y títulos acreditados otorgados al personaje.
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="font-mono text-xs border-amber-500/30 text-amber-400">
+                {credentialItems.length} {credentialItems.length === 1 ? 'credencial' : 'credenciales'}
+              </Badge>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              {/* Añadir credencial */}
+              <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-3">
+                <Label className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                  <Plus className="size-4" /> Añadir Licencia, Permiso o Certificación
+                </Label>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-9">
+                    <Select 
+                      value={selectedCredElementId} 
+                      onValueChange={setSelectedCredElementId}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Seleccionar credencial del catálogo..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {publishedCredentialElements.map(el => (
+                          <SelectItem key={el.id} value={el.id}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{el.name}</span>
+                              <span className="text-[10px] uppercase font-mono text-muted-foreground">({credentialKindLabel(el.kind)})</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="sm:col-span-3">
+                    <Button 
+                      type="button" 
+                      className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                      disabled={!selectedCredElementId}
+                      onClick={handleAddCredential}
+                    >
+                      <Plus className="size-4 mr-1" /> Añadir
+                    </Button>
+                  </div>
+                </div>
+                {selectedCredElementId && (() => {
+                  const el = elements.find(e => e.id === selectedCredElementId);
+                  if (!el) return null;
+                  return (
+                    <div className="mt-2 text-xs text-muted-foreground bg-background/60 p-2.5 rounded border border-border/50">
+                      <span className="font-semibold text-foreground">{el.name}</span> ({credentialKindLabel(el.kind)}): {el.description || 'Sin descripción'}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Lista de credenciales */}
+              {credentialItems.length === 0 ? (
+                <div className="text-center py-12 border border-dashed border-border/80 rounded-lg bg-muted/10">
+                  <Shield className="size-10 text-muted-foreground/40 mx-auto mb-3" />
+                  <h4 className="text-sm font-semibold text-foreground">Sin credenciales asignadas</h4>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
+                    Usa el selector superior para asignar licencias provisionales, permisos especiales o certificaciones oficiales.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {credentialItems.map((item) => {
+                    const el = item.element || elements.find(e => e.id === item.elementId) || { name: item.elementId, kind: 'license', description: '' };
+                    const kindMeta: Record<string, { label: string; border: string; bg: string; text: string }> = {
+                      license: { label: 'Licencia', border: 'border-amber-500/30', bg: 'bg-amber-500/10', text: 'text-amber-400' },
+                      permission: { label: 'Permiso', border: 'border-emerald-500/30', bg: 'bg-emerald-500/10', text: 'text-emerald-400' },
+                      certification: { label: 'Certificación', border: 'border-cyan-500/30', bg: 'bg-cyan-500/10', text: 'text-cyan-400' },
+                    };
+                    const meta = kindMeta[el.kind] || { label: el.kind, border: 'border-border', bg: 'bg-muted/20', text: 'text-foreground' };
+
+                    return (
+                      <div 
+                        key={item.elementId}
+                        className={`p-3.5 rounded-lg border ${meta.border} bg-card/80 flex flex-col justify-between gap-2.5 transition-colors`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-semibold text-sm text-foreground font-oxanium leading-snug">
+                              {el.name}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold font-mono ${meta.bg} ${meta.text} border ${meta.border}`}>
+                              {meta.label}
+                            </span>
+                          </div>
+                          {el.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-3">
+                              {el.description}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
+                          <span className="text-emerald-400 font-medium flex items-center gap-1 text-[11px]">
+                            ● Acreditado
+                          </span>
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive px-2"
+                            onClick={() => handleRemoveCredential(item.elementId)}
+                          >
+                            <Trash2 className="size-3.5 mr-1" /> Quitar
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab !== 'Atributos' && activeTab !== 'Inventario' && activeTab !== 'Licencias y Permisos' && activeTab && groupedFields[activeTab] && (
           <div key={activeTab}>
             <div>
 
@@ -791,30 +1341,6 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">Selecciona un personaje canon para enlazar esta ficha con el catálogo público. Los personajes ocupados o reservados no pueden seleccionarse.</p>
               </div>
-            )}
-
-            {activeTab === 'Datos' && (
-              <>
-                <div className="md:col-span-2 mb-4 rounded-md border border-border bg-muted/20 p-4">
-                  <Label className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest"><Shield className="size-4 text-amber-400" /> Licencias, permisos y certificaciones</Label>
-                  {credentials.length > 0 ? <div className="mt-3 flex flex-wrap gap-2">{credentials.map((row: any) => <Badge key={row.possession.id} variant="outline" className="gap-1"><span className="text-muted-foreground">{credentialKindLabel(row.element.kind)}:</span> {row.element.name}</Badge>)}</div> : <p className="mt-2 text-xs text-muted-foreground">No hay credenciales asignadas. Un moderador puede otorgarlas desde Administrar recompensas.</p>}
-                </div>
-
-                {inventoryPossessions.length > 0 && (
-                  <div className="md:col-span-2 mb-6 rounded-md border border-border bg-muted/20 p-4">
-                    <Label className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest"><Package className="size-4 text-primary" /> Inventario y Posesiones Asignadas</Label>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {inventoryPossessions.map((row: any) => (
-                        <Badge key={row.possession.id} variant="outline" className="gap-1.5 text-xs py-1 px-2.5">
-                          <span className="text-muted-foreground font-mono text-[10px]">[{elementKindMap[row.element.kind] || row.element.kind}]:</span>
-                          <span className="font-medium text-foreground">{row.element.name}</span>
-                          <span className="font-mono text-primary font-bold">x{row.possession.quantity}</span>
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

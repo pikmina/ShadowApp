@@ -319,13 +319,22 @@ async function startServer() {
         profileData: z.record(z.string(), z.any()).optional(),
         expectedUpdatedAt: z.string().optional(),
         canonCharacterId: z.string().nullable().optional(),
-        elementIds: z.array(z.string().min(1)).optional()
+        elementIds: z.array(z.string().min(1)).optional(),
+        exp: z.number().int().min(0).optional(),
+        yen: z.number().int().min(0).optional(),
+        inventoryPossessions: z.array(z.object({
+          elementId: z.string().min(1),
+          quantity: z.number().int().min(1)
+        })).optional(),
+        credentialPossessions: z.array(z.object({
+          elementId: z.string().min(1),
+          quantity: z.number().int().min(1).optional()
+        })).optional(),
       });
       const parsed = CharSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
-      const { characterId, name, profileData, expectedUpdatedAt, userId, canonCharacterId, elementIds } = parsed.data;
-      console.log("POST /api/character request:", { characterId, name, expectedUpdatedAt, userId, canonCharacterId });
-      
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+      const { characterId, name, profileData, expectedUpdatedAt, userId, canonCharacterId, elementIds, exp, yen, inventoryPossessions, credentialPossessions } = parsed.data;
+      console.log("POST /api/character request:", { characterId, name, expectedUpdatedAt, userId, canonCharacterId, exp, yen });
       
       if (canonCharacterId) {
         const { db } = await import("./src/db/index.ts");
@@ -345,7 +354,7 @@ async function startServer() {
       
       const { updateCharacter, createCharacter, saveCharacterWithElementSelections } = await import("./src/db/characters.ts");
       let character;
-      if (elementIds !== undefined) {
+      if (elementIds !== undefined || inventoryPossessions !== undefined || credentialPossessions !== undefined || exp !== undefined || yen !== undefined) {
         character = await saveCharacterWithElementSelections({
           characterId,
           userId: userId || req.dbUser.id,
@@ -354,13 +363,15 @@ async function startServer() {
           expectedUpdatedAt,
           canonCharacterId,
           elementIds,
+          exp,
+          yen,
+          inventoryPossessions,
+          credentialPossessions,
           actorUid: req.dbUser.uid,
         });
       } else if (characterId) {
         character = await updateCharacter(characterId, { name, profileData, expectedUpdatedAt, canonCharacterId });
       } else {
-        // Must provide userId to create. Since moderators create characters for players, we probably need userId in the body.
-        // For now, if no userId is provided, fail. Wait, the legacy code used req.dbUser.id.
         const targetUserId = userId || req.dbUser.id;
         character = await createCharacter(targetUserId, name || "Unnamed", profileData || {}, canonCharacterId || null);
       }
