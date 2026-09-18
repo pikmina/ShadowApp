@@ -786,25 +786,6 @@ export default function PublicSheet() {
               subtitle={`REGISTRO CLASIFICADO • SERIAL: 0x${String(character.id).padStart(6, '0')}`}
             >
               <div className="w-full pt-2.5 mt-1 border-t border-border/30 space-y-2">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 font-mono">
-                  <div className="rounded bg-bg1/80 border border-border/40 px-2 py-1.5 text-center">
-                    <span className="block text-[8px] uppercase tracking-wider text-text2/70">CHAR ID</span>
-                    <strong className="text-[11px] font-bold text-text1">#{character.id}</strong>
-                  </div>
-                  <div className="rounded bg-bg1/80 border border-border/40 px-2 py-1.5 text-center">
-                    <span className="block text-[8px] uppercase tracking-wider text-text2/70">NACIMIENTO</span>
-                    <strong className="text-[11px] font-bold text-primary">{birthDate ? String(birthDate) : 'S/D'}</strong>
-                  </div>
-                  <div className="rounded bg-bg1/80 border border-border/40 px-2 py-1.5 text-center">
-                    <span className="block text-[8px] uppercase tracking-wider text-text2/70">EDAD REG.</span>
-                    <strong className="text-[11px] font-bold text-text1">{age ? `${age}A` : '—'}</strong>
-                  </div>
-                  <div className="rounded bg-bg1/80 border border-border/40 px-2 py-1.5 text-center">
-                    <span className="block text-[8px] uppercase tracking-wider text-text2/70">SANGRE</span>
-                    <strong className="text-[11px] font-bold text-accent2">{bloodType ? String(bloodType) : 'RH+'}</strong>
-                  </div>
-                </div>
-
                 <div className="flex items-center justify-between text-[9px] font-mono text-text2/60 px-1 pt-0.5">
                   <span className="tracking-widest">SEC.NODE // 77-B</span>
                   <span className="tracking-wider">SYNC // {((Number(character.id) * 17 + 83) % 15 + 85).toFixed(1)}%</span>
