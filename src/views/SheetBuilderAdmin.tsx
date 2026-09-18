@@ -320,49 +320,51 @@ export default function SheetBuilderAdmin() {
             const minB = Math.min(...groupedFields[b].map((f: any) => f.order));
             return minA - minB;
           }).map(category => (
-            <Card key={category} className="shadow-sm border-border overflow-hidden mt-0">
+            <Card key={category} className="shadow-sm border-border overflow-hidden p-0 gap-0">
               <CardHeader 
-                className={`bg-muted py-3 border-b cursor-grab active:cursor-grabbing ${draggedCatName === category ? 'opacity-50' : ''}`}
+                className={`bg-muted/30 px-4 py-3 cursor-grab active:cursor-grabbing flex flex-row items-center gap-3 ${draggedCatName === category ? 'opacity-50' : ''}`}
                 draggable
                 onDragStart={(e) => handleCategoryDragStart(e, category)}
                 onDragOver={(e) => handleCategoryDragOver(e, category)}
                 onDrop={(e) => handleCategoryDrop(e, category)}
               >
-                <CardTitle className="text-base font-medium text-foreground uppercase tracking-wider">{category}</CardTitle>
+                <GripVertical className="w-5 h-5 text-muted-foreground/50" />
+                <CardTitle className="text-sm font-bold text-foreground uppercase tracking-wider m-0 leading-none">{category}</CardTitle>
               </CardHeader>
+              <div className="border-t border-border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12"></TableHead>
-                    <TableHead>Nombre del Campo</TableHead>
-                    <TableHead>Tipo de Input</TableHead>
-                    <TableHead>Opciones</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
+                    <TableHead className="w-12 text-center">≡</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Nombre del Campo</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Tipo de Input</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Opciones</TableHead>
+                    <TableHead className="text-right text-xs uppercase tracking-wider text-muted-foreground">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {groupedFields[category].sort((a: any, b: any) => a.order - b.order).map((field: any) => (
                     <TableRow 
                       key={field.id} 
-                      className={`group ${draggedFieldId === field.id ? 'opacity-50' : ''}`}
+                      className={`group hover:bg-muted/20 ${draggedFieldId === field.id ? 'opacity-50 bg-muted/40' : ''}`}
                       draggable
                       onDragStart={(e) => handleDragStart(e, field.id, category)}
                       onDragOver={(e) => handleDragOver(e, category)}
                       onDrop={(e) => handleDrop(e, field.id, category)}
                     >
-                      <TableCell>
-                        <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
+                      <TableCell className="text-center cursor-grab active:cursor-grabbing p-2">
+                        <GripVertical className="w-4 h-4 mx-auto text-muted-foreground/50 group-hover:text-foreground/80 transition-colors" />
                       </TableCell>
-                      <TableCell className="font-medium">{field.name} {field.coreKey && <Badge variant="outline" className="ml-2">Básico</Badge>}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="font-normal text-xs">{FIELD_TYPES[field.type]}</Badge>
+                      <TableCell className="font-medium py-2">{field.name} {field.coreKey && <Badge variant="outline" className="ml-2 text-[10px] py-0 h-4">Básico</Badge>}</TableCell>
+                      <TableCell className="py-2">
+                        <Badge variant="secondary" className="font-normal text-[11px] py-0 h-5 bg-secondary/50">{FIELD_TYPES[field.type]}</Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-sm text-muted-foreground py-2">
                         {["select", "multiselect"].includes(field.type) 
                           ? `${field.options?.length || 0} opciones`
                           : "—"}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right py-2 pr-4">
                         <div className="flex items-center justify-end gap-2 transition-opacity">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(field)}>
                             <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
@@ -376,6 +378,7 @@ export default function SheetBuilderAdmin() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </Card>
           ))}
         </div>
