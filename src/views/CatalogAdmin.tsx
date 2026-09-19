@@ -160,7 +160,7 @@ export default function CatalogAdmin() {
         description: el.description,
         status: el.status,
         effects: el.effects || [],
-        requirements: normalizeRequirements(el.requirements),
+        requirements: el.requirements || { operator: "all", requirements: [] },
         metadata: {
           baseExpCost: el.metadata?.baseExpCost ?? (el.kind === 'attribute_upgrade' ? 200 : el.kind === 'skill' ? 100 : undefined),
           maxLevel: el.metadata?.maxLevel ?? (el.kind === 'attribute_upgrade' ? 10 : el.kind === 'skill' ? 5 : 5),
@@ -249,48 +249,6 @@ export default function CatalogAdmin() {
     } catch (e) {
       alert("Error borrando: " + (e as Error).message);
     }
-  };
-
-  const addRequirement = () => {
-    setForm(f => ({
-      ...f,
-      requirements: {
-        ...f.requirements,
-        requirements: [...f.requirements.requirements, { id: nanoid(), type: "attribute", attributeId: "FUE", comparison: "gte", value: 1 }]
-      }
-    }));
-  };
-
-  const removeRequirement = (id: string) => {
-    setForm(f => ({
-      ...f,
-      requirements: {
-        ...f.requirements,
-        requirements: f.requirements.requirements.filter(r => r.id !== id)
-      }
-    }));
-  };
-
-  const updateRequirement = (id: string, updates: any) => {
-    setForm(f => ({
-      ...f,
-      requirements: {
-        ...f.requirements,
-        requirements: f.requirements.requirements.map(r => r.id === id ? { ...r, ...updates } : r)
-      }
-    }));
-  };
-
-  const updateRequirementType = (id: string, type: string) => {
-    setForm(f => ({
-      ...f,
-      requirements: {
-        ...f.requirements,
-        requirements: f.requirements.requirements.map(r => r.id !== id ? r : type === 'attribute'
-          ? { id, type: 'attribute', attributeId: 'FUE', comparison: 'gte', value: 1 }
-          : { id, type: 'owns_element', elementId: '', quantity: 1 })
-      }
-    }));
   };
 
   return (
@@ -408,9 +366,6 @@ export default function CatalogAdmin() {
                   {form.kind !== 'attribute_upgrade' && (
                     <TabsTrigger value="effects" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">2. Efectos Mecánicos</TabsTrigger>
                   )}
-                  <TabsTrigger value="reqs" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">
-                    {form.kind === 'attribute_upgrade' ? '2. Requisitos' : '3. Requisitos'}
-                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -599,67 +554,6 @@ export default function CatalogAdmin() {
                       </SelectContent>
                     </Select>
                   </div>
-                </TabsContent>
-
-                <TabsContent value="reqs" className="mt-0 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-foreground">Árbol de Requisitos</h3>
-                    <Button variant="outline" size="sm" onClick={addRequirement}>
-                      <Plus className="w-4 h-4 mr-1" /> Añadir Requisito
-                    </Button>
-                  </div>
-                  
-                  {form.requirements.requirements.length === 0 ? (
-                    <div className="border border-dashed border-border rounded-lg p-8 text-center text-muted-foreground text-sm">
-                      No hay requisitos para obtener este elemento. (Cualquiera puede adquirirlo si está en la tienda).
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {form.requirements.requirements.map((req, idx) => (
-                        <div key={req.id} className="flex items-center gap-3 bg-muted border p-3 rounded-md">
-                          <Badge variant="secondary">{idx + 1}</Badge>
-                          <Select value={req.type} onValueChange={v => updateRequirementType(req.id, v)}>
-                            <SelectTrigger className="w-[180px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="attribute">Requiere Atributo</SelectItem>
-                              <SelectItem value="owns_element">Requiere Elemento</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          
-                          {req.type === "attribute" ? (
-                            <>
-                              <Select value={req.attributeId} onValueChange={v => updateRequirement(req.id, { attributeId: v })}>
-                                <SelectTrigger className="w-[120px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="FUE">Fuerza</SelectItem>
-                                  <SelectItem value="DES">Destreza</SelectItem>
-                                  <SelectItem value="RES">Resistencia</SelectItem>
-                                  <SelectItem value="INT">Inteligencia</SelectItem>
-                                  <SelectItem value="VOL">Voluntad</SelectItem>
-                                  <SelectItem value="VEL">Velocidad</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <span className="text-sm font-medium">≥</span>
-                              <Input type="number" className="w-20" value={req.value} onChange={e => updateRequirement(req.id, { value: Number(e.target.value) })} />
-                            </>
-                          ) : (
-                            <Select value={req.elementId || undefined} onValueChange={v => updateRequirement(req.id, { elementId: v })}>
-                              <SelectTrigger className="flex-1"><SelectValue placeholder="Selecciona un elemento" /></SelectTrigger>
-                              <SelectContent>{elements.filter((el: any) => el.status === 'published').map((el: any) => <SelectItem key={el.id} value={el.id}>{el.name}</SelectItem>)}</SelectContent>
-                            </Select>
-                          )}
-
-                          <Button variant="ghost" size="icon" className="text-red-500 ml-auto" onClick={() => removeRequirement(req.id)}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </TabsContent>
 
                 <TabsContent value="effects" className="mt-0">

@@ -12,17 +12,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Terminal, Shield, Zap, Target, AlertTriangle } from "lucide-react";
+import { Terminal, Shield, Zap, Target, AlertTriangle, Layers } from "lucide-react";
+import { SectionHeader } from "@/components/common/SectionHeader";
 
 export default function ComponentShowcase() {
   const [activeTab, setActiveTab] = useState("typography");
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 pb-20">
-      <div>
-        <h1 className="text-3xl font-bold font-oxanium text-foreground tracking-wide uppercase">Showcase de Componentes</h1>
-        <p className="text-muted-foreground mt-2">Catálogo de componentes UI y elementos de diseño del sistema Shadowmore OS.</p>
-      </div>
+      <SectionHeader
+        icon={Layers}
+        title="Showcase de Componentes"
+        description="Catálogo de componentes UI y elementos de diseño del sistema Shadowmore OS."
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-6 bg-card/50 border border-border">

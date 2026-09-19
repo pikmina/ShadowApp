@@ -434,6 +434,81 @@ async function startServer() {
     }
   });
 
+  app.patch("/api/auth/profile", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user || !req.dbUser) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const { displayName, avatarUrl } = req.body;
+
+      const { updateUserProfile } = await import("./src/db/users.ts");
+      const updatedDbUser = await updateUserProfile(req.user.uid, {
+        displayName: typeof displayName === "string" ? displayName.trim() : displayName === null ? null : undefined,
+        avatarUrl: typeof avatarUrl === "string" ? avatarUrl.trim() : avatarUrl === null ? null : undefined,
+      });
+
+      // Update Firebase Auth user profile
+      try {
+        const { adminAuth } = await import("./src/lib/firebase-admin.ts");
+        const fbUpdate: { displayName?: string; photoURL?: string | null } = {};
+        if (typeof displayName === "string") {
+          fbUpdate.displayName = displayName.trim();
+        } else if (displayName === null) {
+          fbUpdate.displayName = "";
+        }
+
+        if (typeof avatarUrl === "string") {
+          const trimmed = avatarUrl.trim();
+          if (!trimmed) {
+            fbUpdate.photoURL = null;
+          } else {
+            try {
+              const parsed = new URL(trimmed);
+              if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+                fbUpdate.photoURL = trimmed;
+              }
+            } catch {
+              // avatarUrl is a data URL (e.g. data:image/...) or relative URL.
+              // Firebase Auth photoURL requires a valid HTTP(S) URL.
+              // The image is already safely persisted in the database (users.avatar_url).
+            }
+          }
+        } else if (avatarUrl === null) {
+          fbUpdate.photoURL = null;
+        }
+
+        if (Object.keys(fbUpdate).length > 0) {
+          await adminAuth.updateUser(req.user.uid, fbUpdate);
+        }
+      } catch (fbErr) {
+        console.warn("Could not update Firebase user profile:", fbErr);
+      }
+
+      // Record in audit logs
+      try {
+        const { db } = await import("./src/db/index.ts");
+        const { auditLogs } = await import("./src/db/schema.ts");
+        await db.insert(auditLogs).values({
+          actorUid: req.dbUser.uid,
+          actionType: "profile_updated",
+          targetId: req.dbUser.id.toString(),
+          details: {
+            displayName,
+            avatarUrl,
+          },
+        });
+      } catch (auditErr) {
+        console.warn("Failed to write audit log for profile update:", auditErr);
+      }
+
+      res.json(updatedDbUser);
+    } catch (error: any) {
+      console.error("Profile update error:", error);
+      res.status(500).json({ error: error?.message || "Failed to update profile" });
+    }
+  });
+
   
   // Shop API
   const { getShopOffers, upsertShopOffer, deleteShopOffer, processPurchase } = await import("./src/db/shop.ts");
@@ -457,6 +532,7 @@ async function startServer() {
         currency: z.enum(['exp', 'yen']),
         amount: z.number().int().min(0)
       })),
+      requirements: requirementGroupSchema.optional(),
       globalStock: z.number().int().nullable().optional(),
       perCharacterLimit: z.number().int().min(1).nullable().optional()
     });

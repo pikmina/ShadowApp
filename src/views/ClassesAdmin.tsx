@@ -3,6 +3,7 @@ import useSWR from "swr";
 import { fetcher, apiFetch } from "@/lib/api";
 import { Plus, Trash2, Edit2, GraduationCap, Users, BookOpen, Search, X, Activity, CalendarDays } from "lucide-react";
 import { EntityPanel } from "@/components/ui/entity-panel";
+import { SectionHeader } from "@/components/common/SectionHeader";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "../components/ui/dialog";
@@ -86,31 +87,21 @@ export default function ClassesAdmin() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 pb-20">
-      
-      {/* Header Panel */}
-      <EntityPanel variant="default" className="p-6 bg-black/40 border-border/50">
-        <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
-              <GraduationCap className="size-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="font-oxanium text-xl font-bold text-foreground">Aulas y Estudiantes de la Academia U.A.</h1>
-              <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-                Administra años académicos, departamentos de estudio, aulas, cupos y alumnos matriculados.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+      <SectionHeader
+        icon={GraduationCap}
+        title="Aulas y Estudiantes de la Academia U.A."
+        description="Administra años académicos, departamentos de estudio, aulas, cupos y alumnos matriculados."
+        actions={
+          <>
             <YearDialog mutate={mutate} customButton={<Button variant="outline" size="sm" className="h-9"><CalendarDays className="size-3.5 mr-2" /> Nuevo Año</Button>} />
             <ClassGroupDialog years={data} mutate={mutate} customButton={
               <Button size="sm" className="h-9">
                 <Plus className="size-3.5 mr-2" /> Nueva Aula
               </Button>
             } />
-          </div>
-        </div>
-      </EntityPanel>
+          </>
+        }
+      />
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

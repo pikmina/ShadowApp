@@ -33,7 +33,8 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
-import { Plus, Settings2, Trash2, Edit2, Eye, EyeOff } from "lucide-react";
+import { Plus, Settings2, Trash2, Edit2, Eye, EyeOff, Swords } from "lucide-react";
+import { SectionHeader } from "../components/common/SectionHeader";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
 
@@ -144,18 +145,17 @@ export default function TechniquesAdmin() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Gestión de Técnicas</h2>
-          <p className="text-muted-foreground mt-1">
-            Diseña y balancea las habilidades activas de los personajes.
-          </p>
-        </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="w-4 h-4 mr-2" />
-          Crear Técnica
-        </Button>
-      </div>
+      <SectionHeader
+        icon={Swords}
+        title="Gestión de Técnicas"
+        description="Diseña y balancea las habilidades activas de los personajes."
+        actions={
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="size-4 mr-2" aria-hidden="true" />
+            Crear Técnica
+          </Button>
+        }
+      />
 
       <div className="rounded-md border bg-card shadow-sm overflow-hidden">
         <Table>

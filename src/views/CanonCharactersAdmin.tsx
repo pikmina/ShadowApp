@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { EntityPanel } from '@/components/ui/entity-panel';
+import { SectionHeader } from '@/components/common/SectionHeader';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CharacterEmployments, CharacterEnrollments } from '@/components/character/CharacterRelations';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -182,21 +183,21 @@ export default function CanonCharactersAdmin() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
+      <SectionHeader
+        icon={Shield}
+        title="Catálogo de Personajes Canon"
+        description="Gestiona el catálogo de personajes oficiales (Reservados, Ocupados y Disponibles)."
+        actions={
+          <Button onClick={() => setIsCreating(true)}>
+            <Plus className="size-4 mr-2" aria-hidden="true" />
+            Nuevo Personaje Canon
+          </Button>
+        }
+      />
+
       <EntityPanel variant="character">
         <div className="p-4 sm:p-5">
-          <div className="flex flex-col gap-3 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="flex items-center gap-2 font-oxanium text-lg font-semibold text-foreground">
-                <Shield className="size-4 text-primary" /> Catálogo de Personajes Canon
-              </h1>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">Gestiona el catálogo de personajes oficiales (Reservados, Ocupados y Disponibles).</p>
-            </div>
-            <Button size="sm" onClick={() => setIsCreating(true)} className="h-9">
-              <Plus className="size-3.5 mr-1" /> Nuevo Personaje Canon
-            </Button>
-          </div>
-
-          <div className="mt-4">
+          <div className="mt-1">
             <Input
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}

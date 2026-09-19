@@ -1,12 +1,16 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { auth, googleAuthProvider } from '../lib/firebase';
-import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signOut, User, updateProfile } from 'firebase/auth';
 
 export type DbUser = {
   id: number;
   uid: string;
   email: string;
-  role: 'moderator' | 'superadmin';
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  role: 'moderator' | 'superadmin' | 'player';
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 };
 
 interface AuthContextType {
@@ -18,6 +22,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   getToken: () => Promise<string | null>;
   syncUser: () => Promise<void>;
+  updateProfileData: (data: { displayName?: string | null; avatarUrl?: string | null }) => Promise<DbUser>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -104,8 +109,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateProfileData = async (data: { displayName?: string | null; avatarUrl?: string | null }): Promise<DbUser> => {
+    if (!user) throw new Error("No hay usuario autenticado");
+    const token = await user.getIdToken();
+    if (!token) throw new Error("No se pudo obtener el token de autenticación");
+
+    const res = await fetch('/api/auth/profile', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.error || "Error al actualizar el perfil");
+    }
+
+    const updatedDbUser: DbUser = await res.json();
+    setDbUser(updatedDbUser);
+
+    try {
+      const fbClientUpdate: { displayName?: string; photoURL?: string } = {};
+      if (data.displayName !== undefined) {
+        fbClientUpdate.displayName = data.displayName || "";
+      }
+      if (data.avatarUrl !== undefined) {
+        const trimmed = (data.avatarUrl || "").trim();
+        if (!trimmed) {
+          fbClientUpdate.photoURL = "";
+        } else {
+          try {
+            const parsed = new URL(trimmed);
+            if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+              fbClientUpdate.photoURL = trimmed;
+            }
+          } catch {
+            // Data URL or non-HTTP URL: skip setting photoURL on Firebase Auth client
+          }
+        }
+      }
+
+      if (Object.keys(fbClientUpdate).length > 0) {
+        await updateProfile(user, fbClientUpdate);
+      }
+      setUser({ ...user } as User);
+    } catch (fbErr) {
+      console.warn("Client Firebase updateProfile error:", fbErr);
+    }
+
+    return updatedDbUser;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, dbUser, loading, unauthorized, signIn, logout, getToken, syncUser }}>
+    <AuthContext.Provider value={{ user, dbUser, loading, unauthorized, signIn, logout, getToken, syncUser, updateProfileData }}>
       {children}
     </AuthContext.Provider>
   );

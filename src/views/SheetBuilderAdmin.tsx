@@ -11,7 +11,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { Loader2, Plus, Edit2, Trash2, GripVertical, Settings2 } from "lucide-react";
+import { Loader2, Plus, Edit2, Trash2, GripVertical, Settings2, LayoutTemplate } from "lucide-react";
+import { SectionHeader } from "../components/common/SectionHeader";
 import { toast } from "sonner";
 
 
@@ -288,18 +289,17 @@ export default function SheetBuilderAdmin() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Diseñador de Fichas</h2>
-          <p className="text-muted-foreground">
-            Construye la plantilla de la hoja de personaje. Añade los campos que los jugadores deberán rellenar.
-          </p>
-        </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="w-4 h-4 mr-2" />
-          Añadir Campo
-        </Button>
-      </div>
+      <SectionHeader
+        icon={LayoutTemplate}
+        title="Diseñador de Fichas"
+        description="Construye la plantilla de la hoja de personaje. Añade los campos que los jugadores deberán rellenar."
+        actions={
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="size-4 mr-2" aria-hidden="true" />
+            Añadir Campo
+          </Button>
+        }
+      />
 
       {!fields ? (
         <div className="flex items-center justify-center p-12">

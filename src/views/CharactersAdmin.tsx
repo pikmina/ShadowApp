@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CyberSpacer } from '@/components/ui/cyber-spacer';
 import { EntityPanel } from '@/components/ui/entity-panel';
+import { SectionHeader } from '@/components/common/SectionHeader';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
@@ -196,21 +197,21 @@ export default function CharactersAdmin() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
+      <SectionHeader
+        icon={Users}
+        title="Personajes"
+        description="Base de datos automatizada Shadowmore OS 4.1.2 — Sincronización instantánea de estadísticas y técnicas."
+        actions={
+          <Button onClick={() => { setSelectedCharacterId(null); setEditing(true); }}>
+            <Plus className="size-4 mr-2" aria-hidden="true" />
+            Nuevo Personaje
+          </Button>
+        }
+      />
+
       <EntityPanel variant="character">
         <div className="p-4 sm:p-5">
-          <div className="flex flex-col gap-3 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="flex items-center gap-2 font-oxanium text-lg font-semibold text-foreground">
-                <Users className="size-4 text-primary" /> Personajes
-              </h1>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">Base de datos automatizada Shadowmore OS 4.1.2 — Sincronización instantánea de estadísticas y técnicas.</p>
-            </div>
-            <Button size="sm" className="h-9" onClick={() => { setSelectedCharacterId(null); setEditing(true); }}>
-              <Plus className="size-3.5 mr-1" /> Nuevo Personaje
-            </Button>
-          </div>
-
-          <div className="mt-4 flex w-full max-w-sm rounded-md border border-border bg-muted/30 p-1">
+          <div className="flex w-full max-w-sm rounded-md border border-border bg-muted/30 p-1">
             {(['all', 'canon'] as const).map(tab => (
               <button
                 key={tab}

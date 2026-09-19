@@ -11,3 +11,28 @@ export async function getUserByUid(uid: string) {
     throw new Error("Failed to get user", { cause: error });
   }
 }
+
+export async function updateUserProfile(uid: string, data: { displayName?: string | null; avatarUrl?: string | null }) {
+  try {
+    const updateData: Record<string, any> = {
+      updatedAt: new Date(),
+    };
+    if (data.displayName !== undefined) {
+      updateData.displayName = data.displayName;
+    }
+    if (data.avatarUrl !== undefined) {
+      updateData.avatarUrl = data.avatarUrl;
+    }
+
+    const [updated] = await db
+      .update(users)
+      .set(updateData)
+      .where(eq(users.uid, uid))
+      .returning();
+
+    return updated || null;
+  } catch (error) {
+    console.error("Database update failed:", error);
+    throw new Error("Failed to update user profile", { cause: error });
+  }
+}

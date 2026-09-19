@@ -173,26 +173,24 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-8 pb-12" id="admin-dashboard-view">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <SectionHeader
-          icon={LayoutDashboard}
-          title="Panel de Control Administrativo"
-          description="Visión general del estado del sistema, estadísticas poblacionales por grupo y etapa, y accesos rápidos de gestión."
-        />
-        <div className="flex items-center gap-2 self-start md:self-auto">
+      <SectionHeader
+        icon={LayoutDashboard}
+        title="Panel de Control Administrativo"
+        description="Visión general del estado del sistema, estadísticas poblacionales por grupo y etapa, y accesos rápidos de gestión."
+        actions={
           <Button
             id="refresh-dashboard-btn"
             variant="outline"
             size="sm"
             onClick={() => mutate()}
             disabled={isLoading}
-            className="flex items-center gap-2 border-border/80 hover:bg-accent/40"
+            className="flex items-center gap-2 border-border/80 hover:bg-accent/40 font-oxanium text-xs"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`size-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             <span>Actualizar</span>
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Global KPI Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="dashboard-kpi-grid">

@@ -60,6 +60,9 @@ async function runMigration() {
       ALTER TABLE "canon_characters" ADD COLUMN IF NOT EXISTS "profile_data" jsonb DEFAULT '{}'::jsonb NOT NULL;
       ALTER TABLE "character_sheet_fields" ADD COLUMN IF NOT EXISTS "core_key" text;
       CREATE UNIQUE INDEX IF NOT EXISTS "character_sheet_fields_core_key_unique" ON "character_sheet_fields" ("core_key");
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "display_name" text;
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text;
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updated_at" timestamp DEFAULT now();
     `);
 
     // 6. Employments and Classes tables
@@ -192,6 +195,7 @@ async function runMigration() {
       ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "requirements" jsonb DEFAULT '{"operator":"all","requirements":[]}'::jsonb NOT NULL;
       ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "optional_bonuses" jsonb DEFAULT '[]'::jsonb NOT NULL;
       ALTER TABLE "character_employments" ADD COLUMN IF NOT EXISTS "requirements_verified" boolean DEFAULT false NOT NULL;
+      ALTER TABLE "shop_offers" ADD COLUMN IF NOT EXISTS "requirements" jsonb DEFAULT '{"operator":"all","requirements":[]}'::jsonb NOT NULL;
     `);
 
     // Canon-owned relations survive creation, unlinking, and deletion of their optional sheet.

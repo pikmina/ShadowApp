@@ -3,6 +3,7 @@ import useSWR from "swr";
 import { fetcher, apiFetch } from "@/lib/api";
 import { Plus, Trash2, Edit2, Briefcase, DollarSign, X, AlertTriangle, UserPlus, CheckCircle2, HandCoins } from "lucide-react";
 import { EntityPanel } from "@/components/ui/entity-panel";
+import { SectionHeader } from "@/components/common/SectionHeader";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "../components/ui/dialog";
@@ -23,18 +24,21 @@ export default function EmploymentsAdmin() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
+      <SectionHeader
+        icon={Briefcase}
+        title="Catálogo de Empleos y Cargos"
+        description="Administra instituciones, departamentos y posiciones laborales."
+        actions={
+          <>
+            <EmploymentPaymentsDialog structure={data ?? []} />
+            <InstitutionDialog mutate={mutate} />
+          </>
+        }
+      />
+
       <EntityPanel variant="character">
         <div className="p-4 sm:p-5">
-          <div className="flex flex-col gap-3 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="flex items-center gap-2 font-oxanium text-lg font-semibold text-foreground">
-                <Briefcase className="size-4 text-primary" /> Catálogo de Empleos y Cargos
-              </h1>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">Administra instituciones, departamentos y posiciones laborales.</p>
-            </div>
-            <div className="flex gap-2"><EmploymentPaymentsDialog structure={data ?? []} /><InstitutionDialog mutate={mutate} /></div>
-          </div>
-          <div className="mt-6 space-y-4">
+          <div className="space-y-4">
         {data?.length === 0 && <p className="text-muted-foreground">No hay instituciones registradas.</p>}
         {data?.map((inst: any) => (
           <div key={inst.id} className="border border-border rounded-md bg-background overflow-hidden mb-4">

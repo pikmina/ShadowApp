@@ -28,6 +28,7 @@ export async function upsertShopOffer(data: any, actorUid?: string) {
         elementId: data.elementId,
         status: data.status || 'draft',
         prices: data.prices || [],
+        requirements: data.requirements ?? { operator: 'all', requirements: [] },
         globalStock,
         perCharacterLimit,
       }).returning();
@@ -41,6 +42,7 @@ export async function upsertShopOffer(data: any, actorUid?: string) {
             elementId: data.elementId,
             status: data.status || 'draft',
             prices: data.prices || [],
+            requirements: data.requirements ?? { operator: 'all', requirements: [] },
             globalStock,
             perCharacterLimit,
           },
@@ -54,6 +56,7 @@ export async function upsertShopOffer(data: any, actorUid?: string) {
         elementId: data.elementId,
         status: data.status,
         prices: data.prices,
+        requirements: data.requirements !== undefined ? data.requirements : existing?.requirements,
         globalStock,
         perCharacterLimit,
         updatedAt: new Date(),
@@ -69,6 +72,7 @@ export async function upsertShopOffer(data: any, actorUid?: string) {
             status: data.status,
             previousStatus: existing?.status,
             prices: data.prices,
+            requirements: data.requirements,
             globalStock,
             perCharacterLimit,
           },
@@ -143,13 +147,13 @@ export async function processPurchase(moderatorUid: string, characterId: number,
       if (!element || element.status !== 'published') {
          throw new Error(`Element for offer ${offerId} is not published`);
       }
-      const requirements = requirementGroupSchema.parse(element.requirements);
+      const requirements = requirementGroupSchema.parse(offer.requirements ?? { operator: 'all', requirements: [] });
       const evaluation = evaluateRequirements(requirements, {
         profile: (character.profileData ?? {}) as Record<string, unknown>,
         possessions: possessionContext,
         stageIds,
       });
-      if (!evaluation.passed) throw new Error(`Requirements not met for element ${element.id}: ${evaluation.failures.join(', ')}`);
+      if (!evaluation.passed) throw new Error(`Requisitos no cumplidos para ${element.name}: ${evaluation.failures.join(', ')}`);
       
       if (offer.status !== 'available') throw new Error(`Offer ${offerId} is not available`);
 

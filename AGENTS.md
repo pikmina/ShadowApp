@@ -793,6 +793,7 @@ Do not introduce a parallel palette with hard-coded hex colors when a project to
 
 Use the existing Cyberpunk components according to their declared TypeScript interfaces. Read the component source before supplying props; do not guess prop names from another component.
 
+* `SectionHeader` (`src/components/common/SectionHeader.tsx`) is the MANDATORY standard header for all administrative views and main sections. It standardizes section iconography, title (`font-oxanium`), descriptive subtitle, and header action buttons using `.admin-section-header`. All administrative pages MUST use `SectionHeader` instead of custom ad-hoc header banners or custom h1/h2 tags.
 * `EntityPanel` is the standard container for themed sections and entity cards. Use its `pattern`, `accent`, `glow`, `cornerTicks`, `title`, `subtitle`, `badge`, and `icon` props. Keep its internal layout compact; do not reintroduce global `Card` spacing that duplicates the panel header/content padding.
 * `CyberSpacer` uses the `variant` prop. Valid variants are `line`, `diamond`, `brackets`, `dots`, `circuit`, `hazard`, and `crosshair`. Do not pass `pattern` to `CyberSpacer`.
 * `CyberFillerPanel` uses `icon`, `title`, `subtitle`, `variant`, `pattern`, and `className`. Use utility classes such as `min-h-24` through `className`; do not invent props such as `message` or `minHeight`.

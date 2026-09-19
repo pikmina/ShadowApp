@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, BookOpen, Database, ChevronRight, FileText, LayoutTemplate, Library, LogOut, Menu, Settings, ShieldCheck, ShoppingCart, Swords, UserRound, Component, History } from "lucide-react";
+import { LayoutDashboard, BookOpen, Database, ChevronRight, FileText, LayoutTemplate, Library, LogOut, Menu, Settings, ShieldCheck, ShoppingCart, Swords, UserRound, Component, History, UserCog } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "./ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
+import { UserProfileDialog } from "./profile/UserProfileDialog";
 import {
   Sidebar,
   SidebarContent,
@@ -51,6 +53,7 @@ const navigation = [
 export default function DashboardLayout() {
   const { user, dbUser, logout } = useAuth();
   const location = useLocation();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const userRole = dbUser?.role;
 
   // Filter navigation based on role
@@ -64,6 +67,9 @@ export default function DashboardLayout() {
   const currentSection = filteredNavigation.find(section => section.items.some(item => item.to === location.pathname));
   const currentPage = currentSection?.items.find(item => item.to === location.pathname);
   const email = dbUser?.email || user?.email || "Usuario";
+  const displayName = dbUser?.displayName || user?.displayName || (email.includes("@") ? email.split("@")[0] : "Usuario");
+  const avatarUrl = dbUser?.avatarUrl || user?.photoURL || "";
+  const displayInitial = (displayName || email || "U").charAt(0).toUpperCase();
   const roleLabel = dbUser?.role === "superadmin" ? "Administrador" : dbUser?.role === "moderator" ? "Moderador" : "Sesión iniciada";
 
   return (
@@ -115,16 +121,37 @@ export default function DashboardLayout() {
             ))}
           </SidebarContent>
           
-          <SidebarFooter className="border-t border-border p-4">
-            <div className="mb-3 flex items-center gap-3 px-1">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted font-oxanium font-semibold uppercase">{email.charAt(0)}</div>
-              <div className="min-w-0">
-                <p className="truncate text-xs font-medium text-foreground" title={email}>{email}</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">{roleLabel}</p>
+          <SidebarFooter className="border-t border-border p-3 space-y-2">
+            <button
+              type="button"
+              onClick={() => setIsProfileOpen(true)}
+              className="w-full text-left p-2 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/50 hover:border-primary/40 transition-all flex items-center justify-between gap-2.5 group cursor-pointer"
+              title="Haz clic para editar tu perfil"
+              id="sidebar-profile-trigger"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Avatar className="size-8 shrink-0 border border-border/80 group-hover:border-primary/50 transition-colors">
+                  <AvatarImage src={avatarUrl || undefined} alt={displayName} />
+                  <AvatarFallback className="font-oxanium text-xs font-bold uppercase bg-primary/15 text-primary">
+                    {displayInitial}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-foreground font-oxanium group-hover:text-primary transition-colors" title={displayName}>
+                    {displayName}
+                  </p>
+                  <p className="truncate text-[10px] text-muted-foreground" title={email}>
+                    {email}
+                  </p>
+                </div>
               </div>
-            </div>
-            <Button variant="ghost" className="min-h-11 w-full justify-start text-muted-foreground" onClick={() => void logout()}>
-              <LogOut className="size-4" aria-hidden="true" />
+              <div className="size-6 rounded-md flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:bg-primary/10 transition-colors shrink-0">
+                <UserCog className="size-3.5" />
+              </div>
+            </button>
+
+            <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-muted-foreground hover:text-foreground h-8 gap-2" onClick={() => void logout()}>
+              <LogOut className="size-3.5" aria-hidden="true" />
               Cerrar sesión
             </Button>
           </SidebarFooter>
@@ -138,7 +165,30 @@ export default function DashboardLayout() {
               <ChevronRight className="hidden size-3.5 text-muted-foreground sm:block" aria-hidden="true" />
               <span className="truncate font-medium">{currentPage?.label || "Shadowmore"}</span>
             </div>
-            <span className="ml-auto shrink-0 rounded-md border border-border bg-muted/30 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{roleLabel}</span>
+
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsProfileOpen(true)}
+                className="hidden sm:flex items-center gap-2 rounded-lg border border-border/60 bg-muted/20 px-2.5 py-1 text-xs hover:border-primary/40 hover:bg-muted/40 transition-all group cursor-pointer"
+                title="Editar mi perfil"
+                id="header-profile-trigger"
+              >
+                <Avatar className="size-5 border border-border/80">
+                  <AvatarImage src={avatarUrl || undefined} alt={displayName} />
+                  <AvatarFallback className="font-oxanium text-[9px] font-bold text-primary bg-primary/10">
+                    {displayInitial}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="font-oxanium text-[11px] font-medium text-foreground group-hover:text-primary transition-colors max-w-[130px] truncate">
+                  {displayName}
+                </span>
+              </button>
+
+              <span className="shrink-0 rounded-md border border-border bg-muted/30 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground font-oxanium">
+                {roleLabel}
+              </span>
+            </div>
           </header>
           
           <main id="workspace-content" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
@@ -148,6 +198,8 @@ export default function DashboardLayout() {
           </main>
         </SidebarInset>
       </div>
+
+      <UserProfileDialog open={isProfileOpen} onOpenChange={setIsProfileOpen} />
     </SidebarProvider>
   );
 }

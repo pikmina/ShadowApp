@@ -30,11 +30,100 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
-import { ShoppingCart, Plus, Minus, Trash2, Edit2, Save, X, Search, ShieldAlert, Coins, Sparkles, TrendingUp, Layers } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Edit2, X, Search, ShieldAlert, Coins, Sparkles, AlertCircle, CheckCircle2 } from "lucide-react";
+import { SectionHeader } from "../components/common/SectionHeader";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
-import { calculateProgressionCost, getProgressionBreakdown } from "../domain/progressionCosts";
+import { calculateProgressionCost } from "../domain/progressionCosts";
 
+const KIND_TYPES: Record<string, string> = {
+  trait: "Rasgo",
+  weakness: "Debilidad",
+  skill: "Habilidad",
+  altered_status: "Estado Alterado",
+  equipment: "Equipamiento",
+  weapon: "Arma",
+  consumable: "Consumible",
+  ammunition: "Munición",
+  license: "Licencia",
+  permission: "Permiso",
+  certification: "Certificación",
+  character_resource: "Recurso de personaje",
+  attribute_upgrade: "Mejora de atributo",
+  plus_ultra_effect: "Efecto Plus Ultra",
+  crafting_material: "Material de fabricación",
+  ingredient: "Ingrediente"
+};
+
+const ATTRIBUTE_OPTIONS = [
+  { id: "FUE", name: "Fuerza (FUE)" },
+  { id: "DES", name: "Destreza (DES)" },
+  { id: "RES", name: "Resistencia (RES)" },
+  { id: "INT", name: "Inteligencia (INT)" },
+  { id: "VOL", name: "Voluntad (VOL)" },
+  { id: "VEL", name: "Velocidad (VEL)" },
+];
+
+const REQUIREMENT_TYPE_LABELS: Record<string, string> = {
+  attribute: "Requiere Atributo",
+  owns_element: "Poseer Elemento",
+  skill_level: "Nivel de Habilidad",
+  stage: "Etapa",
+  age: "Edad",
+  character_field: "Campo de Personaje"
+};
+
+const OFFER_STATUS_LABELS: Record<string, string> = {
+  available: "Disponible (Visible en Tienda)",
+  draft: "Borrador (Oculto)",
+  paused: "Pausado",
+  ended: "Finalizado"
+};
+
+function renderRequirementLabel(req: any, elementMap: Map<string, any>): string {
+  if (!req) return "";
+  if (req.type === "attribute") {
+    const attrNames: Record<string, string> = {
+      FUE: "FUE",
+      DES: "DES",
+      RES: "RES",
+      INT: "INT",
+      VOL: "VOL",
+      VEL: "VEL",
+    };
+    const compSymbols: Record<string, string> = {
+      gte: "≥",
+      lte: "≤",
+      eq: "=",
+      includes: "contiene",
+    };
+    const name = attrNames[req.attributeId] || req.attributeId;
+    const comp = compSymbols[req.comparison] || "≥";
+    return `${name} ${comp} ${req.value}`;
+  }
+  if (req.type === "owns_element") {
+    const targetEl = elementMap.get(req.elementId);
+    const name = targetEl ? targetEl.name : req.elementId;
+    const qty = req.quantity && req.quantity > 1 ? ` (x${req.quantity})` : "";
+    return `Poseer: ${name}${qty}`;
+  }
+  if (req.type === "skill_level") {
+    const targetEl = elementMap.get(req.skillElementId);
+    const name = targetEl ? targetEl.name : req.skillElementId;
+    const compSymbols: Record<string, string> = { gte: "≥", lte: "≤", eq: "=" };
+    const comp = compSymbols[req.comparison] || "≥";
+    return `${name} Nv. ${comp} ${req.value}`;
+  }
+  if (req.type === "stage") {
+    const compText = req.comparison === "eq" ? "= " : "≥ ";
+    return `Etapa ${compText}${req.stageId}`;
+  }
+  if (req.type === "age") {
+    const compSymbols: Record<string, string> = { gte: "≥", lte: "≤" };
+    return `Edad ${compSymbols[req.comparison] || "≥"} ${req.value}`;
+  }
+  return "Requisito especial";
+}
 
 export default function Shop() {
   const { user, dbUser } = useAuth();
@@ -42,26 +131,54 @@ export default function Shop() {
   const { data: offers, mutate: mutateOffers } = useSWR(user ? "/api/shop/offers" : null, fetcher);
   const { data: rawElements } = useSWR(user ? "/api/admin/elements" : null, fetcher);
   const { data: characters } = useSWR(role && user ? "/api/admin/characters" : null, fetcher);
+  const { data: rules } = useSWR(user ? "/api/rules" : null, fetcher);
 
   const [activeTab, setActiveTab] = useState("store");
   const [storeSearch, setStoreSearch] = useState("");
   const [offerElementSearch, setOfferElementSearch] = useState("");
+  const [offerModalTab, setOfferModalTab] = useState("info");
+
+  // Stages list from rules
+  const stagesList = useMemo(() => {
+    return Array.isArray(rules) ? rules.find((r: any) => r.key === "system_stages")?.value || [] : [];
+  }, [rules]);
+
+  // Map of elements by ID for quick lookup
+  const elementMap = useMemo(() => {
+    const map = new Map<string, any>();
+    if (Array.isArray(rawElements)) {
+      rawElements.forEach((el: any) => map.set(el.id, el));
+    }
+    return map;
+  }, [rawElements]);
+
+  // All elements list
+  const allElements = useMemo(() => {
+    return Array.isArray(rawElements) ? rawElements : [];
+  }, [rawElements]);
 
   // Only published elements for offers
   const publishedElements = useMemo(() => {
-    return (Array.isArray(rawElements) ? rawElements : []).filter((el: any) => el.status === 'published');
-  }, [rawElements]);
+    return allElements.filter((el: any) => el.status === "published");
+  }, [allElements]);
 
+  // Skill elements only for skill requirements
+  const skillElements = useMemo(() => {
+    return allElements.filter((el: any) => el.kind === "skill");
+  }, [allElements]);
+
+  // Filtered elements for offer modal search
   const filteredOfferElements = useMemo(() => {
     const q = offerElementSearch.trim().toLowerCase();
-    if (!q) return publishedElements;
-    return publishedElements.filter((el: any) => {
-      const name = (el.name || '').toLowerCase();
-      const kind = (el.kind || '').toLowerCase();
-      const id = (el.id || '').toLowerCase();
-      return name.includes(q) || kind.includes(q) || id.includes(q);
+    if (!q) return allElements;
+    return allElements.filter((el: any) => {
+      const name = (el.name || "").toLowerCase();
+      const kind = (el.kind || "").toLowerCase();
+      const kindLabel = (KIND_TYPES[el.kind] || "").toLowerCase();
+      const id = (el.id || "").toLowerCase();
+      return name.includes(q) || kind.includes(q) || kindLabel.includes(q) || id.includes(q);
     });
-  }, [publishedElements, offerElementSearch]);
+  }, [allElements, offerElementSearch]);
   
   // Cart state
   const [cart, setCart] = useState<any[]>([]);
@@ -74,7 +191,7 @@ export default function Shop() {
   // Admin state
   const [editingOffer, setEditingOffer] = useState<any | null>(null);
 
-  const isAdmin = role === 'moderator' || role === 'superadmin';
+  const isAdmin = role === "moderator" || role === "superadmin";
 
   const addStandardToCart = (offer: any, element: any, currency: string) => {
     setCart(prev => {
@@ -123,7 +240,7 @@ export default function Shop() {
   const updateQuantity = (index: number, delta: number) => {
     setCart(prev => {
       const copy = [...prev];
-      if (copy[index].isProgression) return prev; // Cannot change quantity on progression upgrades
+      if (copy[index].isProgression) return prev;
       copy[index].quantity += delta;
       if (copy[index].quantity <= 0) {
         return copy.filter((_, i) => i !== index);
@@ -133,16 +250,16 @@ export default function Shop() {
   };
 
   const totalExp = cart.reduce((sum, item) => {
-    if (item.selectedCurrency !== 'exp') return sum;
+    if (item.selectedCurrency !== "exp") return sum;
     if (item.isProgression) return sum + (item.cost || 0);
-    const p = item.offer.prices?.find((p: any) => p.currency === 'exp');
+    const p = item.offer.prices?.find((p: any) => p.currency === "exp");
     return sum + (p ? p.amount * item.quantity : 0);
   }, 0);
 
   const totalYen = cart.reduce((sum, item) => {
-    if (item.selectedCurrency !== 'yen') return sum;
+    if (item.selectedCurrency !== "yen") return sum;
     if (item.isProgression) return sum + (item.cost || 0);
-    const p = item.offer.prices?.find((p: any) => p.currency === 'yen');
+    const p = item.offer.prices?.find((p: any) => p.currency === "yen");
     return sum + (p ? p.amount * item.quantity : 0);
   }, 0);
 
@@ -192,30 +309,144 @@ export default function Shop() {
     }
   };
 
+  const handleOpenCreateOffer = () => {
+    const initialElement = publishedElements[0] || allElements[0];
+    setEditingOffer({
+      elementId: initialElement?.id || "",
+      status: "available",
+      prices: [{ currency: "exp", amount: 100 }],
+      requirements: { operator: "all", requirements: [] },
+      globalStock: null,
+      perCharacterLimit: null,
+    });
+    setOfferElementSearch("");
+    setOfferModalTab("info");
+  };
+
+  const handleOpenEditOffer = (shopData: any) => {
+    setEditingOffer({
+      ...shopData,
+      requirements: shopData.requirements || { operator: "all", requirements: [] },
+      prices: shopData.prices || [{ currency: "exp", amount: 100 }],
+    });
+    setOfferElementSearch("");
+    setOfferModalTab("info");
+  };
+
   const handleSaveOffer = async () => {
+    if (!editingOffer?.elementId) {
+      alert("Debes seleccionar un elemento del catálogo.");
+      return;
+    }
     try {
-      await apiFetch("/api/shop/offers", {
+      const res = await apiFetch("/api/shop/offers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingOffer)
       });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al guardar la oferta");
+      }
       mutateOffers();
       setEditingOffer(null);
-    } catch (error) {
-      alert("Error al guardar la oferta.");
+    } catch (error: any) {
+      alert("Error al guardar la oferta: " + error.message);
     }
   };
 
+  const handleDeleteOffer = async (id: string) => {
+    if (!confirm("¿Estás seguro de que deseas eliminar esta oferta de la tienda?")) return;
+    try {
+      const res = await apiFetch(`/api/shop/offers/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Error al eliminar la oferta");
+      mutateOffers();
+    } catch (error: any) {
+      alert(error.message);
+    }
+  };
+
+  // Requirement management inside Offer Modal
+  const addRequirementToOffer = (type: "attribute" | "owns_element" | "skill_level" | "stage" = "attribute") => {
+    const currentReqs = editingOffer?.requirements?.requirements || [];
+    let newReq: any;
+    if (type === "attribute") {
+      newReq = { id: nanoid(8), type: "attribute", attributeId: "FUE", comparison: "gte", value: 1 };
+    } else if (type === "owns_element") {
+      newReq = { id: nanoid(8), type: "owns_element", elementId: publishedElements[0]?.id || allElements[0]?.id || "", quantity: 1 };
+    } else if (type === "skill_level") {
+      const skillEl = skillElements[0] || allElements[0];
+      newReq = { id: nanoid(8), type: "skill_level", skillElementId: skillEl?.id || "", comparison: "gte", value: 1 };
+    } else if (type === "stage") {
+      const defaultStage = stagesList[0]?.name || "Infancia";
+      newReq = { id: nanoid(8), type: "stage", stageId: defaultStage, comparison: "gte" };
+    }
+
+    setEditingOffer({
+      ...editingOffer,
+      requirements: {
+        operator: editingOffer?.requirements?.operator || "all",
+        requirements: [...currentReqs, newReq]
+      }
+    });
+  };
+
+  const removeRequirementFromOffer = (id: string) => {
+    setEditingOffer({
+      ...editingOffer,
+      requirements: {
+        ...editingOffer.requirements,
+        requirements: (editingOffer.requirements?.requirements || []).filter((r: any) => r.id !== id)
+      }
+    });
+  };
+
+  const updateRequirementInOffer = (id: string, updates: any) => {
+    setEditingOffer({
+      ...editingOffer,
+      requirements: {
+        ...editingOffer.requirements,
+        requirements: (editingOffer.requirements?.requirements || []).map((r: any) => r.id === id ? { ...r, ...updates } : r)
+      }
+    });
+  };
+
+  const updateRequirementTypeInOffer = (id: string, newType: string) => {
+    setEditingOffer({
+      ...editingOffer,
+      requirements: {
+        ...editingOffer.requirements,
+        requirements: (editingOffer.requirements?.requirements || []).map((r: any) => {
+          if (r.id !== id) return r;
+          if (newType === "attribute") {
+            return { id, type: "attribute", attributeId: "FUE", comparison: "gte", value: 1 };
+          }
+          if (newType === "owns_element") {
+            return { id, type: "owns_element", elementId: publishedElements[0]?.id || allElements[0]?.id || "", quantity: 1 };
+          }
+          if (newType === "skill_level") {
+            const skillEl = skillElements[0] || allElements[0];
+            return { id, type: "skill_level", skillElementId: skillEl?.id || "", comparison: "gte", value: 1 };
+          }
+          if (newType === "stage") {
+            const defaultStage = stagesList[0]?.name || "Infancia";
+            return { id, type: "stage", stageId: defaultStage, comparison: "gte" };
+          }
+          return r;
+        })
+      }
+    });
+  };
+
+  const selectedOfferElement = editingOffer?.elementId ? elementMap.get(editingOffer.elementId) : null;
+
   return (
-    <div className="flex flex-col h-[calc(100vh-2rem)] relative">
-      <div className="flex-none p-6 border-b border-border bg-card/40 backdrop-blur-sm z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-foreground mb-1 flex items-center gap-2">
-            <ShoppingCart className="w-8 h-8 text-primary" /> Tienda del Sistema
-          </h1>
-          <p className="text-sm text-muted-foreground">Catálogo de objetos, consumibles y mejoras.</p>
-        </div>
-      </div>
+    <div className="flex flex-col h-[calc(100vh-2rem)] relative space-y-4">
+      <SectionHeader
+        icon={ShoppingCart}
+        title="Tienda del Sistema"
+        description="Catálogo de objetos, consumibles y mejoras de personajes."
+      />
 
       <div className="flex-1 overflow-hidden">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
@@ -241,7 +472,7 @@ export default function Shop() {
                 {storeSearch && (
                   <button
                     type="button"
-                    onClick={() => setStoreSearch('')}
+                    onClick={() => setStoreSearch("")}
                     className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
                     title="Limpiar búsqueda"
                   >
@@ -251,30 +482,33 @@ export default function Shop() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {offers?.filter((o:any) => {
-                  if (o.shop_offers.status !== 'available') return false;
+                {offers?.filter((o: any) => {
+                  if (o.shop_offers.status !== "available") return false;
                   const el = o.system_elements;
                   if (!el) return false;
                   if (!storeSearch.trim()) return true;
                   const q = storeSearch.trim().toLowerCase();
-                  return el.name.toLowerCase().includes(q) || el.kind.toLowerCase().includes(q) || (el.description || '').toLowerCase().includes(q);
+                  const kindLabel = (KIND_TYPES[el.kind] || "").toLowerCase();
+                  return el.name.toLowerCase().includes(q) || el.kind.toLowerCase().includes(q) || kindLabel.includes(q) || (el.description || "").toLowerCase().includes(q);
                 }).map((offer: any) => {
                   const element = offer.system_elements;
                   const shopData = offer.shop_offers;
                   if (!element) return null;
 
-                  const isProgression = element.kind === 'skill' || element.kind === 'attribute_upgrade';
-                  const maxLevel = Number(element.metadata?.maxLevel) || (element.kind === 'attribute_upgrade' ? 10 : 5);
-                  const baseCost = Number(element.metadata?.baseExpCost) || (shopData.prices?.find((p: any) => p.currency === 'exp')?.amount ?? 100);
+                  const isProgression = element.kind === "skill" || element.kind === "attribute_upgrade";
+                  const maxLevel = Number(element.metadata?.maxLevel) || (element.kind === "attribute_upgrade" ? 10 : 5);
+                  const baseCost = Number(element.metadata?.baseExpCost) || (shopData.prices?.find((p: any) => p.currency === "exp")?.amount ?? 100);
 
                   const curProgression = progressionSelections[shopData.id] || { fromLevel: 0, toLevel: 1 };
                   const calculatedProgCost = calculateProgressionCost(baseCost, curProgression.fromLevel, curProgression.toLevel);
+
+                  const offerReqs = shopData.requirements?.requirements || [];
 
                   return (
                     <div key={shopData.id} className="bg-card border border-border p-4 flex flex-col relative group overflow-hidden rounded-md shadow-sm">
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary border-primary/20">
-                          {element.kind.replace('_', ' ')}
+                          {KIND_TYPES[element.kind] || element.kind.replace("_", " ")}
                         </Badge>
                         {isProgression && (
                           <Badge variant="outline" className="text-[10px] font-mono text-amber-400 border-amber-500/30 bg-amber-500/10">
@@ -284,8 +518,25 @@ export default function Shop() {
                       </div>
 
                       <h3 className="font-bold text-base mb-1 text-foreground truncate" title={element.name}>{element.name}</h3>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mb-3 h-8" title={element.description}>{element.description}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2 mb-2 h-8" title={element.description}>{element.description}</p>
                       
+                      {/* Requirements pill list */}
+                      {offerReqs.length > 0 && (
+                        <div className="mb-3 p-2 rounded bg-muted/40 border border-border/50 space-y-1">
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                            <ShieldAlert className="size-3 text-amber-400" />
+                            Requisitos:
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {offerReqs.map((req: any) => (
+                              <Badge key={req.id || nanoid()} variant="secondary" className="text-[10px] font-medium bg-background/80 text-foreground border border-border/60">
+                                {renderRequirementLabel(req, elementMap)}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {isProgression ? (
                         <div className="mt-auto pt-2 border-t border-border/60 space-y-2">
                           <div className="bg-muted/40 p-2 rounded border border-border/50 space-y-2">
@@ -304,7 +555,7 @@ export default function Shop() {
                                   }}
                                 >
                                   <SelectTrigger className="h-7 text-xs bg-background">
-                                    <SelectValue />
+                                    <SelectValue>Nv. {curProgression.fromLevel}</SelectValue>
                                   </SelectTrigger>
                                   <SelectContent>
                                     {Array.from({ length: maxLevel }, (_, i) => (
@@ -327,7 +578,7 @@ export default function Shop() {
                                   }}
                                 >
                                   <SelectTrigger className="h-7 text-xs bg-background">
-                                    <SelectValue />
+                                    <SelectValue>Nv. {curProgression.toLevel}</SelectValue>
                                   </SelectTrigger>
                                   <SelectContent>
                                     {Array.from({ length: maxLevel - curProgression.fromLevel }, (_, i) => {
@@ -347,7 +598,7 @@ export default function Shop() {
                               </span>
                               <span className="font-mono font-bold text-amber-400 inline-flex items-center gap-1">
                                 <Sparkles className="size-3" />
-                                {calculatedProgCost.toLocaleString('es-ES')} EXP
+                                {calculatedProgCost.toLocaleString("es-ES")} EXP
                               </span>
                             </div>
                           </div>
@@ -355,7 +606,7 @@ export default function Shop() {
                           <Button
                             size="sm"
                             className="w-full h-8 text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/40"
-                            onClick={() => addProgressionToCart(shopData, element, 'exp', curProgression.fromLevel, curProgression.toLevel)}
+                            onClick={() => addProgressionToCart(shopData, element, "exp", curProgression.fromLevel, curProgression.toLevel)}
                           >
                             <Sparkles className="size-3.5 mr-1" />
                             Añadir Mejora (Nv {curProgression.fromLevel} ➔ {curProgression.toLevel})
@@ -366,12 +617,12 @@ export default function Shop() {
                           {shopData.prices.map((price: any, idx: number) => (
                             <div key={idx} className="flex justify-between items-center bg-muted/30 p-2 border border-border rounded">
                               <span className="font-mono font-bold text-sm inline-flex items-center gap-1.5">
-                                {price.currency === 'exp' ? (
+                                {price.currency === "exp" ? (
                                   <Sparkles className="size-3.5 text-indigo-400" />
                                 ) : (
                                   <Coins className="size-3.5 text-emerald-400" />
                                 )}
-                                {price.amount} <span className={price.currency === 'exp' ? 'text-indigo-400' : 'text-emerald-400'}>{price.currency.toUpperCase()}</span>
+                                {price.amount} <span className={price.currency === "exp" ? "text-indigo-400" : "text-emerald-400"}>{price.currency.toUpperCase()}</span>
                               </span>
                               <Button size="sm" variant="outline" className="h-7 text-xs uppercase tracking-widest" onClick={() => addStandardToCart(shopData, element, price.currency)}>
                                 Añadir
@@ -409,7 +660,7 @@ export default function Shop() {
                               </Badge>
                             ) : (
                               <span className="text-[10px] text-muted-foreground uppercase">
-                                {item.element.kind}
+                                {KIND_TYPES[item.element.kind] || item.element.kind}
                               </span>
                             )}
                           </div>
@@ -426,7 +677,7 @@ export default function Shop() {
                               </span>
                               <span className="font-mono font-bold text-amber-400 flex items-center gap-1">
                                 <Sparkles className="size-3" />
-                                {item.cost?.toLocaleString('es-ES')} EXP
+                                {item.cost?.toLocaleString("es-ES")} EXP
                               </span>
                             </>
                           ) : (
@@ -472,12 +723,11 @@ export default function Shop() {
           {isAdmin && (
             <TabsContent value="admin" className="flex-1 overflow-hidden m-0 data-[state=active]:flex flex-col">
                <div className="p-6 border-b border-border flex justify-between items-center">
-                 <h2 className="font-bold text-xl uppercase tracking-wider">Gestión de Ofertas</h2>
-                 <Button onClick={() => setEditingOffer({
-                   elementId: publishedElements?.[0]?.id || "",
-                   status: "draft",
-                   prices: [{ currency: "exp", amount: 100 }]
-                 })} className="gap-2">
+                 <div>
+                   <h2 className="font-bold text-xl uppercase tracking-wider">Gestión de Ofertas</h2>
+                   <p className="text-xs text-muted-foreground mt-0.5">Crea y configura las ofertas de la tienda y sus requisitos de obtención.</p>
+                 </div>
+                 <Button onClick={handleOpenCreateOffer} className="gap-2">
                    <Plus className="w-4 h-4" /> Nueva Oferta
                  </Button>
                </div>
@@ -486,37 +736,73 @@ export default function Shop() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Elemento</TableHead>
+                        <TableHead>Requisitos de Compra</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead>Precios</TableHead>
-                        <TableHead className="w-[100px]"></TableHead>
+                        <TableHead className="w-[120px] text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {offers?.map((offer: any) => {
                         const el = offer.system_elements;
                         const shopData = offer.shop_offers;
-                        if(!shopData) return null;
+                        if (!shopData) return null;
+                        const offerReqs = shopData.requirements?.requirements || [];
                         return (
                           <TableRow key={shopData.id}>
-                            <TableCell className="font-medium">{el ? el.name : <span className="text-destructive">Elemento Borrado</span>}</TableCell>
                             <TableCell>
-                              <Badge variant={shopData.status === 'available' ? 'default' : 'secondary'}>
-                                {shopData.status}
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-foreground">
+                                  {el ? el.name : <span className="text-destructive">Elemento Borrado</span>}
+                                </span>
+                                {el && (
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <Badge variant="outline" className="text-[9px] uppercase font-mono px-1 py-0 h-4">
+                                      {KIND_TYPES[el.kind] || el.kind}
+                                    </Badge>
+                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                      ID: {shopData.elementId}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {offerReqs.length > 0 ? (
+                                <div className="flex flex-wrap gap-1 max-w-[280px]">
+                                  {offerReqs.map((req: any) => (
+                                    <Badge key={req.id || nanoid()} variant="secondary" className="text-[10px] font-mono bg-background text-foreground border border-border">
+                                      {renderRequirementLabel(req, elementMap)}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">Sin requisitos</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={shopData.status === "available" ? "default" : shopData.status === "paused" ? "secondary" : "outline"} className={shopData.status === "available" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : ""}>
+                                {shopData.status === "available" ? "Disponible" : shopData.status === "draft" ? "Borrador" : shopData.status === "paused" ? "Pausado" : shopData.status}
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <div className="flex gap-2">
-                                {shopData.prices.map((p: any, i: number) => (
-                                  <Badge key={i} variant="outline" className="font-mono">
-                                    {p.amount} {p.currency}
+                              <div className="flex flex-wrap gap-1.5">
+                                {shopData.prices?.map((p: any, i: number) => (
+                                  <Badge key={i} variant="outline" className="font-mono text-xs">
+                                    {p.amount} {p.currency.toUpperCase()}
                                   </Badge>
                                 ))}
                               </div>
                             </TableCell>
-                            <TableCell>
-                              <Button variant="ghost" size="icon" onClick={() => setEditingOffer(shopData)}>
-                                <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                              </Button>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button variant="ghost" size="icon" title="Editar oferta" onClick={() => handleOpenEditOffer(shopData)}>
+                                  <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                                </Button>
+                                <Button variant="ghost" size="icon" title="Eliminar oferta" onClick={() => handleDeleteOffer(shopData.id)}>
+                                  <Trash2 className="w-4 h-4 text-destructive hover:text-destructive/80" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
@@ -549,7 +835,10 @@ export default function Shop() {
                 </SelectTrigger>
                 <SelectContent>
                   {characters?.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id.toString()}>
+                      <span className="font-medium">{c.name}</span>
+                      <span className="text-muted-foreground text-xs ml-2 font-mono">#{c.id}</span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -579,117 +868,470 @@ export default function Shop() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Offer Modal */}
+      {/* Edit / Create Offer Modal */}
       <Dialog open={!!editingOffer} onOpenChange={(open) => !open && setEditingOffer(null)}>
-        <DialogContent className="sm:max-w-[500px] h-[90vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b">
-            <DialogTitle>Oferta de Tienda</DialogTitle>
+        <DialogContent className="sm:max-w-[700px] h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-5 pb-4 border-b shrink-0">
+            <DialogTitle className="text-lg font-bold">
+              {editingOffer?.id ? "Editar Oferta de Tienda" : "Nueva Oferta de Tienda"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Configura el elemento, precios de compra y los requisitos para poder adquirirlo.
+            </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 px-6 py-4 space-y-4 overflow-y-auto">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Elemento del Catálogo</Label>
-                <span className="text-[11px] text-emerald-500 font-medium">● Solo publicados</span>
+          
+          <div className="flex-1 overflow-hidden flex flex-col min-w-0">
+            <Tabs value={offerModalTab} onValueChange={setOfferModalTab} className="flex-1 flex flex-col w-full h-full">
+              <div className="px-6 pt-3 pb-2 border-b bg-muted/40 shrink-0">
+                <TabsList className="inline-flex h-auto p-1 gap-1 bg-card border border-border/50">
+                  <TabsTrigger value="info" className="px-3.5 py-1.5 text-xs font-medium">1. Datos y Precios</TabsTrigger>
+                  <TabsTrigger value="reqs" className="px-3.5 py-1.5 text-xs font-medium">
+                    2. Requisitos ({editingOffer?.requirements?.requirements?.length || 0})
+                  </TabsTrigger>
+                </TabsList>
               </div>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground pointer-events-none" />
-                <Input
-                  type="text"
-                  placeholder="Buscar elemento por nombre, tipo o ID..."
-                  value={offerElementSearch}
-                  onChange={e => setOfferElementSearch(e.target.value)}
-                  className="h-8 pl-8 pr-7 text-xs bg-background/50"
-                />
-                {offerElementSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setOfferElementSearch('')}
-                    className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
-                    title="Limpiar búsqueda"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                )}
-              </div>
-              <Select 
-                value={editingOffer?.elementId} 
-                onValueChange={v => setEditingOffer({...editingOffer, elementId: v})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={publishedElements.length === 0 ? "No hay elementos disponibles" : "Selecciona un elemento..."} />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {filteredOfferElements.length === 0 ? (
-                    <div className="p-3 text-xs text-muted-foreground text-center">
-                      No se encontraron elementos publicados
-                    </div>
-                  ) : (
-                    filteredOfferElements.map((el: any) => (
-                      <SelectItem key={el.id} value={el.id}>{el.name} ({el.kind})</SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Estado</Label>
-              <Select 
-                value={editingOffer?.status} 
-                onValueChange={v => setEditingOffer({...editingOffer, status: v})}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Borrador</SelectItem>
-                  <SelectItem value="available">Disponible</SelectItem>
-                  <SelectItem value="paused">Pausado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
-            <div className="space-y-2">
-              <Label className="flex justify-between items-center">
-                Precios
-                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => {
-                  setEditingOffer({...editingOffer, prices: [...(editingOffer?.prices||[]), { currency: 'exp', amount: 0 }]})
-                }}>
-                  <Plus className="w-3 h-3 mr-1" /> Añadir Precio
-                </Button>
-              </Label>
-              <div className="flex flex-col gap-2">
-                {editingOffer?.prices?.map((p: any, i: number) => (
-                  <div key={i} className="flex gap-2 items-center">
-                    <Select value={p.currency} onValueChange={(v) => {
-                      const np = [...editingOffer.prices];
-                      np[i].currency = v;
-                      setEditingOffer({...editingOffer, prices: np});
-                    }}>
-                      <SelectTrigger className="w-[120px]"><SelectValue/></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="exp">EXP</SelectItem>
-                        <SelectItem value="yen">Yen</SelectItem>
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                <TabsContent value="info" className="mt-0 space-y-4">
+                  {/* Element Selector */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold">Elemento del Catálogo</Label>
+                      <span className="text-[11px] text-muted-foreground font-mono">
+                        {allElements.length} elemento{allElements.length === 1 ? "" : "s"} registrados
+                      </span>
+                    </div>
+
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground pointer-events-none" />
+                      <Input
+                        type="text"
+                        placeholder="Buscar por nombre, tipo o ID..."
+                        value={offerElementSearch}
+                        onChange={e => setOfferElementSearch(e.target.value)}
+                        className="h-8 pl-8 pr-7 text-xs bg-background/50"
+                      />
+                      {offerElementSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setOfferElementSearch("")}
+                          className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                          title="Limpiar búsqueda"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <Select 
+                      value={editingOffer?.elementId} 
+                      onValueChange={v => setEditingOffer({...editingOffer, elementId: v})}
+                    >
+                      <SelectTrigger className="text-xs">
+                        <SelectValue placeholder={allElements.length === 0 ? "No hay elementos en catálogo" : "Selecciona un elemento..."}>
+                          {selectedOfferElement ? (
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="text-muted-foreground font-mono text-[10px]">
+                                [{KIND_TYPES[selectedOfferElement.kind] || selectedOfferElement.kind}]
+                              </span>
+                              <span className="font-semibold text-foreground">{selectedOfferElement.name}</span>
+                              {selectedOfferElement.status === "draft" && (
+                                <span className="text-[10px] text-amber-400 font-medium">· Borrador</span>
+                              )}
+                            </div>
+                          ) : (editingOffer?.elementId || "Selecciona un elemento...")}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {filteredOfferElements.length === 0 ? (
+                          <div className="p-3 text-xs text-muted-foreground text-center">
+                            No se encontraron elementos coincidentes
+                          </div>
+                        ) : (
+                          filteredOfferElements.map((el: any) => (
+                            <SelectItem key={el.id} value={el.id} className="text-xs">
+                              <div className="flex items-center justify-between gap-2 w-full">
+                                <span className="text-muted-foreground font-mono text-[10px] shrink-0">
+                                  [{KIND_TYPES[el.kind] || el.kind}]
+                                </span>
+                                <span className="font-medium text-foreground truncate">{el.name}</span>
+                                {el.status === "draft" ? (
+                                  <Badge variant="outline" className="text-[9px] text-amber-400 border-amber-500/30 bg-amber-500/10 shrink-0 ml-auto">
+                                    Borrador
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[9px] text-emerald-400 border-emerald-500/30 bg-emerald-500/10 shrink-0 ml-auto">
+                                    Publicado
+                                  </Badge>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
-                    <Input type="number" value={p.amount} onChange={e => {
-                      const np = [...editingOffer.prices];
-                      np[i].amount = parseInt(e.target.value) || 0;
-                      setEditingOffer({...editingOffer, prices: np});
-                    }} className="font-mono" />
-                    <Button variant="ghost" size="sm" onClick={() => {
-                      const np = [...editingOffer.prices];
-                      np.splice(i, 1);
-                      setEditingOffer({...editingOffer, prices: np});
-                    }}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+
+                    {/* Selected element summary card */}
+                    {selectedOfferElement && (
+                      <div className="p-3 rounded-md bg-muted/40 border border-border/70 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-foreground truncate">{selectedOfferElement.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="secondary" className="text-[10px] uppercase font-mono px-1.5 py-0 h-4 shrink-0">
+                              {KIND_TYPES[selectedOfferElement.kind] || selectedOfferElement.kind}
+                            </Badge>
+                            <Badge variant={selectedOfferElement.status === "published" ? "default" : "secondary"} className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                              {selectedOfferElement.status === "published" ? "Publicado" : "Borrador"}
+                            </Badge>
+                          </div>
+                        </div>
+                        {selectedOfferElement.description && (
+                          <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                            {selectedOfferElement.description}
+                          </p>
+                        )}
+                        {selectedOfferElement.status === "draft" && (
+                          <div className="flex items-center gap-1.5 text-[11px] text-amber-400 font-medium pt-1">
+                            <AlertCircle className="size-3.5 shrink-0" />
+                            <span>Este elemento está en Borrador. No se mostrará en la tienda hasta ser publicado en el Catálogo.</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ))}
+                  
+                  {/* Status */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Estado de la Oferta</Label>
+                    <Select 
+                      value={editingOffer?.status} 
+                      onValueChange={v => setEditingOffer({...editingOffer, status: v})}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Selecciona estado...">
+                          {OFFER_STATUS_LABELS[editingOffer?.status] || editingOffer?.status}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="available">Disponible (Visible en Tienda)</SelectItem>
+                        <SelectItem value="draft">Borrador (Oculto)</SelectItem>
+                        <SelectItem value="paused">Pausado</SelectItem>
+                        <SelectItem value="ended">Finalizado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Prices */}
+                  <div className="space-y-2 pt-2 border-t border-border/60">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-xs font-semibold">Precios de Venta</Label>
+                      <Button size="sm" variant="outline" className="h-7 text-xs px-2 gap-1" onClick={() => {
+                        setEditingOffer({
+                          ...editingOffer,
+                          prices: [...(editingOffer?.prices || []), { currency: "exp", amount: 100 }]
+                        });
+                      }}>
+                        <Plus className="size-3.5" /> Añadir Precio
+                      </Button>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {editingOffer?.prices?.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">No hay precios definidos para esta oferta.</p>
+                      ) : (
+                        editingOffer?.prices?.map((p: any, i: number) => (
+                          <div key={i} className="flex gap-2 items-center">
+                            <Select value={p.currency} onValueChange={(v) => {
+                              const np = [...editingOffer.prices];
+                              np[i].currency = v;
+                              setEditingOffer({...editingOffer, prices: np});
+                            }}>
+                              <SelectTrigger className="w-[140px] h-8 text-xs">
+                                <SelectValue>
+                                  {p.currency === "exp" ? "EXP (Experiencia)" : "Yen (Moneda)"}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="exp">EXP (Experiencia)</SelectItem>
+                                <SelectItem value="yen">Yen (Moneda)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={p.amount}
+                              onChange={e => {
+                                const np = [...editingOffer.prices];
+                                np[i].amount = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                setEditingOffer({...editingOffer, prices: np});
+                              }}
+                              className="font-mono h-8 text-xs flex-1"
+                              placeholder="Cantidad..."
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => {
+                                const np = [...editingOffer.prices];
+                                np.splice(i, 1);
+                                setEditingOffer({...editingOffer, prices: np});
+                              }}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Limits and Stock */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/60">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Stock Global (Opcional)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Ilimitado"
+                        value={editingOffer?.globalStock ?? ""}
+                        onChange={e => setEditingOffer({
+                          ...editingOffer,
+                          globalStock: e.target.value === "" ? null : parseInt(e.target.value, 10)
+                        })}
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Límite por Personaje (Opcional)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Ilimitado"
+                        value={editingOffer?.perCharacterLimit ?? ""}
+                        onChange={e => setEditingOffer({
+                          ...editingOffer,
+                          perCharacterLimit: e.target.value === "" ? null : parseInt(e.target.value, 10)
+                        })}
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Requirements Tab */}
+                <TabsContent value="reqs" className="mt-0 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Requisitos para Comprar esta Oferta</h3>
+                      <p className="text-xs text-muted-foreground">Los personajes deben cumplir estos requisitos para poder adquirir este elemento.</p>
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap">
+                      <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => addRequirementToOffer("attribute")}>
+                        <Plus className="size-3.5" /> Atributo
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => addRequirementToOffer("owns_element")}>
+                        <Plus className="size-3.5" /> Elemento
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => addRequirementToOffer("skill_level")}>
+                        <Plus className="size-3.5" /> Nv. Habilidad
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => addRequirementToOffer("stage")}>
+                        <Plus className="size-3.5" /> Etapa
+                      </Button>
+                    </div>
+                  </div>
+
+                  {(!editingOffer?.requirements?.requirements || editingOffer.requirements.requirements.length === 0) ? (
+                    <div className="border border-dashed border-border rounded-lg p-8 text-center text-muted-foreground text-sm space-y-2">
+                      <CheckCircle2 className="size-8 text-emerald-400 mx-auto stroke-1" />
+                      <p className="font-medium text-foreground">Sin requisitos de compra</p>
+                      <p className="text-xs">Cualquier personaje con los fondos suficientes podrá adquirir esta oferta.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {editingOffer.requirements.requirements.map((req: any, idx: number) => (
+                        <div key={req.id} className="p-3 bg-muted/40 border border-border/70 rounded-md space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <Badge variant="outline" className="text-xs font-mono">#{idx + 1}</Badge>
+                            <Select value={req.type} onValueChange={v => updateRequirementTypeInOffer(req.id, v)}>
+                              <SelectTrigger className="h-8 text-xs w-[180px]">
+                                <SelectValue placeholder="Tipo de requisito">
+                                  {REQUIREMENT_TYPE_LABELS[req.type] || req.type}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="attribute">Requiere Atributo</SelectItem>
+                                <SelectItem value="owns_element">Poseer Elemento</SelectItem>
+                                <SelectItem value="skill_level">Nivel de Habilidad</SelectItem>
+                                <SelectItem value="stage">Etapa del Personaje</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive ml-auto"
+                              onClick={() => removeRequirementFromOffer(req.id)}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+
+                          {req.type === "attribute" && (
+                            <div className="flex items-center gap-2 text-xs">
+                              <Select value={req.attributeId} onValueChange={v => updateRequirementInOffer(req.id, { attributeId: v })}>
+                                <SelectTrigger className="h-8 text-xs flex-1">
+                                  <SelectValue placeholder="Selecciona atributo">
+                                    {ATTRIBUTE_OPTIONS.find(a => a.id === req.attributeId)?.name || req.attributeId}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ATTRIBUTE_OPTIONS.map(attr => (
+                                    <SelectItem key={attr.id} value={attr.id}>{attr.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="font-bold text-sm">≥</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={req.value}
+                                onChange={e => updateRequirementInOffer(req.id, { value: Number(e.target.value) || 0 })}
+                                className="h-8 text-xs w-20 font-mono"
+                              />
+                            </div>
+                          )}
+
+                          {req.type === "owns_element" && (
+                            <div className="space-y-1.5 text-xs">
+                              <Select
+                                value={req.elementId}
+                                onValueChange={v => updateRequirementInOffer(req.id, { elementId: v })}
+                              >
+                                <SelectTrigger className="h-8 text-xs w-full">
+                                  <SelectValue placeholder="Selecciona el elemento requerido...">
+                                    {(() => {
+                                      const found = elementMap.get(req.elementId);
+                                      return found ? `[${KIND_TYPES[found.kind] || found.kind}] ${found.name}` : (req.elementId || "Selecciona un elemento...");
+                                    })()}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="max-h-56">
+                                  {allElements.map((el: any) => (
+                                    <SelectItem key={el.id} value={el.id} className="text-xs">
+                                      <span className="text-muted-foreground font-mono text-[10px] mr-1.5">
+                                        [{KIND_TYPES[el.kind] || el.kind}]
+                                      </span>
+                                      <span className="font-medium">{el.name}</span>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+
+                          {req.type === "skill_level" && (
+                            <div className="flex items-center gap-2 text-xs">
+                              <Select
+                                value={req.skillElementId}
+                                onValueChange={v => updateRequirementInOffer(req.id, { skillElementId: v })}
+                              >
+                                <SelectTrigger className="h-8 text-xs flex-1">
+                                  <SelectValue placeholder="Selecciona la habilidad...">
+                                    {(() => {
+                                      const found = elementMap.get(req.skillElementId);
+                                      return found ? `[Habilidad] ${found.name}` : (req.skillElementId || "Selecciona una habilidad...");
+                                    })()}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="max-h-56">
+                                  {skillElements.length === 0 ? (
+                                    <div className="p-2 text-xs text-muted-foreground text-center">
+                                      No hay habilidades registradas en el catálogo
+                                    </div>
+                                  ) : (
+                                    skillElements.map((el: any) => (
+                                      <SelectItem key={el.id} value={el.id} className="text-xs">
+                                        <span className="text-muted-foreground font-mono text-[10px] mr-1.5">[Habilidad]</span>
+                                        <span className="font-medium">{el.name}</span>
+                                      </SelectItem>
+                                    ))
+                                  )}
+                                </SelectContent>
+                              </Select>
+                              <span className="font-bold text-sm">Nv. ≥</span>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={req.value}
+                                onChange={e => updateRequirementInOffer(req.id, { value: Number(e.target.value) || 1 })}
+                                className="h-8 text-xs w-16 font-mono"
+                              />
+                            </div>
+                          )}
+
+                          {req.type === "stage" && (
+                            <div className="flex items-center gap-2 text-xs">
+                              <Select
+                                value={req.comparison || "gte"}
+                                onValueChange={v => updateRequirementInOffer(req.id, { comparison: v })}
+                              >
+                                <SelectTrigger className="h-8 text-xs w-36">
+                                  <SelectValue>
+                                    {req.comparison === "eq" ? "Exactamente (=)" : "Mínimo (≥)"}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="gte">Mínimo (≥)</SelectItem>
+                                  <SelectItem value="eq">Exactamente (=)</SelectItem>
+                                </SelectContent>
+                              </Select>
+
+                              <Select
+                                value={req.stageId}
+                                onValueChange={v => updateRequirementInOffer(req.id, { stageId: v })}
+                              >
+                                <SelectTrigger className="h-8 text-xs flex-1">
+                                  <SelectValue placeholder="Selecciona etapa...">
+                                    {req.stageId || "Selecciona etapa..."}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="max-h-56">
+                                  {stagesList.length === 0 ? (
+                                    <div className="p-2 text-xs text-muted-foreground text-center">
+                                      No hay etapas configuradas en Reglas
+                                    </div>
+                                  ) : (
+                                    stagesList.map((st: any, sIdx: number) => {
+                                      const stName = st.name || st.id || `Etapa ${sIdx + 1}`;
+                                      return (
+                                        <SelectItem key={stName} value={stName} className="text-xs">
+                                          <span className="font-medium">{stName}</span>
+                                          {st.minAge !== undefined && st.maxAge !== undefined && (
+                                            <span className="text-muted-foreground text-[10px] ml-1.5 font-mono">
+                                              ({st.minAge}-{st.maxAge} años)
+                                            </span>
+                                          )}
+                                        </SelectItem>
+                                      );
+                                    })
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
               </div>
-            </div>
+            </Tabs>
           </div>
+
           <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
             <Button variant="outline" onClick={() => setEditingOffer(null)}>Cancelar</Button>
-            <Button onClick={handleSaveOffer}>Guardar</Button>
+            <Button onClick={handleSaveOffer}>Guardar Oferta</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

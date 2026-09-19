@@ -16,8 +16,11 @@ export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   uid: text('uid').notNull().unique(), // Firebase Auth UID
   email: text('email').notNull(),
+  displayName: text('display_name'),
+  avatarUrl: text('avatar_url'),
   role: roleEnum('role').default('player').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 // Canon Characters Table
@@ -73,6 +76,7 @@ export const shopOffers = pgTable('shop_offers', {
   elementId: text('element_id').references(() => systemElements.id, { onDelete: 'cascade' }).notNull(),
   status: offerStatusEnum('status').default('draft').notNull(),
   prices: jsonb('prices').notNull().default([]), // Array<{ currency: 'exp' | 'yen'; amount: number }>
+  requirements: jsonb('requirements').notNull().default({ operator: 'all', requirements: [] }), // RequirementGroup
   globalStock: integer('global_stock'), // null means unlimited
   perCharacterLimit: integer('per_character_limit'), // null means unlimited
   createdAt: timestamp('created_at').defaultNow(),
@@ -90,7 +94,7 @@ export const elementPossessions = pgTable('element_possessions', {
   notes: text('notes'),
   acquiredAt: timestamp('acquired_at').defaultNow(),
 }, (t) => ({
-  unq: unique().on(t.characterId, t.elementId)
+  unq: uniqueIndex('element_possessions_character_id_element_id_unique').on(t.characterId, t.elementId)
 }));
 
 // System Rules Table (Configurable Constants/Limits)
@@ -105,7 +109,7 @@ export const systemRules = pgTable('system_rules', {
 // Character Sheet Layout/Fields Table (Form Builder)
 export const characterSheetFields = pgTable('character_sheet_fields', {
   id: text('id').primaryKey(),
-  coreKey: text('core_key').unique(),
+  coreKey: text('core_key'),
   name: text('name').notNull(),
   type: text('type').notNull(), // 'text', 'textarea', 'number', 'select', 'multiselect', 'checkbox', 'switch'
   category: text('category').notNull(), // e.g., 'Datos Básicos', 'Apariencia'
@@ -113,7 +117,9 @@ export const characterSheetFields = pgTable('character_sheet_fields', {
   order: integer('order').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+}, (t) => ({
+  coreKeyUnq: uniqueIndex('character_sheet_fields_core_key_unique').on(t.coreKey),
+}));
 
 // Audit Logs Table
 export const auditLogs = pgTable('audit_logs', {
