@@ -174,6 +174,7 @@ export const appliedMechanicReferenceSchema = z.strictObject({
   groupId: z.string().min(1).optional(),
   mechanicId: z.string().min(1),
   ruleId: z.string().min(1),
+  minLevel: z.number().int().positive().optional(),
 });
 
 export const appliedMechanicReferencesSchema = z.array(appliedMechanicReferenceSchema);
@@ -372,7 +373,7 @@ export function resolveAppliedMechanics(
   const applicationIds = new Set<string>();
   for (const reference of references) {
     const groupId = reference.groupId ?? 'default';
-    const key = JSON.stringify([groupId, reference.mechanicId, reference.ruleId]);
+    const key = JSON.stringify([groupId, reference.mechanicId, reference.ruleId, reference.minLevel ?? 1]);
     if (seen.has(key) || applicationIds.has(reference.applicationId)) {
       issues.push({ ...reference, code: 'duplicate_mechanic_reference' });
       continue;

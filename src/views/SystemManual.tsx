@@ -1,4 +1,4 @@
-import { BookOpen, AlertTriangle, Shield, Heart, Zap, Crosshair, ChevronRight, Activity, Hand, Target, ArrowLeft, BadgeCheck, Sparkles } from "lucide-react";
+import { BookOpen, AlertTriangle, Shield, Heart, Zap, Crosshair, ChevronRight, Activity, Hand, Target, ArrowLeft, BadgeCheck, Sparkles, BatteryPlus, HeartPulse } from "lucide-react";
 import useSWR from "swr";
 import { fetcher } from "../lib/api";
 import { useEffect } from "react";
@@ -123,7 +123,7 @@ export default function SystemManual() {
               <div className="space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border border-border bg-card gap-4">
                   <div>
-                    <h3 className="font-bold flex items-center gap-2"><Heart className="w-4 h-4 text-red-400" /> Salud Máxima</h3>
+                    <h3 className="font-bold flex items-center gap-2"><BatteryPlus className="w-4 h-4 text-red-400" /> Salud Máxima</h3>
                     <p className="text-sm text-muted-foreground">Puntos de daño que puedes resistir antes de caer.</p>
                   </div>
                   <div className="bg-muted px-4 py-2 rounded-md font-mono text-sm shrink-0 border border-border/50">

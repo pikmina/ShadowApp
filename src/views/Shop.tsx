@@ -30,9 +30,10 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
-import { ShoppingCart, Plus, Minus, Trash2, Edit2, Save, X, Search, ShieldAlert } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Edit2, Save, X, Search, ShieldAlert, Coins, Sparkles, TrendingUp, Layers } from "lucide-react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
+import { calculateProgressionCost, getProgressionBreakdown } from "../domain/progressionCosts";
 
 
 export default function Shop() {
@@ -67,19 +68,51 @@ export default function Shop() {
   const [checkoutCharacter, setCheckoutCharacter] = useState<string>("");
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
+  // Local progression selections per offerId: { [offerId]: { fromLevel: number, toLevel: number } }
+  const [progressionSelections, setProgressionSelections] = useState<Record<string, { fromLevel: number; toLevel: number }>>({});
 
   // Admin state
   const [editingOffer, setEditingOffer] = useState<any | null>(null);
 
   const isAdmin = role === 'moderator' || role === 'superadmin';
 
-  const addToCart = (offer: any, element: any, currency: string) => {
+  const addStandardToCart = (offer: any, element: any, currency: string) => {
     setCart(prev => {
-      const existing = prev.find(item => item.offerId === offer.id && item.selectedCurrency === currency);
+      const existing = prev.find(item => !item.isProgression && item.offerId === offer.id && item.selectedCurrency === currency);
       if (existing) {
         return prev.map(item => item === existing ? { ...item, quantity: item.quantity + 1 } : item);
       }
-      return [...prev, { offerId: offer.id, offer, element, quantity: 1, selectedCurrency: currency }];
+      return [...prev, {
+        isProgression: false,
+        offerId: offer.id,
+        offer,
+        element,
+        quantity: 1,
+        selectedCurrency: currency,
+        priceAmount: offer.prices.find((p: any) => p.currency === currency)?.amount || 0
+      }];
+    });
+  };
+
+  const addProgressionToCart = (offer: any, element: any, currency: string, fromLevel: number, toLevel: number) => {
+    const baseCost = Number(element.metadata?.baseExpCost) || (offer.prices?.find((p: any) => p.currency === currency)?.amount ?? 100);
+    const cost = calculateProgressionCost(baseCost, fromLevel, toLevel);
+
+    setCart(prev => {
+      // Remove any existing progression for same element to avoid conflicting level updates in same checkout
+      const filtered = prev.filter(item => !(item.isProgression && item.element.id === element.id));
+      return [...filtered, {
+        isProgression: true,
+        offerId: offer.id,
+        offer,
+        element,
+        quantity: 1,
+        fromLevel,
+        toLevel,
+        selectedCurrency: currency,
+        cost,
+        baseCost
+      }];
     });
   };
 
@@ -90,6 +123,7 @@ export default function Shop() {
   const updateQuantity = (index: number, delta: number) => {
     setCart(prev => {
       const copy = [...prev];
+      if (copy[index].isProgression) return prev; // Cannot change quantity on progression upgrades
       copy[index].quantity += delta;
       if (copy[index].quantity <= 0) {
         return copy.filter((_, i) => i !== index);
@@ -98,8 +132,19 @@ export default function Shop() {
     });
   };
 
-  const totalExp = cart.reduce((sum, item) => sum + (item.selectedCurrency === 'exp' ? item.offer.prices.find((p: any) => p.currency === 'exp').amount * item.quantity : 0), 0);
-  const totalYen = cart.reduce((sum, item) => sum + (item.selectedCurrency === 'yen' ? item.offer.prices.find((p: any) => p.currency === 'yen').amount * item.quantity : 0), 0);
+  const totalExp = cart.reduce((sum, item) => {
+    if (item.selectedCurrency !== 'exp') return sum;
+    if (item.isProgression) return sum + (item.cost || 0);
+    const p = item.offer.prices?.find((p: any) => p.currency === 'exp');
+    return sum + (p ? p.amount * item.quantity : 0);
+  }, 0);
+
+  const totalYen = cart.reduce((sum, item) => {
+    if (item.selectedCurrency !== 'yen') return sum;
+    if (item.isProgression) return sum + (item.cost || 0);
+    const p = item.offer.prices?.find((p: any) => p.currency === 'yen');
+    return sum + (p ? p.amount * item.quantity : 0);
+  }, 0);
 
   const handleCheckout = async () => {
     if (!isAdmin) {
@@ -118,11 +163,22 @@ export default function Shop() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           characterId: parseInt(checkoutCharacter, 10),
-          cartItems: cart.map(c => ({
-            offerId: c.offerId,
-            quantity: c.quantity,
-            selectedCurrency: c.selectedCurrency
-          }))
+          cartItems: cart.map(c => {
+            if (c.isProgression) {
+              return {
+                offerId: c.offerId,
+                selectedCurrency: c.selectedCurrency,
+                fromLevel: c.fromLevel,
+                toLevel: c.toLevel,
+                quantity: 1
+              };
+            }
+            return {
+              offerId: c.offerId,
+              quantity: c.quantity,
+              selectedCurrency: c.selectedCurrency
+            };
+          })
         })
       });
       const result = await res.json();
@@ -206,26 +262,124 @@ export default function Shop() {
                   const element = offer.system_elements;
                   const shopData = offer.shop_offers;
                   if (!element) return null;
+
+                  const isProgression = element.kind === 'skill' || element.kind === 'attribute_upgrade';
+                  const maxLevel = Number(element.metadata?.maxLevel) || (element.kind === 'attribute_upgrade' ? 10 : 5);
+                  const baseCost = Number(element.metadata?.baseExpCost) || (shopData.prices?.find((p: any) => p.currency === 'exp')?.amount ?? 100);
+
+                  const curProgression = progressionSelections[shopData.id] || { fromLevel: 0, toLevel: 1 };
+                  const calculatedProgCost = calculateProgressionCost(baseCost, curProgression.fromLevel, curProgression.toLevel);
+
                   return (
-                    <div key={shopData.id} className="bg-card border border-border p-4 flex flex-col relative group overflow-hidden">
-                      <div className="absolute top-0 right-0 bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest border-b border-l border-primary/20">
-                        {element.kind}
+                    <div key={shopData.id} className="bg-card border border-border p-4 flex flex-col relative group overflow-hidden rounded-md shadow-sm">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary border-primary/20">
+                          {element.kind.replace('_', ' ')}
+                        </Badge>
+                        {isProgression && (
+                          <Badge variant="outline" className="text-[10px] font-mono text-amber-400 border-amber-500/30 bg-amber-500/10">
+                            Nv. 1-{maxLevel}
+                          </Badge>
+                        )}
                       </div>
-                      <h3 className="font-bold text-lg mb-1 mt-2 text-foreground truncate" title={element.name}>{element.name}</h3>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mb-4 h-8" title={element.description}>{element.description}</p>
+
+                      <h3 className="font-bold text-base mb-1 text-foreground truncate" title={element.name}>{element.name}</h3>
+                      <p className="text-xs text-muted-foreground line-clamp-2 mb-3 h-8" title={element.description}>{element.description}</p>
                       
-                      <div className="mt-auto flex flex-col gap-2">
-                        {shopData.prices.map((price: any, idx: number) => (
-                          <div key={idx} className="flex justify-between items-center bg-muted/30 p-2 border border-border">
-                            <span className="font-mono font-bold text-sm">
-                              {price.amount} <span className={price.currency === 'exp' ? 'text-indigo-400' : 'text-emerald-400'}>{price.currency.toUpperCase()}</span>
-                            </span>
-                            <Button size="sm" variant="outline" className="h-7 text-xs uppercase tracking-widest" onClick={() => addToCart(shopData, element, price.currency)}>
-                              Añadir
-                            </Button>
+                      {isProgression ? (
+                        <div className="mt-auto pt-2 border-t border-border/60 space-y-2">
+                          <div className="bg-muted/40 p-2 rounded border border-border/50 space-y-2">
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground block mb-0.5">Nivel Actual</Label>
+                                <Select
+                                  value={String(curProgression.fromLevel)}
+                                  onValueChange={(v) => {
+                                    const from = parseInt(v, 10) || 0;
+                                    const to = Math.max(from + 1, curProgression.toLevel);
+                                    setProgressionSelections(prev => ({
+                                      ...prev,
+                                      [shopData.id]: { fromLevel: from, toLevel: Math.min(maxLevel, to) }
+                                    }));
+                                  }}
+                                >
+                                  <SelectTrigger className="h-7 text-xs bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: maxLevel }, (_, i) => (
+                                      <SelectItem key={i} value={String(i)}>Nv. {i}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground block mb-0.5">Nivel Deseado</Label>
+                                <Select
+                                  value={String(curProgression.toLevel)}
+                                  onValueChange={(v) => {
+                                    const to = parseInt(v, 10) || 1;
+                                    setProgressionSelections(prev => ({
+                                      ...prev,
+                                      [shopData.id]: { fromLevel: curProgression.fromLevel, toLevel: to }
+                                    }));
+                                  }}
+                                >
+                                  <SelectTrigger className="h-7 text-xs bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: maxLevel - curProgression.fromLevel }, (_, i) => {
+                                      const lvl = curProgression.fromLevel + 1 + i;
+                                      return (
+                                        <SelectItem key={lvl} value={String(lvl)}>Nv. {lvl}</SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between items-center text-xs pt-1 border-t border-border/40">
+                              <span className="text-[11px] text-muted-foreground">
+                                Coste Base: <strong className="font-mono text-foreground">{baseCost}</strong>
+                              </span>
+                              <span className="font-mono font-bold text-amber-400 inline-flex items-center gap-1">
+                                <Sparkles className="size-3" />
+                                {calculatedProgCost.toLocaleString('es-ES')} EXP
+                              </span>
+                            </div>
                           </div>
-                        ))}
-                      </div>
+
+                          <Button
+                            size="sm"
+                            className="w-full h-8 text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/40"
+                            onClick={() => addProgressionToCart(shopData, element, 'exp', curProgression.fromLevel, curProgression.toLevel)}
+                          >
+                            <Sparkles className="size-3.5 mr-1" />
+                            Añadir Mejora (Nv {curProgression.fromLevel} ➔ {curProgression.toLevel})
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="mt-auto flex flex-col gap-2">
+                          {shopData.prices.map((price: any, idx: number) => (
+                            <div key={idx} className="flex justify-between items-center bg-muted/30 p-2 border border-border rounded">
+                              <span className="font-mono font-bold text-sm inline-flex items-center gap-1.5">
+                                {price.currency === 'exp' ? (
+                                  <Sparkles className="size-3.5 text-indigo-400" />
+                                ) : (
+                                  <Coins className="size-3.5 text-emerald-400" />
+                                )}
+                                {price.amount} <span className={price.currency === 'exp' ? 'text-indigo-400' : 'text-emerald-400'}>{price.currency.toUpperCase()}</span>
+                              </span>
+                              <Button size="sm" variant="outline" className="h-7 text-xs uppercase tracking-widest" onClick={() => addStandardToCart(shopData, element, price.currency)}>
+                                Añadir
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -245,22 +399,48 @@ export default function Shop() {
                 ) : (
                   <div className="flex flex-col gap-3">
                     {cart.map((item, idx) => (
-                      <div key={idx} className="bg-background border border-border p-2 text-sm flex flex-col gap-2">
+                      <div key={idx} className="bg-background border border-border p-2.5 rounded text-sm flex flex-col gap-1.5 shadow-sm">
                         <div className="flex justify-between items-start">
-                          <span className="font-bold truncate" title={item.element.name}>{item.element.name}</span>
-                          <button onClick={() => removeFromCart(idx)} className="text-muted-foreground hover:text-destructive">
+                          <div>
+                            <span className="font-bold block truncate" title={item.element.name}>{item.element.name}</span>
+                            {item.isProgression ? (
+                              <Badge variant="outline" className="text-[10px] mt-0.5 font-mono text-amber-400 border-amber-500/30 bg-amber-500/10">
+                                Mejora: Nv. {item.fromLevel} ➔ Nv. {item.toLevel}
+                              </Badge>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground uppercase">
+                                {item.element.kind}
+                              </span>
+                            )}
+                          </div>
+                          <button onClick={() => removeFromCart(idx)} className="text-muted-foreground hover:text-destructive p-1">
                             <X className="w-4 h-4" />
                           </button>
                         </div>
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-muted-foreground uppercase tracking-widest">
-                            {item.offer.prices.find((p:any) => p.currency === item.selectedCurrency).amount} {item.selectedCurrency} c/u
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => updateQuantity(idx, -1)} className="bg-muted p-0.5 rounded hover:bg-muted-foreground/20"><Minus className="w-3 h-3" /></button>
-                            <span className="font-mono w-4 text-center">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(idx, 1)} className="bg-muted p-0.5 rounded hover:bg-muted-foreground/20"><Plus className="w-3 h-3" /></button>
-                          </div>
+
+                        <div className="flex justify-between items-center text-xs pt-1 border-t border-border/40">
+                          {item.isProgression ? (
+                            <>
+                              <span className="text-[11px] text-muted-foreground">
+                                Base: {item.baseCost} EXP
+                              </span>
+                              <span className="font-mono font-bold text-amber-400 flex items-center gap-1">
+                                <Sparkles className="size-3" />
+                                {item.cost?.toLocaleString('es-ES')} EXP
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-muted-foreground uppercase tracking-wider">
+                                {item.priceAmount} {item.selectedCurrency} c/u
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button onClick={() => updateQuantity(idx, -1)} className="bg-muted p-0.5 rounded hover:bg-muted-foreground/20"><Minus className="w-3 h-3" /></button>
+                                <span className="font-mono w-4 text-center">{item.quantity}</span>
+                                <button onClick={() => updateQuantity(idx, 1)} className="bg-muted p-0.5 rounded hover:bg-muted-foreground/20"><Plus className="w-3 h-3" /></button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -268,12 +448,12 @@ export default function Shop() {
                 )}
               </ScrollArea>
               <div className="p-4 border-t border-border bg-background">
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-muted-foreground">Total EXP:</span>
+                <div className="flex justify-between items-center text-sm mb-1">
+                  <span className="text-muted-foreground flex items-center gap-1.5"><Sparkles className="size-4 text-indigo-400" /> Total EXP:</span>
                   <span className="font-mono font-bold text-indigo-400">{totalExp}</span>
                 </div>
-                <div className="flex justify-between text-sm mb-4">
-                  <span className="text-muted-foreground">Total Yen:</span>
+                <div className="flex justify-between items-center text-sm mb-4">
+                  <span className="text-muted-foreground flex items-center gap-1.5"><Coins className="size-4 text-emerald-400" /> Total Yen:</span>
                   <span className="font-mono font-bold text-emerald-400">{totalYen}</span>
                 </div>
                 {isAdmin ? (

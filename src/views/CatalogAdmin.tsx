@@ -34,11 +34,20 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
-import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff } from "lucide-react";
+import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff, Sparkles, Layers, Copy } from "lucide-react";
 import { useMemo } from "react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
+import { getProgressionBreakdown } from "../domain/progressionCosts";
 
+const ATTRIBUTE_OPTIONS = [
+  { id: "FUE", name: "Fuerza (FUE)" },
+  { id: "DES", name: "Destreza (DES)" },
+  { id: "RES", name: "Resistencia (RES)" },
+  { id: "INT", name: "Inteligencia (INT)" },
+  { id: "VOL", name: "Voluntad (VOL)" },
+  { id: "VEL", name: "Velocidad (VEL)" },
+];
 
 const defaultForm = {
   id: "",
@@ -47,7 +56,8 @@ const defaultForm = {
   description: "",
   status: "draft",
   effects: [] as any[],
-  requirements: { operator: "all", requirements: [] as any[] }
+  requirements: { operator: "all", requirements: [] as any[] },
+  metadata: {} as Record<string, any>
 };
 
 const KIND_TYPES: Record<string, string> = {
@@ -141,10 +151,23 @@ export default function CatalogAdmin() {
         description: el.description,
         status: el.status,
         effects: el.effects || [],
-        requirements: normalizeRequirements(el.requirements)
+        requirements: normalizeRequirements(el.requirements),
+        metadata: {
+          baseExpCost: el.metadata?.baseExpCost ?? (el.kind === 'attribute_upgrade' ? 200 : el.kind === 'skill' ? 100 : undefined),
+          maxLevel: el.metadata?.maxLevel ?? (el.kind === 'attribute_upgrade' ? 10 : el.kind === 'skill' ? 5 : 5),
+          attributeId: el.metadata?.attributeId ?? 'FUE',
+          ...el.metadata
+        }
       });
     } else {
-      setForm(defaultForm);
+      setForm({
+        ...defaultForm,
+        metadata: {
+          baseExpCost: 100,
+          maxLevel: 5,
+          attributeId: "FUE"
+        }
+      });
     }
     setActiveTab("info");
     setIsDialogOpen(true);
@@ -180,6 +203,31 @@ export default function CatalogAdmin() {
     } catch (e) {
       console.error(e);
       alert("Error al actualizar estado");
+    }
+  };
+
+  const handleDuplicate = async (el: any) => {
+    try {
+      const { id, createdAt, updatedAt, ...rest } = el;
+      const duplicated = {
+        ...rest,
+        name: `${el.name} (Copia)`,
+        status: "draft",
+        effects: el.effects?.map((eff: any) => ({
+          ...eff,
+          applicationId: nanoid(),
+        })) || [],
+      };
+      const res = await apiFetch("/api/elements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(duplicated),
+      });
+      if (!res.ok) throw new Error("Error duplicando");
+      mutate();
+    } catch (e) {
+      console.error(e);
+      alert("Error al duplicar elemento");
     }
   };
 
@@ -287,7 +335,19 @@ export default function CatalogAdmin() {
             ) : (
               filteredElements.map((el: any) => (
                 <TableRow key={el.id}>
-                  <TableCell className="font-semibold">{el.name}</TableCell>
+                  <TableCell className="font-semibold">
+                    <div>
+                      <span>{el.name}</span>
+                      {(el.kind === 'skill' || el.kind === 'attribute_upgrade') && Number(el.metadata?.baseExpCost) > 0 && (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-400 bg-amber-500/10 font-mono">
+                            <Sparkles className="size-2.5 mr-1 inline" />
+                            Base: {Number(el.metadata.baseExpCost).toLocaleString('es-ES')} EXP (Nv 1-{el.metadata?.maxLevel || (el.kind === 'attribute_upgrade' ? 10 : 5)})
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="capitalize">{KIND_TYPES[el.kind] || el.kind.replaceAll("_", " ")}</Badge>
                   </TableCell>
@@ -302,6 +362,7 @@ export default function CatalogAdmin() {
                       <Button variant="outline" size="icon" aria-label={el.status === "published" ? `Pasar a borrador ${el.name}` : `Publicar ${el.name}`} onClick={() => handleToggleStatus(el)}>
                         {el.status === "published" ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
+                      <Button variant="outline" size="icon" aria-label={`Duplicar ${el.name}`} title="Duplicar elemento" onClick={() => handleDuplicate(el)}><Copy className="w-4 h-4 text-muted-foreground hover:text-foreground" /></Button>
                       <Button variant="outline" size="icon" aria-label={`Editar ${el.name}`} onClick={() => handleOpenDialog(el)}><Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" /></Button>
                       {deleteConfirmId === el.id ? (
                         <div className="flex items-center gap-1">
@@ -335,8 +396,12 @@ export default function CatalogAdmin() {
               <div className="px-4 sm:px-6 pt-3 pb-2 border-b bg-muted/40 overflow-x-auto no-scrollbar">
                 <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto h-auto p-1 gap-1 bg-card border border-border/50">
                   <TabsTrigger value="info" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">1. Info Básica</TabsTrigger>
-                  <TabsTrigger value="effects" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">2. Efectos Mecánicos</TabsTrigger>
-                  <TabsTrigger value="reqs" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">3. Requisitos</TabsTrigger>
+                  {form.kind !== 'attribute_upgrade' && (
+                    <TabsTrigger value="effects" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">2. Efectos Mecánicos</TabsTrigger>
+                  )}
+                  <TabsTrigger value="reqs" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">
+                    {form.kind === 'attribute_upgrade' ? '2. Requisitos' : '3. Requisitos'}
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -348,7 +413,23 @@ export default function CatalogAdmin() {
                   </div>
                   <div className="grid gap-2">
                     <Label>Tipo de Elemento (Mecánica)</Label>
-                    <Select value={form.kind} onValueChange={v => setForm({...form, kind: v})}>
+                    <Select value={form.kind} onValueChange={v => {
+                      const isAttr = v === 'attribute_upgrade';
+                      const isSkill = v === 'skill';
+                      if (isAttr && activeTab === 'effects') {
+                        setActiveTab('info');
+                      }
+                      setForm({
+                        ...form,
+                        kind: v,
+                        metadata: {
+                          ...form.metadata,
+                          baseExpCost: form.metadata?.baseExpCost ?? (isAttr ? 200 : isSkill ? 100 : 0),
+                          maxLevel: form.metadata?.maxLevel ?? (isAttr ? 10 : isSkill ? 5 : 5),
+                          attributeId: form.metadata?.attributeId ?? 'FUE'
+                        }
+                      });
+                    }}>
                       <SelectTrigger>
                         <SelectValue>{KIND_TYPES[form.kind] || "Selecciona un tipo"}</SelectValue>
                       </SelectTrigger>
@@ -374,6 +455,125 @@ export default function CatalogAdmin() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Configuración de Progresión por Niveles y Costes Base en EXP */}
+                  {(form.kind === 'skill' || form.kind === 'attribute_upgrade') && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-amber-400">
+                          <Sparkles className="size-4" />
+                          <h4 className="text-xs font-bold uppercase tracking-wider">Progresión por Niveles y Coste en EXP</h4>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] font-mono border-amber-500/30 text-amber-400 bg-amber-500/10">
+                          Coste = Base × Nivel Actual (0➔1 = Base)
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {form.kind === 'attribute_upgrade' && (
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-foreground font-medium">Atributo Asociado</Label>
+                            <Select
+                              value={form.metadata?.attributeId || 'FUE'}
+                              onValueChange={v => setForm({
+                                ...form,
+                                metadata: { ...form.metadata, attributeId: v }
+                              })}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background/80">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ATTRIBUTE_OPTIONS.map(attr => (
+                                  <SelectItem key={attr.id} value={attr.id}>{attr.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-foreground font-medium flex items-center gap-1">
+                            <span>Coste Base en EXP</span>
+                            <Sparkles className="size-3 text-amber-400" />
+                          </Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={form.metadata?.baseExpCost ?? (form.kind === 'attribute_upgrade' ? 200 : 100)}
+                            onChange={e => setForm({
+                              ...form,
+                              metadata: {
+                                ...form.metadata,
+                                baseExpCost: Math.max(0, parseInt(e.target.value, 10) || 0)
+                              }
+                            })}
+                            className="h-8 text-xs font-mono font-bold bg-background/80"
+                            placeholder="Ej: 100, 200, 350, 400..."
+                          />
+                        </div>
+
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-foreground font-medium">Nivel Máximo</Label>
+                          <Select
+                            value={String(form.metadata?.maxLevel ?? (form.kind === 'attribute_upgrade' ? 10 : 5))}
+                            onValueChange={v => setForm({
+                              ...form,
+                              metadata: {
+                                ...form.metadata,
+                                maxLevel: parseInt(v, 10) || (form.kind === 'attribute_upgrade' ? 10 : 5)
+                              }
+                            })}
+                          >
+                            <SelectTrigger className="h-8 text-xs bg-background/80">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(lvl => (
+                                <SelectItem key={lvl} value={String(lvl)}>Nivel {lvl}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Live Progression Breakdown */}
+                      {(() => {
+                        const baseCost = form.metadata?.baseExpCost ?? (form.kind === 'attribute_upgrade' ? 200 : 100);
+                        const maxLvl = form.metadata?.maxLevel ?? (form.kind === 'attribute_upgrade' ? 10 : 5);
+                        const breakdown = getProgressionBreakdown(baseCost, maxLvl);
+                        if (breakdown.length === 0) return null;
+
+                        return (
+                          <div className="mt-2 pt-2 border-t border-amber-500/20">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                              Desglose de Costes Calculado en Tiempo Real:
+                            </span>
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                              {breakdown.map(step => (
+                                <div key={step.toLevel} className="bg-background/60 rounded p-1.5 border border-border/40 text-center">
+                                  <span className="block text-[10px] font-bold text-amber-400">
+                                    Nv. {step.toLevel}
+                                  </span>
+                                  <span className="text-xs font-mono font-bold text-foreground block">
+                                    {step.cost.toLocaleString('es-ES')} <span className="text-[9px] text-amber-400">EXP</span>
+                                  </span>
+                                  <span className="text-[9px] text-muted-foreground block">
+                                    Acum: {step.cumulativeCost.toLocaleString('es-ES')}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-2 text-right">
+                              <span className="text-xs text-muted-foreground">
+                                Coste Total (Nv 0 ➔ {maxLvl}): <strong className="text-amber-400 font-mono">{breakdown[breakdown.length - 1].cumulativeCost.toLocaleString('es-ES')} EXP</strong>
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                   <div className="grid gap-2">
                     <Label>Descripción Narrativa</Label>
                     <Textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="h-32" placeholder="Describe qué hace esto a nivel narrativo y de rol..." />
@@ -457,6 +657,7 @@ export default function CatalogAdmin() {
                   <MechanicalEffectsEditor
                     effects={form.effects || []}
                     mechanics={mechanics}
+                    maxLevel={form.kind === 'skill' ? (Number(form.metadata?.maxLevel) || 5) : undefined}
                     onChange={(effects) => setForm((current) => ({ ...current, effects }))}
                   />
                 </TabsContent>

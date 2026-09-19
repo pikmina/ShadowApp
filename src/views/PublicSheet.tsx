@@ -5,15 +5,19 @@ import {
   AlertTriangle,
   Award,
   BatteryCharging,
+  BatteryPlus,
   Bookmark,
   Brain,
   BrainCircuit,
   Briefcase,
+  Cake,
   CircleUserRound,
   Coins,
   Cpu,
   Crosshair,
   Diff,
+  Droplet,
+  Earth,
   Feather,
   Flame,
   GraduationCap,
@@ -21,18 +25,25 @@ import {
   HeartCrack,
   HeartPlus,
   HeartPulse,
+  Mars,
+  NonBinary,
   Package,
   PackageOpen,
+  PersonStanding,
+  Scale,
   Scroll,
   Shield,
   ShieldHalf,
   ShieldUser,
   Shuffle,
   Sparkles,
+  SportShoe,
   Swords,
   Target,
   User,
   UserStar,
+  UserShield,
+  Venus,
   Wind,
   Zap,
 } from 'lucide-react';
@@ -174,7 +185,7 @@ export default function PublicSheet() {
 
   const baseAttributes = [
     { label: 'Fuerza', value: readValue(profile, ['FUE', 'fue', 'fuerza']), icon: HandFist },
-    { label: 'Resistencia', value: readValue(profile, ['RES', 'res', 'resistencia']), icon: HeartPlus },
+    { label: 'Resistencia', value: readValue(profile, ['RES', 'res', 'resistencia']), icon: HeartPulse },
     { label: 'Destreza', value: readValue(profile, ['DES', 'des', 'destreza']), icon: Zap },
     { label: 'Inteligencia', value: readValue(profile, ['INT', 'int', 'inteligencia']), icon: Brain },
     { label: 'Velocidad', value: readValue(profile, ['VEL', 'vel', 'velocidad']), icon: Wind },
@@ -182,8 +193,8 @@ export default function PublicSheet() {
   ];
 
   const defenseList = [
-    { label: 'EVASIÓN', value: derived?.evasion ?? readValue(profile, ['evasion', 'evasión', 'eva']), icon: Shuffle },
-    { label: 'CORAJE', value: derived?.coraje ?? readValue(profile, ['coraje', 'cor', 'courage']), icon: Shield }
+    { label: 'EVASIÓN', value: derived?.evasion ?? readValue(profile, ['evasion', 'evasión', 'eva']), icon: SportShoe },
+    { label: 'CORAJE', value: derived?.coraje ?? readValue(profile, ['coraje', 'cor', 'courage']), icon: UserShield }
   ];
 
   const derivedGrid = [
@@ -226,14 +237,22 @@ export default function PublicSheet() {
   const age = readValue(profile, ['basic_age', 'age', 'edad']);
   const bloodType = readValue(profile, ['basic_blood_type', 'bloodType', 'blood_type', 'sangre', 'grupo_sanguineo']);
   const faceclaim = readValue(profile, ['faceclaim', 'faceclaim_pb', 'pb']);
+  const genderRaw = readValue(profile, ['gender', 'genero', 'género', 'sexo']);
+
+  const genderIcon = useMemo(() => {
+    const str = String(genderRaw ?? '').toLowerCase().trim();
+    if (str.includes('fem') || str.includes('mujer') || str === 'f') return Venus;
+    if (str.includes('masc') || str.includes('hombre') || str === 'm') return Mars;
+    return NonBinary;
+  }, [genderRaw]);
 
   const identityData = [
-    { label: 'SANGRE', tag: 'RH', value: bloodType },
-    { label: 'EDAD', tag: 'AÑOS', value: age },
-    { label: 'NACIMIENTO', tag: 'DOB', value: birthDate },
-    { label: 'ALINEACIÓN', tag: 'ALGN', value: readValue(profile, ['basic_alignment', 'alignment', 'alineacion', 'alineación']) },
-    { label: 'GÉNERO', tag: 'GND', value: readValue(profile, ['gender', 'genero', 'género', 'sexo']) },
-    { label: 'NACIONALIDAD', tag: 'NAT', value: readValue(profile, ['nationality', 'nacionalidad']) }
+    { label: 'SANGRE', tag: 'RH', value: bloodType, icon: Droplet },
+    { label: 'EDAD', tag: 'AÑOS', value: age, icon: PersonStanding },
+    { label: 'NACIMIENTO', tag: 'DOB', value: birthDate, icon: Cake },
+    { label: 'ALINEACIÓN', tag: 'ALGN', value: readValue(profile, ['basic_alignment', 'alignment', 'alineacion', 'alineación']), icon: Scale },
+    { label: 'GÉNERO', tag: 'GND', value: genderRaw, icon: genderIcon },
+    { label: 'NACIONALIDAD', tag: 'NAT', value: readValue(profile, ['nationality', 'nacionalidad']), icon: Earth }
   ];
 
   // Skills
@@ -341,6 +360,7 @@ export default function PublicSheet() {
                 <strong className="block text-base leading-none text-text1">{displayValue(value, '0')}</strong>
                 <span className="mt-0.5 flex items-center justify-center gap-1 text-[8px] uppercase tracking-widest text-text2">
                   {(label === 'Yenes' || label === 'Yens') && <Coins className="size-2.5 text-amber-400 shrink-0" />}
+                  {label === 'EXP' && <Sparkles className="size-2.5 text-amber-400 shrink-0" />}
                   {String(label)}
                 </span>
               </div>
@@ -359,24 +379,30 @@ export default function PublicSheet() {
           cornerTicks
         >
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 font-mono">
-            {identityData.map((item) => (
-              <div
-                key={item.label}
-                className="rounded border border-border/50 bg-bg1/85 px-2.5 py-1.5 text-center flex flex-col justify-center transition-colors hover:border-primary/50 hover:bg-bg1/95 group min-w-0"
-              >
-                <div className="flex items-center justify-center gap-1 text-[8.5px] uppercase tracking-wider text-text2/70 font-mono">
-                  <span>{item.label}</span>
-                  <span className="text-primary/70 font-bold">//</span>
-                  <span className="text-text2/50 text-[7.5px]">{item.tag}</span>
-                </div>
-                <strong
-                  className="block font-mono text-xs sm:text-[13px] font-bold text-text1 truncate mt-0.5 tracking-tight"
-                  title={String(item.value ?? '')}
+            {identityData.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <div
+                  key={item.label}
+                  className="rounded border border-border/50 bg-bg1/85 px-2.5 py-2 text-center flex flex-col items-center justify-center transition-colors hover:border-primary/50 hover:bg-bg1/95 group min-w-0"
                 >
-                  {displayValue(item.value)}
-                </strong>
-              </div>
-            ))}
+                  {IconComponent && (
+                    <IconComponent className="size-3.5 mb-1 text-accent2 group-hover:text-primary transition-colors" />
+                  )}
+                  <div className="flex items-center justify-center gap-1 text-[8.5px] uppercase tracking-wider text-text2/70 font-mono">
+                    <span>{item.label}</span>
+                    <span className="text-primary/70 font-bold">//</span>
+                    <span className="text-text2/50 text-[7.5px]">{item.tag}</span>
+                  </div>
+                  <strong
+                    className="block font-mono text-xs sm:text-[13px] font-bold text-text1 truncate mt-0.5 tracking-tight w-full"
+                    title={String(item.value ?? '')}
+                  >
+                    {displayValue(item.value)}
+                  </strong>
+                </div>
+              );
+            })}
           </div>
         </EntityPanel>
 
@@ -425,14 +451,14 @@ export default function PublicSheet() {
               {/* Column 2: Estatus & Atributos Base (4 of 7) */}
               <div className="flex flex-col gap-3 sm:col-span-4">
                 {/* Estatus */}
-                <div className="rounded border border-bg4/50 bg-bg2/80 p-3">
-                  <h2 className="mb-2 flex items-center justify-center gap-2 font-oxanium text-xs font-bold uppercase tracking-widest text-text1">
+                <div className="rounded border border-bg4/50 bg-bg2/80 p-3 pb-5">
+                  <h2 className="flex items-center justify-center mt-3 mb-4 gap-2 font-oxanium text-xs font-bold uppercase tracking-widest text-text1">
                     <CircleUserRound className="size-3.5 text-accent2" /> Estatus
                   </h2>
                   <div className="grid grid-cols-1 gap-2">
                     <div className="grid grid-cols-[auto_1fr_auto] items-center rounded border border-accent1/40 bg-gradient-to-r from-bg1 via-accent1/10 to-bg1 px-3 py-2 sm:px-3.5 sm:py-2.5">
                       <div className="text-text2/50 shrink-0 flex items-center justify-center w-6">
-                        <HeartPlus className="size-5.5 sm:size-6" strokeWidth={1.5} />
+                        <BatteryPlus className="size-5.5 sm:size-6" strokeWidth={1.5} />
                       </div>
                       <div className="text-center min-w-0">
                         <span className="block font-oxanium text-[10.5px] sm:text-xs font-bold uppercase tracking-wider text-primary">Salud</span>
@@ -461,7 +487,7 @@ export default function PublicSheet() {
 
                 {/* Atributos Base */}
                 <div className="rounded border border-bg4/50 bg-bg2/80 p-3 flex flex-col flex-1">
-                  <h2 className="mb-2 flex items-center justify-center gap-2 font-oxanium text-xs font-bold uppercase tracking-widest text-text1">
+                  <h2 className="flex items-center justify-center mt-3 mb-4 gap-2 font-oxanium text-xs font-bold uppercase tracking-widest text-text1">
                     <HeartPulse className="size-3.5 text-accent2" /> Atributos Base
                   </h2>
                   <div className="grid grid-cols-2 gap-2 flex-1 content-start">
@@ -497,8 +523,8 @@ export default function PublicSheet() {
           {/* Column 3: Defensas & Atributos Derivados */}
           <div className="flex flex-col gap-3 lg:col-span-5">
             {/* Defensas */}
-            <div className="rounded border border-bg4/50 bg-bg2/80 p-3">
-              <h2 className="mb-2 flex items-center justify-center gap-2 font-oxanium text-xs font-bold uppercase tracking-widest text-text1">
+            <div className="rounded border border-bg4/50 bg-bg2/80 p-3 pb-5">
+              <h2 className="flex items-center justify-center mt-3 mb-4 gap-2 font-oxanium text-xs font-bold uppercase tracking-widest text-text1">
                 <Shield className="size-3.5 text-accent2" /> Defensas
               </h2>
               <div className="grid grid-cols-1 gap-2">
@@ -531,7 +557,7 @@ export default function PublicSheet() {
 
             {/* Atributos Derivados */}
             <div className="rounded border border-bg4/50 bg-bg2/80 p-3 flex flex-col flex-1">
-              <h2 className="mb-2 flex items-center justify-center gap-2 font-oxanium text-xs font-bold uppercase tracking-widest text-text1">
+              <h2 className="mt-3 mb-4 flex items-center justify-center gap-2 font-oxanium text-xs font-bold uppercase tracking-widest text-text1">
                 <HeartPulse className="size-3.5 text-primary" /> Atributos Derivados
               </h2>
               <div className="grid grid-cols-2 gap-2 flex-1 content-start">
@@ -789,7 +815,10 @@ export default function PublicSheet() {
                 <div className="flex items-center justify-between text-[9px] font-mono text-text2/60 px-1 pt-0.5">
                   <span className="tracking-widest">SEC.NODE // 77-B</span>
                   <span className="tracking-wider">SYNC // {((Number(character.id) * 17 + 83) % 15 + 85).toFixed(1)}%</span>
-                  <span className="tracking-widest">EXP: {character.exp ?? 0}</span>
+                  <span className="tracking-widest flex items-center gap-1">
+                    <Sparkles className="size-2.5 text-amber-400 shrink-0" />
+                    EXP: {character.exp ?? 0}
+                  </span>
                 </div>
               </div>
             </CyberFillerPanel>

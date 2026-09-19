@@ -473,8 +473,10 @@ async function startServer() {
         characterId: z.number().int().positive(),
         cartItems: z.array(z.object({
           offerId: z.string().min(1),
-          quantity: z.number().int().positive(),
-          selectedCurrency: z.enum(['exp', 'yen'])
+          quantity: z.number().int().positive().optional().default(1),
+          selectedCurrency: z.enum(['exp', 'yen']),
+          fromLevel: z.number().int().min(0).max(20).optional(),
+          toLevel: z.number().int().min(1).max(20).optional()
         })).min(1)
       });
       const parsed = PurchaseSchema.safeParse(req.body);

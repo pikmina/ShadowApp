@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus } from "lucide-react";
+import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus } from "lucide-react";
 import { toast } from "sonner";
 import { validateCharacter, calculateDerivedStats } from "@/lib/characterValidation";
 import { Badge } from "@/components/ui/badge";
@@ -889,7 +889,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                     {[
                       { id: 'FUE', label: 'Fuerza', icon: Swords },
                       { id: 'DES', label: 'Destreza', icon: Zap },
-                      { id: 'RES', label: 'Resistencia', icon: Shield },
+                      { id: 'RES', label: 'Resistencia', icon: HeartPulse },
                       { id: 'INT', label: 'Inteligencia', icon: Brain },
                       { id: 'VOL', label: 'Voluntad', icon: Flame },
                       { id: 'VEL', label: 'Velocidad', icon: Wind }
