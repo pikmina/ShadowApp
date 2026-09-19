@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
 import { MechanicalEffectsEditor } from "../components/mechanics/MechanicalEffectsEditor";
@@ -54,8 +55,7 @@ const STATUS_TYPES: Record<string, string> = {
 
 export default function TechniquesAdmin() {
   const { user } = useAuth();
-  
-  
+  const [searchParams] = useSearchParams();
 
   const { data: rules } = useSWR(user ? "/api/rules" : null, fetcher);
   const mechanicsRule = rules?.find((r: any) => r.key === "system_mechanics") || { value: [] };
@@ -67,10 +67,17 @@ export default function TechniquesAdmin() {
 
   const elements = rawElements?.filter((el: any) => el.kind === "technique_entitlement");
 
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(() => searchParams.get('create') === 'true');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("info");
   const [form, setForm] = useState(defaultForm);
+
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setForm({ ...defaultForm, id: nanoid(8) });
+      setIsDialogOpen(true);
+    }
+  }, [searchParams]);
 
   const handleOpenDialog = (el?: any) => {
     if (el) {

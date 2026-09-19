@@ -1,6 +1,7 @@
 import { SectionHeader } from "../components/common/SectionHeader";
 import { Library as SectionIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
 import { MechanicalEffectsEditor } from "../components/mechanics/MechanicalEffectsEditor";
@@ -101,13 +102,21 @@ const normalizeRequirements = (value: any) => ({
 
 export default function CatalogAdmin() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
 
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(() => searchParams.get('create') === 'true');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("info");
   const [form, setForm] = useState(defaultForm);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("all");
+
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setForm({ ...defaultForm, id: nanoid(8) });
+      setIsDialogOpen(true);
+    }
+  }, [searchParams]);
 
   
   

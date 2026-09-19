@@ -15,7 +15,7 @@ export async function getShopOffers() {
   }
 }
 
-export async function upsertShopOffer(data: any) {
+export async function upsertShopOffer(data: any, actorUid?: string) {
   try {
     let id = data.id;
     const globalStock = data.globalStock !== undefined && data.globalStock !== "" ? Number(data.globalStock) : null;
@@ -31,8 +31,25 @@ export async function upsertShopOffer(data: any) {
         globalStock,
         perCharacterLimit,
       }).returning();
+
+      if (actorUid) {
+        await db.insert(auditLogs).values({
+          actorUid,
+          actionType: 'shop_offer_created',
+          targetId: id,
+          details: {
+            elementId: data.elementId,
+            status: data.status || 'draft',
+            prices: data.prices || [],
+            globalStock,
+            perCharacterLimit,
+          },
+        });
+      }
+
       return result[0];
     } else {
+      const [existing] = await db.select().from(shopOffers).where(eq(shopOffers.id, id));
       const result = await db.update(shopOffers).set({
         elementId: data.elementId,
         status: data.status,
@@ -41,6 +58,23 @@ export async function upsertShopOffer(data: any) {
         perCharacterLimit,
         updatedAt: new Date(),
       }).where(eq(shopOffers.id, id)).returning();
+
+      if (actorUid) {
+        await db.insert(auditLogs).values({
+          actorUid,
+          actionType: 'shop_offer_updated',
+          targetId: id,
+          details: {
+            elementId: data.elementId,
+            status: data.status,
+            previousStatus: existing?.status,
+            prices: data.prices,
+            globalStock,
+            perCharacterLimit,
+          },
+        });
+      }
+
       return result[0];
     }
   } catch (error) {
@@ -49,9 +83,22 @@ export async function upsertShopOffer(data: any) {
   }
 }
 
-export async function deleteShopOffer(id: string) {
+export async function deleteShopOffer(id: string, actorUid?: string) {
   try {
+    const [existing] = await db.select().from(shopOffers).where(eq(shopOffers.id, id));
     await db.delete(shopOffers).where(eq(shopOffers.id, id));
+
+    if (actorUid && existing) {
+      await db.insert(auditLogs).values({
+        actorUid,
+        actionType: 'shop_offer_deleted',
+        targetId: id,
+        details: {
+          elementId: existing.elementId,
+          status: existing.status,
+        },
+      });
+    }
   } catch (error) {
     console.error("Database query failed:", error);
     throw new Error("Failed to delete shop offer", { cause: error });

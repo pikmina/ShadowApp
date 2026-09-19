@@ -1,6 +1,6 @@
 import { eq, or, and, isNull, isNotNull, asc } from 'drizzle-orm';
 import { db } from './index.ts';
-import { canonCharacters, characters } from './schema.ts';
+import { canonCharacters, characters, auditLogs } from './schema.ts';
 import { getOwnerEmployments } from './employments.ts';
 import { getOwnerEnrollment } from './academicClasses.ts';
 
@@ -41,7 +41,7 @@ export async function getCanonCharacters() {
   }));
 }
 
-export async function createCanonCharacter(data: { name: string; firstName?: string | null; lastName?: string | null; aliases?: string[]; summary?: string | null; imageUrl?: string | null; affiliation?: string | null; profileData?: Record<string, unknown>; active?: boolean }) {
+export async function createCanonCharacter(data: { name: string; firstName?: string | null; lastName?: string | null; aliases?: string[]; summary?: string | null; imageUrl?: string | null; affiliation?: string | null; profileData?: Record<string, unknown>; active?: boolean }, actorUid?: string) {
   const id = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const [created] = await db.insert(canonCharacters).values({
     id,
@@ -56,31 +56,69 @@ export async function createCanonCharacter(data: { name: string; firstName?: str
     active: data.active ?? true,
     reserved: false,
   }).returning();
+
+  if (actorUid) {
+    await db.insert(auditLogs).values({
+      actorUid,
+      actionType: 'canon_character_created',
+      targetId: created.id,
+      details: {
+        name: created.name,
+        affiliation: created.affiliation,
+      },
+    });
+  }
+
   return created;
 }
 
-export async function updateCanonCharacter(id: string, data: Partial<typeof canonCharacters.$inferInsert>) {
+export async function updateCanonCharacter(id: string, data: Partial<typeof canonCharacters.$inferInsert>, actorUid?: string) {
   const [updated] = await db.update(canonCharacters).set({
     ...data,
     updatedAt: new Date(),
   }).where(eq(canonCharacters.id, id)).returning();
+
+  if (actorUid && updated) {
+    await db.insert(auditLogs).values({
+      actorUid,
+      actionType: 'canon_character_updated',
+      targetId: id,
+      details: {
+        name: updated.name,
+        updatedFields: Object.keys(data),
+      },
+    });
+  }
+
   return updated;
 }
 
-export async function reserveCanonCharacter(id: string) {
-  return updateCanonCharacter(id, { reserved: true });
+export async function reserveCanonCharacter(id: string, actorUid?: string) {
+  return updateCanonCharacter(id, { reserved: true }, actorUid);
 }
 
-export async function releaseCanonCharacter(id: string) {
-  return updateCanonCharacter(id, { reserved: false });
+export async function releaseCanonCharacter(id: string, actorUid?: string) {
+  return updateCanonCharacter(id, { reserved: false }, actorUid);
 }
 
-export async function deleteCanonCharacter(id: string) {
+export async function deleteCanonCharacter(id: string, actorUid?: string) {
   // Check if occupied
   const occupied = await db.select().from(characters).where(eq(characters.canonCharacterId, id)).limit(1);
   if (occupied.length > 0) {
     throw new Error('Cannot delete a Canon Character that is currently occupied by a Character sheet.');
   }
 
+  const [existing] = await db.select().from(canonCharacters).where(eq(canonCharacters.id, id));
   await db.delete(canonCharacters).where(eq(canonCharacters.id, id));
+
+  if (actorUid && existing) {
+    await db.insert(auditLogs).values({
+      actorUid,
+      actionType: 'canon_character_deleted',
+      targetId: id,
+      details: {
+        name: existing.name,
+      },
+    });
+  }
 }

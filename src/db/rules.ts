@@ -1,7 +1,7 @@
 import { assertElementMechanics } from "../domain/elementMechanics.ts";
 import { migrateCoreCategories, validateCoreCategories } from "../domain/coreRuleCatalog.ts";
 import { systemMechanicsConfigSchema } from "../domain/systemMechanics.ts";
-import { systemElements } from "./schema.ts";
+import { systemElements, auditLogs } from "./schema.ts";
 import { db } from './index.ts';
 import { systemRules } from './schema.ts';
 import { eq, sql } from 'drizzle-orm';
@@ -26,7 +26,7 @@ export async function getRule(key: string) {
   }
 }
 
-export async function upsertRule(key: string, type: string, value: any, description: string) {
+export async function upsertRule(key: string, type: string, value: any, description: string, actorUid?: string) {
   try {
     if (key === 'employment_compensation') value = employmentCompensationSchema.parse(value);
     if (key === 'system_mechanics') {
@@ -40,9 +40,24 @@ export async function upsertRule(key: string, type: string, value: any, descript
         }
         for (const element of elements) assertElementMechanics(element.effects as unknown[], element.status === 'published' ? 'draft' : element.status, parsed);
         const result = await tx.insert(systemRules).values({ key, type, value: parsed, description }).onConflictDoUpdate({ target: systemRules.key, set: { type, value: parsed, description, updatedAt: new Date() } }).returning();
+        
+        if (actorUid && actorUid !== 'system_seed') {
+          await tx.insert(auditLogs).values({
+            actorUid,
+            actionType: 'rule_updated',
+            targetId: key,
+            details: {
+              key,
+              type,
+              description,
+            },
+          });
+        }
+
         return result[0];
       });
     }
+    const existing = await getRule(key);
     const result = await db.insert(systemRules)
       .values({ key, type, value, description })
       .onConflictDoUpdate({
@@ -50,6 +65,20 @@ export async function upsertRule(key: string, type: string, value: any, descript
         set: { type, value, description, updatedAt: new Date() }
       })
       .returning();
+
+    if (actorUid && actorUid !== 'system_seed') {
+      await db.insert(auditLogs).values({
+        actorUid,
+        actionType: existing ? 'rule_updated' : 'rule_created',
+        targetId: key,
+        details: {
+          key,
+          type,
+          description,
+        },
+      });
+    }
+
     return result[0];
   } catch (error) {
     if (error instanceof Error && "status" in error) throw error;
@@ -58,10 +87,23 @@ export async function upsertRule(key: string, type: string, value: any, descript
   }
 }
 
-export async function deleteRule(key: string) {
+export async function deleteRule(key: string, actorUid?: string) {
   if (["system_mechanics", "stamina_execution_costs", "employment_compensation"].includes(key)) throw new Error("Core rules cannot be deleted");
   try {
+    const [existing] = await db.select().from(systemRules).where(eq(systemRules.key, key));
     await db.delete(systemRules).where(eq(systemRules.key, key));
+
+    if (actorUid) {
+      await db.insert(auditLogs).values({
+        actorUid,
+        actionType: 'rule_deleted',
+        targetId: key,
+        details: {
+          key,
+          description: existing?.description,
+        },
+      });
+    }
   } catch (error) {
     console.error("Database query failed:", error);
     throw new Error("Failed to delete rule", { cause: error });

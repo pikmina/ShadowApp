@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AlertCircle, AlertTriangle, CheckCircle, Award, Check, Copy, Edit2, Eye, Plus, Search, Trash2, User, Users } from 'lucide-react';
 import useSWR from 'swr';
@@ -56,18 +56,32 @@ export default function CharactersAdmin() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const initialCanonId = searchParams.get('canonId');
+  const initialCreate = searchParams.get('create') === 'true';
+  const initialGroup = searchParams.get('group') || 'all';
+  const initialStage = searchParams.get('stage') || 'all';
 
-  const [editing, setEditing] = useState(!!initialCanonId);
+  const [editing, setEditing] = useState(!!initialCanonId || initialCreate);
   const [initialNewCanonId, setInitialNewCanonId] = useState<string | null>(initialCanonId);
   const [rewardingCharId, setRewardingCharId] = useState<number | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'canon'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('all');
+  const [selectedGroup, setSelectedGroup] = useState(initialGroup);
   const [selectedDon, setSelectedDon] = useState('all');
-  const [selectedStage, setSelectedStage] = useState('all');
+  const [selectedStage, setSelectedStage] = useState(initialStage);
   const [sortBy, setSortBy] = useState<'name' | 'recent'>('name');
+
+  useEffect(() => {
+    const groupParam = searchParams.get('group');
+    if (groupParam) setSelectedGroup(groupParam);
+    const stageParam = searchParams.get('stage');
+    if (stageParam) setSelectedStage(stageParam);
+    if (searchParams.get('create') === 'true') {
+      setSelectedCharacterId(null);
+      setEditing(true);
+    }
+  }, [location.search]);
 
   const isMod = dbUser?.role === 'moderator' || dbUser?.role === 'superadmin';
   const { data: allCharacters, mutate: mutateAll } = useSWR(user && isMod ? '/api/admin/characters' : null, fetcher);

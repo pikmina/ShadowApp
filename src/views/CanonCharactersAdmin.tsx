@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { EntityPanel } from '@/components/ui/entity-panel';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CharacterEmployments, CharacterEnrollments } from '@/components/character/CharacterRelations';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -30,13 +30,22 @@ export default function CanonCharactersAdmin() {
   const { data: canonCharacters, mutate } = useSWR('/api/admin/canon-characters', fetcher);
   const { data: fields } = useSWR('/api/sheet-fields', fetcher);
   const { data: settings } = useSWR('/api/settings', fetcher);
+  const [searchParams] = useSearchParams();
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
+  const [isCreating, setIsCreating] = useState(() => searchParams.get('create') === 'true');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyForm);
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setIsCreating(true);
+      setEditingId(null);
+      setFormData(emptyForm);
+    }
+  }, [searchParams]);
 
   const processedFields = React.useMemo(() => {
     if (!fields) return [];

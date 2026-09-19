@@ -1,5 +1,5 @@
 import { db } from './index.ts';
-import { characterSheetFields, characters } from './schema.ts';
+import { characterSheetFields, characters, auditLogs } from './schema.ts';
 import { eq, asc } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { coreProfileFields, coreProfileKeys, normalizedFieldName } from '../domain/coreProfileFields.ts';
@@ -69,7 +69,7 @@ export async function getSheetFields() {
   }
 }
 
-export async function upsertSheetField(data: any) {
+export async function upsertSheetField(data: any, actorUid?: string) {
   try {
     let id = data.id;
     if (!id) {
@@ -82,6 +82,20 @@ export async function upsertSheetField(data: any) {
         options: data.options || [],
         order: data.order || 0,
       }).returning();
+
+      if (actorUid) {
+        await db.insert(auditLogs).values({
+          actorUid,
+          actionType: 'sheet_field_created',
+          targetId: id,
+          details: {
+            name: data.name,
+            type: data.type,
+            category: data.category,
+          },
+        });
+      }
+
       return result[0];
     } else {
       const [existing] = await db.select().from(characterSheetFields).where(eq(characterSheetFields.id, id));
@@ -95,6 +109,21 @@ export async function upsertSheetField(data: any) {
         order: data.order,
         updatedAt: new Date(),
       }).where(eq(characterSheetFields.id, id)).returning();
+
+      if (actorUid) {
+        await db.insert(auditLogs).values({
+          actorUid,
+          actionType: 'sheet_field_updated',
+          targetId: id,
+          details: {
+            name: data.name,
+            previousName: existing.name,
+            type: data.type,
+            category: data.category,
+          },
+        });
+      }
+
       return result[0];
     }
   } catch (error) {
@@ -104,11 +133,23 @@ export async function upsertSheetField(data: any) {
   }
 }
 
-export async function deleteSheetField(id: string) {
+export async function deleteSheetField(id: string, actorUid?: string) {
   try {
     const [existing] = await db.select().from(characterSheetFields).where(eq(characterSheetFields.id, id));
     if (existing?.coreKey || coreProfileKeys.has(id)) throw Object.assign(new Error('Este campo básico no se puede eliminar'), { status: 409 });
     await db.delete(characterSheetFields).where(eq(characterSheetFields.id, id));
+
+    if (actorUid && existing) {
+      await db.insert(auditLogs).values({
+        actorUid,
+        actionType: 'sheet_field_deleted',
+        targetId: id,
+        details: {
+          name: existing.name,
+          category: existing.category,
+        },
+      });
+    }
   } catch (error) {
     if ((error as any)?.status) throw error;
     console.error("Database query failed:", error);

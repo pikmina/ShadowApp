@@ -76,7 +76,7 @@ async function startServer() {
         value = compensation.data;
       }
 
-      const rule = await upsertRule(key, type, value, description);
+      const rule = await upsertRule(key, type, value, description, req.dbUser?.uid);
       res.json(rule);
     } catch (error: any) {
       res.status(error.status ?? 500).json({ error: error.status ? error.message : "Failed to save rule" });
@@ -86,7 +86,7 @@ async function startServer() {
   app.delete("/api/rules/:key", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
       if (["system_mechanics", "stamina_execution_costs", "employment_compensation"].includes(req.params.key)) return res.status(400).json({ error: "La configuración core no se puede eliminar" });
-      await deleteRule(req.params.key);
+      await deleteRule(req.params.key, req.dbUser?.uid);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to delete rule" });
@@ -142,7 +142,7 @@ async function startServer() {
         if (!resolution.valid) return res.status(400).json({ error: "Unknown or duplicate applied mechanic reference", details: resolution.issues });
       }
 
-      const item = await upsertElement(parsed.data);
+      const item = await upsertElement(parsed.data, req.dbUser?.uid);
       res.json(item);
     } catch (error: any) {
       res.status(error.status ?? 500).json({ error: error.status ? error.message : "Failed to save element" });
@@ -151,7 +151,7 @@ async function startServer() {
 
   app.delete("/api/elements/:id", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
-      await deleteElement(req.params.id);
+      await deleteElement(req.params.id, req.dbUser?.uid);
       res.json({ success: true });
     } catch (error: any) {
       console.error("DELETE ELEMENT ROUTE ERROR:", error);
@@ -184,7 +184,7 @@ async function startServer() {
     const parsed = FieldSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
 
-      const field = await upsertSheetField(parsed.data);
+      const field = await upsertSheetField(parsed.data, req.dbUser?.uid);
       res.json(field);
     } catch (error: any) {
       res.status(error.status ?? 500).json({ error: error.message || "Failed to save sheet field" });
@@ -193,7 +193,7 @@ async function startServer() {
 
   app.delete("/api/sheet-fields/:id", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
-      await deleteSheetField(req.params.id);
+      await deleteSheetField(req.params.id, req.dbUser?.uid);
       res.json({ success: true });
     } catch (error: any) {
       res.status(error.status ?? 500).json({ error: error.message || "Failed to delete sheet field" });
@@ -246,7 +246,7 @@ async function startServer() {
       if (gameDate !== undefined) newSettings.gameDate = gameDate;
       if (groups !== undefined) newSettings.groups = groups;
       
-      await upsertRule("global_settings", "json", newSettings, "Ajustes globales del sistema (Tiempo, Grupos, etc.)");
+      await upsertRule("global_settings", "json", newSettings, "Ajustes globales del sistema (Tiempo, Grupos, etc.)", req.dbUser?.uid);
       res.json({ success: true });
     } catch (e: any) {
       console.error(e);
@@ -274,7 +274,7 @@ async function startServer() {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
       
       const { deleteCharacter } = await import("./src/db/characters.ts");
-      await deleteCharacter(parseInt(req.params.id));
+      await deleteCharacter(parseInt(req.params.id), req.dbUser?.uid);
       res.json({ success: true });
     } catch (error: any) {
       console.error(error);
@@ -287,7 +287,7 @@ async function startServer() {
       const charId = parseInt(req.params.id);
       
       const { db } = await import("./src/db/index.ts");
-      const { characters } = await import("./src/db/schema.ts");
+      const { characters, auditLogs } = await import("./src/db/schema.ts");
       const { eq } = await import("drizzle-orm");
       
       const [char] = await db.select().from(characters).where(eq(characters.id, charId));
@@ -300,6 +300,19 @@ async function startServer() {
         yen: char.yen,
         profileData: char.profileData
       }).returning();
+
+      if (req.dbUser?.uid) {
+        await db.insert(auditLogs).values({
+          actorUid: req.dbUser.uid,
+          actionType: 'character_duplicated',
+          targetId: newChar.id.toString(),
+          details: {
+            sourceCharacterId: charId,
+            sourceName: char.name,
+            newName: newChar.name,
+          },
+        });
+      }
 
       res.json(newChar);
     } catch (error: any) {
@@ -450,7 +463,7 @@ async function startServer() {
     const parsed = OfferSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
 
-      const offer = await upsertShopOffer(req.body);
+      const offer = await upsertShopOffer(req.body, req.dbUser?.uid);
       res.json(offer);
     } catch (error) {
       res.status(500).json({ error: "Failed to save shop offer" });
@@ -459,7 +472,7 @@ async function startServer() {
 
   app.delete("/api/shop/offers/:id", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
     try {
-      await deleteShopOffer(req.params.id);
+      await deleteShopOffer(req.params.id, req.dbUser?.uid);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete shop offer" });
@@ -565,7 +578,7 @@ async function startServer() {
       const parsed = CanonSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
       const { createCanonCharacter } = await import("./src/db/canonCharacters.ts");
-      const result = await createCanonCharacter(parsed.data);
+      const result = await createCanonCharacter(parsed.data, req.dbUser?.uid);
       res.json(result);
     } catch (error) {
       console.error("Error creating canon character:", error);
@@ -595,7 +608,7 @@ async function startServer() {
       const { updateCanonCharacter } = await import("./src/db/canonCharacters.ts");
       const updateData: any = { ...parsed.data };
       if (parsed.data.reservedUntil) updateData.reservedUntil = new Date(parsed.data.reservedUntil);
-      const result = await updateCanonCharacter(req.params.id, updateData);
+      const result = await updateCanonCharacter(req.params.id, updateData, req.dbUser?.uid);
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: "Failed to update canon character" });
@@ -605,7 +618,7 @@ async function startServer() {
   app.delete("/api/admin/canon-characters/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { deleteCanonCharacter } = await import("./src/db/canonCharacters.ts");
-      await deleteCanonCharacter(req.params.id);
+      await deleteCanonCharacter(req.params.id, req.dbUser?.uid);
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -909,6 +922,60 @@ async function startServer() {
     } catch (error) {
       console.error("Public character error:", error);
       res.status(500).json({ error: "Failed to fetch character" });
+    }
+  });
+
+  // --- Audit Logs Admin API ---
+  app.get("/api/admin/audit-logs", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { getAuditLogs } = await import("./src/db/auditLogs.ts");
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+      const actionType = req.query.actionType as string | undefined;
+      const actorUid = req.query.actorUid as string | undefined;
+      const targetId = req.query.targetId as string | undefined;
+      const search = req.query.search as string | undefined;
+      const startDate = req.query.startDate as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
+
+      const result = await getAuditLogs({
+        page,
+        limit,
+        actionType,
+        actorUid,
+        targetId,
+        search,
+        startDate,
+        endDate,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Audit logs fetch error:", error);
+      res.status(500).json({ error: error?.message || "Failed to fetch audit logs" });
+    }
+  });
+
+  app.get("/api/admin/audit-logs/stats", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { getAuditStats } = await import("./src/db/auditLogs.ts");
+      const stats = await getAuditStats();
+      res.json(stats);
+    } catch (error: any) {
+      console.error("Audit stats fetch error:", error);
+      res.status(500).json({ error: error?.message || "Failed to fetch audit stats" });
+    }
+  });
+
+  // --- Admin Dashboard Stats API ---
+  app.get("/api/admin/dashboard-stats", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { getDashboardStats } = await import("./src/db/dashboard.ts");
+      const stats = await getDashboardStats();
+      res.json(stats);
+    } catch (error: any) {
+      console.error("Dashboard stats fetch error:", error);
+      res.status(500).json({ error: error?.message || "Failed to fetch dashboard stats" });
     }
   });
 

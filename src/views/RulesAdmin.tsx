@@ -3,6 +3,7 @@ import { UniversalRulesCatalog } from "../components/mechanics/UniversalRulesCat
 import { SectionHeader } from "../components/common/SectionHeader";
 import { BookOpen as SectionIcon, Hand, Shield, Heart, Activity, AlertTriangle, Clock, Target, Maximize, TrendingUp, Edit2, Trash2, Plus, GripVertical, Settings2, ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -65,8 +66,17 @@ const defaultStaminaCosts = {
 };
 
 export default function RulesAdmin() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(requestedTab || "stages");
   const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null);
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (requestedTab && requestedTab !== activeTab) {
+      setActiveTab(requestedTab);
+    }
+  }, [requestedTab]);
   
   
 
@@ -279,7 +289,7 @@ export default function RulesAdmin() {
     <div className="space-y-6">
       <SectionHeader icon={SectionIcon} title="Reglas del sistema" description="Etapas, atributos y valores que definen el sistema de juego." />
 
-      <Tabs defaultValue="stages" className="w-full">
+      <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setSearchParams({ tab: val }); }} className="w-full">
         <div className="w-full overflow-x-auto pb-1.5 no-scrollbar">
           <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto h-auto p-1 gap-1 bg-muted/60 border border-border/50">
             <TabsTrigger value="stages" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Etapas por Edad</TabsTrigger>

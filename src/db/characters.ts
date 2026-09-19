@@ -68,12 +68,26 @@ export async function updateCharacter(characterId: number, data: { name?: string
 
 
 
-export async function deleteCharacter(characterId: number) {
+export async function deleteCharacter(characterId: number, actorUid?: string) {
   await db.transaction(async (tx) => {
+    const [char] = await tx.select().from(characters).where(eq(characters.id, characterId));
     await tx.delete(elementPossessions).where(eq(elementPossessions.characterId, characterId));
     await tx.delete(characterEmployments).where(eq(characterEmployments.characterId, characterId));
     await tx.delete(characterEnrollments).where(eq(characterEnrollments.characterId, characterId));
     await tx.delete(characters).where(eq(characters.id, characterId));
+
+    if (actorUid && char) {
+      await tx.insert(auditLogs).values({
+        actorUid,
+        actionType: 'character_deleted',
+        targetId: characterId.toString(),
+        details: {
+          name: char.name,
+          exp: char.exp,
+          yen: char.yen,
+        },
+      });
+    }
   });
 }
 

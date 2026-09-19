@@ -23,6 +23,8 @@ import ClassesAdmin from "./views/ClassesAdmin";
 import PublicSheet from "./views/PublicSheet";
 import ComponentShowcase from "./views/ComponentShowcase";
 import SystemManual from "./views/SystemManual";
+import AuditLogsAdmin from "./views/AuditLogsAdmin";
+import AdminDashboard from "./views/AdminDashboard";
 
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -54,8 +56,8 @@ function IndexRedirector() {
   const { dbUser } = useAuth();
   const role = dbUser?.role;
   
-  if (role === "superadmin") {
-    return <Navigate to="/rules" replace />;
+  if (role === "superadmin" || role === "moderator") {
+    return <Navigate to="/dashboard" replace />;
   }
   return <Navigate to="/character-editor" replace />;
 }
@@ -86,19 +88,21 @@ function AppRoutes() {
         }
       >
         <Route index element={<IndexRedirector />} />
+        <Route path="dashboard" element={<AdminDashboard />} />
         <Route path="settings" element={<SettingsAdmin />} />
         <Route path="rules" element={<RulesAdmin />} />
         <Route path="catalog" element={<CatalogAdmin />} />
         <Route path="techniques" element={<TechniquesAdmin />} />
         <Route path="sheet-builder" element={<SheetBuilderAdmin />} />
         <Route path="character-editor" element={<CharactersAdmin />} />
+        <Route path="characters" element={<CharactersAdmin />} />
         <Route path="canon" element={<CanonCharactersAdmin />} />
         <Route path="employments" element={<EmploymentsAdmin />} />
         <Route path="classes" element={<ClassesAdmin />} />
         <Route path="shop" element={<Shop />} />
         <Route path="showcase" element={<ComponentShowcase />} />
         <Route path="showcase-variables" element={<DevVariablesShowcase />} />
-        <Route path="audit" element={<div className="p-8 text-center text-muted-foreground">Log de Auditoría (Próxima Fase)</div>} />
+        <Route path="audit" element={<AuditLogsAdmin />} />
       </Route>
     </Routes>
   );
