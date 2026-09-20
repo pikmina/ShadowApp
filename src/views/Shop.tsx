@@ -1,8 +1,9 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
+import { cn } from "cn";
 import {
   Table,
   TableBody,
@@ -31,7 +32,36 @@ import {
 } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
-import { ShoppingCart, Plus, Minus, Trash2, Edit2, X, Search, ShieldAlert, Coins, Sparkles, AlertCircle, CheckCircle2, FileText } from "lucide-react";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "../components/ui/sheet";
+import {
+  ShoppingCart,
+  Plus,
+  Minus,
+  Trash2,
+  Edit2,
+  X,
+  Search,
+  ShieldAlert,
+  Coins,
+  Sparkles,
+  AlertCircle,
+  CheckCircle2,
+  FileText,
+  User,
+  Wallet,
+  ArrowRight,
+  ChevronDown,
+  Check,
+  Loader2
+} from "lucide-react";
 import { SectionHeader } from "../components/common/SectionHeader";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -78,6 +108,127 @@ const REQUIREMENT_TYPE_LABELS: Record<string, string> = {
   character_field: "Campo de Personaje",
   custom_info: "Ingresa información adicional"
 };
+
+function CharacterSelector({
+  characters,
+  value,
+  onChange,
+  placeholder = "Selecciona un personaje...",
+  className,
+}: {
+  characters: any[];
+  value: string;
+  onChange: (charId: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selected = useMemo(
+    () => characters.find((c) => c.id.toString() === value?.toString()),
+    [characters, value]
+  );
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className={cn("relative w-full", className)} ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={cn(
+          "flex w-full items-center justify-between gap-2 rounded-lg border border-input bg-background/90 hover:bg-muted/40 px-3 py-2 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-xs cursor-pointer text-left",
+          isOpen && "ring-2 ring-primary border-primary"
+        )}
+      >
+        {selected ? (
+          <div className="flex items-center justify-between flex-1 min-w-0 pr-2">
+            <div className="flex items-center gap-2 truncate">
+              <User className="size-3.5 text-primary shrink-0" />
+              <span className="font-semibold text-foreground truncate">{selected.name}</span>
+              <span className="text-[10px] text-muted-foreground font-mono">#{selected.id}</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] font-mono shrink-0">
+              <span className="text-emerald-400 font-semibold">{selected.yen?.toLocaleString("es-ES") ?? 0} ¥</span>
+              <span className="text-indigo-400 font-semibold">{selected.exp?.toLocaleString("es-ES") ?? 0} EXP</span>
+            </div>
+          </div>
+        ) : (
+          <span className="text-muted-foreground italic">{placeholder}</span>
+        )}
+        <ChevronDown
+          className={cn(
+            "size-4 text-muted-foreground shrink-0 transition-transform duration-200",
+            isOpen && "rotate-180"
+          )}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1.5 w-full z-[120] rounded-lg border border-border bg-popover text-popover-foreground shadow-2xl animate-in fade-in-0 zoom-in-95 duration-100 max-h-64 overflow-y-auto divide-y divide-border/40 p-1">
+          {characters.length === 0 ? (
+            <div className="p-3 text-center text-xs text-muted-foreground italic">
+              No hay personajes disponibles
+            </div>
+          ) : (
+            characters.map((char) => {
+              const isCurrent = char.id.toString() === value?.toString();
+              return (
+                <button
+                  key={char.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(char.id.toString());
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center justify-between p-2.5 rounded-md text-xs text-left transition-colors cursor-pointer",
+                    isCurrent
+                      ? "bg-primary/15 text-primary font-bold"
+                      : "hover:bg-muted text-foreground"
+                  )}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                    <div
+                      className={cn(
+                        "size-2 rounded-full shrink-0",
+                        isCurrent ? "bg-primary" : "bg-muted-foreground/40"
+                      )}
+                    />
+                    <div className="truncate">
+                      <div className="font-semibold text-sm truncate leading-snug">{char.name}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">ID: #{char.id}</div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end shrink-0 font-mono text-[11px] gap-0.5 pl-2">
+                    <span className="text-emerald-400 font-bold">
+                      {char.yen?.toLocaleString("es-ES") ?? 0} ¥
+                    </span>
+                    <span className="text-indigo-400 font-bold">
+                      {char.exp?.toLocaleString("es-ES") ?? 0} EXP
+                    </span>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const OFFER_STATUS_LABELS: Record<string, string> = {
   available: "Disponible (Visible en Tienda)",
@@ -139,8 +290,19 @@ export default function Shop() {
   const role = dbUser?.role;
   const { data: offers, mutate: mutateOffers } = useSWR(user ? "/api/shop/offers" : null, fetcher);
   const { data: rawElements } = useSWR(user ? "/api/admin/elements" : null, fetcher);
-  const { data: characters } = useSWR(role && user ? "/api/admin/characters" : null, fetcher);
+  const { data: rawAdminCharacters, mutate: mutateCharacters } = useSWR(role && user ? "/api/admin/characters" : null, fetcher);
+  const { data: myCharacter } = useSWR(user ? "/api/character" : null, fetcher);
   const { data: rules } = useSWR(user ? "/api/rules" : null, fetcher);
+
+  const availableCharacters = useMemo(() => {
+    if (Array.isArray(rawAdminCharacters) && rawAdminCharacters.length > 0) {
+      return rawAdminCharacters;
+    }
+    if (myCharacter && myCharacter.id) {
+      return [myCharacter];
+    }
+    return [];
+  }, [rawAdminCharacters, myCharacter]);
 
   const [activeTab, setActiveTab] = useState("store");
   const [storeSearch, setStoreSearch] = useState("");
@@ -189,16 +351,27 @@ export default function Shop() {
     });
   }, [allElements, offerElementSearch]);
   
-  // Cart state
+  // Cart & Drawer state
   const [cart, setCart] = useState<any[]>([]);
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [checkoutCharacter, setCheckoutCharacter] = useState<string>("");
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
   // Local progression selections per offerId: { [offerId]: { fromLevel: number, toLevel: number } }
   const [progressionSelections, setProgressionSelections] = useState<Record<string, { fromLevel: number; toLevel: number }>>({});
 
+  // Automatically default to the first available character
+  useEffect(() => {
+    if (!checkoutCharacter && availableCharacters.length > 0) {
+      setCheckoutCharacter(availableCharacters[0].id.toString());
+    }
+  }, [availableCharacters, checkoutCharacter]);
+
   // Admin state
   const [editingOffer, setEditingOffer] = useState<any | null>(null);
+  const [isSavingOffer, setIsSavingOffer] = useState(false);
+  const [saveOfferError, setSaveOfferError] = useState("");
+  const [adminOfferActionError, setAdminOfferActionError] = useState("");
 
   const isAdmin = role === "moderator" || role === "superadmin";
 
@@ -209,9 +382,9 @@ export default function Shop() {
   }, [rules]);
 
   const selectedCheckoutChar = useMemo(() => {
-    if (!checkoutCharacter || !Array.isArray(characters)) return null;
-    return characters.find((c: any) => c.id.toString() === checkoutCharacter);
-  }, [characters, checkoutCharacter]);
+    if (!checkoutCharacter || availableCharacters.length === 0) return null;
+    return availableCharacters.find((c: any) => c.id.toString() === checkoutCharacter.toString()) || null;
+  }, [availableCharacters, checkoutCharacter]);
 
   const charExistingAttrUpgrades = useMemo(() => {
     if (!selectedCheckoutChar?.possessions || !Array.isArray(selectedCheckoutChar.possessions)) return 0;
@@ -252,6 +425,7 @@ export default function Shop() {
         priceAmount: offer.prices.find((p: any) => p.currency === currency)?.amount || 0
       }];
     });
+    setIsCartDrawerOpen(true);
   };
 
   const addProgressionToCart = (offer: any, element: any, currency: string, fromLevel: number, toLevel: number) => {
@@ -274,6 +448,7 @@ export default function Shop() {
         baseCost
       }];
     });
+    setIsCartDrawerOpen(true);
   };
 
   const removeFromCart = (index: number) => {
@@ -283,7 +458,7 @@ export default function Shop() {
   const updateQuantity = (index: number, delta: number) => {
     setCart(prev => {
       const copy = [...prev];
-      if (copy[index].isProgression) return prev;
+      if (!copy[index] || copy[index].isProgression) return prev;
       copy[index].quantity += delta;
       if (copy[index].quantity <= 0) {
         return copy.filter((_, i) => i !== index);
@@ -302,6 +477,10 @@ export default function Shop() {
     });
   };
 
+  const clearCart = () => {
+    setCart([]);
+  };
+
   const totalExp = cart.reduce((sum, item) => {
     if (item.selectedCurrency !== "exp") return sum;
     if (item.isProgression) return sum + (item.cost || 0);
@@ -315,6 +494,13 @@ export default function Shop() {
     const p = item.offer.prices?.find((p: any) => p.currency === "yen");
     return sum + (p ? p.amount * item.quantity : 0);
   }, 0);
+
+  const totalItemsCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
+
+  const isInsufficientFunds = selectedCheckoutChar && (
+    (totalYen > (selectedCheckoutChar.yen || 0)) ||
+    (totalExp > (selectedCheckoutChar.exp || 0))
+  );
 
   const handleCheckout = async () => {
     if (!isAdmin) {
@@ -368,6 +554,9 @@ export default function Shop() {
       
       setCart([]);
       setIsCheckoutModalOpen(false);
+      setIsCartDrawerOpen(false);
+      mutateCharacters?.();
+      mutateOffers?.();
       alert("Compra procesada con éxito.");
     } catch (error: any) {
       setCheckoutError(error.message);
@@ -386,6 +575,8 @@ export default function Shop() {
     });
     setOfferElementSearch("");
     setOfferModalTab("info");
+    setSaveOfferError("");
+    setAdminOfferActionError("");
   };
 
   const handleOpenEditOffer = (shopData: any) => {
@@ -396,38 +587,66 @@ export default function Shop() {
     });
     setOfferElementSearch("");
     setOfferModalTab("info");
+    setSaveOfferError("");
+    setAdminOfferActionError("");
   };
 
   const handleSaveOffer = async () => {
     if (!editingOffer?.elementId) {
-      alert("Debes seleccionar un elemento del catálogo.");
+      setSaveOfferError("Debes seleccionar un elemento del catálogo.");
       return;
     }
+    setSaveOfferError("");
+    setIsSavingOffer(true);
     try {
+      const sanitizedPrices = (editingOffer.prices || []).map((p: any) => ({
+        currency: p.currency === "yen" ? "yen" : "exp",
+        amount: Math.max(0, parseInt(p.amount, 10) || 0)
+      }));
+
+      const payload = {
+        id: editingOffer.id || undefined,
+        elementId: editingOffer.elementId,
+        status: editingOffer.status || "available",
+        prices: sanitizedPrices.length > 0 ? sanitizedPrices : [{ currency: "exp", amount: 0 }],
+        requirements: editingOffer.requirements || { operator: "all", requirements: [] },
+        globalStock: (editingOffer.globalStock === null || editingOffer.globalStock === undefined || editingOffer.globalStock === "" || Number(editingOffer.globalStock) <= 0)
+          ? null
+          : parseInt(editingOffer.globalStock, 10),
+        perCharacterLimit: (editingOffer.perCharacterLimit === null || editingOffer.perCharacterLimit === undefined || editingOffer.perCharacterLimit === "" || Number(editingOffer.perCharacterLimit) <= 0)
+          ? null
+          : parseInt(editingOffer.perCharacterLimit, 10),
+      };
+
       const res = await apiFetch("/api/shop/offers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingOffer)
+        body: JSON.stringify(payload)
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Error al guardar la oferta");
       }
-      mutateOffers();
+      await mutateOffers();
       setEditingOffer(null);
+      setSaveOfferError("");
     } catch (error: any) {
-      alert("Error al guardar la oferta: " + error.message);
+      setSaveOfferError(error.message || "Error al guardar la oferta");
+    } finally {
+      setIsSavingOffer(false);
     }
   };
 
   const handleDeleteOffer = async (id: string) => {
     if (!confirm("¿Estás seguro de que deseas eliminar esta oferta de la tienda?")) return;
     try {
+      setAdminOfferActionError("");
       const res = await apiFetch(`/api/shop/offers/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Error al eliminar la oferta");
-      mutateOffers();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Error al eliminar la oferta");
+      await mutateOffers();
     } catch (error: any) {
-      alert(error.message);
+      setAdminOfferActionError(error.message || "Error al eliminar la oferta");
     }
   };
 
@@ -539,17 +758,17 @@ export default function Shop() {
             </TabsList>
           </div>
 
-          <TabsContent value="store" className="flex-1 overflow-hidden m-0 data-[state=active]:flex">
-            {/* Split view: items on left, cart on right */}
-            <div className="flex-1 overflow-auto p-6 space-y-4">
-              <div className="relative max-w-sm">
+          <TabsContent value="store" className="flex-1 overflow-hidden m-0 data-[state=active]:flex flex-col">
+            {/* Top Toolbar: Search + Quick Character Balance + Cart Drawer Button */}
+            <div className="p-4 px-6 border-b border-border bg-card/50 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="relative w-full sm:w-72 md:w-80">
                 <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   type="text"
-                  placeholder="Buscar en la tienda por nombre o tipo..."
+                  placeholder="Buscar por nombre, tipo o descripción..."
                   value={storeSearch}
                   onChange={e => setStoreSearch(e.target.value)}
-                  className="h-9 pl-9 pr-8 text-xs bg-background/60"
+                  className="h-9 pl-9 pr-8 text-xs bg-background/80"
                 />
                 {storeSearch && (
                   <button
@@ -563,6 +782,50 @@ export default function Shop() {
                 )}
               </div>
 
+              {/* Character quick status & Cart Drawer Trigger */}
+              <div className="flex items-center flex-wrap gap-2.5 ml-auto">
+                {selectedCheckoutChar && (
+                  <div className="hidden lg:flex items-center gap-3 bg-muted/40 border border-border/70 rounded-md px-3 py-1.5 text-xs">
+                    <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <User className="size-3.5 text-primary" />
+                      <span className="truncate max-w-[120px]">{selectedCheckoutChar.name}</span>
+                    </div>
+                    <div className="h-3 w-px bg-border" />
+                    <div className="flex items-center gap-1 font-mono text-emerald-400 font-semibold" title="Yenes Disponibles">
+                      <Coins className="size-3.5" />
+                      {selectedCheckoutChar.yen?.toLocaleString("es-ES") ?? 0} ¥
+                    </div>
+                    <div className="flex items-center gap-1 font-mono text-indigo-400 font-semibold" title="EXP Disponible">
+                      <Sparkles className="size-3.5" />
+                      {selectedCheckoutChar.exp?.toLocaleString("es-ES") ?? 0} EXP
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  variant="default"
+                  onClick={() => setIsCartDrawerOpen(true)}
+                  className="relative gap-2 font-bold uppercase tracking-wider text-xs h-9 px-4 shadow-sm"
+                >
+                  <ShoppingCart className="size-4" />
+                  <span>Carrito</span>
+                  {totalItemsCount > 0 && (
+                    <Badge variant="secondary" className="h-5 px-1.5 text-[11px] font-mono font-bold bg-background text-foreground border-none">
+                      {totalItemsCount}
+                    </Badge>
+                  )}
+                  {(totalYen > 0 || totalExp > 0) && (
+                    <div className="hidden sm:flex items-center gap-1.5 ml-1 pl-1.5 border-l border-primary-foreground/20 font-mono text-[11px]">
+                      {totalYen > 0 && <span className="text-emerald-200">{totalYen.toLocaleString("es-ES")}¥</span>}
+                      {totalExp > 0 && <span className="text-indigo-200">{totalExp.toLocaleString("es-ES")}EXP</span>}
+                    </div>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Main Offers Grid */}
+            <div className="flex-1 overflow-auto p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {offers?.filter((o: any) => {
                   if (o.shop_offers.status !== "available") return false;
@@ -719,111 +982,296 @@ export default function Shop() {
               </div>
             </div>
 
-            {/* Cart Panel */}
-            <div className="w-80 border-l border-border bg-card flex flex-col">
-              <div className="p-4 border-b border-border bg-muted/20">
-                <h3 className="font-bold uppercase tracking-widest flex items-center gap-2">
-                  <ShoppingCart className="w-4 h-4 text-primary" /> Carrito
-                </h3>
+            {/* Floating Cart Quick Access Button */}
+            {totalItemsCount > 0 && (
+              <div className="fixed bottom-6 right-6 z-40">
+                <Button
+                  onClick={() => setIsCartDrawerOpen(true)}
+                  className="rounded-full shadow-xl bg-primary text-primary-foreground font-bold px-4 py-6 gap-2.5 border border-primary-foreground/20 hover:scale-105 transition-all"
+                >
+                  <ShoppingCart className="size-5" />
+                  <span className="font-mono text-sm">{totalItemsCount}</span>
+                  <div className="flex items-center gap-1.5 pl-2 border-l border-primary-foreground/30 font-mono text-xs">
+                    {totalYen > 0 && <span className="text-emerald-300">{totalYen.toLocaleString("es-ES")}¥</span>}
+                    {totalExp > 0 && <span className="text-indigo-300">{totalExp.toLocaleString("es-ES")}EXP</span>}
+                  </div>
+                </Button>
               </div>
-              <ScrollArea className="flex-1 p-4">
-                {cart.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center italic mt-10">El carrito está vacío.</p>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    {cart.map((item, idx) => (
-                      <div key={idx} className="bg-background border border-border p-2.5 rounded text-sm flex flex-col gap-1.5 shadow-sm">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="font-bold block truncate" title={item.element.name}>{item.element.name}</span>
-                            {item.isProgression ? (
-                              <Badge variant="outline" className="text-[10px] mt-0.5 font-mono text-amber-400 border-amber-500/30 bg-amber-500/10">
-                                Mejora: Nv. {item.fromLevel} ➔ Nv. {item.toLevel}
-                              </Badge>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground uppercase">
-                                {KIND_TYPES[item.element.kind] || item.element.kind}
+            )}
+
+            {/* ShadCN Sheet Component for Cart */}
+            <Sheet open={isCartDrawerOpen} onOpenChange={setIsCartDrawerOpen}>
+              <SheetContent side="right" showCloseButton={false} className="sm:max-w-md w-full h-full max-h-screen flex flex-col bg-card border-l border-border shadow-2xl p-0">
+                <SheetHeader className="p-4 border-b border-border bg-muted/30 flex flex-row items-center justify-between shrink-0">
+                  <div className="text-left">
+                    <SheetTitle className="text-base font-bold uppercase tracking-wider flex items-center gap-2">
+                      <ShoppingCart className="size-4 text-primary" /> Carrito de Compras
+                    </SheetTitle>
+                    <SheetDescription className="text-xs text-muted-foreground mt-0.5">
+                      {totalItemsCount} {totalItemsCount === 1 ? "artículo" : "artículos"} seleccionados
+                    </SheetDescription>
+                  </div>
+                  <SheetClose asChild>
+                    <Button variant="ghost" size="icon" className="size-8 rounded-full">
+                      <X className="size-4" />
+                    </Button>
+                  </SheetClose>
+                </SheetHeader>
+
+                {/* Character Selection & Balance Overview */}
+                <div className="p-4 border-b border-border bg-background space-y-3 shrink-0">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <User className="size-3.5 text-primary" /> Personaje Seleccionado
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {availableCharacters.length} {availableCharacters.length === 1 ? "disponible" : "disponibles"}
+                      </span>
+                    </Label>
+                    
+                    {availableCharacters.length === 0 ? (
+                      <div className="p-2.5 rounded bg-muted/50 border border-border text-xs text-muted-foreground text-center italic">
+                        No hay personajes registrados.
+                      </div>
+                    ) : (
+                      <CharacterSelector
+                        characters={availableCharacters}
+                        value={checkoutCharacter}
+                        onChange={setCheckoutCharacter}
+                      />
+                    )}
+                  </div>
+
+                  {/* Character Balances & Projection */}
+                  {selectedCheckoutChar && (
+                    <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2.5">
+                      <div className="flex items-center justify-between text-xs pb-2 border-b border-border/50">
+                        <span className="font-medium text-foreground flex items-center gap-1">
+                          <Wallet className="size-3.5 text-primary" /> Saldo Actual:
+                        </span>
+                        <div className="flex items-center gap-3 font-mono font-bold">
+                          <span className="text-emerald-400 flex items-center gap-1" title="Yenes">
+                            <Coins className="size-3" />
+                            {(selectedCheckoutChar.yen || 0).toLocaleString("es-ES")} ¥
+                          </span>
+                          <span className="text-indigo-400 flex items-center gap-1" title="Experiencia">
+                            <Sparkles className="size-3" />
+                            {(selectedCheckoutChar.exp || 0).toLocaleString("es-ES")} EXP
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Remaining simulation if cart has items */}
+                      {cart.length > 0 && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground text-[11px] flex items-center gap-1">
+                            <ArrowRight className="size-3" /> Saldo tras compra:
+                          </span>
+                          <div className="flex items-center gap-3 font-mono font-bold text-[11px]">
+                            <span className={((selectedCheckoutChar.yen || 0) - totalYen) < 0 ? "text-destructive" : "text-emerald-300"}>
+                              {((selectedCheckoutChar.yen || 0) - totalYen).toLocaleString("es-ES")} ¥
+                            </span>
+                            <span className={((selectedCheckoutChar.exp || 0) - totalExp) < 0 ? "text-destructive" : "text-indigo-300"}>
+                              {((selectedCheckoutChar.exp || 0) - totalExp).toLocaleString("es-ES")} EXP
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Warnings */}
+                      {isInsufficientFunds && (
+                        <div className="p-2 rounded bg-destructive/10 border border-destructive/30 text-destructive text-[11px] font-medium flex items-center gap-1.5">
+                          <AlertCircle className="size-3.5 shrink-0" />
+                          <span>Fondos insuficientes para completar esta compra.</span>
+                        </div>
+                      )}
+
+                      {exceedsAttrLimit && (
+                        <div className="p-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-medium flex items-center gap-1.5">
+                          <ShieldAlert className="size-3.5 shrink-0" />
+                          <span>Supera el límite máximo permitido de mejoras de atributos ({maxPurchasedAttributes}).</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Cart Items List */}
+                <ScrollArea className="flex-1 p-4">
+                  {cart.length === 0 ? (
+                    <div className="h-48 flex flex-col items-center justify-center text-center p-4 text-muted-foreground">
+                      <ShoppingCart className="size-10 stroke-1 mb-2 opacity-40" />
+                      <p className="text-sm font-medium">El carrito está vacío</p>
+                      <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">
+                        Selecciona objetos o mejoras en la tienda para agregarlos aquí.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-between items-center text-xs text-muted-foreground pb-1">
+                        <span>{cart.length} {cart.length === 1 ? "tipo de ítem" : "tipos de ítems"}</span>
+                        <button
+                          type="button"
+                          onClick={clearCart}
+                          className="text-destructive hover:underline text-[11px] font-medium flex items-center gap-1"
+                        >
+                          <Trash2 className="size-3" /> Vaciar Carrito
+                        </button>
+                      </div>
+
+                      {cart.map((item, idx) => (
+                        <div key={idx} className="bg-background border border-border p-3 rounded-lg text-sm flex flex-col gap-2 shadow-sm relative group">
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="min-w-0">
+                              <span className="font-bold block truncate text-foreground" title={item.element.name}>
+                                {item.element.name}
                               </span>
+                              {item.isProgression ? (
+                                <Badge variant="outline" className="text-[10px] mt-0.5 font-mono text-amber-400 border-amber-500/30 bg-amber-500/10">
+                                  Mejora: Nv. {item.fromLevel} ➔ Nv. {item.toLevel}
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-[10px] uppercase tracking-wider font-semibold">
+                                  {KIND_TYPES[item.element.kind] || item.element.kind}
+                                </Badge>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeFromCart(idx)}
+                              className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                              title="Eliminar del carrito"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+
+                          <div className="flex justify-between items-center text-xs pt-2 border-t border-border/40">
+                            {item.isProgression ? (
+                              <>
+                                <span className="text-[11px] text-muted-foreground font-mono">
+                                  Base: {item.baseCost} EXP
+                                </span>
+                                <span className="font-mono font-bold text-amber-400 flex items-center gap-1">
+                                  <Sparkles className="size-3.5" />
+                                  {item.cost?.toLocaleString("es-ES")} EXP
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <div className="font-mono text-xs">
+                                  <span className="font-bold text-foreground">
+                                    {(item.priceAmount * item.quantity).toLocaleString("es-ES")}
+                                  </span>{" "}
+                                  <span className={item.selectedCurrency === "exp" ? "text-indigo-400 uppercase" : "text-emerald-400 uppercase"}>
+                                    {item.selectedCurrency}
+                                  </span>
+                                  {item.quantity > 1 && (
+                                    <span className="text-[10px] text-muted-foreground ml-1.5 font-sans">
+                                      ({item.priceAmount} c/u)
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 bg-muted/50 p-0.5 rounded border border-border/60">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => updateQuantity(idx, -1)}
+                                    className="size-6 h-6 w-6 rounded hover:bg-muted-foreground/20 p-0"
+                                    title="Disminuir"
+                                  >
+                                    <Minus className="size-3" />
+                                  </Button>
+                                  <span className="font-mono w-6 text-center text-xs font-bold">{item.quantity}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => updateQuantity(idx, 1)}
+                                    className="size-6 h-6 w-6 rounded hover:bg-muted-foreground/20 p-0"
+                                    title="Aumentar"
+                                  >
+                                    <Plus className="size-3" />
+                                  </Button>
+                                </div>
+                              </>
                             )}
                           </div>
-                          <button onClick={() => removeFromCart(idx)} className="text-muted-foreground hover:text-destructive p-1">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
 
-                        <div className="flex justify-between items-center text-xs pt-1 border-t border-border/40">
-                          {item.isProgression ? (
-                            <>
-                              <span className="text-[11px] text-muted-foreground">
-                                Base: {item.baseCost} EXP
-                              </span>
-                              <span className="font-mono font-bold text-amber-400 flex items-center gap-1">
-                                <Sparkles className="size-3" />
-                                {item.cost?.toLocaleString("es-ES")} EXP
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="text-muted-foreground uppercase tracking-wider">
-                                {item.priceAmount} {item.selectedCurrency} c/u
-                              </span>
-                              <div className="flex items-center gap-1.5">
-                                <button onClick={() => updateQuantity(idx, -1)} className="bg-muted p-0.5 rounded hover:bg-muted-foreground/20"><Minus className="w-3 h-3" /></button>
-                                <span className="font-mono w-4 text-center">{item.quantity}</span>
-                                <button onClick={() => updateQuantity(idx, 1)} className="bg-muted p-0.5 rounded hover:bg-muted-foreground/20"><Plus className="w-3 h-3" /></button>
+                          {/* Custom info input inside cart item if required */}
+                          {(() => {
+                            const customReqs = (item.offer?.requirements?.requirements || []).filter((r: any) => r.type === "custom_info");
+                            if (customReqs.length === 0) return null;
+                            return (
+                              <div className="pt-2 border-t border-border/40 space-y-1.5 bg-muted/20 -mx-3 -mb-3 p-3 rounded-b-lg">
+                                {customReqs.map((req: any) => (
+                                  <div key={req.id} className="space-y-1">
+                                    <Label className="text-[10px] font-semibold text-amber-400 flex items-center gap-1">
+                                      <FileText className="size-3" /> {req.label || "Info adicional"}
+                                      {req.required !== false && <span className="text-destructive">*</span>}
+                                    </Label>
+                                    <Textarea
+                                      value={item.customInfo || ""}
+                                      placeholder={req.placeholder || "Especifique detalles o identidad..."}
+                                      onChange={e => updateCartItemCustomInfo(idx, e.target.value)}
+                                      className="min-h-14 text-xs resize-none bg-background"
+                                    />
+                                  </div>
+                                ))}
                               </div>
-                            </>
-                          )}
+                            );
+                          })()}
                         </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
 
-                        {/* Custom info input inside cart item if required */}
-                        {(() => {
-                          const customReqs = (item.offer?.requirements?.requirements || []).filter((r: any) => r.type === "custom_info");
-                          if (customReqs.length === 0) return null;
-                          return (
-                            <div className="pt-2 border-t border-border/40 space-y-1">
-                              {customReqs.map((req: any) => (
-                                <div key={req.id} className="space-y-1">
-                                  <Label className="text-[10px] font-semibold text-amber-400 flex items-center gap-1">
-                                    <FileText className="size-3" /> {req.label || "Info adicional"}
-                                    {req.required !== false && <span className="text-destructive">*</span>}
-                                  </Label>
-                                  <Textarea
-                                    value={item.customInfo || ""}
-                                    placeholder={req.placeholder || "Especifique detalles o identidad..."}
-                                    onChange={e => updateCartItemCustomInfo(idx, e.target.value)}
-                                    className="min-h-14 text-xs resize-none"
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    ))}
+                {/* Sheet Footer & Checkout Action */}
+                <SheetFooter className="p-4 border-t border-border bg-background shrink-0 space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Sparkles className="size-3.5 text-indigo-400" /> Total EXP:
+                      </span>
+                      <span className="font-mono font-bold text-sm text-indigo-400">
+                        {totalExp.toLocaleString("es-ES")} EXP
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Coins className="size-3.5 text-emerald-400" /> Total Yenes:
+                      </span>
+                      <span className="font-mono font-bold text-sm text-emerald-400">
+                        {totalYen.toLocaleString("es-ES")} ¥
+                      </span>
+                    </div>
                   </div>
-                )}
-              </ScrollArea>
-              <div className="p-4 border-t border-border bg-background">
-                <div className="flex justify-between items-center text-sm mb-1">
-                  <span className="text-muted-foreground flex items-center gap-1.5"><Sparkles className="size-4 text-indigo-400" /> Total EXP:</span>
-                  <span className="font-mono font-bold text-indigo-400">{totalExp}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm mb-4">
-                  <span className="text-muted-foreground flex items-center gap-1.5"><Coins className="size-4 text-emerald-400" /> Total Yen:</span>
-                  <span className="font-mono font-bold text-emerald-400">{totalYen}</span>
-                </div>
-                {isAdmin ? (
-                  <Button className="w-full uppercase tracking-widest font-bold" disabled={cart.length === 0} onClick={() => setIsCheckoutModalOpen(true)}>
-                    Procesar Compra
-                  </Button>
-                ) : (
-                  <div className="bg-muted/50 border border-border p-3 text-xs text-muted-foreground text-center">
-                    Copia estos totales y solicita la compra a un moderador en tu tema correspondiente.
-                  </div>
-                )}
-              </div>
-            </div>
+
+                  {checkoutError && (
+                    <div className="p-2.5 rounded bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-start gap-1.5">
+                      <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                      <span>{checkoutError}</span>
+                    </div>
+                  )}
+
+                  {isAdmin ? (
+                    <Button
+                      className="w-full uppercase tracking-widest font-bold h-10 gap-2"
+                      disabled={cart.length === 0 || !checkoutCharacter}
+                      onClick={handleCheckout}
+                    >
+                      <CheckCircle2 className="size-4" /> Procesar Compra
+                    </Button>
+                  ) : (
+                    <div className="bg-muted/50 border border-border p-2.5 rounded text-xs text-muted-foreground text-center">
+                      Copia estos totales y solicita la compra a un moderador en tu tema correspondiente.
+                    </div>
+                  )}
+                </SheetFooter>
+              </SheetContent>
+            </Sheet>
           </TabsContent>
 
           {isAdmin && (
@@ -837,6 +1285,12 @@ export default function Shop() {
                    <Plus className="w-4 h-4" /> Nueva Oferta
                  </Button>
                </div>
+               {adminOfferActionError && (
+                 <div className="mx-6 mt-4 p-3 rounded-lg border border-destructive/50 bg-destructive/10 text-destructive text-xs font-medium flex items-center gap-2">
+                   <AlertCircle className="size-4 shrink-0" />
+                   <span>{adminOfferActionError}</span>
+                 </div>
+               )}
                <ScrollArea className="flex-1 p-6">
                   <Table>
                     <TableHeader>
@@ -892,12 +1346,19 @@ export default function Shop() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <div className="flex flex-wrap gap-1.5">
-                                {shopData.prices?.map((p: any, i: number) => (
-                                  <Badge key={i} variant="outline" className="font-mono text-xs">
-                                    {p.amount} {p.currency.toUpperCase()}
-                                  </Badge>
-                                ))}
+                              <div className="flex flex-col gap-1">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {shopData.prices?.map((p: any, i: number) => (
+                                    <Badge key={i} variant="outline" className="font-mono text-xs">
+                                      {p.amount} {p.currency.toUpperCase()}
+                                    </Badge>
+                                  ))}
+                                </div>
+                                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono">
+                                  <span>Stock: {shopData.globalStock !== null && Number(shopData.globalStock) > 0 ? shopData.globalStock : "∞"}</span>
+                                  <span>•</span>
+                                  <span>Límite/PJ: {shopData.perCharacterLimit !== null && Number(shopData.perCharacterLimit) > 0 ? shopData.perCharacterLimit : "∞"}</span>
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell className="text-right">
@@ -935,19 +1396,12 @@ export default function Shop() {
           <div className="flex-1 px-6 py-4 space-y-4 overflow-y-auto">
             <div className="space-y-2">
               <Label>Personaje Destino</Label>
-              <Select value={checkoutCharacter} onValueChange={setCheckoutCharacter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un personaje" />
-                </SelectTrigger>
-                <SelectContent>
-                  {characters?.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id.toString()}>
-                      <span className="font-medium">{c.name}</span>
-                      <span className="text-muted-foreground text-xs ml-2 font-mono">#{c.id}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CharacterSelector
+                characters={availableCharacters}
+                value={checkoutCharacter}
+                onChange={setCheckoutCharacter}
+                placeholder="Selecciona un personaje..."
+              />
             </div>
             
             <div className="bg-muted p-3 border border-border">
@@ -1051,6 +1505,13 @@ export default function Shop() {
               Configura el elemento, precios de compra y los requisitos para poder adquirirlo.
             </DialogDescription>
           </DialogHeader>
+
+          {saveOfferError && (
+            <div className="mx-6 mt-3 p-3 rounded-lg border border-destructive/50 bg-destructive/10 text-destructive text-xs font-medium flex items-center gap-2 shrink-0">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{saveOfferError}</span>
+            </div>
+          )}
           
           <div className="flex-1 overflow-hidden flex flex-col min-w-0">
             <Tabs value={offerModalTab} onValueChange={setOfferModalTab} className="flex-1 flex flex-col w-full h-full">
@@ -1096,7 +1557,7 @@ export default function Shop() {
                     </div>
 
                     <Select 
-                      value={editingOffer?.elementId} 
+                      value={editingOffer?.elementId || ""} 
                       onValueChange={v => setEditingOffer({...editingOffer, elementId: v})}
                     >
                       <SelectTrigger className="text-xs">
@@ -1176,7 +1637,7 @@ export default function Shop() {
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">Estado de la Oferta</Label>
                     <Select 
-                      value={editingOffer?.status} 
+                      value={editingOffer?.status || "available"} 
                       onValueChange={v => setEditingOffer({...editingOffer, status: v})}
                     >
                       <SelectTrigger className="h-9 text-xs">
@@ -1260,32 +1721,38 @@ export default function Shop() {
                   {/* Limits and Stock */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/60">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Stock Global (Opcional)</Label>
+                      <Label className="text-xs font-medium">Stock Global</Label>
                       <Input
                         type="number"
                         min={0}
-                        placeholder="Ilimitado"
+                        placeholder="Ilimitado (dejar vacío o 0)"
                         value={editingOffer?.globalStock ?? ""}
                         onChange={e => setEditingOffer({
                           ...editingOffer,
-                          globalStock: e.target.value === "" ? null : parseInt(e.target.value, 10)
+                          globalStock: e.target.value === "" ? null : (parseInt(e.target.value, 10) || 0)
                         })}
                         className="h-8 text-xs font-mono"
                       />
+                      <p className="text-[10px] text-muted-foreground">
+                        Deja vacío o ingresa 0 para stock global ilimitado.
+                      </p>
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Límite por Personaje (Opcional)</Label>
+                      <Label className="text-xs font-medium">Límite por Personaje</Label>
                       <Input
                         type="number"
-                        min={1}
-                        placeholder="Ilimitado"
+                        min={0}
+                        placeholder="Ilimitado (dejar vacío o 0)"
                         value={editingOffer?.perCharacterLimit ?? ""}
                         onChange={e => setEditingOffer({
                           ...editingOffer,
-                          perCharacterLimit: e.target.value === "" ? null : parseInt(e.target.value, 10)
+                          perCharacterLimit: e.target.value === "" ? null : (parseInt(e.target.value, 10) || 0)
                         })}
                         className="h-8 text-xs font-mono"
                       />
+                      <p className="text-[10px] text-muted-foreground">
+                        Deja vacío o ingresa 0 para permitir compras ilimitadas por personaje.
+                      </p>
                     </div>
                   </div>
                 </TabsContent>
@@ -1544,7 +2011,10 @@ export default function Shop() {
 
           <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
             <Button variant="outline" onClick={() => setEditingOffer(null)}>Cancelar</Button>
-            <Button onClick={handleSaveOffer}>Guardar Oferta</Button>
+            <Button onClick={handleSaveOffer} disabled={isSavingOffer} className="gap-2">
+              {isSavingOffer && <Loader2 className="size-4 animate-spin" />}
+              {isSavingOffer ? "Guardando..." : "Guardar Oferta"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

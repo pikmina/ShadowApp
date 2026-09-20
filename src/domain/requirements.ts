@@ -3,17 +3,17 @@ import { z } from 'zod';
 const comparisonSchema = z.enum(['eq', 'gte', 'lte', 'includes']);
 
 export const requirementSchema: z.ZodType<any> = z.lazy(() => z.union([
-  z.strictObject({ id: z.string().min(1), type: z.literal('owns_element'), elementId: z.string().min(1), quantity: z.number().int().positive().optional() }),
-  z.strictObject({ id: z.string().min(1), type: z.literal('attribute'), attributeId: z.string().min(1), comparison: comparisonSchema, value: z.number() }),
-  z.strictObject({ id: z.string().min(1), type: z.literal('skill_level'), skillElementId: z.string().min(1), comparison: comparisonSchema, value: z.number() }),
-  z.strictObject({ id: z.string().min(1), type: z.literal('stage'), stageId: z.string().min(1), comparison: z.enum(['eq', 'gte']) }),
-  z.strictObject({ id: z.string().min(1), type: z.literal('age'), comparison: z.enum(['gte', 'lte']), value: z.number() }),
-  z.strictObject({ id: z.string().min(1), type: z.literal('character_field'), fieldId: z.string().min(1), comparison: comparisonSchema, value: z.union([z.string(), z.number(), z.boolean()]) }),
-  z.strictObject({ id: z.string().min(1), type: z.literal('custom_info'), label: z.string().optional(), placeholder: z.string().optional(), required: z.boolean().optional() }),
+  z.object({ id: z.string().optional(), type: z.literal('owns_element'), elementId: z.string().min(1), quantity: z.coerce.number().int().positive().optional() }),
+  z.object({ id: z.string().optional(), type: z.literal('attribute'), attributeId: z.string().min(1), comparison: comparisonSchema, value: z.coerce.number() }),
+  z.object({ id: z.string().optional(), type: z.literal('skill_level'), skillElementId: z.string().min(1), comparison: comparisonSchema, value: z.coerce.number() }),
+  z.object({ id: z.string().optional(), type: z.literal('stage'), stageId: z.string().min(1), comparison: z.enum(['eq', 'gte']) }),
+  z.object({ id: z.string().optional(), type: z.literal('age'), comparison: z.enum(['gte', 'lte']), value: z.coerce.number() }),
+  z.object({ id: z.string().optional(), type: z.literal('character_field'), fieldId: z.string().min(1), comparison: comparisonSchema, value: z.union([z.string(), z.number(), z.boolean()]) }),
+  z.object({ id: z.string().optional(), type: z.literal('custom_info'), label: z.string().optional(), placeholder: z.string().optional(), required: z.boolean().optional() }),
   requirementGroupSchema,
 ]));
 
-export const requirementGroupSchema: z.ZodType<any> = z.lazy(() => z.strictObject({
+export const requirementGroupSchema: z.ZodType<any> = z.lazy(() => z.object({
   operator: z.enum(['all', 'any', 'none']),
   requirements: z.array(requirementSchema),
 }));

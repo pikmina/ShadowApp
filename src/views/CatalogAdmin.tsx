@@ -36,7 +36,7 @@ import {
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { Switch } from "../components/ui/switch";
-import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff, Sparkles, Layers, Copy } from "lucide-react";
+import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff, Sparkles, Layers, Copy, AlertCircle, Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -115,16 +115,17 @@ export default function CatalogAdmin() {
   const [form, setForm] = useState(defaultForm);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("all");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [adminActionError, setAdminActionError] = useState("");
 
   useEffect(() => {
     if (searchParams.get('create') === 'true') {
       setForm({ ...defaultForm, id: nanoid(8) });
+      setSaveError("");
       setIsDialogOpen(true);
     }
   }, [searchParams]);
-
-  
-  
 
   const { data: rules } = useSWR(user ? "/api/rules" : null, fetcher);
   const mechanicsRule = rules?.find((r: any) => r.key === "system_mechanics") || { value: [] };
@@ -157,6 +158,7 @@ export default function CatalogAdmin() {
 
 
   const handleOpenDialog = (el?: any) => {
+    setSaveError("");
     if (el) {
       setForm({
         id: el.id,
@@ -188,40 +190,53 @@ export default function CatalogAdmin() {
   };
 
   const handleSave = async () => {
-        try {
+    if (!form.name.trim()) {
+      setSaveError("Debes ingresar un nombre para el elemento.");
+      return;
+    }
+    setSaveError("");
+    setIsSaving(true);
+    try {
       const res = await apiFetch("/api/elements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)
       });
-      if (!res.ok) throw new Error("Error saving");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Error al guardar elemento");
       setIsDialogOpen(false);
-      mutate();
-    } catch (e) {
+      setSaveError("");
+      await mutate();
+    } catch (e: any) {
       console.error(e);
-      alert("Error al guardar elemento");
+      setSaveError(e.message || "Error al guardar elemento");
+    } finally {
+      setIsSaving(false);
     }
   };
 
   
   const handleToggleStatus = async (el: any) => {
     try {
+      setAdminActionError("");
       const updatedEl = { ...el, status: el.status === "published" ? "draft" : "published" };
       const res = await apiFetch("/api/elements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedEl)
       });
-      if (!res.ok) throw new Error("Error saving");
-      mutate();
-    } catch (e) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Error al actualizar estado");
+      await mutate();
+    } catch (e: any) {
       console.error(e);
-      alert("Error al actualizar estado");
+      setAdminActionError(e.message || "Error al actualizar estado");
     }
   };
 
   const handleDuplicate = async (el: any) => {
     try {
+      setAdminActionError("");
       const { id, createdAt, updatedAt, ...rest } = el;
       const duplicated = {
         ...rest,
@@ -237,22 +252,26 @@ export default function CatalogAdmin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(duplicated),
       });
-      if (!res.ok) throw new Error("Error duplicando");
-      mutate();
-    } catch (e) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Error al duplicar elemento");
+      await mutate();
+    } catch (e: any) {
       console.error(e);
-      alert("Error al duplicar elemento");
+      setAdminActionError(e.message || "Error al duplicar elemento");
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
-      await apiFetch(`/api/elements/${id}`, {
+      setAdminActionError("");
+      const res = await apiFetch(`/api/elements/${id}`, {
         method: "DELETE" });
-      mutate();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Error al eliminar elemento");
+      await mutate();
       setDeleteConfirmId(null);
-    } catch (e) {
-      alert("Error borrando: " + (e as Error).message);
+    } catch (e: any) {
+      setAdminActionError(e.message || "Error al borrar elemento");
     }
   };
 
@@ -285,6 +304,13 @@ export default function CatalogAdmin() {
           </Select>
         </div>
       </div>
+
+      {adminActionError && (
+        <div className="p-3 rounded-lg border border-destructive/50 bg-destructive/10 text-destructive text-xs font-medium flex items-center gap-2">
+          <AlertCircle className="size-4 shrink-0" />
+          <span>{adminActionError}</span>
+        </div>
+      )}
 
       <div className="rounded-md border bg-card shadow-sm overflow-hidden">
         <Table>
@@ -361,6 +387,13 @@ export default function CatalogAdmin() {
               Construye mecánicas paso a paso sin programar.
             </DialogDescription>
           </DialogHeader>
+
+          {saveError && (
+            <div className="mx-6 mt-3 p-3 rounded-lg border border-destructive/50 bg-destructive/10 text-destructive text-xs font-medium flex items-center gap-2 shrink-0">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{saveError}</span>
+            </div>
+          )}
           
           <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -595,7 +628,10 @@ export default function CatalogAdmin() {
         </div>
           <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave}>Guardar Elemento</Button>
+            <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+              {isSaving && <Loader2 className="size-4 animate-spin" />}
+              {isSaving ? "Guardando..." : "Guardar Elemento"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

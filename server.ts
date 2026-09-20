@@ -105,7 +105,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/elements", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
+  app.post("/api/elements", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
   try {
     const ElementSchema = z.object({
       id: z.string().optional(),
@@ -113,7 +113,8 @@ async function startServer() {
         'trait', 'weakness', 'skill', 'equipment', 'weapon',
         'ammunition', 'consumable', 'license', 'permission', 'certification',
         'character_resource', 'attribute_upgrade', 'technique_entitlement',
-        'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient'
+        'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient',
+        'background', 'vehicle', 'real_estate', 'clandestine_asset'
       ]),
       name: z.string().min(1),
       description: z.string(),
@@ -149,7 +150,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/elements/:id", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
+  app.delete("/api/elements/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       await deleteElement(req.params.id, req.dbUser?.uid);
       res.json({ success: true });
@@ -522,7 +523,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/shop/offers", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
+  app.post("/api/shop/offers", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
   try {
     const OfferSchema = z.object({
       id: z.string().optional(),
@@ -530,28 +531,30 @@ async function startServer() {
       status: z.enum(['draft', 'scheduled', 'available', 'paused', 'ended', 'archived']),
       prices: z.array(z.object({
         currency: z.enum(['exp', 'yen']),
-        amount: z.number().int().min(0)
+        amount: z.coerce.number().int().min(0)
       })),
       requirements: requirementGroupSchema.optional(),
-      globalStock: z.number().int().nullable().optional(),
-      perCharacterLimit: z.number().int().min(1).nullable().optional()
+      globalStock: z.coerce.number().int().min(0).nullable().optional().transform(v => (v === 0 || v === undefined || v === null ? null : v)),
+      perCharacterLimit: z.coerce.number().int().min(0).nullable().optional().transform(v => (v === 0 || v === undefined || v === null ? null : v))
     });
     const parsed = OfferSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
 
-      const offer = await upsertShopOffer(req.body, req.dbUser?.uid);
+      const offer = await upsertShopOffer(parsed.data, req.dbUser?.uid);
       res.json(offer);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to save shop offer" });
+    } catch (error: any) {
+      console.error("SAVE SHOP OFFER ERROR:", error);
+      res.status(500).json({ error: error.message || "Failed to save shop offer" });
     }
   });
 
-  app.delete("/api/shop/offers/:id", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
+  app.delete("/api/shop/offers/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       await deleteShopOffer(req.params.id, req.dbUser?.uid);
       res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to delete shop offer" });
+    } catch (error: any) {
+      console.error("DELETE SHOP OFFER ERROR:", error);
+      res.status(500).json({ error: error.message || "Failed to delete shop offer" });
     }
   });
 

@@ -18,8 +18,8 @@ export async function getShopOffers() {
 export async function upsertShopOffer(data: any, actorUid?: string) {
   try {
     let id = data.id;
-    const globalStock = data.globalStock !== undefined && data.globalStock !== "" ? Number(data.globalStock) : null;
-    const perCharacterLimit = data.perCharacterLimit !== undefined && data.perCharacterLimit !== "" ? Number(data.perCharacterLimit) : null;
+    const globalStock = data.globalStock !== undefined && data.globalStock !== "" && data.globalStock !== null ? Number(data.globalStock) : null;
+    const perCharacterLimit = data.perCharacterLimit !== undefined && data.perCharacterLimit !== "" && data.perCharacterLimit !== null && Number(data.perCharacterLimit) > 0 ? Number(data.perCharacterLimit) : null;
 
     if (!id) {
       id = nanoid(10);
@@ -163,7 +163,7 @@ export async function processPurchase(moderatorUid: string, characterId: number,
 
       // Need to lock the row for the offer
       const [offer] = await tx.select().from(shopOffers).where(eq(shopOffers.id, offerId));
-      if (!offer) throw new Error(`Offer ${offerId} not found`);
+      if (!offer) throw new Error(`Oferta de tienda no encontrada.`);
 
       if (customInfo && typeof customInfo === 'string' && customInfo.trim()) {
         elementNotes[offer.elementId] = customInfo.trim();
@@ -171,7 +171,7 @@ export async function processPurchase(moderatorUid: string, characterId: number,
       
       const [element] = await tx.select().from(systemElements).where(eq(systemElements.id, offer.elementId));
       if (!element || element.status !== 'published') {
-         throw new Error(`Element for offer ${offerId} is not published`);
+         throw new Error(`El elemento "${element?.name || 'solicitado'}" no está disponible.`);
       }
       const requirements = requirementGroupSchema.parse(offer.requirements ?? { operator: 'all', requirements: [] });
       const evaluation = evaluateRequirements(requirements, {
@@ -181,7 +181,7 @@ export async function processPurchase(moderatorUid: string, characterId: number,
       });
       if (!evaluation.passed) throw new Error(`Requisitos no cumplidos para ${element.name}: ${evaluation.failures.join(', ')}`);
       
-      if (offer.status !== 'available') throw new Error(`Offer ${offerId} is not available`);
+      if (offer.status !== 'available') throw new Error(`La oferta para "${element.name}" no está disponible.`);
 
       const isProgression = fromLevel !== undefined && toLevel !== undefined;
 
@@ -241,7 +241,7 @@ export async function processPurchase(moderatorUid: string, characterId: number,
           throw new Error(`Invalid quantity: ${quantity}`);
         }
 
-        if (offer.perCharacterLimit !== null) {
+        if (offer.perCharacterLimit !== null && offer.perCharacterLimit > 0) {
           // Find existing possessions for this element
           const [existingPos] = await tx.select().from(elementPossessions).where(and(
             eq(elementPossessions.characterId, characterId),
@@ -250,16 +250,18 @@ export async function processPurchase(moderatorUid: string, characterId: number,
           const currentAmount = existingPos ? existingPos.quantity : 0;
           const pendingAdded = possessionsToAdd[offer.elementId] || 0;
           if (currentAmount + pendingAdded + quantity > offer.perCharacterLimit) {
-            throw new Error(`Per-character limit exceeded for offer ${offerId}. Limit is ${offer.perCharacterLimit}.`);
+            throw new Error(`Límite por personaje alcanzado para "${element.name}". El límite es de ${offer.perCharacterLimit} unidad(es).`);
           }
         }
 
         const price = (offer.prices as any[]).find((p: any) => p.currency === selectedCurrency);
-        if (!price) throw new Error(`Price in ${selectedCurrency} not found for offer ${offerId}`);
-        if (!Number.isInteger(price.amount) || price.amount < 0) throw new Error(`Invalid price on offer ${offerId}`);
+        if (!price) throw new Error(`Precio en ${selectedCurrency.toUpperCase()} no disponible para "${element.name}".`);
+        if (!Number.isInteger(price.amount) || price.amount < 0) throw new Error(`Precio inválido para "${element.name}".`);
 
-        if (offer.globalStock !== null) {
-          if (offer.globalStock < quantity) throw new Error(`Not enough global stock for offer ${offerId}`);
+        if (offer.globalStock !== null && offer.globalStock > 0) {
+          if (offer.globalStock < quantity) {
+            throw new Error(`No hay suficiente stock disponible para "${element.name}". Stock restante: ${offer.globalStock}.`);
+          }
           
           // Decrement stock
           const updateResult = await tx.update(shopOffers)
@@ -270,7 +272,7 @@ export async function processPurchase(moderatorUid: string, characterId: number,
             )).returning();
             
           if (updateResult.length === 0) {
-              throw new Error(`Concurrent modification or stock depleted for offer ${offerId}`);
+              throw new Error(`Stock agotado para "${element.name}".`);
           }
         }
 
