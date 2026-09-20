@@ -193,6 +193,40 @@ export default function Shop() {
 
   const isAdmin = role === "moderator" || role === "superadmin";
 
+  const maxPurchasedAttributes = useMemo(() => {
+    if (!Array.isArray(rules)) return 5;
+    const r = rules.find((item: any) => item.key === "max_purchased_attributes");
+    return Number(r?.value?.max ?? r?.value) || 5;
+  }, [rules]);
+
+  const selectedCheckoutChar = useMemo(() => {
+    if (!checkoutCharacter || !Array.isArray(characters)) return null;
+    return characters.find((c: any) => c.id.toString() === checkoutCharacter);
+  }, [characters, checkoutCharacter]);
+
+  const charExistingAttrUpgrades = useMemo(() => {
+    if (!selectedCheckoutChar?.possessions || !Array.isArray(selectedCheckoutChar.possessions)) return 0;
+    return selectedCheckoutChar.possessions.reduce((sum: number, p: any) => {
+      const elKind = p.element?.kind || p.kind;
+      if (elKind === "attribute_upgrade") {
+        return sum + (p.possession?.quantity ?? p.quantity ?? 1);
+      }
+      return sum;
+    }, 0);
+  }, [selectedCheckoutChar]);
+
+  const cartAttrUpgradesCount = useMemo(() => {
+    return cart.reduce((sum, item) => {
+      if (item.element?.kind !== "attribute_upgrade") return sum;
+      if (item.isProgression) {
+        return sum + Math.max(0, (item.toLevel ?? 0) - (item.fromLevel ?? 0));
+      }
+      return sum + (item.quantity || 1);
+    }, 0);
+  }, [cart]);
+
+  const exceedsAttrLimit = selectedCheckoutChar && (charExistingAttrUpgrades + cartAttrUpgradesCount > maxPurchasedAttributes);
+
   const addStandardToCart = (offer: any, element: any, currency: string) => {
     setCart(prev => {
       const existing = prev.find(item => !item.isProgression && item.offerId === offer.id && item.selectedCurrency === currency);
@@ -855,6 +889,25 @@ export default function Shop() {
               </div>
             </div>
 
+            {cartAttrUpgradesCount > 0 && (
+              <div className={`p-3 border rounded text-xs space-y-1 ${exceedsAttrLimit ? 'bg-destructive/10 border-destructive/30 text-destructive' : 'bg-amber-500/10 border-amber-500/20 text-foreground'}`}>
+                <div className="flex justify-between font-semibold">
+                  <span>Mejoras de Atributo:</span>
+                  <span className="font-mono">
+                    {selectedCheckoutChar ? `${charExistingAttrUpgrades + cartAttrUpgradesCount}` : `+${cartAttrUpgradesCount}`} / {maxPurchasedAttributes} máx.
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {selectedCheckoutChar ? `El personaje tiene ${charExistingAttrUpgrades} y esta compra suma +${cartAttrUpgradesCount}.` : `Esta compra incluye +${cartAttrUpgradesCount} mejoras de atributo.`}
+                </p>
+                {exceedsAttrLimit && (
+                  <p className="font-medium text-destructive mt-1">
+                    ⚠️ Se supera el límite máximo de {maxPurchasedAttributes} atributos por personaje configurado en las reglas.
+                  </p>
+                )}
+              </div>
+            )}
+
             {checkoutError && (
               <div className="text-xs text-destructive bg-destructive/10 p-2 border border-destructive/20">
                 {checkoutError}
@@ -863,7 +916,7 @@ export default function Shop() {
           </div>
           <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
             <Button variant="outline" onClick={() => setIsCheckoutModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCheckout}>Confirmar Compra</Button>
+            <Button onClick={handleCheckout} disabled={Boolean(exceedsAttrLimit)}>Confirmar Compra</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

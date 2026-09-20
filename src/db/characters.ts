@@ -364,6 +364,28 @@ export async function updatePossession(moderatorUid: string, characterId: number
       const requirements = requirementGroupSchema.parse(element.requirements);
       const evaluation = evaluateRequirements(requirements, { profile: (character.profileData ?? {}) as Record<string, unknown>, possessions, stageIds });
       if (!evaluation.passed) throw Object.assign(new Error(`Requirements not met: ${evaluation.failures.join(', ')}`), { status: 409 });
+
+      if (element.kind === 'attribute_upgrade') {
+        const [maxAttrRule] = await tx.select().from(systemRules).where(eq(systemRules.key, 'max_purchased_attributes'));
+        const maxPurchasedAttributes = Number((maxAttrRule?.value as any)?.max ?? maxAttrRule?.value) || 5;
+
+        const existingAttrPossessions = await tx.select({
+          elementId: elementPossessions.elementId,
+          quantity: elementPossessions.quantity,
+        })
+        .from(elementPossessions)
+        .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
+        .where(and(
+          eq(elementPossessions.characterId, characterId),
+          eq(systemElements.kind, 'attribute_upgrade')
+        ));
+
+        const currentTotal = existingAttrPossessions.reduce((sum, p) => sum + p.quantity, 0);
+        const newTotal = currentTotal + quantityChange;
+        if (newTotal > maxPurchasedAttributes) {
+          throw Object.assign(new Error(`Límite de atributos superado: El personaje tendría ${newTotal} mejoras de atributo y el máximo permitido por las reglas del sistema es ${maxPurchasedAttributes}.`), { status: 400 });
+        }
+      }
     }
 
     // Atomic UPSERT or DELETE
@@ -396,6 +418,19 @@ export async function updatePossession(moderatorUid: string, characterId: number
         eq(elementPossessions.characterId, characterId),
         eq(elementPossessions.elementId, elementId)
       ));
+    }
+
+    if (element.kind === 'attribute_upgrade') {
+      const attrId = (element.metadata as any)?.attributeId || 'FUE';
+      const currentAttrVal = Number((character.profileData as Record<string, any>)?.[attrId]) || 0;
+      const updatedVal = Math.max(0, currentAttrVal + quantityChange);
+      await tx.update(characters).set({
+        profileData: {
+          ...(character.profileData as Record<string, any>),
+          [attrId]: updatedVal,
+        },
+        updatedAt: new Date(),
+      }).where(eq(characters.id, characterId));
     }
 
     await tx.insert(auditLogs).values({

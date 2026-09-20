@@ -25,6 +25,24 @@ export default function AdminRewardsDialog({ characterId, character, onClose }: 
   const [loading, setLoading] = useState(false);
 
   const { data: rawElements } = useSWR('/api/elements', fetcher);
+  const { data: rules } = useSWR('/api/rules', fetcher);
+
+  const maxPurchasedAttributes = useMemo(() => {
+    if (!Array.isArray(rules)) return 5;
+    const r = rules.find((item: any) => item.key === 'max_purchased_attributes');
+    return Number(r?.value?.max ?? r?.value) || 5;
+  }, [rules]);
+
+  const totalCharacterAttrUpgrades = useMemo(() => {
+    if (!character?.possessions || !Array.isArray(character.possessions)) return 0;
+    return character.possessions.reduce((sum: number, p: any) => {
+      const elKind = p.element?.kind || p.kind;
+      if (elKind === 'attribute_upgrade') {
+        return sum + (p.possession?.quantity ?? p.quantity ?? 0);
+      }
+      return sum;
+    }, 0);
+  }, [character]);
   const elementKindLabel = (kind: string) => ({
     license: 'Licencia', permission: 'Permiso', certification: 'Certificación', trait: 'Rasgo', weakness: 'Debilidad',
     skill: 'Habilidad', equipment: 'Equipamiento', weapon: 'Arma', ammunition: 'Munición', consumable: 'Consumible',
@@ -259,6 +277,23 @@ export default function AdminRewardsDialog({ characterId, character, onClose }: 
                       {currentQuantityInPossession} unidad(es)
                     </span>
                   </div>
+                  {selectedElement.kind === 'attribute_upgrade' && (
+                    <div className={`p-2 rounded mt-1 border text-[11px] space-y-0.5 ${
+                      totalCharacterAttrUpgrades >= maxPurchasedAttributes 
+                        ? 'bg-destructive/10 border-destructive/30 text-destructive' 
+                        : 'bg-amber-500/10 border-amber-500/20 text-foreground'
+                    }`}>
+                      <div className="flex justify-between font-semibold">
+                        <span>Límite de Mejoras de Atributo:</span>
+                        <span className="font-mono">{totalCharacterAttrUpgrades} / {maxPurchasedAttributes} máx.</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {totalCharacterAttrUpgrades >= maxPurchasedAttributes 
+                          ? 'El personaje ya ha alcanzado el límite máximo de mejoras configurado en las reglas.'
+                          : `Quedan ${maxPurchasedAttributes - totalCharacterAttrUpgrades} mejoras disponibles para este personaje.`}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 

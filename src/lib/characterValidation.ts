@@ -12,7 +12,9 @@ export function calculateModifier(value: number): number {
 
 export function validateCharacter(
   profile: Record<string, any>,
-  stages: any[]
+  stages: any[],
+  purchasedAttrPoints: number = 0,
+  maxPurchased: number = 5
 ): ValidationResult {
   const messages: string[] = [];
   let status: 'green' | 'orange' | 'red' = 'green' as 'green' | 'orange' | 'red';
@@ -30,29 +32,35 @@ export function validateCharacter(
   }
 
   // Read Base Stats
-    let fue = Number(profile['FUE'] || profile['fue'] || profile['fuerza']) || 0;
+  let fue = Number(profile['FUE'] || profile['fue'] || profile['fuerza']) || 0;
   let des = Number(profile['DES'] || profile['des'] || profile['destreza']) || 0;
   let res = Number(profile['RES'] || profile['res'] || profile['resistencia']) || 0;
   let int = Number(profile['INT'] || profile['int'] || profile['inteligencia']) || 0;
   let vol = Number(profile['VOL'] || profile['vol'] || profile['voluntad']) || 0;
   let vel = Number(profile['VEL'] || profile['vel'] || profile['velocidad']) || 0;
 
-
   const totalPoints = fue + des + res + int + vol + vel;
   const maxAttr = stage.maxAttr || 0;
   const attrPoints = stage.attrPoints || 0;
+  const allowedTotal = attrPoints + purchasedAttrPoints;
 
-  if (totalPoints < attrPoints) {
-    status = status === 'red' ? 'red' : 'orange';
-    messages.push(`Faltan puntos por repartir (${totalPoints}/${attrPoints}).`);
-  } else if (totalPoints > attrPoints) {
+  if (purchasedAttrPoints > maxPurchased) {
     status = 'red';
-    messages.push(`Se han excedido los puntos de atributo (${totalPoints}/${attrPoints}).`);
+    messages.push(`Se ha superado el límite de mejoras de atributo permitidas (${purchasedAttrPoints}/${maxPurchased}).`);
   }
 
-  if (fue > maxAttr || des > maxAttr || res > maxAttr || int > maxAttr || vol > maxAttr || vel > maxAttr) {
+  if (totalPoints < allowedTotal) {
+    status = status === 'red' ? 'red' : 'orange';
+    messages.push(`Faltan puntos por repartir (${totalPoints}/${allowedTotal}).`);
+  } else if (totalPoints > allowedTotal) {
     status = 'red';
-    messages.push(`Uno o más atributos superan el límite de etapa (Máx. ${maxAttr}).`);
+    messages.push(`Se han excedido los puntos de atributo (${totalPoints}/${allowedTotal}).`);
+  }
+
+  const effectiveMaxAttr = maxAttr + purchasedAttrPoints;
+  if (fue > effectiveMaxAttr || des > effectiveMaxAttr || res > effectiveMaxAttr || int > effectiveMaxAttr || vol > effectiveMaxAttr || vel > effectiveMaxAttr) {
+    status = 'red';
+    messages.push(`Uno o más atributos superan el límite de etapa (Máx. ${effectiveMaxAttr}).`);
   }
 
   return { status, messages };

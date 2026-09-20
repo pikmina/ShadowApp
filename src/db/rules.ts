@@ -123,6 +123,10 @@ export async function seedCoreRules() {
       key: 'employment_compensation', type: 'json', value: defaultEmploymentCompensation,
       description: 'Tablas de remuneración por nivel y riesgo para empleos',
     }).onConflictDoNothing();
+    await tx.insert(systemRules).values({
+      key: 'max_purchased_attributes', type: 'number', value: 5,
+      description: 'Límite máximo de mejoras de atributo comprables por personaje',
+    }).onConflictDoNothing();
     await tx.insert(systemElements).values({ id: 'core.status.stunned', kind: 'altered_status', name: 'Aturdido', description: 'Estado Aturdido. La resolución específica se configura en el catálogo.', status: 'draft', effects: [] }).onConflictDoNothing();
   });
 }

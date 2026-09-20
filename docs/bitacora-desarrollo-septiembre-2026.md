@@ -127,17 +127,27 @@ Este documento registra los cambios arquitectónicos, modelos de datos, endpoint
   - Corrección de índices únicos en `src/db/schema.ts` (`element_possessions_character_id_element_id_unique` y `character_sheet_fields_core_key_unique`) para permitir migraciones no interactivas en entornos CI/CD y Cloud Run sin requerir TTY.
   - Corrección del error de runtime `column "display_name" does not exist` y restablecimiento total de la verificación de tokens e inicio de sesión.
 
+#### E. Tienda, Requisitos de Compra y Etapas del Personaje
+- **Migración de Requisitos a Nivel de Oferta (`Shop.tsx`)**:
+  - Centralización de la definición y gestión de requisitos de compra en la Tienda (`ShopOffer`), desacoplándolos de la definición base del catálogo de elementos.
+  - Resolución dinámica de nombres legibles de elementos, habilidades y atributos en lugar de identificadores técnicos o IDs crudos.
+  - Localización exhaustiva al español de la interfaz de la tienda, estados de oferta (`Disponible`, `Borrador`, `Pausado`, `Finalizado`) y tipos de requisitos.
+- **Soporte de Requisitos por Etapa (`stage`)**:
+  - Incorporación del tipo de requisito de Etapa en el editor de ofertas con obtención dinámica desde `system_rules` (`system_stages`).
+  - Soporte de operadores de comparación: Mínimo ($\ge$) y Exactamente ($=$).
+  - Integración en `renderRequirementLabel` para la correcta visualización de requisitos en las tarjetas de compra para usuarios y personajes.
+
 ---
 
 ## 2. Mapa de Archivos Clave Afectados
 
 | Capa | Archivos Principales | Propósito |
 | :--- | :--- | :--- |
-| **Base de Datos** | `src/db/schema.ts`<br>`src/db/migrate.ts`<br>`src/db/users.ts`<br>`src/db/canonCharacters.ts`<br>`src/db/academicClasses.ts`<br>`src/db/dashboard.ts`<br>`src/db/auditLogs.ts` | Esquema Drizzle, tablas relacionales, gestión de canon y academia, usuarios, métricas y auditoría. |
-| **Dominio** | `src/domain/employmentCompensation.ts`<br>`src/domain/systemMechanics.ts`<br>`src/domain/mechanics.ts` | Cálculos puros de salarios, reglas canónicas de efectos mecánicos y cálculo de Coste de Estamina (CE). |
-| **Backend / API** | `server.ts`<br>`src/middleware/auth.ts` | Endpoints REST (`/api/auth/profile`, `/api/employments/*`, `/api/audit-logs`, `/api/dashboard/stats`, etc.), verificación de roles y JWT. |
+| **Base de Datos** | `src/db/schema.ts`<br>`src/db/migrate.ts`<br>`src/db/users.ts`<br>`src/db/canonCharacters.ts`<br>`src/db/academicClasses.ts`<br>`src/db/dashboard.ts`<br>`src/db/auditLogs.ts`<br>`src/db/shop.ts` | Esquema Drizzle, tablas relacionales, gestión de canon y academia, usuarios, métricas, auditoría y tienda. |
+| **Dominio** | `src/domain/employmentCompensation.ts`<br>`src/domain/systemMechanics.ts`<br>`src/domain/mechanics.ts`<br>`src/domain/requirements.ts` | Cálculos puros de salarios, reglas canónicas de efectos mecánicos, validación de requisitos de compra y cálculo de CE. |
+| **Backend / API** | `server.ts`<br>`src/middleware/auth.ts` | Endpoints REST (`/api/auth/profile`, `/api/employments/*`, `/api/audit-logs`, `/api/dashboard/stats`, `/api/shop/*`, etc.), verificación de roles y JWT. |
 | **Contexto y Estado** | `src/contexts/AuthContext.tsx` | Estado de autenticación global, hidratación de usuario y método `updateProfileData`. |
-| **Interfaz (UI)** | `src/components/profile/UserProfileDialog.tsx`<br>`src/components/DashboardLayout.tsx`<br>`src/views/SettingsAdmin.tsx`<br>`src/views/AdminDashboard.tsx` | Diálogo de edición de perfil, avatar en navegación/sidebar, pestaña en ajustes y métricas del dashboard. |
+| **Interfaz (UI)** | `src/components/profile/UserProfileDialog.tsx`<br>`src/components/DashboardLayout.tsx`<br>`src/views/SettingsAdmin.tsx`<br>`src/views/AdminDashboard.tsx`<br>`src/views/Shop.tsx` | Diálogo de edición de perfil, avatar en navegación/sidebar, pestaña en ajustes, métricas del dashboard y administración/compra en tienda. |
 | **Documentación** | `docs/employment-compensation-contract.md`<br>`docs/mechanical-effects-contract.md`<br>`docs/system-core-architecture-plan.md`<br>`docs/bitacora-desarrollo-septiembre-2026.md` | Contratos de diseño, planes de arquitectura y bitácora de cambios. |
 | **Pruebas** | `src/db/__tests__/*.test.ts` (12 suites) | Verificación de compensación, auditoría, personajes, empleos, elementos y dashboard. |
 

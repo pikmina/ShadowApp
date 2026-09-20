@@ -132,6 +132,26 @@ export async function processPurchase(moderatorUid: string, characterId: number,
     const [stagesRule] = await tx.select().from(systemRules).where(eq(systemRules.key, 'system_stages'));
     const stageIds = Array.isArray(stagesRule?.value) ? (stagesRule.value as any[]).map(stage => String(stage.id ?? stage.name)) : [];
 
+    const [maxAttrRule] = await tx.select().from(systemRules).where(eq(systemRules.key, 'max_purchased_attributes'));
+    const maxPurchasedAttributes = Number((maxAttrRule?.value as any)?.max ?? maxAttrRule?.value) || 5;
+
+    // Track existing attribute upgrades for the character
+    const existingAttrPossessions = await tx.select({
+      elementId: elementPossessions.elementId,
+      quantity: elementPossessions.quantity,
+    })
+    .from(elementPossessions)
+    .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
+    .where(and(
+      eq(elementPossessions.characterId, characterId),
+      eq(systemElements.kind, 'attribute_upgrade')
+    ));
+
+    const attrUpgradeLevels = new Map<string, number>();
+    for (const p of existingAttrPossessions) {
+      attrUpgradeLevels.set(p.elementId, p.quantity);
+    }
+
     for (const item of cartItems) {
       const { offerId, quantity = 1, selectedCurrency, fromLevel, toLevel } = item;
       
@@ -193,8 +213,10 @@ export async function processPurchase(moderatorUid: string, characterId: number,
         });
 
         if (element.kind === 'attribute_upgrade') {
+          attrUpgradeLevels.set(offer.elementId, toLevel);
           const attrId = (element.metadata as any)?.attributeId || 'FUE';
-          attributeUpdates[attrId] = toLevel;
+          const currentAttrVal = Number((character.profileData as Record<string, any>)?.[attrId]) || 0;
+          attributeUpdates[attrId] = currentAttrVal + (toLevel - fromLevel);
         }
 
         auditDetails.push({
@@ -252,6 +274,13 @@ export async function processPurchase(moderatorUid: string, characterId: number,
           totalYen += price.amount * quantity;
         }
 
+        if (element.kind === 'attribute_upgrade') {
+          attrUpgradeLevels.set(offer.elementId, (attrUpgradeLevels.get(offer.elementId) || 0) + quantity);
+          const attrId = (element.metadata as any)?.attributeId || 'FUE';
+          const currentAttrVal = Number((character.profileData as Record<string, any>)?.[attrId]) || 0;
+          attributeUpdates[attrId] = currentAttrVal + quantity;
+        }
+
         possessionsToAdd[offer.elementId] = (possessionsToAdd[offer.elementId] || 0) + quantity;
         possessionContext.set(offer.elementId, {
           quantity: (possessionContext.get(offer.elementId)?.quantity ?? 0) + quantity,
@@ -266,6 +295,15 @@ export async function processPurchase(moderatorUid: string, characterId: number,
           currency: selectedCurrency
         });
       }
+    }
+
+    // 2. Validate maximum purchased attributes limit
+    let totalPurchasedAttrs = 0;
+    for (const qty of attrUpgradeLevels.values()) {
+      totalPurchasedAttrs += qty;
+    }
+    if (totalPurchasedAttrs > maxPurchasedAttributes) {
+      throw new Error(`Límite de atributos superado: El personaje tendría ${totalPurchasedAttrs} mejoras de atributo compradas y el límite máximo configurado en las reglas del sistema es ${maxPurchasedAttributes}.`);
     }
 
     if (character.exp < totalExp) {

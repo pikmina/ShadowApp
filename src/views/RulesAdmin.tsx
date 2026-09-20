@@ -7,6 +7,7 @@ import { useSearchParams } from "react-router-dom";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
+import { toast } from "sonner";
 import { Button } from "../components/ui/button";
 import {
   Table,
@@ -168,6 +169,41 @@ export default function RulesAdmin() {
   
   const attrsRule = rules?.find((r: any) => r.key === 'system_attributes') || { value: [{"id":"fue","name":"Fuerza","abbrev":"FUE","desc":"Capacidad física, levantamiento y daño cuerpo a cuerpo pesado."},{"id":"des","name":"Destreza","abbrev":"DES","desc":"Agilidad, puntería, reflejos y habilidades manuales precisas."},{"id":"res","name":"Resistencia","abbrev":"RES","desc":"Tolerancia al daño físico, enfermedades y fatiga extrema."},{"id":"int","name":"Inteligencia","abbrev":"INT","desc":"Capacidad analítica, memoria, percepción y uso de tecnología."},{"id":"vol","name":"Voluntad","abbrev":"VOL","desc":"Fuerza mental, resistencia psíquica y control de emociones/quirks."},{"id":"vel","name":"Velocidad","abbrev":"VEL","desc":"Capacidad de movimiento, iniciativa en combate y evasión rápida."}] };
   const attributes = attrsRule.value;
+
+  const maxPurchasedAttrRule = rules?.find((r: any) => r.key === 'max_purchased_attributes');
+  const [maxPurchasedAttrs, setMaxPurchasedAttrs] = useState<number>(5);
+  const [maxPurchasedDirty, setMaxPurchasedDirty] = useState(false);
+  const [isSavingMaxAttr, setIsSavingMaxAttr] = useState(false);
+
+  useEffect(() => {
+    if (!maxPurchasedDirty && maxPurchasedAttrRule?.value !== undefined) {
+      setMaxPurchasedAttrs(Number(maxPurchasedAttrRule.value?.max ?? maxPurchasedAttrRule.value) || 5);
+    }
+  }, [maxPurchasedAttrRule?.value, maxPurchasedDirty]);
+
+  const handleSaveMaxPurchasedAttributes = async () => {
+    setIsSavingMaxAttr(true);
+    try {
+      const response = await apiFetch('/api/rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'max_purchased_attributes',
+          type: 'number',
+          value: maxPurchasedAttrs,
+          description: 'Límite máximo de mejoras de atributo comprables por personaje',
+        }),
+      });
+      if (!response.ok) throw new Error('No se pudo guardar el límite de atributos');
+      setMaxPurchasedDirty(false);
+      toast.success('Límite de atributos comprables actualizado con éxito');
+      mutate();
+    } catch (err: any) {
+      toast.error(err.message || 'Error al guardar el límite de atributos');
+    } finally {
+      setIsSavingMaxAttr(false);
+    }
+  };
   
   const derivedRule = rules?.find((r: any) => r.key === 'system_derived') || { value: [{"id":"sa","name":"Salud (SA)","formula":"Salud Base de Etapa + RES","desc":"Llega a 0: Desmayo. Llega a -10: Muerte. (Gastar 2 ES recupera 3 SA)."},{"id":"es","name":"Estamina (ES)","formula":"Salud Base de Etapa + DES","desc":"Capacidad para realizar acciones, usar Quirks y Técnicas sin cansarse."},{"id":"eva","name":"Evasión (EVA)","formula":"10 + VEL","desc":"Dificultad (RD) que un enemigo debe superar para acertar un ataque físico."},{"id":"cor","name":"Coraje (COR)","formula":"10 + VOL","desc":"Dificultad (RD) que un enemigo debe superar para acertar un ataque mental."},{"id":"mod","name":"Modificadores (FUE / DES)","formula":"Floor(Atributo / 2)","desc":"Escala de poder. Ej: Atributo 0-1 = +0 | 2-3 = +1 | 4-5 = +2 | 10 = +5."},{"id":"df","name":"Daño Físico (DF)","formula":"Dado de Etapa + Mod. FUE","desc":"Daño cuerpo a cuerpo. Ej: 1D8 + 2 (si FUE es 4)."},{"id":"dr","name":"Daño de Rango (DR)","formula":"Dado de Etapa + Mod. DES","desc":"Daño a distancia. Ej: 1D8 + 2 (si DES es 4)."},{"id":"ini","name":"Iniciativa (INI)","formula":"Floor( (INT + VEL) / 2 ) / 2","desc":"Velocidad de reacción. Promedio de INT+VEL aplicado a la tabla de Modificadores (0-1=0, 2-3=1, etc)."}] };
   const derived = derivedRule.value;
@@ -385,6 +421,55 @@ export default function RulesAdmin() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mt-6 border-amber-500/30 bg-amber-500/5">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-amber-400">
+                  <TrendingUp className="w-5 h-5" />
+                  <CardTitle className="text-base text-foreground">Límite de Compra de Atributos</CardTitle>
+                </div>
+                <CardDescription>
+                  Define el número máximo de mejoras de atributo (puntos de FUE, DES, RES, INT, VOL, VEL) que un personaje puede comprar en la tienda o recibir por asignación.
+                </CardDescription>
+              </div>
+              <Button
+                onClick={handleSaveMaxPurchasedAttributes}
+                disabled={!maxPurchasedDirty || isSavingMaxAttr}
+                size="sm"
+                className="bg-amber-500 hover:bg-amber-600 text-black font-semibold shrink-0"
+              >
+                {isSavingMaxAttr ? 'Guardando...' : 'Guardar Límite'}
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-background/50 p-3 rounded-md border border-border/50">
+                <div className="flex items-center gap-3">
+                  <Label htmlFor="max-purchased-attr" className="text-sm font-medium whitespace-nowrap">
+                    Máximo por personaje:
+                  </Label>
+                  <Input
+                    id="max-purchased-attr"
+                    type="number"
+                    min={0}
+                    max={99}
+                    value={maxPurchasedAttrs}
+                    onChange={e => {
+                      setMaxPurchasedDirty(true);
+                      setMaxPurchasedAttrs(Math.max(0, parseInt(e.target.value, 10) || 0));
+                    }}
+                    className="w-24 font-mono font-bold text-center text-base h-9 bg-background"
+                  />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">mejoras / puntos</span>
+                </div>
+                <div className="text-xs text-muted-foreground sm:border-l sm:pl-4 border-border/60">
+                  <p>
+                    Actualmente configurado en <strong className="text-foreground">{maxPurchasedAttrs}</strong> mejoras. Este límite se valida automáticamente en la tienda y al asignar posesiones desde administración.
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
