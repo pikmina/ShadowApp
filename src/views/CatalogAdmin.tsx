@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
+import { Switch } from "../components/ui/switch";
 import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff, Sparkles, Layers, Copy } from "lucide-react";
 import { useMemo } from "react";
 import { nanoid } from "nanoid";
@@ -542,17 +543,31 @@ export default function CatalogAdmin() {
                     <Label>Descripción Narrativa</Label>
                     <Textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="h-32" placeholder="Describe qué hace esto a nivel narrativo y de rol..." />
                   </div>
-                  <div className="grid gap-2">
-                    <Label>Estado de Publicación</Label>
-                    <Select value={form.status} onValueChange={v => setForm({...form, status: v})}>
-                      <SelectTrigger>
-                        <SelectValue>{STATUS_TYPES[form.status] || "Selecciona un estado"}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="draft">Borrador (Oculto)</SelectItem>
-                        <SelectItem value="published">Publicado</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="flex items-center justify-between rounded-lg border border-border/70 p-3.5 bg-card/50 mt-2">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="catalog-item-status" className="text-sm font-medium cursor-pointer">
+                        Estado de Publicación
+                      </Label>
+                      <div className="text-xs">
+                        {form.status === "published" ? (
+                          <span className="text-emerald-400 font-medium">Publicado (Visible en catálogo y tienda)</span>
+                        ) : (
+                          <span className="text-muted-foreground font-medium">Borrador (Oculto para jugadores)</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xs font-mono font-semibold uppercase text-muted-foreground">
+                        {form.status === "published" ? "ON" : "OFF"}
+                      </span>
+                      <Switch
+                        id="catalog-item-status"
+                        checked={form.status === "published"}
+                        onCheckedChange={(checked) =>
+                          setForm((prev) => ({ ...prev, status: checked ? "published" : "draft" }))
+                        }
+                      />
+                    </div>
                   </div>
                 </TabsContent>
 
