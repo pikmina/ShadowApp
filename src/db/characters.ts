@@ -143,6 +143,7 @@ export async function saveCharacterWithElementSelections(data: {
   yen?: number;
   inventoryPossessions?: Array<{ elementId: string; quantity: number }>;
   credentialPossessions?: Array<{ elementId: string; quantity?: number }>;
+  skillPossessions?: Array<{ elementId: string; quantity: number }>;
   actorUid: string;
 }) {
   return db.transaction(async tx => {
@@ -199,11 +200,32 @@ export async function saveCharacterWithElementSelections(data: {
         const selectedInv = await tx.select().from(systemElements).where(inArray(systemElements.id, invIds));
         if (selectedInv.length !== invIds.length) throw Object.assign(new Error('One or more selected inventory items do not exist'), { status: 400 });
         if (selectedInv.some(element => element.status !== 'published')) throw Object.assign(new Error('Only published inventory items can be assigned'), { status: 409 });
-        if (selectedInv.some(element => ['trait', 'weakness', 'license', 'permission', 'certification'].includes(element.kind))) {
-          throw Object.assign(new Error('Inventory items cannot be traits, weaknesses, or credentials'), { status: 400 });
+        if (selectedInv.some(element => ['trait', 'weakness', 'license', 'permission', 'certification', 'skill'].includes(element.kind))) {
+          throw Object.assign(new Error('Inventory items cannot be traits, weaknesses, credentials, or skills'), { status: 400 });
         }
       }
       validInventory = Array.from(invMap.entries()).map(([elementId, quantity]) => ({ elementId, quantity }));
+    }
+
+    // 4. Process skills (skill)
+    let validSkills: Array<{ elementId: string; quantity: number }> | undefined = undefined;
+    if (data.skillPossessions !== undefined) {
+      const skillMap = new Map<string, number>();
+      for (const item of data.skillPossessions) {
+        if (item.elementId && (item.quantity ?? 1) > 0) {
+          skillMap.set(item.elementId, Math.max(1, Math.min(10, item.quantity ?? 1)));
+        }
+      }
+      const skillIds = Array.from(skillMap.keys());
+      if (skillIds.length > 0) {
+        const selectedSkills = await tx.select().from(systemElements).where(inArray(systemElements.id, skillIds));
+        if (selectedSkills.length !== skillIds.length) throw Object.assign(new Error('One or more selected skills do not exist'), { status: 400 });
+        if (selectedSkills.some(element => element.status !== 'published')) throw Object.assign(new Error('Only published skills can be assigned'), { status: 409 });
+        if (selectedSkills.some(element => element.kind !== 'skill')) {
+          throw Object.assign(new Error('Skill selections must be skills'), { status: 400 });
+        }
+      }
+      validSkills = Array.from(skillMap.entries()).map(([elementId, quantity]) => ({ elementId, quantity }));
     }
 
     const { traits: _legacyTraits, weaknesses: _legacyWeaknesses, ...cleanProfileData } = data.profileData;
@@ -275,12 +297,26 @@ export async function saveCharacterWithElementSelections(data: {
         .from(elementPossessions)
         .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
         .where(eq(elementPossessions.characterId, character.id));
-      const currentInvPossessions = currentAllPossessions.filter(item => !['trait', 'weakness', 'license', 'permission', 'certification'].includes(item.kind));
+      const currentInvPossessions = currentAllPossessions.filter(item => !['trait', 'weakness', 'license', 'permission', 'certification', 'skill'].includes(item.kind));
       if (currentInvPossessions.length) {
         await tx.delete(elementPossessions).where(inArray(elementPossessions.id, currentInvPossessions.map(item => item.id)));
       }
       for (const inv of validInventory) {
         await tx.insert(elementPossessions).values({ id: nanoid(10), characterId: character.id, elementId: inv.elementId, quantity: inv.quantity }).onConflictDoNothing();
+      }
+    }
+
+    // Synchronize Skills if passed
+    if (validSkills !== undefined) {
+      const currentSkillPossessions = await tx.select({ id: elementPossessions.id })
+        .from(elementPossessions)
+        .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
+        .where(and(eq(elementPossessions.characterId, character.id), eq(systemElements.kind, 'skill')));
+      if (currentSkillPossessions.length) {
+        await tx.delete(elementPossessions).where(inArray(elementPossessions.id, currentSkillPossessions.map(item => item.id)));
+      }
+      for (const sk of validSkills) {
+        await tx.insert(elementPossessions).values({ id: nanoid(10), characterId: character.id, elementId: sk.elementId, quantity: sk.quantity }).onConflictDoNothing();
       }
     }
 
@@ -292,6 +328,7 @@ export async function saveCharacterWithElementSelections(data: {
         elementIds: traitAndWeaknessIds,
         credentialsCount: validCredentials?.length,
         inventoryCount: validInventory?.length,
+        skillsCount: validSkills?.length,
         exp: data.exp,
         yen: data.yen,
       },

@@ -363,10 +363,14 @@ async function startServer() {
           elementId: z.string().min(1),
           quantity: z.number().int().min(1).optional()
         })).optional(),
+        skillPossessions: z.array(z.object({
+          elementId: z.string().min(1),
+          quantity: z.number().int().min(1)
+        })).optional(),
       });
       const parsed = CharSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
-      const { characterId, name, profileData, expectedUpdatedAt, userId, canonCharacterId, elementIds, exp, yen, inventoryPossessions, credentialPossessions } = parsed.data;
+      const { characterId, name, profileData, expectedUpdatedAt, userId, canonCharacterId, elementIds, exp, yen, inventoryPossessions, credentialPossessions, skillPossessions } = parsed.data;
       console.log("POST /api/character request:", { characterId, name, expectedUpdatedAt, userId, canonCharacterId, exp, yen });
       
       if (canonCharacterId) {
@@ -387,7 +391,7 @@ async function startServer() {
       
       const { updateCharacter, createCharacter, saveCharacterWithElementSelections } = await import("./src/db/characters.ts");
       let character;
-      if (elementIds !== undefined || inventoryPossessions !== undefined || credentialPossessions !== undefined || exp !== undefined || yen !== undefined) {
+      if (elementIds !== undefined || inventoryPossessions !== undefined || credentialPossessions !== undefined || skillPossessions !== undefined || exp !== undefined || yen !== undefined) {
         character = await saveCharacterWithElementSelections({
           characterId,
           userId: userId || req.dbUser.id,
@@ -400,6 +404,7 @@ async function startServer() {
           yen,
           inventoryPossessions,
           credentialPossessions,
+          skillPossessions,
           actorUid: req.dbUser.uid,
         });
       } else if (characterId) {

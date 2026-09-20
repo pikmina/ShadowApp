@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus, FileText } from "lucide-react";
 import { toast } from "sonner";
-import { validateCharacter, calculateDerivedStats } from "@/lib/characterValidation";
+import { validateCharacter, calculateDerivedStats, calculateTraitAttributeBonus } from "@/lib/characterValidation";
 import { Badge } from "@/components/ui/badge";
 import { CharacterEmployments, CharacterEnrollments } from "./CharacterRelations";
 import { profileValue, type CoreProfileKey } from "@/domain/coreProfileFields";
@@ -20,10 +20,10 @@ import { profileValue, type CoreProfileKey } from "@/domain/coreProfileFields";
 const profileWithRelationalElements = (character?: any) => {
   const profile = { ...(character?.profileData || {}) };
   const rows = Array.isArray(character?.possessions) ? character.possessions : [];
-  const sheetRows = rows.filter((row: any) => ['trait', 'weakness'].includes(row?.element?.kind));
+  const sheetRows = rows.filter((row: any) => ['trait', 'weakness'].includes(row?.element?.kind || row?.kind));
   if (sheetRows.length > 0) {
-    profile.traits = sheetRows.filter((row: any) => row.element.kind === 'trait').map((row: any) => row.element.id);
-    profile.weaknesses = sheetRows.filter((row: any) => row.element.kind === 'weakness').map((row: any) => row.element.id);
+    profile.traits = sheetRows.filter((row: any) => (row.element?.kind || row.kind) === 'trait').map((row: any) => row.element?.id || row.possession?.elementId || row.elementId);
+    profile.weaknesses = sheetRows.filter((row: any) => (row.element?.kind || row.kind) === 'weakness').map((row: any) => row.element?.id || row.possession?.elementId || row.elementId);
   }
   return profile;
 };
@@ -44,7 +44,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const [inventoryItems, setInventoryItems] = useState<Array<{ elementId: string; quantity: number; notes?: string | null; element?: any }>>(() => {
     const rows = Array.isArray(character?.possessions) ? character.possessions : [];
     return rows
-      .filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness'].includes(row?.element?.kind))
+      .filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness', 'skill'].includes(row?.element?.kind || row?.kind))
       .map((row: any) => ({
         elementId: row?.element?.id || row?.possession?.elementId,
         quantity: row?.possession?.quantity || 1,
@@ -57,17 +57,39 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const [credentialItems, setCredentialItems] = useState<Array<{ elementId: string; element?: any }>>(() => {
     const rows = Array.isArray(character?.possessions) ? character.possessions : [];
     return rows
-      .filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind))
+      .filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind || row?.kind))
       .map((row: any) => ({
         elementId: row?.element?.id || row?.possession?.elementId,
         element: row?.element
       }));
   });
 
+  // Skills state
+  const [skillItems, setSkillItems] = useState<Array<{ elementId: string; level: number; element?: any }>>(() => {
+    const rows = Array.isArray(character?.possessions) ? character.possessions : [];
+    const fromPossessions = rows
+      .filter((row: any) => (row?.element?.kind || row?.kind) === 'skill')
+      .map((row: any) => ({
+        elementId: row?.element?.id || row?.possession?.elementId || row?.elementId,
+        level: Number(row?.possession?.quantity || row?.quantity || 1),
+        element: row?.element
+      }));
+    if (fromPossessions.length > 0) return fromPossessions;
+    if (Array.isArray(character?.profileData?.skills)) {
+      return character.profileData.skills.map((s: any) => typeof s === 'string' ? { elementId: s, level: 1 } : { elementId: s.id || s.elementId, level: Number(s.level || 1) });
+    }
+    if (Array.isArray(character?.profileData?.habilidades)) {
+      return character.profileData.habilidades.map((s: any) => typeof s === 'string' ? { elementId: s, level: 1 } : { elementId: s.id || s.elementId, level: Number(s.level || 1) });
+    }
+    return [];
+  });
+
   // Controls for adding elements
   const [selectedInvElementId, setSelectedInvElementId] = useState<string>('');
   const [invQuantity, setInvQuantity] = useState<number>(1);
   const [selectedCredElementId, setSelectedCredElementId] = useState<string>('');
+  const [selectedSkillElementId, setSelectedSkillElementId] = useState<string>('');
+  const [skillLevel, setSkillLevel] = useState<number>(1);
 
   const { data: fields, error: fieldsError } = useSWR(user ? "/api/sheet-fields" : null, fetcher);
   const { data: settings, error: settingsError } = useSWR(user ? "/api/settings" : null, fetcher);
@@ -89,12 +111,50 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   };
 
   const publishedInventoryElements = useMemo(() => {
-    return elements.filter(el => !['trait', 'weakness', 'license', 'permission', 'certification'].includes(el.kind));
+    return elements.filter(el => !['trait', 'weakness', 'license', 'permission', 'certification', 'skill'].includes(el.kind));
   }, [elements]);
 
   const publishedCredentialElements = useMemo(() => {
     return elements.filter(el => ['license', 'permission', 'certification'].includes(el.kind));
   }, [elements]);
+
+  const publishedSkillElements = useMemo(() => {
+    return elements.filter(el => el.kind === 'skill');
+  }, [elements]);
+
+  const handleAddSkill = () => {
+    if (!selectedSkillElementId) {
+      toast.error("Selecciona una habilidad del catálogo");
+      return;
+    }
+    const el = elements.find(e => e.id === selectedSkillElementId);
+    if (!el) return;
+    if (skillItems.some(s => s.elementId === selectedSkillElementId)) {
+      toast.error("El personaje ya posee esta habilidad. Modifica su nivel en la lista.");
+      return;
+    }
+    setSkillItems(prev => [...prev, { elementId: selectedSkillElementId, level: Math.max(1, Math.min(5, skillLevel)), element: el }]);
+    setIsDirty(true);
+    setSelectedSkillElementId('');
+    setSkillLevel(1);
+    toast.success(`Habilidad añadida: ${el.name}`);
+  };
+
+  const handleUpdateSkillLevel = (elementId: string, delta: number) => {
+    setSkillItems(prev => prev.map(item => {
+      if (item.elementId === elementId) {
+        const next = Math.max(1, Math.min(5, item.level + delta));
+        return { ...item, level: next };
+      }
+      return item;
+    }));
+    setIsDirty(true);
+  };
+
+  const handleRemoveSkill = (elementId: string) => {
+    setSkillItems(prev => prev.filter(item => item.elementId !== elementId));
+    setIsDirty(true);
+  };
 
   // Add the "Facción / Grupo" field virtually to basic data if groups exist
   let processedFields: any[] = [];
@@ -148,7 +208,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
       const rows = Array.isArray(character.possessions) ? character.possessions : [];
       setInventoryItems(
         rows
-          .filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness'].includes(row?.element?.kind))
+          .filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness', 'skill'].includes(row?.element?.kind || row?.kind))
           .map((row: any) => ({
             elementId: row?.element?.id || row?.possession?.elementId,
             quantity: row?.possession?.quantity || 1,
@@ -158,12 +218,26 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
       );
       setCredentialItems(
         rows
-          .filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind))
+          .filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind || row?.kind))
           .map((row: any) => ({
             elementId: row?.element?.id || row?.possession?.elementId,
             element: row?.element
           }))
       );
+      const skillRows = rows.filter((row: any) => (row?.element?.kind || row?.kind) === 'skill');
+      if (skillRows.length > 0) {
+        setSkillItems(
+          skillRows.map((row: any) => ({
+            elementId: row?.element?.id || row?.possession?.elementId || row?.elementId,
+            level: Number(row?.possession?.quantity || row?.quantity || 1),
+            element: row?.element
+          }))
+        );
+      } else if (Array.isArray(profile.skills)) {
+        setSkillItems(profile.skills.map((s: any) => typeof s === 'string' ? { elementId: s, level: 1 } : { elementId: s.id || s.elementId, level: Number(s.level || 1) }));
+      } else if (Array.isArray(profile.habilidades)) {
+        setSkillItems(profile.habilidades.map((s: any) => typeof s === 'string' ? { elementId: s, level: 1 } : { elementId: s.id || s.elementId, level: Number(s.level || 1) }));
+      }
     } else if (initialCanonId) {
       const canon = canonList?.find((item: any) => item.id === initialCanonId);
       if (!canon) return;
@@ -400,6 +474,10 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
           credentialPossessions: credentialItems.map(item => ({
             elementId: item.elementId,
             quantity: 1
+          })),
+          skillPossessions: skillItems.map(item => ({
+            elementId: item.elementId,
+            quantity: Number(item.level) || 1
           }))
         })
       });
@@ -701,16 +779,17 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             return minA - minB;
           });
           
-          // Reordenar las pestañas estándar y personalizadas ('Datos', 'Quirk', 'Atributos', 'Rasgos', 'Inventario', 'Licencias y Permisos'...)
-          const customTabs = ['Atributos', 'Inventario', 'Licencias y Permisos'];
+          // Reordenar las pestañas estándar y personalizadas ('Datos', 'Quirk', 'Atributos', 'Rasgos y Debilidades', 'Habilidades', 'Inventario', 'Licencias y Permisos'...)
+          const customTabs = ['Atributos', 'Rasgos y Debilidades', 'Habilidades', 'Inventario', 'Licencias y Permisos'];
           let sortedCats = [...new Set([...allCats, ...customTabs])].sort((a, b) => {
             const getOrder = (cat: string) => {
               if (cat === 'Datos') return 1;
               if (cat.toLowerCase().includes('quirk')) return 2;
               if (cat === 'Atributos') return 3;
-              if (cat === 'Rasgos') return 4;
-              if (cat === 'Inventario') return 5;
-              if (cat === 'Licencias y Permisos' || cat.toLowerCase().includes('licencia')) return 6;
+              if (cat === 'Rasgos y Debilidades' || cat === 'Rasgos' || cat.toLowerCase().includes('rasgo')) return 4;
+              if (cat === 'Habilidades' || cat.toLowerCase().includes('habilidad')) return 5;
+              if (cat === 'Inventario') return 6;
+              if (cat === 'Licencias y Permisos' || cat.toLowerCase().includes('licencia')) return 7;
               const minOrder = groupedFields[cat] ? Math.min(...groupedFields[cat].map((f: any) => f.order)) : 999;
               return 100 + minOrder;
             };
@@ -734,7 +813,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         <div className="p-6">
           <div className="space-y-6">
         
-        {activeTab === 'Rasgos' && (() => {
+        {(activeTab === 'Rasgos y Debilidades' || activeTab === 'Rasgos') && (() => {
           const stageName = String(formData['basic_stage'] || formData['stage'] || formData['etapa'] || '').toLowerCase();
           const stage = stagesList.find((s: any) => s.name.toLowerCase() === stageName);
           const maxTraits = stage?.maxTraits || 0;
@@ -832,8 +911,182 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             </Card>
           );
         })()}
-{activeTab === 'Atributos' && (() => {
-          const validation = validateCharacter(formData, stagesList);
+
+        {activeTab === 'Habilidades' && (() => {
+          return (
+            <Card className="border-border shadow-sm">
+              <CardHeader className="border-b bg-muted/30 pb-3 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base uppercase tracking-wider text-primary flex items-center gap-2">
+                    <Sparkles className="size-5" /> Habilidades
+                  </CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground mt-1">
+                    Habilidades de entrenamiento y capacidades del personaje. Asigna un nivel de 1 a 5 para cada habilidad.
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {skillItems.length} asignada{skillItems.length === 1 ? '' : 's'}
+                </Badge>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-6">
+                {/* Selector para añadir habilidad */}
+                <div className="p-4 border border-border/60 bg-muted/20 rounded-lg space-y-4">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-foreground flex items-center gap-1.5">
+                    <Plus className="size-3.5 text-primary" /> Añadir Habilidad desde el Catálogo
+                  </Label>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                    <div className="md:col-span-8 space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground">Habilidad</Label>
+                      <Select 
+                        value={selectedSkillElementId} 
+                        onValueChange={setSelectedSkillElementId}
+                      >
+                        <SelectTrigger className="w-full bg-background">
+                          <SelectValue placeholder="Selecciona una habilidad del catálogo..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64">
+                          {publishedSkillElements.map(el => (
+                            <SelectItem 
+                              key={el.id} 
+                              value={el.id}
+                              disabled={skillItems.some(s => s.elementId === el.id)}
+                            >
+                              {el.name} {skillItems.some(s => s.elementId === el.id) ? '(Ya asignada)' : ''}
+                            </SelectItem>
+                          ))}
+                          {publishedSkillElements.length === 0 && (
+                            <div className="p-2 text-xs text-muted-foreground text-center">No hay habilidades publicadas</div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="md:col-span-2 space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground">Nivel Inicial (1-5)</Label>
+                      <Input 
+                        type="number" 
+                        min="1" 
+                        max="5" 
+                        value={skillLevel} 
+                        onChange={e => setSkillLevel(Math.max(1, Math.min(5, parseInt(e.target.value) || 1)))} 
+                        className="bg-background font-mono text-center" 
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Button 
+                        type="button" 
+                        onClick={handleAddSkill} 
+                        disabled={!selectedSkillElementId}
+                        className="w-full"
+                      >
+                        <Plus className="size-4 mr-1" /> Añadir
+                      </Button>
+                    </div>
+                  </div>
+
+                  {selectedSkillElementId && (() => {
+                    const sel = publishedSkillElements.find(e => e.id === selectedSkillElementId);
+                    if (!sel?.description) return null;
+                    return (
+                      <p className="text-xs text-muted-foreground italic bg-background/50 p-2.5 rounded border border-border/40">
+                        {sel.description}
+                      </p>
+                    );
+                  })()}
+                </div>
+
+                {/* Lista de habilidades asignadas */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <h3 className="font-bold font-oxanium text-sm text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Sparkles className="size-4 text-amber-400" /> Habilidades del Personaje
+                    </h3>
+                    <span className="text-xs text-muted-foreground">Total: {skillItems.length}</span>
+                  </div>
+
+                  {skillItems.length === 0 ? (
+                    <div className="p-8 text-center border border-dashed rounded-lg text-muted-foreground space-y-2">
+                      <Sparkles className="size-8 text-muted-foreground/30 mx-auto" />
+                      <p className="text-sm font-medium">El personaje aún no tiene habilidades asignadas.</p>
+                      <p className="text-xs text-muted-foreground">Utiliza el selector superior para asignar habilidades del catálogo.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {skillItems.map(item => {
+                        const el = item.element || elements.find(e => e.id === item.elementId);
+                        const name = el?.name || item.elementId;
+                        const desc = el?.description || '';
+                        return (
+                          <div 
+                            key={item.elementId}
+                            className="p-3.5 rounded-lg border border-border/70 bg-card hover:border-primary/40 transition-colors flex flex-col justify-between gap-3 shadow-sm"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="font-semibold font-oxanium text-sm text-foreground leading-tight">{name}</span>
+                                <Badge variant="outline" className="font-mono text-[10px] uppercase tracking-wider bg-amber-500/10 text-amber-400 border-amber-500/30 shrink-0">
+                                  Nivel {item.level}
+                                </Badge>
+                              </div>
+                              {desc && <p className="text-xs text-muted-foreground line-clamp-2">{desc}</p>}
+                            </div>
+
+                            <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                              <div className="flex items-center gap-1.5">
+                                <Label className="text-[11px] text-muted-foreground mr-1">Nivel:</Label>
+                                <Button 
+                                  type="button" 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="size-7 p-0 h-7 w-7"
+                                  disabled={item.level <= 1}
+                                  onClick={() => handleUpdateSkillLevel(item.elementId, -1)}
+                                >
+                                  <Minus className="size-3" />
+                                </Button>
+                                <span className="font-mono text-xs font-bold w-6 text-center">{item.level}</span>
+                                <Button 
+                                  type="button" 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="size-7 p-0 h-7 w-7"
+                                  disabled={item.level >= 5}
+                                  onClick={() => handleUpdateSkillLevel(item.elementId, 1)}
+                                >
+                                  <Plus className="size-3" />
+                                </Button>
+                              </div>
+
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive px-2"
+                                onClick={() => handleRemoveSkill(item.elementId)}
+                              >
+                                <Trash2 className="size-3.5 mr-1" /> Quitar
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        {activeTab === 'Atributos' && (() => {
+          const purchasedAttrPoints = Array.isArray(character?.possessions)
+            ? character.possessions
+                .filter((p: any) => (p.element?.kind || p.kind) === 'attribute_upgrade')
+                .reduce((sum: number, p: any) => sum + (Number(p.possession?.quantity ?? p.quantity ?? 1)), 0)
+            : 0;
+
+          const traitBonus = calculateTraitAttributeBonus(formData, elements, mechanicsList);
+          const traitAttrPoints = traitBonus.total;
+          const validation = validateCharacter(formData, stagesList, purchasedAttrPoints, 5, traitAttrPoints);
           const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList);
           const stage = stagesList.find((s: any) => s.name.toLowerCase() === String(formData['basic_stage'] || formData['stage'] || formData['etapa'] || '').toLowerCase());
           
@@ -880,13 +1133,25 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-bold uppercase tracking-widest text-foreground">Atributos Base</Label>
-                    {stage && (
-                      <span className="text-xs font-mono text-muted-foreground">
-                        Puntos repartidos: <strong className={validation.status === 'red' ? 'text-red-500' : 'text-primary'}>
-                          {(Number(formData.FUE)||0) + (Number(formData.DES)||0) + (Number(formData.RES)||0) + (Number(formData.INT)||0) + (Number(formData.VOL)||0) + (Number(formData.VEL)||0)}
-                        </strong> / {stage.attrPoints}
-                      </span>
-                    )}
+                    {stage && (() => {
+                      const totalPts = (Number(formData.FUE)||0) + (Number(formData.DES)||0) + (Number(formData.RES)||0) + (Number(formData.INT)||0) + (Number(formData.VOL)||0) + (Number(formData.VEL)||0);
+                      const extraPts = purchasedAttrPoints + traitAttrPoints;
+                      const basePts = Math.max(0, totalPts - extraPts);
+                      return (
+                        <div className="text-right">
+                          <span className="text-xs font-mono text-muted-foreground">
+                            Puntos base: <strong className={basePts > stage.attrPoints ? 'text-red-500' : 'text-primary'}>
+                              {basePts}
+                            </strong> / {stage.attrPoints}
+                          </span>
+                          {extraPts > 0 && (
+                            <span className="text-[11px] font-mono text-muted-foreground ml-2">
+                              (+{extraPts} extras: {purchasedAttrPoints > 0 ? `${purchasedAttrPoints} comprados` : ''}{purchasedAttrPoints > 0 && traitAttrPoints > 0 ? ', ' : ''}{traitAttrPoints > 0 ? `${traitAttrPoints} por rasgos` : ''} — Total: {totalPts})
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {[
@@ -896,20 +1161,32 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                       { id: 'INT', label: 'Inteligencia', icon: Brain },
                       { id: 'VOL', label: 'Voluntad', icon: Flame },
                       { id: 'VEL', label: 'Velocidad', icon: Wind }
-                    ].map(attr => (
-                      <div key={attr.id} className="relative border border-border bg-bg2/40 p-3 rounded-md">
-                        <attr.icon className="absolute right-3 top-1/2 -translate-y-1/2 size-8 text-muted-foreground/10" />
-                        <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">{attr.label}</Label>
-                        <Input 
-                          type="number" 
-                          min="0" 
-                          max={stage?.maxAttr || 10} 
-                          value={formData[attr.id] || ''} 
-                          onChange={e => updateField(attr.id, parseInt(e.target.value) || 0)} 
-                          className="mt-1 font-mono text-lg bg-background" 
-                        />
-                      </div>
-                    ))}
+                    ].map(attr => {
+                      const bonus = traitBonus.byAttr[attr.id] || 0;
+                      const baseVal = Number(formData[attr.id]) || 0;
+                      const totalVal = baseVal + bonus;
+                      return (
+                        <div key={attr.id} className="relative border border-border bg-bg2/40 p-3 rounded-md">
+                          <attr.icon className="absolute right-3 top-1/2 -translate-y-1/2 size-8 text-muted-foreground/10" />
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">{attr.label}</Label>
+                            {bonus !== 0 && (
+                              <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 font-mono font-bold ${bonus > 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'}`}>
+                                {bonus > 0 ? `+${bonus}` : bonus} rasgo (Total: {totalVal})
+                              </Badge>
+                            )}
+                          </div>
+                          <Input 
+                            type="number" 
+                            min="0" 
+                            max={stage?.maxAttr || 10} 
+                            value={formData[attr.id] || ''} 
+                            onChange={e => updateField(attr.id, parseInt(e.target.value) || 0)} 
+                            className="mt-1 font-mono text-lg bg-background" 
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1324,7 +1601,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
           </Card>
         )}
 
-        {activeTab !== 'Atributos' && activeTab !== 'Inventario' && activeTab !== 'Licencias y Permisos' && activeTab && groupedFields[activeTab] && (
+        {activeTab !== 'Atributos' && activeTab !== 'Inventario' && activeTab !== 'Licencias y Permisos' && activeTab !== 'Rasgos' && activeTab !== 'Rasgos y Debilidades' && activeTab !== 'Habilidades' && activeTab && groupedFields[activeTab] && (
           <div key={activeTab}>
             <div>
 

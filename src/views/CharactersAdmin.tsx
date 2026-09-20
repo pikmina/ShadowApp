@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, fetcher } from '@/lib/api';
-import { validateCharacter } from '@/lib/characterValidation';
+import { validateCharacter, calculateTraitAttributeBonus } from '@/lib/characterValidation';
 
 const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
 
@@ -87,8 +87,11 @@ export default function CharactersAdmin() {
   const isMod = dbUser?.role === 'moderator' || dbUser?.role === 'superadmin';
   const { data: allCharacters, mutate: mutateAll } = useSWR(user && isMod ? '/api/admin/characters' : null, fetcher);
   const { data: rules } = useSWR(user && isMod ? '/api/rules' : null, fetcher);
+  const { data: rawElements } = useSWR(user && isMod ? '/api/elements' : null, fetcher);
+  const elements = useMemo(() => Array.isArray(rawElements) ? rawElements.filter((el: any) => el.status === 'published') : [], [rawElements]);
   const charactersList = Array.isArray(allCharacters) ? allCharacters : [];
   const stagesList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_stages')?.value || [] : [];
+  const mechanicsList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_mechanics')?.value || [] : [];
 
   const groupOptions = useMemo(() => {
     const values = charactersList
@@ -279,7 +282,15 @@ export default function CharactersAdmin() {
           const alignment = String(readProfile(profile, ['basic_alignment', 'alignment', 'alineamiento']) || 'Heroico');
           const bloodType = String(readProfile(profile, ['basic_blood_type', 'blood_type', 'sangre', 'sanguineo', 'grupo_sanguineo']) || 'O+');
 
-          const validation = validateCharacter(profile, stagesList);
+          const purchasedAttrPoints = Array.isArray(character.possessions)
+            ? character.possessions
+                .filter((p: any) => (p.element?.kind || p.kind) === 'attribute_upgrade')
+                .reduce((sum: number, p: any) => sum + (Number(p.possession?.quantity ?? p.quantity ?? 1)), 0)
+            : 0;
+
+          const traitBonus = calculateTraitAttributeBonus(profile, elements, mechanicsList);
+          const traitAttrPoints = traitBonus.total;
+          const validation = validateCharacter(profile, stagesList, purchasedAttrPoints, 5, traitAttrPoints);
           
           let statusIcon = <CheckCircle className="size-3.5 text-green-500" />;
           let statusColor = 'border-green-500/30';

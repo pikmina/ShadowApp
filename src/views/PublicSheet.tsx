@@ -57,7 +57,7 @@ import {
 import { CyberFillerPanel } from '@/components/ui/cyber-filler-panel';
 import { CyberModule } from '@/components/ui/cyber-module';
 import { EntityPanel } from '@/components/ui/entity-panel';
-import { calculateDerivedStats } from '@/lib/characterValidation';
+import { calculateDerivedStats, calculateTraitAttributeBonus } from '@/lib/characterValidation';
 import { cn } from '@/lib/utils';
 
 const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
@@ -119,8 +119,29 @@ export default function PublicSheet() {
   const relationalTraits = possessionRows.filter((row: any) => row?.element?.kind === 'trait').map((row: any) => row.element.id);
   const relationalWeaknesses = possessionRows.filter((row: any) => row?.element?.kind === 'weakness').map((row: any) => row.element.id);
   const credentials = possessionRows.filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind));
-  const hasRelationalSelections = relationalTraits.length > 0 || relationalWeaknesses.length > 0;
-  const profile = hasRelationalSelections ? { ...storedProfile, traits: relationalTraits, weaknesses: relationalWeaknesses } : storedProfile;
+
+  // Merge traits and weaknesses from both profile and relational possessions so none are lost
+  const combinedTraits = Array.from(new Set([
+    ...(Array.isArray(storedProfile.traits) ? storedProfile.traits : []),
+    ...relationalTraits
+  ]));
+  const combinedWeaknesses = Array.from(new Set([
+    ...(Array.isArray(storedProfile.weaknesses) ? storedProfile.weaknesses : []),
+    ...relationalWeaknesses
+  ]));
+  const profile = { ...storedProfile, traits: combinedTraits, weaknesses: combinedWeaknesses };
+
+  // Combine elements from /api/elements with any element entities already attached in possessions
+  const combinedElements = useMemo(() => {
+    const list = [...elements];
+    possessionRows.forEach((row: any) => {
+      if (row?.element && !list.some(el => el.id === row.element.id)) {
+        list.push(row.element);
+      }
+    });
+    return list;
+  }, [elements, possessionRows]);
+
   const employmentsList = Array.isArray(character?.employments) ? character.employments : [];
   const enrollment = character?.enrollment || null;
   const manualOccupation = readValue(profile, ['occupation', 'ocupacion', 'ocupación']);
@@ -130,10 +151,14 @@ export default function PublicSheet() {
 
   let derived = null;
   try {
-    derived = (character && stagesList.length > 0) ? calculateDerivedStats(profile, stagesList, elements, mechanicsList) : null;
+    derived = (character && stagesList.length > 0) ? calculateDerivedStats(profile, stagesList, combinedElements, mechanicsList) : null;
   } catch (err) {
     console.error("Error calculating derived stats:", err);
   }
+
+  const traitBonusData = useMemo(() => {
+    return calculateTraitAttributeBonus(profile, combinedElements, mechanicsList);
+  }, [profile, combinedElements, mechanicsList]);
 
   const maxHealth = derived ? derived.salud : Number(readValue(profile, ['maxHealth', 'max_health', 'salud_maxima']) || 20);
   const maxStamina = derived ? derived.estamina : Number(readValue(profile, ['maxStamina', 'max_stamina', 'estamina_maxima']) || 20);
@@ -184,13 +209,27 @@ export default function PublicSheet() {
   const quirkLevelThree = character ? readValue(profile, ['quirk_lvl3', 'quirkLvl3', 'quirk_level_3', 'quirk_nivel_3']) : null;
 
   const baseAttributes = [
-    { label: 'Fuerza', value: readValue(profile, ['FUE', 'fue', 'fuerza']), icon: HandFist },
-    { label: 'Resistencia', value: readValue(profile, ['RES', 'res', 'resistencia']), icon: HeartPulse },
-    { label: 'Destreza', value: readValue(profile, ['DES', 'des', 'destreza']), icon: Zap },
-    { label: 'Inteligencia', value: readValue(profile, ['INT', 'int', 'inteligencia']), icon: Brain },
-    { label: 'Velocidad', value: readValue(profile, ['VEL', 'vel', 'velocidad']), icon: Wind },
-    { label: 'Voluntad', value: readValue(profile, ['VOL', 'vol', 'voluntad']), icon: Flame }
-  ];
+    { label: 'Fuerza', key: 'FUE', icon: HandFist },
+    { label: 'Resistencia', key: 'RES', icon: HeartPulse },
+    { label: 'Destreza', key: 'DES', icon: Zap },
+    { label: 'Inteligencia', key: 'INT', icon: Brain },
+    { label: 'Velocidad', key: 'VEL', icon: Wind },
+    { label: 'Voluntad', key: 'VOL', icon: Flame }
+  ].map(attr => {
+    const rawVal = readValue(profile, [attr.key, attr.key.toLowerCase(), attr.label.toLowerCase()]);
+    const baseVal = Number(rawVal || 0);
+    const bonus = traitBonusData.byAttr[attr.key] || 0;
+    const finalVal = baseVal + bonus;
+    return {
+      label: attr.label,
+      key: attr.key,
+      icon: attr.icon,
+      base: baseVal,
+      bonus,
+      hasBonus: bonus !== 0,
+      value: hasValue(rawVal) ? finalVal : undefined,
+    };
+  });
 
   const defenseList = [
     { label: 'EVASIÓN', value: derived?.evasion ?? readValue(profile, ['evasion', 'evasión', 'eva']), icon: SportShoe },
@@ -491,15 +530,29 @@ export default function PublicSheet() {
                     <HeartPulse className="size-3.5 text-accent2" /> Atributos Base
                   </h2>
                   <div className="grid grid-cols-2 gap-2 flex-1 content-start">
-                    {baseAttributes.map(({ label, value, icon: Icon }) => (
+                    {baseAttributes.map(({ label, base, bonus, hasBonus, value, icon: Icon }) => (
                       <div key={label} className="flex items-center justify-between rounded border border-bg4/50 bg-bg1/90 px-3 py-2 text-right">
                         <div className="text-text2/50 shrink-0 flex items-center justify-center">
                           <Icon className="size-5" strokeWidth={1.5} />
                         </div>
                         <div className="text-right min-w-0">
-                          <span className="block font-oxanium text-[9.5px] font-bold uppercase tracking-wider text-primary">{label}</span>
-                          <div className="mt-0.5 flex items-baseline justify-end">
-                            <strong className="block font-oxanium text-base sm:text-lg font-bold leading-tight text-text1">{displayValue(value, '—')}</strong>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <span className="block font-oxanium text-[9.5px] font-bold uppercase tracking-wider text-primary">{label}</span>
+                            {hasBonus && (
+                              <span className={`text-[9px] font-mono font-bold px-1 py-0.5 rounded leading-none ${bonus > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+                                {bonus > 0 ? `+${bonus}` : bonus}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 flex items-baseline justify-end gap-1.5">
+                            <strong className="block font-oxanium text-base sm:text-lg font-bold leading-tight text-text1">
+                              {displayValue(value, '—')}
+                            </strong>
+                            {hasBonus && hasValue(value) && (
+                              <span className="text-[10px] text-text2/60 font-oxanium" title={`Base: ${base}`}>
+                                (Base: {base})
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
