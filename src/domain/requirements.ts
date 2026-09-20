@@ -9,6 +9,7 @@ export const requirementSchema: z.ZodType<any> = z.lazy(() => z.union([
   z.strictObject({ id: z.string().min(1), type: z.literal('stage'), stageId: z.string().min(1), comparison: z.enum(['eq', 'gte']) }),
   z.strictObject({ id: z.string().min(1), type: z.literal('age'), comparison: z.enum(['gte', 'lte']), value: z.number() }),
   z.strictObject({ id: z.string().min(1), type: z.literal('character_field'), fieldId: z.string().min(1), comparison: comparisonSchema, value: z.union([z.string(), z.number(), z.boolean()]) }),
+  z.strictObject({ id: z.string().min(1), type: z.literal('custom_info'), label: z.string().optional(), placeholder: z.string().optional(), required: z.boolean().optional() }),
   requirementGroupSchema,
 ]));
 
@@ -52,6 +53,9 @@ export function evaluateRequirements(group: RequirementGroup, context: Requireme
     if (item.type === 'skill_level') {
       const possession = context.possessions.get(item.skillElementId);
       passed = compare(possession?.selectedChoices?.level ?? 0, item.comparison, item.value);
+    }
+    if (item.type === 'custom_info') {
+      passed = true;
     }
     return { passed, failures: passed ? [] : [item.id] };
   };

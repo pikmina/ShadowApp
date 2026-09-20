@@ -29,8 +29,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
+import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
-import { ShoppingCart, Plus, Minus, Trash2, Edit2, X, Search, ShieldAlert, Coins, Sparkles, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Edit2, X, Search, ShieldAlert, Coins, Sparkles, AlertCircle, CheckCircle2, FileText } from "lucide-react";
 import { SectionHeader } from "../components/common/SectionHeader";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -52,7 +53,11 @@ const KIND_TYPES: Record<string, string> = {
   attribute_upgrade: "Mejora de atributo",
   plus_ultra_effect: "Efecto Plus Ultra",
   crafting_material: "Material de fabricación",
-  ingredient: "Ingrediente"
+  ingredient: "Ingrediente",
+  background: "Trasfondo",
+  vehicle: "Vehículo",
+  real_estate: "Inmueble",
+  clandestine_asset: "Activos Clandestinos"
 };
 
 const ATTRIBUTE_OPTIONS = [
@@ -70,7 +75,8 @@ const REQUIREMENT_TYPE_LABELS: Record<string, string> = {
   skill_level: "Nivel de Habilidad",
   stage: "Etapa",
   age: "Edad",
-  character_field: "Campo de Personaje"
+  character_field: "Campo de Personaje",
+  custom_info: "Ingresa información adicional"
 };
 
 const OFFER_STATUS_LABELS: Record<string, string> = {
@@ -121,6 +127,9 @@ function renderRequirementLabel(req: any, elementMap: Map<string, any>): string 
   if (req.type === "age") {
     const compSymbols: Record<string, string> = { gte: "≥", lte: "≤" };
     return `Edad ${compSymbols[req.comparison] || "≥"} ${req.value}`;
+  }
+  if (req.type === "custom_info") {
+    return `📝 ${req.label || "Información adicional"}${req.required !== false ? " (Obligatorio)" : ""}`;
   }
   return "Requisito especial";
 }
@@ -283,6 +292,16 @@ export default function Shop() {
     });
   };
 
+  const updateCartItemCustomInfo = (index: number, text: string) => {
+    setCart(prev => {
+      const copy = [...prev];
+      if (copy[index]) {
+        copy[index] = { ...copy[index], customInfo: text };
+      }
+      return copy;
+    });
+  };
+
   const totalExp = cart.reduce((sum, item) => {
     if (item.selectedCurrency !== "exp") return sum;
     if (item.isProgression) return sum + (item.cost || 0);
@@ -307,6 +326,16 @@ export default function Shop() {
       return;
     }
 
+    // Validate required custom_info for items in cart
+    for (const item of cart) {
+      const customReqs = (item.offer?.requirements?.requirements || []).filter((r: any) => r.type === "custom_info" && r.required !== false);
+      if (customReqs.length > 0 && (!item.customInfo || !item.customInfo.trim())) {
+        const reqLabel = customReqs[0].label || "Información adicional";
+        setCheckoutError(`Debes ingresar "${reqLabel}" para ${item.element.name}.`);
+        return;
+      }
+    }
+
     try {
       setCheckoutError("");
       const res = await apiFetch("/api/shop/purchase", {
@@ -321,13 +350,15 @@ export default function Shop() {
                 selectedCurrency: c.selectedCurrency,
                 fromLevel: c.fromLevel,
                 toLevel: c.toLevel,
-                quantity: 1
+                quantity: 1,
+                customInfo: c.customInfo || null
               };
             }
             return {
               offerId: c.offerId,
               quantity: c.quantity,
-              selectedCurrency: c.selectedCurrency
+              selectedCurrency: c.selectedCurrency,
+              customInfo: c.customInfo || null
             };
           })
         })
@@ -401,7 +432,7 @@ export default function Shop() {
   };
 
   // Requirement management inside Offer Modal
-  const addRequirementToOffer = (type: "attribute" | "owns_element" | "skill_level" | "stage" = "attribute") => {
+  const addRequirementToOffer = (type: "attribute" | "owns_element" | "skill_level" | "stage" | "custom_info" = "attribute") => {
     const currentReqs = editingOffer?.requirements?.requirements || [];
     let newReq: any;
     if (type === "attribute") {
@@ -414,6 +445,14 @@ export default function Shop() {
     } else if (type === "stage") {
       const defaultStage = stagesList[0]?.name || "Infancia";
       newReq = { id: nanoid(8), type: "stage", stageId: defaultStage, comparison: "gte" };
+    } else if (type === "custom_info") {
+      newReq = {
+        id: nanoid(8),
+        type: "custom_info",
+        label: "Ingresa información adicional",
+        placeholder: "Especifica la información o detalles requeridos...",
+        required: true
+      };
     }
 
     setEditingOffer({
@@ -465,6 +504,15 @@ export default function Shop() {
           if (newType === "stage") {
             const defaultStage = stagesList[0]?.name || "Infancia";
             return { id, type: "stage", stageId: defaultStage, comparison: "gte" };
+          }
+          if (newType === "custom_info") {
+            return {
+              id,
+              type: "custom_info",
+              label: "Ingresa información adicional",
+              placeholder: "Especifica la información o detalles requeridos...",
+              required: true
+            };
           }
           return r;
         })
@@ -727,6 +775,30 @@ export default function Shop() {
                             </>
                           )}
                         </div>
+
+                        {/* Custom info input inside cart item if required */}
+                        {(() => {
+                          const customReqs = (item.offer?.requirements?.requirements || []).filter((r: any) => r.type === "custom_info");
+                          if (customReqs.length === 0) return null;
+                          return (
+                            <div className="pt-2 border-t border-border/40 space-y-1">
+                              {customReqs.map((req: any) => (
+                                <div key={req.id} className="space-y-1">
+                                  <Label className="text-[10px] font-semibold text-amber-400 flex items-center gap-1">
+                                    <FileText className="size-3" /> {req.label || "Info adicional"}
+                                    {req.required !== false && <span className="text-destructive">*</span>}
+                                  </Label>
+                                  <Textarea
+                                    value={item.customInfo || ""}
+                                    placeholder={req.placeholder || "Especifique detalles o identidad..."}
+                                    onChange={e => updateCartItemCustomInfo(idx, e.target.value)}
+                                    className="min-h-14 text-xs resize-none"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>
@@ -851,7 +923,7 @@ export default function Shop() {
 
       {/* Checkout Modal */}
       <Dialog open={isCheckoutModalOpen} onOpenChange={setIsCheckoutModalOpen}>
-        <DialogContent className="sm:max-w-[425px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle className="uppercase tracking-widest font-black flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-amber-500" /> Procesar Compra
@@ -888,6 +960,53 @@ export default function Shop() {
                 <span className="font-bold font-mono">{totalYen}</span>
               </div>
             </div>
+
+            {/* Custom Information fields for items requiring it */}
+            {(() => {
+              const itemsNeedingInfo = cart
+                .map((item, idx) => ({ item, idx }))
+                .filter(({ item }) => (item.offer?.requirements?.requirements || []).some((r: any) => r.type === "custom_info"));
+
+              if (itemsNeedingInfo.length === 0) return null;
+
+              return (
+                <div className="space-y-3 pt-2 border-t border-border">
+                  <div className="flex items-center gap-2">
+                    <FileText className="size-4 text-amber-400" />
+                    <Label className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
+                      Información Adicional Requerida
+                    </Label>
+                  </div>
+                  {itemsNeedingInfo.map(({ item, idx }) => {
+                    const customReqs = (item.offer?.requirements?.requirements || []).filter((r: any) => r.type === "custom_info");
+                    return (
+                      <div key={idx} className="p-3 bg-muted/40 border border-amber-500/20 rounded-md space-y-2">
+                        <div className="font-medium text-xs text-foreground flex items-center justify-between">
+                          <span>{item.element.name}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-mono">
+                            {KIND_TYPES[item.element.kind] || item.element.kind}
+                          </span>
+                        </div>
+                        {customReqs.map((req: any) => (
+                          <div key={req.id} className="space-y-1">
+                            <Label className="text-[11px] font-medium text-muted-foreground flex items-center justify-between">
+                              <span>{req.label || "Información Adicional"}</span>
+                              {req.required !== false && <span className="text-destructive text-[10px] font-mono">* Obligatorio</span>}
+                            </Label>
+                            <Textarea
+                              value={item.customInfo || ""}
+                              placeholder={req.placeholder || "Especifica la información o detalles requeridos..."}
+                              onChange={e => updateCartItemCustomInfo(idx, e.target.value)}
+                              className="min-h-16 text-xs"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {cartAttrUpgradesCount > 0 && (
               <div className={`p-3 border rounded text-xs space-y-1 ${exceedsAttrLimit ? 'bg-destructive/10 border-destructive/30 text-destructive' : 'bg-amber-500/10 border-amber-500/20 text-foreground'}`}>
@@ -1191,6 +1310,9 @@ export default function Shop() {
                       <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => addRequirementToOffer("stage")}>
                         <Plus className="size-3.5" /> Etapa
                       </Button>
+                      <Button variant="outline" size="sm" className="h-8 text-xs gap-1 text-amber-400 border-amber-500/30 hover:bg-amber-500/10" onClick={() => addRequirementToOffer("custom_info")}>
+                        <FileText className="size-3.5" /> Info Adicional
+                      </Button>
                     </div>
                   </div>
 
@@ -1207,7 +1329,7 @@ export default function Shop() {
                           <div className="flex items-center justify-between gap-2">
                             <Badge variant="outline" className="text-xs font-mono">#{idx + 1}</Badge>
                             <Select value={req.type} onValueChange={v => updateRequirementTypeInOffer(req.id, v)}>
-                              <SelectTrigger className="h-8 text-xs w-[180px]">
+                              <SelectTrigger className="h-8 text-xs w-[220px]">
                                 <SelectValue placeholder="Tipo de requisito">
                                   {REQUIREMENT_TYPE_LABELS[req.type] || req.type}
                                 </SelectValue>
@@ -1217,6 +1339,7 @@ export default function Shop() {
                                 <SelectItem value="owns_element">Poseer Elemento</SelectItem>
                                 <SelectItem value="skill_level">Nivel de Habilidad</SelectItem>
                                 <SelectItem value="stage">Etapa del Personaje</SelectItem>
+                                <SelectItem value="custom_info">Ingresa información adicional</SelectItem>
                               </SelectContent>
                             </Select>
                             <Button
@@ -1371,6 +1494,43 @@ export default function Shop() {
                                   )}
                                 </SelectContent>
                               </Select>
+                            </div>
+                          )}
+
+                          {req.type === "custom_info" && (
+                            <div className="space-y-2 text-xs bg-background/60 p-2.5 rounded border border-border/60">
+                              <div className="space-y-1">
+                                <Label className="text-[11px] font-medium text-foreground">Etiqueta o Título del campo</Label>
+                                <Input
+                                  type="text"
+                                  placeholder="Ej: Ingresa información adicional / Nombre o Alias falso"
+                                  value={req.label ?? ""}
+                                  onChange={e => updateRequirementInOffer(req.id, { label: e.target.value })}
+                                  className="h-8 text-xs"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] font-medium text-foreground">Texto de ayuda o instrucción (Placeholder)</Label>
+                                <Input
+                                  type="text"
+                                  placeholder="Ej: Especifica la identidad falsa, nombre suplantado o detalles..."
+                                  value={req.placeholder ?? ""}
+                                  onChange={e => updateRequirementInOffer(req.id, { placeholder: e.target.value })}
+                                  className="h-8 text-xs"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2 pt-1">
+                                <input
+                                  type="checkbox"
+                                  id={`req-required-${req.id}`}
+                                  checked={req.required !== false}
+                                  onChange={e => updateRequirementInOffer(req.id, { required: e.target.checked })}
+                                  className="rounded border-border size-3.5"
+                                />
+                                <Label htmlFor={`req-required-${req.id}`} className="text-xs cursor-pointer font-normal text-muted-foreground">
+                                  Campo de texto obligatorio para poder comprar
+                                </Label>
+                              </div>
                             </div>
                           )}
                         </div>

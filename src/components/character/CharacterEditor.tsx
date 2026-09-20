@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus } from "lucide-react";
+import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { validateCharacter, calculateDerivedStats } from "@/lib/characterValidation";
 import { Badge } from "@/components/ui/badge";
@@ -41,13 +41,14 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const [yen, setYen] = useState<number>(() => Number(character?.yen ?? 0));
 
   // Inventory items state
-  const [inventoryItems, setInventoryItems] = useState<Array<{ elementId: string; quantity: number; element?: any }>>(() => {
+  const [inventoryItems, setInventoryItems] = useState<Array<{ elementId: string; quantity: number; notes?: string | null; element?: any }>>(() => {
     const rows = Array.isArray(character?.possessions) ? character.possessions : [];
     return rows
       .filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness'].includes(row?.element?.kind))
       .map((row: any) => ({
         elementId: row?.element?.id || row?.possession?.elementId,
         quantity: row?.possession?.quantity || 1,
+        notes: row?.possession?.notes ?? row?.notes ?? null,
         element: row?.element
       }));
   });
@@ -83,7 +84,8 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
     skill: 'Habilidad', equipment: 'Equipamiento', weapon: 'Arma', ammunition: 'Munición', consumable: 'Consumible',
     character_resource: 'Recurso', attribute_upgrade: 'Mejora', technique_entitlement: 'Técnica',
     altered_status: 'Estado Alterado', plus_ultra_effect: 'Plus Ultra', crafting_material: 'Material',
-    ingredient: 'Ingrediente'
+    ingredient: 'Ingrediente', background: 'Trasfondo', vehicle: 'Vehículo', real_estate: 'Inmueble',
+    clandestine_asset: 'Activo Clandestino'
   };
 
   const publishedInventoryElements = useMemo(() => {
@@ -150,6 +152,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
           .map((row: any) => ({
             elementId: row?.element?.id || row?.possession?.elementId,
             quantity: row?.possession?.quantity || 1,
+            notes: row?.possession?.notes ?? row?.notes ?? null,
             element: row?.element
           }))
       );
@@ -1136,6 +1139,15 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                             <p className="text-xs text-muted-foreground line-clamp-2">
                               {el.description}
                             </p>
+                          )}
+                          {item.notes && (
+                            <div className="bg-amber-500/10 border border-amber-500/20 rounded p-2 text-xs text-amber-200/90 font-mono flex items-start gap-1.5 mt-1">
+                              <FileText className="size-3.5 text-amber-400 shrink-0 mt-0.5" />
+                              <div className="flex-1">
+                                <span className="font-semibold block text-[10px] uppercase text-amber-400">Detalles / Info adicional:</span>
+                                <span className="whitespace-pre-wrap">{item.notes}</span>
+                              </div>
+                            </div>
                           )}
                         </div>
                         <div className="flex items-center justify-between pt-2 border-t border-border/40">

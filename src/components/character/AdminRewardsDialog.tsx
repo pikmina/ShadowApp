@@ -48,7 +48,7 @@ export default function AdminRewardsDialog({ characterId, character, onClose }: 
     skill: 'Habilidad', equipment: 'Equipamiento', weapon: 'Arma', ammunition: 'Munición', consumable: 'Consumible',
     character_resource: 'Recurso de Personaje', attribute_upgrade: 'Mejora de Atributo', technique_entitlement: 'Técnica',
     altered_status: 'Estado Alterado', plus_ultra_effect: 'Efecto Plus Ultra', crafting_material: 'Material de Fabricación',
-    ingredient: 'Ingrediente'
+    ingredient: 'Ingrediente', background: 'Trasfondo', vehicle: 'Vehículo', real_estate: 'Inmueble'
   } as Record<string, string>)[kind] ?? 'Elemento';
 
   // Strictly filter to published elements

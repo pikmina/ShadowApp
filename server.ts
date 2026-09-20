@@ -565,7 +565,8 @@ async function startServer() {
           quantity: z.number().int().positive().optional().default(1),
           selectedCurrency: z.enum(['exp', 'yen']),
           fromLevel: z.number().int().min(0).max(20).optional(),
-          toLevel: z.number().int().min(1).max(20).optional()
+          toLevel: z.number().int().min(1).max(20).optional(),
+          customInfo: z.string().optional().nullable()
         })).min(1)
       });
       const parsed = PurchaseSchema.safeParse(req.body);

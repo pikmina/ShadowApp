@@ -152,8 +152,10 @@ export async function processPurchase(moderatorUid: string, characterId: number,
       attrUpgradeLevels.set(p.elementId, p.quantity);
     }
 
+    const elementNotes: Record<string, string> = {};
+
     for (const item of cartItems) {
-      const { offerId, quantity = 1, selectedCurrency, fromLevel, toLevel } = item;
+      const { offerId, quantity = 1, selectedCurrency, fromLevel, toLevel, customInfo } = item as any;
       
       if (selectedCurrency !== 'exp' && selectedCurrency !== 'yen') {
         throw new Error(`Invalid currency: ${selectedCurrency}`);
@@ -162,6 +164,10 @@ export async function processPurchase(moderatorUid: string, characterId: number,
       // Need to lock the row for the offer
       const [offer] = await tx.select().from(shopOffers).where(eq(shopOffers.id, offerId));
       if (!offer) throw new Error(`Offer ${offerId} not found`);
+
+      if (customInfo && typeof customInfo === 'string' && customInfo.trim()) {
+        elementNotes[offer.elementId] = customInfo.trim();
+      }
       
       const [element] = await tx.select().from(systemElements).where(eq(systemElements.id, offer.elementId));
       if (!element || element.status !== 'published') {
@@ -341,28 +347,38 @@ export async function processPurchase(moderatorUid: string, characterId: number,
 
     // 4. Add or Update Possessions
     for (const [elementId, targetLevel] of Object.entries(progressionUpdates)) {
+      const note = elementNotes[elementId] || null;
       await tx.insert(elementPossessions).values({
         id: nanoid(10),
         characterId,
         elementId,
         quantity: targetLevel,
+        notes: note,
         acquiredAt: new Date()
       }).onConflictDoUpdate({
         target: [elementPossessions.characterId, elementPossessions.elementId],
-        set: { quantity: targetLevel }
+        set: {
+          quantity: targetLevel,
+          ...(note ? { notes: note } : {})
+        }
       });
     }
 
     for (const [elementId, quantity] of Object.entries(possessionsToAdd)) {
+      const note = elementNotes[elementId] || null;
       await tx.insert(elementPossessions).values({
         id: nanoid(10),
         characterId,
         elementId,
         quantity,
+        notes: note,
         acquiredAt: new Date()
       }).onConflictDoUpdate({
         target: [elementPossessions.characterId, elementPossessions.elementId],
-        set: { quantity: sql`${elementPossessions.quantity} + ${quantity}` }
+        set: {
+          quantity: sql`${elementPossessions.quantity} + ${quantity}`,
+          ...(note ? { notes: note } : {})
+        }
       });
     }
 

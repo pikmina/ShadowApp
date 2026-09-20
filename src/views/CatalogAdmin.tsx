@@ -78,7 +78,11 @@ const KIND_TYPES: Record<string, string> = {
   attribute_upgrade: "Mejora de atributo",
   plus_ultra_effect: "Efecto Plus Ultra",
   crafting_material: "Material de fabricación",
-  ingredient: "Ingrediente"
+  ingredient: "Ingrediente",
+  background: "Trasfondo",
+  vehicle: "Vehículo",
+  real_estate: "Inmueble",
+  clandestine_asset: "Activos Clandestinos"
 };
 
 const STATUS_TYPES: Record<string, string> = {
@@ -416,6 +420,10 @@ export default function CatalogAdmin() {
                         <SelectItem value="plus_ultra_effect">Efecto Plus Ultra</SelectItem>
                         <SelectItem value="crafting_material">Material de fabricación</SelectItem>
                         <SelectItem value="ingredient">Ingrediente</SelectItem>
+                        <SelectItem value="background">Trasfondo</SelectItem>
+                        <SelectItem value="vehicle">Vehículo</SelectItem>
+                        <SelectItem value="real_estate">Inmueble</SelectItem>
+                        <SelectItem value="clandestine_asset">Activos Clandestinos</SelectItem>
 
                       </SelectContent>
                     </Select>

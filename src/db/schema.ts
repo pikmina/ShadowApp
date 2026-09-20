@@ -6,7 +6,8 @@ export const elementKindEnum = pgEnum('element_kind', [
   'trait', 'weakness', 'skill', 'equipment', 'weapon', 
   'ammunition', 'consumable', 'license', 'permission', 'certification',
   'character_resource', 'attribute_upgrade', 'technique_entitlement', 
-  'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient'
+  'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient',
+  'background', 'vehicle', 'real_estate', 'clandestine_asset'
 ]);
 export const elementStatusEnum = pgEnum('element_status', ['draft', 'published', 'archived']);
 export const offerStatusEnum = pgEnum('offer_status', ['draft', 'scheduled', 'available', 'paused', 'ended', 'archived']);
