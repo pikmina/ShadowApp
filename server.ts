@@ -25,6 +25,24 @@ async function startServer() {
 
   await seedCoreRules();
 
+  // Ensure database enums are updated (safe fallback if migrations were bypassed)
+  try {
+    const { db } = await import("./src/db/index.ts");
+    const { sql } = await import("drizzle-orm");
+    const elementKindValues = [
+      'trait', 'weakness', 'skill', 'equipment', 'weapon', 
+      'ammunition', 'consumable', 'license', 'permission', 'certification',
+      'character_resource', 'attribute_upgrade', 'technique_entitlement', 
+      'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient',
+      'background', 'vehicle', 'real_estate', 'clandestine_asset'
+    ];
+    for (const val of elementKindValues) {
+      await db.execute(sql.raw(`ALTER TYPE "element_kind" ADD VALUE IF NOT EXISTS '${val}';`));
+    }
+  } catch (err: any) {
+    console.warn("Notice: Enum verification at server start:", err?.message || err);
+  }
+
   app.get("/api/rules", async (req, res) => {
     try {
       const rules = await getRules();
@@ -146,7 +164,8 @@ async function startServer() {
       const item = await upsertElement(parsed.data, req.dbUser?.uid);
       res.json(item);
     } catch (error: any) {
-      res.status(error.status ?? 500).json({ error: error.status ? error.message : "Failed to save element" });
+      console.error("UPSERT ELEMENT ROUTE ERROR:", error);
+      res.status(error.status ?? 500).json({ error: error.status ? error.message : (error.message || "Failed to save element") });
     }
   });
 

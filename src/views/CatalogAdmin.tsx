@@ -82,7 +82,7 @@ const KIND_TYPES: Record<string, string> = {
   background: "Trasfondo",
   vehicle: "Vehículo",
   real_estate: "Inmueble",
-  clandestine_asset: "Activos Clandestinos"
+  clandestine_asset: "Activo Clandestino"
 };
 
 const STATUS_TYPES: Record<string, string> = {
@@ -456,7 +456,7 @@ export default function CatalogAdmin() {
                         <SelectItem value="background">Trasfondo</SelectItem>
                         <SelectItem value="vehicle">Vehículo</SelectItem>
                         <SelectItem value="real_estate">Inmueble</SelectItem>
-                        <SelectItem value="clandestine_asset">Activos Clandestinos</SelectItem>
+                        <SelectItem value="clandestine_asset">Activo Clandestino</SelectItem>
 
                       </SelectContent>
                     </Select>

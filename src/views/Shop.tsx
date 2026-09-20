@@ -87,7 +87,7 @@ const KIND_TYPES: Record<string, string> = {
   background: "Trasfondo",
   vehicle: "Vehículo",
   real_estate: "Inmueble",
-  clandestine_asset: "Activos Clandestinos"
+  clandestine_asset: "Activo Clandestino"
 };
 
 const ATTRIBUTE_OPTIONS = [

@@ -31,7 +31,32 @@ async function runMigration() {
     // 1 & 2. Create canon_characters and other missing tables (Idempotent)
     console.log("Creating new tables IF NOT EXISTS...");
     await adminDb.transaction(async (tx) => {
-    await tx.execute(sql`ALTER TYPE "element_kind" ADD VALUE IF NOT EXISTS 'certification';`);
+    // Ensure all enum types and their values exist in PostgreSQL
+    const elementKindValues = [
+      'trait', 'weakness', 'skill', 'equipment', 'weapon', 
+      'ammunition', 'consumable', 'license', 'permission', 'certification',
+      'character_resource', 'attribute_upgrade', 'technique_entitlement', 
+      'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient',
+      'background', 'vehicle', 'real_estate', 'clandestine_asset'
+    ];
+    for (const val of elementKindValues) {
+      await tx.execute(sql.raw(`ALTER TYPE "element_kind" ADD VALUE IF NOT EXISTS '${val}';`));
+    }
+
+    const roleValues = ['player', 'moderator', 'superadmin'];
+    for (const val of roleValues) {
+      await tx.execute(sql.raw(`ALTER TYPE "role" ADD VALUE IF NOT EXISTS '${val}';`));
+    }
+
+    const elementStatusValues = ['draft', 'published', 'archived'];
+    for (const val of elementStatusValues) {
+      await tx.execute(sql.raw(`ALTER TYPE "element_status" ADD VALUE IF NOT EXISTS '${val}';`));
+    }
+
+    const offerStatusValues = ['draft', 'scheduled', 'available', 'paused', 'ended', 'archived'];
+    for (const val of offerStatusValues) {
+      await tx.execute(sql.raw(`ALTER TYPE "offer_status" ADD VALUE IF NOT EXISTS '${val}';`));
+    }
     
     await tx.execute(sql`
       CREATE TABLE IF NOT EXISTS "canon_characters" (
