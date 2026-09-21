@@ -38,6 +38,11 @@ import {
   type MechanicalLimitation,
   type DifferentiatedOutcome,
 } from "../../domain/mechanicalBehavior.ts";
+import {
+  getMechanicalLabel,
+  getAlteredStatusLabel,
+  MECHANICAL_LABELS,
+} from "../../domain/mechanicalLabels.ts";
 import { MechanicalEffectsEditor } from "./MechanicalEffectsEditor.tsx";
 import type { SystemMechanicsConfig } from "../../domain/systemMechanics.ts";
 
@@ -426,8 +431,8 @@ function SingleBehaviorCard({
                 <div className="flex items-center gap-2">
                   <Zap className="size-3.5" />
                   <span>Activación</span>
-                  <Badge variant="outline" className="text-[10px] font-normal lowercase ml-1">
-                    {behavior.activation?.actionType || "action"}
+                  <Badge variant="outline" className="text-[10px] font-normal ml-1">
+                    {getMechanicalLabel("actionTypes", behavior.activation?.actionType || "action")}
                   </Badge>
                 </div>
               </AccordionTrigger>
@@ -559,8 +564,8 @@ function SingleBehaviorCard({
                 <div className="flex items-center gap-2">
                   <Shield className="size-3.5" />
                   <span>Disparador (Trigger)</span>
-                  <Badge variant="outline" className="text-[10px] font-normal lowercase ml-1">
-                    {behavior.trigger?.kind || "receive_damage"}
+                  <Badge variant="outline" className="text-[10px] font-normal ml-1">
+                    {getMechanicalLabel("triggers", behavior.trigger?.kind || "receive_damage")}
                   </Badge>
                 </div>
               </AccordionTrigger>
@@ -710,8 +715,8 @@ function SingleBehaviorCard({
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="size-3.5" />
                 <span>Resolución</span>
-                <Badge variant="outline" className="text-[10px] font-normal lowercase ml-1">
-                  {behavior.resolution?.type || "automatic"}
+                <Badge variant="outline" className="text-[10px] font-normal ml-1">
+                  {getMechanicalLabel("resolutions", behavior.resolution?.type || "automatic")}
                 </Badge>
               </div>
             </AccordionTrigger>
@@ -748,8 +753,8 @@ function SingleBehaviorCard({
               <div className="flex items-center gap-2">
                 <TargetIcon className="size-3.5" />
                 <span>Objetivo, Rango y Área</span>
-                <Badge variant="outline" className="text-[10px] font-normal lowercase ml-1">
-                  {behavior.target?.type || "self"}
+                <Badge variant="outline" className="text-[10px] font-normal ml-1">
+                  {getMechanicalLabel("targets", behavior.target?.type || "self")}
                 </Badge>
               </div>
             </AccordionTrigger>
@@ -767,8 +772,8 @@ function SingleBehaviorCard({
               <div className="flex items-center gap-2">
                 <Clock className="size-3.5" />
                 <span>Temporalidad y Duración</span>
-                <Badge variant="outline" className="text-[10px] font-normal lowercase ml-1">
-                  {behavior.temporality?.duration.type || "instant"}
+                <Badge variant="outline" className="text-[10px] font-normal ml-1">
+                  {getMechanicalLabel("durations", behavior.temporality?.duration.type || "instant")}
                 </Badge>
               </div>
             </AccordionTrigger>
@@ -904,6 +909,8 @@ function ConditionsEditor({
                     updateCond(i, { type: "percentage", resourceId: "SA", comparison: "<=", percent: 50, negated: cond.negated });
                   } else if (val === "resource") {
                     updateCond(i, { type: "resource", resourceId: "ES", comparison: "<=", value: 3, negated: cond.negated });
+                  } else if (val === "status") {
+                    updateCond(i, { type: "status", statusElementId: "core.status.stunned", present: true, negated: cond.negated });
                   } else if (val === "tag") {
                     updateCond(i, { type: "tag", tag: "fire", scope: "attack", negated: cond.negated });
                   } else if (val === "die") {
@@ -915,13 +922,14 @@ function ConditionsEditor({
                   }
                 }}
               >
-                <SelectTrigger className="h-7 w-36 text-xs font-semibold">
+                <SelectTrigger className="h-7 w-38 text-xs font-semibold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="resource">Recurso (Valor)</SelectItem>
                   <SelectItem value="percentage">Recurso (Porcentaje)</SelectItem>
-                  <SelectItem value="die">Tirada de Dados</SelectItem>
+                  <SelectItem value="status">Estado Alterado</SelectItem>
+                  <SelectItem value="die">Dado Individual</SelectItem>
                   <SelectItem value="tag">Etiqueta (Tag)</SelectItem>
                   <SelectItem value="manual">Manual / Narrativa</SelectItem>
                 </SelectContent>
@@ -996,6 +1004,45 @@ function ConditionsEditor({
                       />
                       <span className="text-muted-foreground">%</span>
                     </div>
+                  </>
+                )}
+
+                {cond.type === "status" && (
+                  <>
+                    <Select
+                      value={
+                        ["core.status.stunned", "core.status.vulnerable", "core.status.berserker", "core.status.paralyzed", "support_blocked"].includes(cond.statusElementId)
+                          ? cond.statusElementId
+                          : "custom"
+                      }
+                      onValueChange={(val) => {
+                        if (val !== "custom") {
+                          updateCond(i, { ...cond, statusElementId: val });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-7 w-40 text-xs">
+                        <SelectValue placeholder="Seleccionar estado...">
+                          {getAlteredStatusLabel(cond.statusElementId)}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="core.status.stunned">Aturdido</SelectItem>
+                        <SelectItem value="core.status.vulnerable">Vulnerable</SelectItem>
+                        <SelectItem value="core.status.berserker">Berserker</SelectItem>
+                        <SelectItem value="core.status.paralyzed">Paralizado</SelectItem>
+                        <SelectItem value="support_blocked">Soporte Bloqueado</SelectItem>
+                        <SelectItem value="custom">Otro (ID manual)...</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(!["core.status.stunned", "core.status.vulnerable", "core.status.berserker", "core.status.paralyzed", "support_blocked"].includes(cond.statusElementId)) && (
+                      <Input
+                        value={cond.statusElementId || ""}
+                        onChange={(e) => updateCond(i, { ...cond, statusElementId: e.target.value })}
+                        placeholder="ID de estado..."
+                        className="h-7 w-32 text-xs font-mono"
+                      />
+                    )}
                   </>
                 )}
 
@@ -1405,13 +1452,13 @@ function EffectsListEditor({
                   {eff.target && (
                     <Badge variant="secondary" className="text-[10px] gap-1 bg-sky-500/10 text-sky-400 border-sky-500/30">
                       <TargetIcon className="size-2.5" />
-                      <span>Obj: {eff.target.type}</span>
+                      <span>Obj: {getMechanicalLabel("targets", eff.target.type)}</span>
                     </Badge>
                   )}
                   {eff.temporality && (
                     <Badge variant="secondary" className="text-[10px] gap-1 bg-amber-500/10 text-amber-400 border-amber-500/30">
                       <Clock className="size-2.5" />
-                      <span>Dur: {eff.temporality.duration?.type}</span>
+                      <span>Dur: {getMechanicalLabel("durations", eff.temporality.duration?.type)}</span>
                     </Badge>
                   )}
                 </div>
@@ -1586,14 +1633,45 @@ function EffectsListEditor({
                 {eff.type === "status_apply" && (
                   <>
                     <div className="grid gap-1">
-                      <Label className="text-[11px]">ID de Estado Alterado</Label>
-                      <Input
-                        value={eff.statusElementId}
-                        onChange={(e) => updateEffect(i, { ...eff, statusElementId: e.target.value })}
-                        placeholder="status_aturdido, status_paralizado..."
-                        className="h-7 w-40 text-xs"
-                      />
+                      <Label className="text-[11px]">Estado Alterado</Label>
+                      <Select
+                        value={
+                          ["core.status.stunned", "core.status.vulnerable", "core.status.berserker", "core.status.paralyzed", "support_blocked"].includes(eff.statusElementId)
+                            ? eff.statusElementId
+                            : "custom"
+                        }
+                        onValueChange={(val) => {
+                          if (val !== "custom") {
+                            updateEffect(i, { ...eff, statusElementId: val });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-48 text-xs font-medium">
+                          <SelectValue placeholder="Seleccionar estado...">
+                            {getAlteredStatusLabel(eff.statusElementId)}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="core.status.stunned">Aturdido</SelectItem>
+                          <SelectItem value="core.status.vulnerable">Vulnerable</SelectItem>
+                          <SelectItem value="core.status.berserker">Berserker</SelectItem>
+                          <SelectItem value="core.status.paralyzed">Paralizado</SelectItem>
+                          <SelectItem value="support_blocked">Soporte Bloqueado</SelectItem>
+                          <SelectItem value="custom">Otro (ID manual)...</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+                    {(!["core.status.stunned", "core.status.vulnerable", "core.status.berserker", "core.status.paralyzed", "support_blocked"].includes(eff.statusElementId)) && (
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">ID técnico de estado</Label>
+                        <Input
+                          value={eff.statusElementId}
+                          onChange={(e) => updateEffect(i, { ...eff, statusElementId: e.target.value })}
+                          placeholder="ID de estado..."
+                          className="h-7 w-36 text-xs font-mono"
+                        />
+                      </div>
+                    )}
                     <div className="grid gap-1">
                       <Label className="text-[11px]">Duración (Turnos)</Label>
                       <Input

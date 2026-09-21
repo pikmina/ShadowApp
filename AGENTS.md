@@ -849,6 +849,105 @@ For every non-trivial visual change:
 
 Do not declare a visual task complete solely because it compiles. Confirm that the rendered result preserves readable hierarchy, compact spacing, responsive behavior, and the established Shadowmore identity.
 
+## UI Localization & Human-Readable Labels — REQUIRED
+
+ShadowApp's administrator and user-facing interface is in Spanish.
+
+Internal domain values, database identifiers, enum values, event names,
+schema keys, mechanic types, tags and machine-readable identifiers may
+remain in English.
+
+However, internal machine-readable values MUST NEVER be exposed directly
+as normal user-facing labels.
+
+Always separate:
+
+Machine value:
+`status_apply`
+
+User-facing label:
+`Aplicar Estado Alterado`
+
+Do NOT rename persisted/internal values merely to translate the UI.
+
+### Selects and enumerations
+
+Whenever adding or modifying:
+
+- select
+- dropdown
+- combobox
+- radio group
+- segmented control
+- enum badge
+- mechanic selector
+- trigger selector
+- condition selector
+- effect selector
+- target selector
+- duration selector
+- resolution selector
+
+every option MUST have an explicit human-readable Spanish label.
+
+Never render:
+
+`label: value`
+
+or:
+
+`<option>{value}</option>`
+
+for machine-readable enums.
+
+### Centralized labels
+
+When the same domain value appears in multiple screens, translations MUST
+be centralized.
+
+Do not duplicate translation maps in individual components.
+
+The architecture should follow:
+
+internal value
+→ canonical Spanish label registry
+→ UI
+
+### References
+
+Technical IDs such as:
+
+`core.status.stunned`
+
+must not normally be shown to administrators when the referenced entity
+can be resolved.
+
+Display:
+
+`Aturdido`
+
+Persist:
+
+`core.status.stunned`
+
+Prefer selectors backed by real system entities instead of raw ID text
+fields.
+
+### Completion rule
+
+A user-facing form task is NOT complete if machine-readable English
+identifiers are visible in the normal Spanish UI.
+
+Before completing UI work:
+
+1. verify selects;
+2. verify selected values;
+3. verify collapsed summaries;
+4. verify badges;
+5. verify reference fields;
+6. verify persisted values remain unchanged;
+7. run TypeScript and build verification.
+
 # ALERTS AND CONFIRMATIONS
 Never use \`window.confirm\` or native browser popups for confirmations, as they can be blocked by iframe sandbox policies.
 Always use Shadcn's \`AlertDialog\` component (\`src/components/ui/alert-dialog.tsx\`) for any deletion or destructive action confirmation.
