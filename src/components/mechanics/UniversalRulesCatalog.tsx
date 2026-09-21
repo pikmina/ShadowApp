@@ -85,14 +85,22 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
     try { await onSave(parsed.data); setDraft(null); } catch (e) { setError(e instanceof Error ? e.message : 'Error al guardar'); } finally { setSaving(false); }
   };
 
-  const saveWithoutClosing = async (draftOverride?: Category) => {
+  const saveWithoutClosing = async (draftOverride?: Category): Promise<boolean> => {
     const currentDraft = draftOverride || draft;
-    if (!currentDraft) return;
+    if (!currentDraft) return false;
     const next = mechanics.some(c => c.id === currentDraft.id) ? mechanics.map(c => c.id === currentDraft.id ? currentDraft : c) : [...mechanics, currentDraft];
     const parsed = systemMechanicsConfigSchema.safeParse(next);
-    if (!parsed.success) { setError(parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('\n')); return; }
+    if (!parsed.success) { setError(parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('\n')); return false; }
     setSaving(true); setError('');
-    try { await onSave(parsed.data); } catch (e) { setError(e instanceof Error ? e.message : 'Error al guardar'); } finally { setSaving(false); }
+    try { 
+      await onSave(parsed.data); 
+      return true;
+    } catch (e) { 
+      setError(e instanceof Error ? e.message : 'Error al guardar'); 
+      return false;
+    } finally { 
+      setSaving(false); 
+    }
   };
   
   if (!draft) {
@@ -155,7 +163,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
     <div className="flex items-center justify-between border-b pb-4">
       <h2 className="text-xl font-bold">{draft.id ? "Editar Categoría" : "Nueva Categoría"}</h2>
       <div className="flex gap-3">
-        <Button variant="outline" disabled={saving} onClick={() => { setDraft(null); setEditingRuleId(null); }}>Volver</Button>
+        <Button variant="outline" disabled={saving} onClick={() => { setDraft(null); setEditingRuleId(null); setError(''); }}>Volver</Button>
         <Button disabled={saving} onClick={() => save(mechanics.some(c => c.id === draft.id) ? mechanics.map(c => c.id === draft.id ? draft : c) : [...mechanics, draft])}>{saving ? 'Guardando…' : 'Guardar categoría'}</Button>
       </div>
     </div>
@@ -194,7 +202,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
           const newDraft = { ...draft, rules: [...draft.rules, draft.rules[0] ? { ...structuredClone(draft.rules[0]), id: newId, name: 'Nueva opción', cost: 0 } : { id: newId, name: 'Nueva opción', cost: 0, ruleType: 'component', component: structuredClone(componentTemplates.duration) }] } as Category;
           setDraft(newDraft);
           setEditingRuleId(newId);
-          saveWithoutClosing(newDraft);
+          setError('');
         }}>
           <Plus className="w-4 h-4 mr-2" /> Añadir Opción
         </Button>
@@ -211,7 +219,10 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
               <div className="flex items-center justify-between border-b border-border/50 pb-3">
                 <h4 className="text-sm font-semibold text-primary">Editando Opción</h4>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={saving} onClick={() => { setEditingRuleId(null); saveWithoutClosing(); }}>{saving ? 'Guardando...' : 'Hecho'}</Button>
+                  <Button variant="outline" size="sm" disabled={saving} onClick={async () => {
+                    const ok = await saveWithoutClosing();
+                    if (ok) setEditingRuleId(null);
+                  }}>{saving ? 'Guardando...' : 'Hecho'}</Button>
                 </div>
               </div>
               
@@ -235,11 +246,16 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
               {r.component && <div className="pt-4 border-t border-border/50"><RuleComponentEditor value={r.component} onChange={component => patchRule(i, { component })} /></div>}
               
               <div className="flex justify-end pt-3">
-                <Button variant="ghost" className="text-destructive hover:bg-destructive/10" disabled={saving} onClick={() => {
+                <Button variant="ghost" className="text-destructive hover:bg-destructive/10" disabled={saving} onClick={async () => {
+                   const originalDraft = draft;
                    const newDraft = { ...draft, rules: draft.rules.filter((_, j) => i !== j) } as Category;
                    setDraft(newDraft);
                    setEditingRuleId(null);
-                   saveWithoutClosing(newDraft);
+                   const ok = await saveWithoutClosing(newDraft);
+                   if (!ok) {
+                     setDraft(originalDraft);
+                     setEditingRuleId(r.id);
+                   }
                 }}>
                   <Trash2 className="w-4 h-4 mr-2 text-destructive"/> Eliminar Opción
                 </Button>
@@ -272,10 +288,14 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                   }}>
                     <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
                   </Button>
-                  <Button variant="ghost" size="icon" disabled={isEditing || saving} onClick={() => {
+                  <Button variant="ghost" size="icon" disabled={isEditing || saving} onClick={async () => {
+                     const originalDraft = draft;
                      const newDraft = { ...draft, rules: draft.rules.filter((_, j) => i !== j) } as Category;
                      setDraft(newDraft);
-                     saveWithoutClosing(newDraft);
+                     const ok = await saveWithoutClosing(newDraft);
+                     if (!ok) {
+                       setDraft(originalDraft);
+                     }
                   }}>
                     <Trash2 className="w-4 h-4 text-destructive" />
                   </Button>

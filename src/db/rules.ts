@@ -34,9 +34,23 @@ export async function upsertRule(key: string, type: string, value: any, descript
       if (!validateCoreCategories(parsed)) throw new Error('Core categories are required');
       return await db.transaction(async tx => {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(72643001)`);
-        const elements = await tx.select({ effects: systemElements.effects, status: systemElements.status }).from(systemElements);
-        for (const element of elements) for (const ref of Array.isArray(element.effects) ? element.effects as any[] : []) {
-          if (ref.mechanicId && ref.ruleId && !parsed.some(c => c.id === ref.mechanicId && c.rules.some(r => r.id === ref.ruleId))) throw Object.assign(new Error('No se puede quitar una opción referenciada por un elemento'), { status: 409 });
+        const elements = await tx.select({ id: systemElements.id, name: systemElements.name, effects: systemElements.effects, status: systemElements.status }).from(systemElements);
+        const [currentRule] = await tx.select().from(systemRules).where(eq(systemRules.key, "system_mechanics"));
+        const existingMechanics = currentRule?.value && Array.isArray(currentRule.value) ? (currentRule.value as any[]) : [];
+        for (const element of elements) {
+          for (const ref of Array.isArray(element.effects) ? (element.effects as any[]) : []) {
+            if (ref.mechanicId && ref.ruleId && !parsed.some(c => c.id === ref.mechanicId && c.rules.some(r => r.id === ref.ruleId))) {
+              const prevCat = existingMechanics.find(c => c.id === ref.mechanicId);
+              const prevRule = prevCat?.rules?.find((r: any) => r.id === ref.ruleId);
+              const ruleName = prevRule?.name ? `"${prevRule.name}" (${ref.ruleId})` : `"${ref.ruleId}"`;
+              const catName = prevCat?.name ? `"${prevCat.name}"` : `"${ref.mechanicId}"`;
+              const elemName = element.name ? `"${element.name}"` : `ID ${element.id}`;
+              throw Object.assign(
+                new Error(`No se puede quitar la opción ${ruleName} de la categoría ${catName} porque está referenciada por el elemento ${elemName}`),
+                { status: 409 }
+              );
+            }
+          }
         }
         for (const element of elements) assertElementMechanics(element.effects as unknown[], element.status === 'published' ? 'draft' : element.status, parsed);
         const result = await tx.insert(systemRules).values({ key, type, value: parsed, description }).onConflictDoUpdate({ target: systemRules.key, set: { type, value: parsed, description, updatedAt: new Date() } }).returning();
