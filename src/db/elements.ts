@@ -2,7 +2,7 @@ import { assertElementMechanics } from "../domain/elementMechanics.ts";
 import { systemMechanicsConfigSchema } from "../domain/systemMechanics.ts";
 import { db } from './index.ts';
 import { systemElements, elementPossessions, shopOffers, systemRules, auditLogs } from './schema.ts';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, or, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { requirementGroupSchema } from '../domain/requirements.ts';
 import { SYSTEM_WEAKNESSES, CORE_ALTERED_STATUSES } from '../domain/systemWeaknesses.ts';
@@ -122,19 +122,15 @@ export async function deleteElement(id: string, actorUid: string = 'system') {
 
 export async function seedCoreWeaknesses(actorUid: string = 'system') {
   return db.transaction(async (tx) => {
-    // 1. Seed Core Altered Statuses
+    // 1. Seed Core Altered Statuses (only if not already present)
     for (const status of CORE_ALTERED_STATUSES) {
       const existing = await tx.select().from(systemElements).where(
-        sql`${systemElements.id} = ${status.id} OR (${systemElements.kind} = 'altered_status' AND ${systemElements.name} = ${status.name})`
+        or(
+          eq(systemElements.id, status.id),
+          and(eq(systemElements.kind, 'altered_status'), eq(systemElements.name, status.name))
+        )
       );
-      if (existing.length > 0) {
-        const item = existing[0];
-        await tx.update(systemElements).set({
-          status: 'published',
-          mechanicalBehaviors: status.mechanicalBehaviors,
-          updatedAt: new Date(),
-        }).where(eq(systemElements.id, item.id));
-      } else {
+      if (existing.length === 0) {
         await tx.insert(systemElements).values({
           id: status.id,
           kind: 'altered_status',
@@ -149,23 +145,16 @@ export async function seedCoreWeaknesses(actorUid: string = 'system') {
       }
     }
 
-    // 2. Seed 23 System Weaknesses
+    // 2. Seed 23 System Weaknesses (only if not already present, preserving user edits)
     const seeded: Array<{ id: string; name: string }> = [];
     for (const weakness of SYSTEM_WEAKNESSES) {
       const existing = await tx.select().from(systemElements).where(
-        sql`${systemElements.id} = ${weakness.id} OR (${systemElements.kind} = 'weakness' AND ${systemElements.name} = ${weakness.name})`
+        or(
+          eq(systemElements.id, weakness.id),
+          and(eq(systemElements.kind, 'weakness'), eq(systemElements.name, weakness.name))
+        )
       );
-      if (existing.length > 0) {
-        const item = existing[0];
-        // Preserve legacy effects if existing, update mechanicalBehaviors and metadata
-        await tx.update(systemElements).set({
-          description: weakness.description,
-          status: 'published',
-          mechanicalBehaviors: weakness.mechanicalBehaviors,
-          updatedAt: new Date(),
-        }).where(eq(systemElements.id, item.id));
-        seeded.push({ id: item.id, name: item.name });
-      } else {
+      if (existing.length === 0) {
         await tx.insert(systemElements).values({
           id: weakness.id,
           kind: 'weakness',
