@@ -107,7 +107,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
     return <div className="space-y-6">
       <p className="text-sm text-muted-foreground bg-primary/5 p-3 rounded-lg border border-primary/10">Categorías de reglas mecánicas. Las categorías Core están protegidas, pero sus opciones son editables. Puedes añadir categorías personalizadas adicionales.</p>
       
-      {error && <p role="alert" className="text-destructive bg-destructive/10 p-3 rounded-lg border border-destructive/20">{error}</p>}
+      {error && <p role="alert" className="whitespace-pre-wrap text-destructive bg-destructive/10 p-3 rounded-lg border border-destructive/20">{error}</p>}
       
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <Input className="max-w-xs" aria-label="Buscar categoría" placeholder="Buscar categoría..." value={filter} onChange={e => setFilter(e.target.value)} />

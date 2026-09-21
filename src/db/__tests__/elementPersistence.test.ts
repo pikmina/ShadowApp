@@ -12,7 +12,25 @@ vi.mock('../index.ts', async () => {
       const rows = () => copy(memory.tables[getTableName(table)] ?? []);
       return { where: async () => rows(), orderBy: async () => rows(), then: (fn: any) => Promise.resolve(rows()).then(fn) };
     } }),
-    insert: (table: any) => ({ values: (payload: any) => ({ returning: async () => { const row = copy(payload); (memory.tables[getTableName(table)] ??= []).push(row); return [copy(row)]; } }) }),
+    insert: (table: any) => ({ values: (payload: any) => {
+      const executeInsert = async () => {
+        const row = copy(payload);
+        const name = getTableName(table);
+        const tableRows = (memory.tables[name] ??= []);
+        const conflictIdx = tableRows.findIndex((r: any) => (payload.id && r.id === payload.id) || (payload.key && r.key === payload.key));
+        if (conflictIdx >= 0) {
+          tableRows[conflictIdx] = { ...tableRows[conflictIdx], ...copy(payload) };
+          return [copy(tableRows[conflictIdx])];
+        }
+        tableRows.push(row);
+        return [copy(row)];
+      };
+      return {
+        onConflictDoUpdate: () => ({ returning: executeInsert }),
+        onConflictDoNothing: () => ({ returning: executeInsert }),
+        returning: executeInsert
+      };
+    } }),
     update: (table: any) => ({ set: (payload: any) => ({ where: () => ({ returning: async () => { const rows = memory.tables[getTableName(table)]; rows[0] = { ...rows[0], ...copy(payload) }; return [copy(rows[0])]; } }) }) }),
     delete: (table: any) => ({ where: async () => { memory.tables[getTableName(table)] = []; } }),
   };
@@ -20,7 +38,7 @@ vi.mock('../index.ts', async () => {
 });
 
 import { getElement, upsertElement, deleteElement } from '../elements';
-import { deleteRule } from '../rules';
+import { deleteRule, upsertRule } from '../rules';
 
 beforeEach(() => { memory.tables = { system_rules: [{ key: 'system_mechanics', value: createCoreCategories() }], system_elements: [] }; });
 
@@ -49,5 +67,21 @@ describe('Element service persistence contract with transactional storage adapte
   test('core rule document cannot be deleted through the data service', async () => {
     await expect(deleteRule('system_mechanics')).rejects.toThrow('Core');
     expect(memory.tables.system_rules).toHaveLength(1);
+  });
+  test('removing an option referenced by elements lists the referencing elements in the error message', async () => {
+    const effects = [{ applicationId: 'a1', groupId: 'speech', mechanicId: 'core.healing', ruleId: 'core.healing.es2' }];
+    await upsertElement({ kind: 'trait', name: 'Item Curativo Alpha', description: '', effects });
+    await upsertElement({ kind: 'trait', name: 'Poción Beta', description: '', effects });
+
+    const updatedMechanics = createCoreCategories().map(cat => {
+      if (cat.id === 'core.healing') {
+        return { ...cat, rules: cat.rules.filter(r => r.id !== 'core.healing.es2') };
+      }
+      return cat;
+    });
+
+    await expect(upsertRule('system_mechanics', 'json', updatedMechanics, 'Motor universal de reglas')).rejects.toThrowError(
+      /No se puede eliminar la opción .* utilizada por los siguientes elementos:\n• "Item Curativo Alpha", "Poción Beta"/
+    );
   });
 });

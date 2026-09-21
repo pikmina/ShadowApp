@@ -1,4 +1,4 @@
-import { assertElementMechanics } from "../domain/elementMechanics.ts";
+import { assertElementMechanics, validateElementMechanics } from "../domain/elementMechanics.ts";
 import { migrateCoreCategories, validateCoreCategories } from "../domain/coreRuleCatalog.ts";
 import { systemMechanicsConfigSchema } from "../domain/systemMechanics.ts";
 import { systemElements, auditLogs } from "./schema.ts";
@@ -37,22 +37,72 @@ export async function upsertRule(key: string, type: string, value: any, descript
         const elements = await tx.select({ id: systemElements.id, name: systemElements.name, effects: systemElements.effects, status: systemElements.status }).from(systemElements);
         const [currentRule] = await tx.select().from(systemRules).where(eq(systemRules.key, "system_mechanics"));
         const existingMechanics = currentRule?.value && Array.isArray(currentRule.value) ? (currentRule.value as any[]) : [];
+        const missingRuleReferences = new Map<string, { mechanicId: string; ruleId: string; elements: Set<string> }>();
+        const registerMissing = (mechanicId: string, ruleId: string, elemName: string) => {
+          if (!mechanicId || !ruleId) return;
+          if (!parsed.some(c => c.id === mechanicId && c.rules.some(r => r.id === ruleId))) {
+            const mapKey = `${mechanicId}:${ruleId}`;
+            let entry = missingRuleReferences.get(mapKey);
+            if (!entry) {
+              entry = { mechanicId, ruleId, elements: new Set() };
+              missingRuleReferences.set(mapKey, entry);
+            }
+            entry.elements.add(elemName);
+          }
+        };
+
         for (const element of elements) {
+          const elemName = element.name ? `"${element.name}"` : `ID ${element.id}`;
           for (const ref of Array.isArray(element.effects) ? (element.effects as any[]) : []) {
-            if (ref.mechanicId && ref.ruleId && !parsed.some(c => c.id === ref.mechanicId && c.rules.some(r => r.id === ref.ruleId))) {
-              const prevCat = existingMechanics.find(c => c.id === ref.mechanicId);
-              const prevRule = prevCat?.rules?.find((r: any) => r.id === ref.ruleId);
-              const ruleName = prevRule?.name ? `"${prevRule.name}" (${ref.ruleId})` : `"${ref.ruleId}"`;
-              const catName = prevCat?.name ? `"${prevCat.name}"` : `"${ref.mechanicId}"`;
-              const elemName = element.name ? `"${element.name}"` : `ID ${element.id}`;
-              throw Object.assign(
-                new Error(`No se puede quitar la opción ${ruleName} de la categoría ${catName} porque está referenciada por el elemento ${elemName}`),
-                { status: 409 }
-              );
+            if (ref?.mechanicId && ref?.ruleId) {
+              registerMissing(ref.mechanicId, ref.ruleId, elemName);
+            }
+            if (Array.isArray(ref?.costRules)) {
+              for (const cr of ref.costRules) {
+                if (cr?.mechanicId && cr?.ruleId) {
+                  registerMissing(cr.mechanicId, cr.ruleId, elemName);
+                }
+              }
             }
           }
         }
-        for (const element of elements) assertElementMechanics(element.effects as unknown[], element.status === 'published' ? 'draft' : element.status, parsed);
+
+        if (missingRuleReferences.size > 0) {
+          const entries = Array.from(missingRuleReferences.values());
+          if (entries.length === 1) {
+            const entry = entries[0];
+            const prevCat = existingMechanics.find(c => c.id === entry.mechanicId);
+            const prevRule = prevCat?.rules?.find((r: any) => r.id === entry.ruleId);
+            const ruleName = prevRule?.name ? `"${prevRule.name}" (${entry.ruleId})` : `"${entry.ruleId}"`;
+            const catName = prevCat?.name ? `"${prevCat.name}"` : `"${entry.mechanicId}"`;
+            const elementList = Array.from(entry.elements).join(", ");
+            throw Object.assign(
+              new Error(`No se puede eliminar la opción ${ruleName} de la categoría ${catName} porque está siendo utilizada por los siguientes elementos:\n• ${elementList}`),
+              { status: 409 }
+            );
+          } else {
+            const items = entries.map(entry => {
+              const prevCat = existingMechanics.find(c => c.id === entry.mechanicId);
+              const prevRule = prevCat?.rules?.find((r: any) => r.id === entry.ruleId);
+              const ruleName = prevRule?.name ? `"${prevRule.name}" (${entry.ruleId})` : `"${entry.ruleId}"`;
+              const catName = prevCat?.name ? `"${prevCat.name}"` : `"${entry.mechanicId}"`;
+              const elementList = Array.from(entry.elements).join(", ");
+              return `• Opción ${ruleName} (${catName}) usada por: ${elementList}`;
+            });
+            throw Object.assign(
+              new Error(`No se pueden eliminar las opciones porque están siendo utilizadas por los siguientes elementos:\n${items.join("\n")}`),
+              { status: 409 }
+            );
+          }
+        }
+
+        for (const element of elements) {
+          const issues = validateElementMechanics(element.effects as unknown[], element.status === 'published' ? 'draft' : element.status, parsed);
+          if (issues.length) {
+            const elemName = element.name ? `"${element.name}"` : `ID ${element.id}`;
+            throw Object.assign(new Error(`Conflicto de validación con el elemento ${elemName}: ${issues.join('; ')}`), { status: 409 });
+          }
+        }
         const result = await tx.insert(systemRules).values({ key, type, value: parsed, description }).onConflictDoUpdate({ target: systemRules.key, set: { type, value: parsed, description, updatedAt: new Date() } }).returning();
         
         if (actorUid && actorUid !== 'system_seed') {
