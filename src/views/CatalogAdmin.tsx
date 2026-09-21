@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
-import { MechanicalEffectsEditor } from "../components/mechanics/MechanicalEffectsEditor";
+import { MechanicalBehaviorsEditor } from "../components/mechanics/MechanicalBehaviorsEditor";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import {
@@ -58,6 +58,7 @@ const defaultForm = {
   description: "",
   status: "draft",
   effects: [] as any[],
+  mechanicalBehaviors: [] as any[],
   requirements: { operator: "all", requirements: [] as any[] },
   metadata: {} as Record<string, any>
 };
@@ -167,6 +168,7 @@ export default function CatalogAdmin() {
         description: el.description,
         status: el.status,
         effects: el.effects || [],
+        mechanicalBehaviors: el.mechanicalBehaviors || [],
         requirements: el.requirements || { operator: "all", requirements: [] },
         metadata: {
           baseExpCost: el.metadata?.baseExpCost ?? (el.kind === 'attribute_upgrade' ? 200 : el.kind === 'skill' ? 100 : undefined),
@@ -246,6 +248,7 @@ export default function CatalogAdmin() {
           ...eff,
           applicationId: nanoid(),
         })) || [],
+        mechanicalBehaviors: el.mechanicalBehaviors ? JSON.parse(JSON.stringify(el.mechanicalBehaviors)) : [],
       };
       const res = await apiFetch("/api/elements", {
         method: "POST",
@@ -613,11 +616,13 @@ export default function CatalogAdmin() {
                 </TabsContent>
 
                 <TabsContent value="effects" className="mt-0">
-                  <MechanicalEffectsEditor
-                    effects={form.effects || []}
+                  <MechanicalBehaviorsEditor
+                    behaviors={form.mechanicalBehaviors || []}
+                    onChange={(behaviors) => setForm((current) => ({ ...current, mechanicalBehaviors: behaviors }))}
+                    legacyEffects={form.effects || []}
+                    onLegacyChange={(effects) => setForm((current) => ({ ...current, effects }))}
                     mechanics={mechanics}
                     maxLevel={form.kind === 'skill' ? (Number(form.metadata?.maxLevel) || 5) : undefined}
-                    onChange={(effects) => setForm((current) => ({ ...current, effects }))}
                   />
                 </TabsContent>
               </div>

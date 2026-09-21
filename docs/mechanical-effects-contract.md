@@ -78,3 +78,87 @@ CREATE aplica valores iniciales a datos ausentes. LOAD devuelve lo persistido. U
 6. Barrera 30 con cooldown independiente de 2 turnos.
 
 Las pruebas cubren además repetición de eventos, rollback de varios grupos, consumo, mantenimiento, penalización al terminar, caps, expiración, referencias rotas y ciclo de persistencia mediante un adaptador transaccional de prueba. La comprobación contra PostgreSQL real depende de la configuración de conexión del entorno.
+
+---
+
+# Fase 1: Arquitectura de MechanicalBehavior y Persistencia JSONB (Septiembre 2026)
+
+## 1. Resumen y Propósito
+
+La Fase 1 introduce el modelo de dominio estructurado `MechanicalBehavior`, superando las limitaciones de la lista plana de referencias con `groupId`. Un elemento del sistema (`SystemElement`, como un rasgo, debilidad, técnica, habilidad o equipamiento) ahora puede definir múltiples comportamientos mecánicos independientes, cada uno con su propio ciclo de vida, modo de activación, condiciones, resolución y efectos asociados.
+
+## 2. Persistencia y Coexistencia Legacy
+
+- **Columna de base de datos:** La tabla `system_elements` cuenta con la columna `mechanical_behaviors` de tipo `JSONB NOT NULL DEFAULT '[]'::jsonb`.
+- **No destructivo:** No se eliminan ni sobreescriben las referencias legacy almacenadas en `effects`. La capa de datos en `src/db/elements.ts` (`upsertElement`) y `src/domain/elementMechanics.ts` acepta y preserva ambos campos.
+- **Separación de operaciones (CREATE / LOAD / UPDATE):**
+  - `CREATE`: Si no se proporcionan comportamientos, se inicializa como arreglo vacío `[]`.
+  - `LOAD`: Se restauran exactamente los comportamientos persistidos en base de datos.
+  - `UPDATE`: Si el payload contiene `mechanicalBehaviors`, se persisten directamente; si se omite, se conserva el valor preexistente en base de datos.
+
+## 3. Estructura del Dominio `MechanicalBehavior`
+
+Definido mediante esquemas Zod en `src/domain/mechanicalBehavior.ts`:
+
+1. **Identidad y Metadatos:**
+   - `id`: Identificador único y estable (UUID / nanoid).
+   - `name`: Nombre descriptivo del comportamiento.
+   - `description`: Descripción narrativa / funcional.
+   - `internalNotes`: Notas internas para Master / Balance.
+2. **Modo:**
+   - `active`: Acción deliberada que el personaje emprende en su turno (o mediante acción rápida/reacción voluntaria).
+   - `reactive`: Se dispara automáticamente cuando ocurre un evento o disparador específico (ej. recibir daño, bajar del 50% de ES).
+   - `continuous`: Efecto pasivo, sostenido o aura que permanece activo continuamente o mientras se cumpla una condición.
+3. **Activación (`activation`):**
+   - Tipo de acción (`action`, `quick_action`, `voluntary_reaction`, `free_action`, `manual`).
+   - Tiempo de preparación (`immediate`, `turns`, `manual`).
+4. **Disparador (`trigger`):**
+   - Relevante principalmente en modo `reactive`. Contiene el tipo de evento (`receive_damage`, `hp_below_threshold`, `es_below_threshold`, `die_roll`, `status_applied`, `element_used`, etc.), recurso, umbral y dirección de cruce (`cross_down`, `cross_up`, `any`).
+5. **Condiciones (`conditions`):**
+   - Grupo de predicados estructurados con operador `AND` u `OR`.
+   - Tipos de condición: recurso numérico, porcentaje de recurso, tirada de dados, resultado de dado individual, presencia de estado alterado, agregados del turno actual (ej. daño recibido > 10), historial del turno (ej. técnica usada en el turno anterior), etiquetas (`tag`), objetos en inventario, valor de atributo y señales manuales.
+6. **Resolución (`resolution`):**
+   - `automatic`: El efecto se aplica sin tiradas.
+   - `roll`: Tirada propia con fórmula de dados (`diceFormula`), atributo base (`attributeId`), dificultad (`difficulty`) y márgenes de éxito.
+   - `contested`: Enfrentamiento entre atacante y defensor con fórmulas independientes y resolución de empate.
+   - `manual`: Resolución narrativa o por juicio del Master.
+7. **Efectos (`effects`):**
+   - Lista ordenada de sub-efectos ejecutables:
+     - `damage`: Fórmula de daño, tipo de daño (físico, elemental, etc.) y penetración de armadura/barrera.
+     - `healing`: Recuperación de Salud o Estamina.
+     - `barrier`: Otorgamiento de escudo protector con absorción de daño.
+     - `attribute_modifier`: Bonificación o penalización a atributos base (`FUE`, `DES`, `RES`, `INT`, `VOL`, `VEL`).
+     - `resource_modifier`: Modificación directa a reservas de SA o ES.
+     - `cost_modifier`: Aumento o descuento de Coste de Estamina (CE) por ámbito.
+     - `status`: Aplicación o remoción de estados alterados (por ID de estado).
+     - `action_block`: Bloqueo de acciones (técnicas, quirks, movimiento).
+     - `turn_loss`: Pérdida de turno de combate.
+     - `counter_modifier`: Incremento, decremento o reseteo de contadores locales.
+     - `inventory_consume` / `inventory_reserve` / `inventory_release`: Gestión de objetos.
+     - `manual`: Efectos narrativos personalizados.
+8. **Objetivo (`target`):**
+   - Tipo de objetivo (`self`, `ally`, `enemy`, `character`, `object`, `area`, `roll`, `resource`, `active_element`, `manual`).
+   - Cantidad: Modo (`exact`, `up_to`, `all`) y cuenta máxima.
+   - Rango: Modo (`self`, `contact`, `distance`, `unlimited`, `manual`) y distancia en metros.
+   - Área: Forma (`radius`, `cone`, `line`, `zone`) y dimensiones en metros.
+   - Restricciones de selección (`nearest`, `random`, `specific`, `exclude`).
+9. **Temporalidad (`temporality`):**
+   - Tipo (`instant`, `turns`, `sustained`, `conditional`, `permanent`).
+   - Mantenimiento: Coste periódico por turno activo.
+   - Consecuencia al expirar: Recoil, penalización o remoción de estado.
+10. **Limitaciones (`limitations`):**
+    - Usos máximos con ámbito de reinicio (`per_turn`, `per_combat`, `per_rest`, `per_mission`, `per_day`).
+    - Cooldown en turnos.
+    - Límites numéricos máximos (caps) en daño, curación y bonos de atributos.
+11. **Control Avanzado (`advancedControl`):**
+    - Escalado por nivel de habilidad (multiplicadores de daño, curación y duraciones).
+    - Condiciones de interrupción involuntaria (ej. al recibir daño, perder consciencia).
+
+## 4. Editor Visual Reutilizable (`MechanicalBehaviorsEditor`)
+
+El componente `src/components/mechanics/MechanicalBehaviorsEditor.tsx`:
+- **Reutilizable:** Integrado tanto en `/admin/catalog` (`CatalogAdmin.tsx`) como en `/admin/techniques` (`TechniquesAdmin.tsx`).
+- **Pestaña de Convivencia Legacy:** Si el elemento tiene referencias en `effects`, presenta un selector visual para alternar entre "Comportamientos Nuevos" y "Efectos Legacy", garantizando compatibilidad absoluta con datos anteriores.
+- **Diseño Dinámico por Modo:** Oculta o resalta secciones según el modo seleccionado (ej. la sección de Disparador se muestra predominantemente en modo `reactive`, mientras que Activación se resalta en modo `active`).
+- **Secciones Colapsables:** Organizado en acordeones temáticos con el lenguaje visual de ShadowApp (tokens de Tailwind, tipografías del sistema, bordes sutiles y contraste estético).
+- **Soporte Multinivel:** Si el elemento es de tipo habilidad (`skill`), permite previsualizar y configurar el escalado por niveles.

@@ -63,7 +63,8 @@ export const systemElements = pgTable('system_elements', {
   name: text('name').notNull(),
   description: text('description').notNull(),
   status: elementStatusEnum('status').default('draft').notNull(),
-  effects: jsonb('effects').notNull().default([]), // MechanicalEffects[]
+  effects: jsonb('effects').notNull().default([]), // MechanicalEffects[] / legacy references
+  mechanicalBehaviors: jsonb('mechanical_behaviors').default([]), // MechanicalBehavior[]
   requirements: jsonb('requirements').notNull().default({ operator: 'all', requirements: [] }), // RequirementGroup
   metadata: jsonb('metadata').default({}),
   revision: integer('revision').default(1).notNull(),

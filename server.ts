@@ -22,8 +22,10 @@ async function startServer() {
 
   // System Rules API
   const { getRules, upsertRule, deleteRule, seedCoreRules } = await import("./src/db/rules.ts");
+  const { seedCoreWeaknesses } = await import("./src/db/elements.ts");
 
   await seedCoreRules();
+  await seedCoreWeaknesses();
 
   // Ensure database enums are updated (safe fallback if migrations were bypassed)
   try {

@@ -5,6 +5,7 @@ import { systemElements, elementPossessions, shopOffers, systemRules, auditLogs 
 import { eq, desc, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { requirementGroupSchema } from '../domain/requirements.ts';
+import { SYSTEM_WEAKNESSES, CORE_ALTERED_STATUSES } from '../domain/systemWeaknesses.ts';
 
 export async function getElements() {
   try {
@@ -35,15 +36,17 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
     const [existing] = data.id ? await tx.select().from(systemElements).where(eq(systemElements.id, data.id)) : [];
     if (data.id && !existing) throw Object.assign(new Error('Element not found'), { status: 404 });
     const effects = data.effects ?? existing?.effects ?? [];
+    const mechanicalBehaviors = data.mechanicalBehaviors ?? existing?.mechanicalBehaviors ?? [];
     const requirements = requirementGroupSchema.parse(data.requirements ?? existing?.requirements ?? { operator: 'all', requirements: [] });
     const status = data.status ?? existing?.status ?? 'draft';
     const [stored] = await tx.select().from(systemRules).where(eq(systemRules.key, 'system_mechanics'));
     const mechanics = systemMechanicsConfigSchema.parse(stored?.value ?? []);
-    assertElementMechanics(effects as unknown[], status, mechanics);
+    assertElementMechanics(effects as unknown[], status, mechanics, mechanicalBehaviors as unknown[]);
     if (existing) {
       const [updated] = await tx.update(systemElements).set({
         kind: data.kind, name: data.name, description: data.description, status: data.status,
-        effects: data.effects, requirements: data.requirements === undefined ? undefined : requirements, metadata: data.metadata,
+        effects: data.effects, mechanicalBehaviors: data.mechanicalBehaviors === undefined ? undefined : mechanicalBehaviors,
+        requirements: data.requirements === undefined ? undefined : requirements, metadata: data.metadata,
         revision: (existing.revision ?? 1) + 1, updatedAt: new Date(),
       }).where(eq(systemElements.id, existing.id)).returning();
 
@@ -59,6 +62,7 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
           previousStatus: existing.status,
           revision: updated.revision,
           effectsCount: Array.isArray(updated.effects) ? (updated.effects as any[]).length : 0,
+          mechanicalBehaviorsCount: Array.isArray(updated.mechanicalBehaviors) ? (updated.mechanicalBehaviors as any[]).length : 0,
         },
       });
 
@@ -66,7 +70,7 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
     }
     const [created] = await tx.insert(systemElements).values({
       id: nanoid(10), kind: data.kind, name: data.name, description: data.description, status,
-      effects, requirements, metadata: data.metadata ?? {},
+      effects, mechanicalBehaviors, requirements, metadata: data.metadata ?? {},
     }).returning();
 
     await tx.insert(auditLogs).values({
@@ -78,6 +82,7 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
         kind: created.kind,
         status: created.status,
         effectsCount: Array.isArray(created.effects) ? (created.effects as any[]).length : 0,
+        mechanicalBehaviorsCount: Array.isArray(created.mechanicalBehaviors) ? (created.mechanicalBehaviors as any[]).length : 0,
       },
     });
 
@@ -113,4 +118,68 @@ export async function deleteElement(id: string, actorUid: string = 'system') {
     console.error("Database query failed:", error);
     throw new Error("Failed to delete element");
   }
+}
+
+export async function seedCoreWeaknesses(actorUid: string = 'system') {
+  return db.transaction(async (tx) => {
+    // 1. Seed Core Altered Statuses
+    for (const status of CORE_ALTERED_STATUSES) {
+      const existing = await tx.select().from(systemElements).where(
+        sql`${systemElements.id} = ${status.id} OR (${systemElements.kind} = 'altered_status' AND ${systemElements.name} = ${status.name})`
+      );
+      if (existing.length > 0) {
+        const item = existing[0];
+        await tx.update(systemElements).set({
+          status: 'published',
+          mechanicalBehaviors: status.mechanicalBehaviors,
+          updatedAt: new Date(),
+        }).where(eq(systemElements.id, item.id));
+      } else {
+        await tx.insert(systemElements).values({
+          id: status.id,
+          kind: 'altered_status',
+          name: status.name,
+          description: status.description,
+          status: 'published',
+          effects: [],
+          mechanicalBehaviors: status.mechanicalBehaviors,
+          requirements: { operator: 'all', requirements: [] },
+          metadata: {},
+        });
+      }
+    }
+
+    // 2. Seed 23 System Weaknesses
+    const seeded: Array<{ id: string; name: string }> = [];
+    for (const weakness of SYSTEM_WEAKNESSES) {
+      const existing = await tx.select().from(systemElements).where(
+        sql`${systemElements.id} = ${weakness.id} OR (${systemElements.kind} = 'weakness' AND ${systemElements.name} = ${weakness.name})`
+      );
+      if (existing.length > 0) {
+        const item = existing[0];
+        // Preserve legacy effects if existing, update mechanicalBehaviors and metadata
+        await tx.update(systemElements).set({
+          description: weakness.description,
+          status: 'published',
+          mechanicalBehaviors: weakness.mechanicalBehaviors,
+          updatedAt: new Date(),
+        }).where(eq(systemElements.id, item.id));
+        seeded.push({ id: item.id, name: item.name });
+      } else {
+        await tx.insert(systemElements).values({
+          id: weakness.id,
+          kind: 'weakness',
+          name: weakness.name,
+          description: weakness.description,
+          status: 'published',
+          effects: [],
+          mechanicalBehaviors: weakness.mechanicalBehaviors,
+          requirements: { operator: 'all', requirements: [] },
+          metadata: {},
+        });
+        seeded.push({ id: weakness.id, name: weakness.name });
+      }
+    }
+    return seeded;
+  });
 }

@@ -88,6 +88,7 @@ async function runMigration() {
       ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "display_name" text;
       ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text;
       ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updated_at" timestamp DEFAULT now();
+      ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "mechanical_behaviors" jsonb DEFAULT '[]'::jsonb;
     `);
 
     // 6. Employments and Classes tables

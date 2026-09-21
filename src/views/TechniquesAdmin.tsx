@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
-import { MechanicalEffectsEditor } from "../components/mechanics/MechanicalEffectsEditor";
+import { MechanicalBehaviorsEditor } from "../components/mechanics/MechanicalBehaviorsEditor";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import {
@@ -46,6 +46,7 @@ const defaultForm = {
   description: "",
   status: "draft",
   effects: [] as any[],
+  mechanicalBehaviors: [] as any[],
   requirements: { operator: "all", requirements: [] as any[] }
 };
 
@@ -89,6 +90,7 @@ export default function TechniquesAdmin() {
         description: el.description,
         status: el.status,
         effects: el.effects || [],
+        mechanicalBehaviors: el.mechanicalBehaviors || [],
         requirements: el.requirements || { operator: "all", requirements: [] }
       });
     } else {
@@ -254,10 +256,12 @@ export default function TechniquesAdmin() {
                 <TabsContent value="reqs" className="space-y-3"><p className="text-sm text-muted-foreground">Los requisitos de ejecución se seleccionan desde Reglas del Sistema en Efectos Mecánicos. Los requisitos anteriores de adquisición se conservan sin reinterpretarlos.</p>{form.requirements.requirements.map((req, index) => <div key={req._id ?? index} className="rounded border p-3 text-sm">{req.type}: {req.target} {req.min !== undefined ? `≥ ${req.min}` : ''}</div>)}</TabsContent>
 
                 <TabsContent value="effects" className="mt-0">
-                  <MechanicalEffectsEditor
-                    effects={form.effects || []}
+                  <MechanicalBehaviorsEditor
+                    behaviors={form.mechanicalBehaviors || []}
+                    onChange={(behaviors) => setForm((current) => ({ ...current, mechanicalBehaviors: behaviors }))}
+                    legacyEffects={form.effects || []}
+                    onLegacyChange={(effects) => setForm((current) => ({ ...current, effects }))}
                     mechanics={mechanics}
-                    onChange={(effects) => setForm((current) => ({ ...current, effects }))}
                   />
                 </TabsContent>
               </div>
