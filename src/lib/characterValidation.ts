@@ -89,12 +89,12 @@ export function calculateTraitAttributeBonus(
 
   activeIds.forEach(id => {
     const el = elements.find(e => e.id === id || String(e.name || '').trim().toLowerCase() === String(id || '').trim().toLowerCase());
-    if (!el || !Array.isArray(el.effects)) return;
+    if (!el) return;
 
-    const references = el.effects.flatMap((effect: unknown) => {
+    const references = Array.isArray(el.effects) ? el.effects.flatMap((effect: unknown) => {
       const parsed = appliedMechanicReferenceSchema.safeParse(effect);
       return parsed.success ? [parsed.data] : [];
-    });
+    }) : [];
     let referencedEffects: any[] = references.length > 0 ? resolvePassiveEffects(references, mechanics, {
       event: 'passive', eventId: 'projection', turn: 0,
       periods: { turn: '', combat: '', mission: '', day: '' },
@@ -126,9 +126,22 @@ export function calculateTraitAttributeBonus(
       });
     }
 
-    const directEffects = el.effects.filter((effect: unknown) => !appliedMechanicReferenceSchema.safeParse(effect).success);
+    const behaviorEffects: any[] = [];
+    if (Array.isArray(el.mechanicalBehaviors)) {
+      for (const b of el.mechanicalBehaviors) {
+        if (b && b.mode === 'continuous' && Array.isArray(b.effects)) {
+          if (!b.conditions || b.conditions.length === 0) {
+            behaviorEffects.push(...b.effects);
+          }
+        }
+      }
+    }
 
-    [...directEffects, ...referencedEffects].forEach((eff: any) => {
+    const directEffects = Array.isArray(el.effects)
+      ? el.effects.filter((effect: unknown) => !appliedMechanicReferenceSchema.safeParse(effect).success)
+      : [];
+
+    [...directEffects, ...referencedEffects, ...behaviorEffects].forEach((eff: any) => {
       const rawAttr = String(eff.attributeId || eff.statId || eff.target || '').trim().toUpperCase();
       const amount = Number(eff.amount ?? eff.value ?? 0);
 
@@ -180,12 +193,12 @@ export function calculateDerivedStats(profile: Record<string, any>, stages: any[
 
   activeIds.forEach(id => {
     const el = elements.find(e => e.id === id || String(e.name || '').trim().toLowerCase() === String(id || '').trim().toLowerCase());
-    if (!el || !Array.isArray(el.effects)) return;
+    if (!el) return;
 
-    const references = el.effects.flatMap((effect: unknown) => {
+    const references = Array.isArray(el.effects) ? el.effects.flatMap((effect: unknown) => {
       const parsed = appliedMechanicReferenceSchema.safeParse(effect);
       return parsed.success ? [parsed.data] : [];
-    });
+    }) : [];
     let referencedEffects: any[] = references.length > 0 ? resolvePassiveEffects(references, mechanics, {
       event: 'passive', eventId: 'projection', turn: 0,
       periods: { turn: '', combat: '', mission: '', day: '' },
@@ -202,18 +215,31 @@ export function calculateDerivedStats(profile: Record<string, any>, stages: any[
       referencedEffects = [...resolution.effects];
     }
 
-    const directEffects = el.effects.filter((effect: unknown) => !appliedMechanicReferenceSchema.safeParse(effect).success);
+    const behaviorEffects: any[] = [];
+    if (Array.isArray(el.mechanicalBehaviors)) {
+      for (const b of el.mechanicalBehaviors) {
+        if (b && b.mode === 'continuous' && Array.isArray(b.effects)) {
+          if (!b.conditions || b.conditions.length === 0) {
+            behaviorEffects.push(...b.effects);
+          }
+        }
+      }
+    }
 
-    [...directEffects, ...referencedEffects].forEach((eff: any) => {
+    const directEffects = Array.isArray(el.effects)
+      ? el.effects.filter((effect: unknown) => !appliedMechanicReferenceSchema.safeParse(effect).success)
+      : [];
+
+    [...directEffects, ...referencedEffects, ...behaviorEffects].forEach((eff: any) => {
       const attrId = String(eff.attributeId || eff.statId || eff.target || '').trim().toUpperCase();
       const amount = Number(eff.amount ?? eff.value ?? 0);
 
       if (eff.type === 'derived_stat_modifier' || eff.type === 'derived_modifier' || eff.type === 'modify_derived') {
-        if (['INI', 'INICIATIVA'].includes(attrId)) extraIni += amount;
+        if (['INI', 'INICIATIVA', 'INITIATIVE'].includes(attrId)) extraIni += amount;
         if (['EVA', 'EVASION', 'EVASIÓN'].includes(attrId)) extraEvasion += amount;
-        if (['COR', 'CORAJE'].includes(attrId)) extraCoraje += amount;
-        if (['SAL', 'SALUD'].includes(attrId)) extraSalud += amount;
-        if (['EST', 'ESTAMINA'].includes(attrId)) extraEstamina += amount;
+        if (['COR', 'CORAJE', 'COURAGE'].includes(attrId)) extraCoraje += amount;
+        if (['SAL', 'SALUD', 'HEALTH', 'HP'].includes(attrId)) extraSalud += amount;
+        if (['EST', 'ESTAMINA', 'STAMINA', 'ES'].includes(attrId)) extraEstamina += amount;
         if (['RED', 'REDUCCION_DANO', 'REDUCCIÓN_DAÑO', 'DAMAGE_REDUCTION', 'REDUCCION'].includes(attrId)) extraRed += amount;
       }
     });

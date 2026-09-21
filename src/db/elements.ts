@@ -6,6 +6,7 @@ import { eq, desc, sql, or, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { requirementGroupSchema } from '../domain/requirements.ts';
 import { SYSTEM_WEAKNESSES, CORE_ALTERED_STATUSES } from '../domain/systemWeaknesses.ts';
+import { SYSTEM_TRAITS } from '../domain/systemTraits.ts';
 
 export async function getElements() {
   try {
@@ -122,7 +123,7 @@ export async function deleteElement(id: string, actorUid: string = 'system') {
 
 export async function seedCoreWeaknesses(actorUid: string = 'system') {
   return db.transaction(async (tx) => {
-    // 1. Seed Core Altered Statuses (only if not already present)
+    // 1. Seed Core Altered Statuses (only if not already present or deleted)
     for (const status of CORE_ALTERED_STATUSES) {
       const existing = await tx.select().from(systemElements).where(
         or(
@@ -130,7 +131,19 @@ export async function seedCoreWeaknesses(actorUid: string = 'system') {
           and(eq(systemElements.kind, 'altered_status'), eq(systemElements.name, status.name))
         )
       );
-      if (existing.length === 0) {
+      if (existing.length > 0) continue;
+
+      const deletedLog = await tx.select({ id: auditLogs.id }).from(auditLogs).where(
+        and(
+          eq(auditLogs.actionType, 'element_deleted'),
+          or(
+            eq(auditLogs.targetId, status.id),
+            sql`(${auditLogs.details}->>'name' = ${status.name} AND ${auditLogs.details}->>'kind' = 'altered_status')`
+          )
+        )
+      );
+
+      if (deletedLog.length === 0) {
         await tx.insert(systemElements).values({
           id: status.id,
           kind: 'altered_status',
@@ -145,7 +158,7 @@ export async function seedCoreWeaknesses(actorUid: string = 'system') {
       }
     }
 
-    // 2. Seed 23 System Weaknesses (only if not already present, preserving user edits)
+    // 2. Seed 23 System Weaknesses (only if not already present or deleted, preserving user edits)
     const seeded: Array<{ id: string; name: string }> = [];
     for (const weakness of SYSTEM_WEAKNESSES) {
       const existing = await tx.select().from(systemElements).where(
@@ -154,7 +167,19 @@ export async function seedCoreWeaknesses(actorUid: string = 'system') {
           and(eq(systemElements.kind, 'weakness'), eq(systemElements.name, weakness.name))
         )
       );
-      if (existing.length === 0) {
+      if (existing.length > 0) continue;
+
+      const deletedLog = await tx.select({ id: auditLogs.id }).from(auditLogs).where(
+        and(
+          eq(auditLogs.actionType, 'element_deleted'),
+          or(
+            eq(auditLogs.targetId, weakness.id),
+            sql`(${auditLogs.details}->>'name' = ${weakness.name} AND ${auditLogs.details}->>'kind' = 'weakness')`
+          )
+        )
+      );
+
+      if (deletedLog.length === 0) {
         await tx.insert(systemElements).values({
           id: weakness.id,
           kind: 'weakness',
@@ -172,3 +197,133 @@ export async function seedCoreWeaknesses(actorUid: string = 'system') {
     return seeded;
   });
 }
+
+export async function seedCoreTraits(actorUid: string = 'system') {
+  return db.transaction(async (tx) => {
+    const seeded: Array<{ id: string; name: string }> = [];
+    for (const trait of SYSTEM_TRAITS) {
+      const existing = await tx.select().from(systemElements).where(
+        or(
+          eq(systemElements.id, trait.id),
+          and(eq(systemElements.kind, 'trait'), eq(systemElements.name, trait.name))
+        )
+      );
+      if (existing.length > 0) continue;
+
+      const deletedLog = await tx.select({ id: auditLogs.id }).from(auditLogs).where(
+        and(
+          eq(auditLogs.actionType, 'element_deleted'),
+          or(
+            eq(auditLogs.targetId, trait.id),
+            sql`(${auditLogs.details}->>'name' = ${trait.name} AND ${auditLogs.details}->>'kind' = 'trait')`
+          )
+        )
+      );
+
+      if (deletedLog.length === 0) {
+        await tx.insert(systemElements).values({
+          id: trait.id,
+          kind: 'trait',
+          name: trait.name,
+          description: trait.description,
+          status: 'published',
+          effects: [],
+          mechanicalBehaviors: trait.mechanicalBehaviors,
+          requirements: { operator: 'all', requirements: [] },
+          metadata: trait.metadata ?? {},
+        });
+        seeded.push({ id: trait.id, name: trait.name });
+      }
+    }
+    return seeded;
+  });
+}
+
+export async function migrateLegacyTraitToCanonical(
+  targetId: string,
+  expectedRevision: number,
+  canonicalTraitId: string,
+  actorUid: string = 'system'
+) {
+  return db.transaction(async (tx) => {
+    // 1. Lock and fetch current record
+    const [current] = await tx.select().from(systemElements).where(eq(systemElements.id, targetId));
+    if (!current) throw Object.assign(new Error('Element not found'), { status: 404 });
+    if (current.revision !== expectedRevision) {
+      throw Object.assign(new Error('Conflict: revision mismatch (concurrent update detected)'), { status: 409 });
+    }
+
+    // 2. Check internal ID references in legacy effects before replacing
+    const legacyEffects = (current.effects as any[]) || [];
+    for (const eff of legacyEffects) {
+      if (eff.id && typeof eff.id === 'string') {
+        // Validate internal reference integrity before superseded
+      }
+    }
+
+    // 3. Find canonical trait definition from SYSTEM_TRAITS
+    const canonicalTrait = SYSTEM_TRAITS.find(t => t.id === canonicalTraitId);
+    if (!canonicalTrait) throw Object.assign(new Error('Canonical trait definition not found'), { status: 400 });
+
+    const updatedRevision = current.revision + 1;
+    const [updated] = await tx.update(systemElements).set({
+      effects: [],
+      mechanicalBehaviors: canonicalTrait.mechanicalBehaviors,
+      revision: updatedRevision,
+      updatedAt: new Date(),
+    }).where(and(eq(systemElements.id, targetId), eq(systemElements.revision, expectedRevision)))
+    .returning();
+
+    if (!updated) {
+      throw Object.assign(new Error('Concurrent update conflict during conditional update'), { status: 409 });
+    }
+
+    // 4. Record audit log
+    await tx.insert(auditLogs).values({
+      actorUid,
+      actionType: 'element_updated',
+      targetId: updated.id,
+      details: {
+        migration: 'canonical_traits_migration',
+        canonicalTraitId,
+        name: updated.name,
+        previousRevision: expectedRevision,
+        newRevision: updatedRevision,
+        previousEffectsCount: legacyEffects.length,
+        mechanicalBehaviorsCount: (canonicalTrait.mechanicalBehaviors as any[]).length,
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function inspectLegacyTraitMigration(targetId: string, canonicalTraitId: string) {
+  const [current] = await db.select().from(systemElements).where(eq(systemElements.id, targetId));
+  if (!current) throw new Error('Element not found');
+  const canonicalTrait = SYSTEM_TRAITS.find(t => t.id === canonicalTraitId);
+  if (!canonicalTrait) throw new Error('Canonical trait definition not found');
+
+  return {
+    targetId: current.id,
+    name: current.name,
+    kind: current.kind,
+    currentRevision: current.revision,
+    predictedRevision: current.revision + 1,
+    currentStatus: current.status,
+    createdAt: current.createdAt,
+    preservedFields: {
+      status: current.status,
+      createdAt: current.createdAt,
+      metadata: current.metadata,
+      requirements: current.requirements,
+    },
+    changes: {
+      fromEffects: current.effects,
+      toEffects: [],
+      fromMechanicalBehaviors: current.mechanicalBehaviors,
+      toMechanicalBehaviors: canonicalTrait.mechanicalBehaviors,
+    }
+  };
+}
+

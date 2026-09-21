@@ -16,16 +16,31 @@ async function startServer() {
   app.use(express.json());
 
   // API routes
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+  app.get("/api/health", async (req, res) => {
+    try {
+      const { db } = await import("./src/db/index.ts");
+      const { sql } = await import("drizzle-orm");
+      await db.execute(sql`SELECT 1 as alive`);
+      res.json({
+        status: "ok",
+        database: "connected",
+      });
+    } catch (err: any) {
+      console.error("Health check database query error:", err);
+      res.status(503).json({
+        status: "error",
+        database: "disconnected",
+      });
+    }
   });
 
   // System Rules API
   const { getRules, upsertRule, deleteRule, seedCoreRules } = await import("./src/db/rules.ts");
-  const { seedCoreWeaknesses } = await import("./src/db/elements.ts");
+  const { seedCoreWeaknesses, seedCoreTraits } = await import("./src/db/elements.ts");
 
   await seedCoreRules();
   await seedCoreWeaknesses();
+  await seedCoreTraits();
 
   // Ensure database enums are updated (safe fallback if migrations were bypassed)
   try {
@@ -140,6 +155,7 @@ async function startServer() {
       description: z.string(),
       status: z.enum(['draft', 'published', 'archived']).optional(),
       effects: z.array(z.any()).optional(),
+      mechanicalBehaviors: z.array(z.any()).optional(),
       requirements: requirementGroupSchema.optional(),
       metadata: z.any().optional()
     });
