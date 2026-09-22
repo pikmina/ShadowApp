@@ -158,6 +158,45 @@ export default function CatalogAdmin() {
   }, [elements, selectedType, searchTerm]);
 
 
+  const [isRestoreOpen, setIsRestoreOpen] = useState(false);
+  const [deletedSystemElements, setDeletedSystemElements] = useState<any[]>([]);
+  const [selectedRestoreIds, setSelectedRestoreIds] = useState<string[]>([]);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const handleOpenRestore = async () => {
+    try {
+      const res = await apiFetch("/api/admin/deleted-system-elements");
+      const data = await res.json();
+      if (res.ok) {
+        setDeletedSystemElements(Array.isArray(data) ? data : []);
+        setSelectedRestoreIds((Array.isArray(data) ? data : []).map((d: any) => d.id));
+        setIsRestoreOpen(true);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleConfirmRestore = async () => {
+    if (selectedRestoreIds.length === 0) return;
+    setIsRestoring(true);
+    try {
+      const res = await apiFetch("/api/admin/restore-system-elements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ elementIds: selectedRestoreIds })
+      });
+      if (res.ok) {
+        setIsRestoreOpen(false);
+        await mutate();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
   const handleOpenDialog = (el?: any) => {
     setSaveError("");
     if (el) {
@@ -280,7 +319,23 @@ export default function CatalogAdmin() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader icon={SectionIcon} title="Catálogo de elementos" description="Define los rasgos, debilidades, habilidades y estados del sistema." actions={<Button onClick={() => handleOpenDialog()}><Plus className="size-4" aria-hidden="true" />Crear elemento</Button>} />
+      <SectionHeader 
+        icon={SectionIcon} 
+        title="Catálogo de elementos" 
+        description="Define los rasgos, debilidades, habilidades y estados del sistema." 
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleOpenRestore} className="gap-1.5">
+              <Sparkles className="size-4" />
+              Restaurar elementos del sistema
+            </Button>
+            <Button onClick={() => handleOpenDialog()}>
+              <Plus className="size-4" aria-hidden="true" />
+              Crear elemento
+            </Button>
+          </div>
+        } 
+      />
 
       
       <div className="flex flex-col sm:flex-row gap-4 mb-4">
@@ -636,6 +691,66 @@ export default function CatalogAdmin() {
             <Button onClick={handleSave} disabled={isSaving} className="gap-2">
               {isSaving && <Loader2 className="size-4 animate-spin" />}
               {isSaving ? "Guardando..." : "Guardar Elemento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRestoreOpen} onOpenChange={setIsRestoreOpen}>
+        <DialogContent className="max-w-xl max-h-[85vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="text-xl">Restaurar elementos del sistema</DialogTitle>
+            <DialogDescription>
+              Selecciona los elementos canónicos eliminados administrativamente que deseas restaurar con sus comportamientos mecánicos originales.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-6 py-2 flex-1 overflow-y-auto max-h-[50vh]">
+            {deletedSystemElements.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground text-sm">
+                No hay elementos del sistema eliminados pendientes de restauración.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {deletedSystemElements.map((el) => {
+                  const isChecked = selectedRestoreIds.includes(el.id);
+                  return (
+                    <div
+                      key={el.id}
+                      onClick={() => {
+                        setSelectedRestoreIds((prev) =>
+                          isChecked ? prev.filter((id) => id !== el.id) : [...prev, el.id]
+                        );
+                      }}
+                      className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        isChecked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {}}
+                        className="mt-1 size-4 rounded border-border text-primary focus:ring-ring"
+                      />
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-sm">{el.name}</span>
+                          <Badge variant="outline" className="text-xs uppercase">
+                            {KIND_TYPES[el.kind] || el.kind}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{el.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="px-6 py-4 border-t bg-muted">
+            <Button variant="outline" onClick={() => setIsRestoreOpen(false)}>Cancelar</Button>
+            <Button onClick={handleConfirmRestore} disabled={isRestoring || selectedRestoreIds.length === 0} className="gap-2">
+              {isRestoring && <Loader2 className="size-4 animate-spin" />}
+              {isRestoring ? "Restaurando..." : "Restaurar seleccionados"}
             </Button>
           </DialogFooter>
         </DialogContent>

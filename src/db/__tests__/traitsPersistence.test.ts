@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { db } from '../index.ts';
 import { systemElements } from '../schema.ts';
 import { eq, inArray, like } from 'drizzle-orm';
-import { seedCoreTraits, upsertElement, getElement } from '../elements.ts';
+import { seedCoreTraits, upsertElement, getElement, getDeletedSystemElements, restoreSystemElements } from '../elements.ts';
+import { auditLogs } from '../schema.ts';
 import { SYSTEM_TRAITS } from '../../domain/systemTraits.ts';
 
 describe('Database Persistence: SYSTEM_TRAITS & MechanicalBehaviors', () => {
@@ -174,4 +175,88 @@ describe('Database Persistence: SYSTEM_TRAITS & MechanicalBehaviors', () => {
       expect(finalTraits.length).toBe(14);
     }
   });
+
+  it('backfills mechanicalBehaviors for existing core records with zero behaviors while preserving custom non-empty behaviors', async () => {
+    const targetId = '7UHkRIeCta';
+    const originalTrait = SYSTEM_TRAITS.find(t => t.name === 'Ágil')!;
+
+    try {
+      // 1. Force mechanicalBehaviors to []
+      await db.update(systemElements)
+        .set({ mechanicalBehaviors: [], updatedAt: new Date() })
+        .where(eq(systemElements.id, targetId));
+
+      const [emptied] = await db.select().from(systemElements).where(eq(systemElements.id, targetId));
+      expect((emptied.mechanicalBehaviors as any[]).length).toBe(0);
+
+      // 2. Run seedCoreTraits - should backfill behaviors
+      await seedCoreTraits('test-backfill-runner');
+
+      const [backfilled] = await db.select().from(systemElements).where(eq(systemElements.id, targetId));
+      expect((backfilled.mechanicalBehaviors as any[]).length).toBeGreaterThan(0);
+      expect(backfilled.mechanicalBehaviors).toEqual(originalTrait.mechanicalBehaviors);
+
+      // 3. Test that custom non-empty behaviors are NOT overwritten
+      const customBehaviors = [{ id: 'custom.behavior', mode: 'continuous', effects: [] }];
+      await db.update(systemElements)
+        .set({ mechanicalBehaviors: customBehaviors, updatedAt: new Date() })
+        .where(eq(systemElements.id, targetId));
+
+      await seedCoreTraits('test-protect-runner');
+
+      const [protectedRow] = await db.select().from(systemElements).where(eq(systemElements.id, targetId));
+      expect(protectedRow.mechanicalBehaviors).toEqual(customBehaviors);
+
+    } finally {
+      // Restore original trait behaviors
+      await db.update(systemElements)
+        .set({ mechanicalBehaviors: originalTrait.mechanicalBehaviors, updatedAt: new Date() })
+        .where(eq(systemElements.id, targetId));
+    }
+  });
+
+  it('restores deleted core elements with canonical mechanicalBehaviors, resolves audit lifecycle, and avoids duplicates on restart', async () => {
+    const targetId = 'core.trait.flying';
+    const originalTrait = SYSTEM_TRAITS.find(t => t.id === targetId)!;
+    const { deleteElement } = await import('../elements.ts');
+
+    try {
+      // 1. Ensure all traits are initially seeded
+      await seedCoreTraits('test-setup');
+
+      // 2. Transition target canonical trait to draft so deleteElement can process it
+      await db.update(systemElements)
+        .set({ status: 'draft', updatedAt: new Date() })
+        .where(eq(systemElements.id, targetId));
+
+      // 3. Delete through deleteElement service
+      await deleteElement(targetId, 'test-admin');
+
+      const deletedList = await getDeletedSystemElements();
+      const found = deletedList.find(d => d.id === targetId);
+      expect(found).toBeDefined();
+
+      // 4. Restore element
+      const restoredIds = await restoreSystemElements([targetId], 'test-admin');
+      expect(restoredIds).toContain(targetId);
+
+      // 5. Verify restored element exists with canonical behaviors
+      const [restoredRow] = await db.select().from(systemElements).where(eq(systemElements.id, targetId));
+      expect(restoredRow).toBeDefined();
+      expect(restoredRow.mechanicalBehaviors).toEqual(originalTrait.mechanicalBehaviors);
+
+      // 6. Verify seedCoreTraits does not duplicate or affect restored element
+      await seedCoreTraits('test-seed-runner');
+      const [afterSeed] = await db.select().from(systemElements).where(eq(systemElements.id, targetId));
+      expect(afterSeed).toBeDefined();
+      expect(afterSeed.mechanicalBehaviors).toEqual(originalTrait.mechanicalBehaviors);
+
+      // 7. Verify deleted list is now empty of this element
+      const deletedListAfter = await getDeletedSystemElements();
+      expect(deletedListAfter.find(d => d.id === targetId)).toBeUndefined();
+    } finally {
+      await seedCoreTraits('test-cleanup');
+    }
+  });
 });
+

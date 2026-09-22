@@ -167,7 +167,17 @@ export async function seedCoreWeaknesses(actorUid: string = 'system') {
           and(eq(systemElements.kind, 'weakness'), eq(systemElements.name, weakness.name))
         )
       );
-      if (existing.length > 0) continue;
+
+      if (existing.length > 0) {
+        const row = existing[0];
+        const currentBehaviors = (row.mechanicalBehaviors as any[]) || [];
+        if (currentBehaviors.length === 0 && weakness.mechanicalBehaviors && weakness.mechanicalBehaviors.length > 0) {
+          await tx.update(systemElements)
+            .set({ mechanicalBehaviors: weakness.mechanicalBehaviors, updatedAt: new Date() })
+            .where(eq(systemElements.id, row.id));
+        }
+        continue;
+      }
 
       const deletedLog = await tx.select({ id: auditLogs.id }).from(auditLogs).where(
         and(
@@ -208,7 +218,17 @@ export async function seedCoreTraits(actorUid: string = 'system') {
           and(eq(systemElements.kind, 'trait'), eq(systemElements.name, trait.name))
         )
       );
-      if (existing.length > 0) continue;
+
+      if (existing.length > 0) {
+        const row = existing[0];
+        const currentBehaviors = (row.mechanicalBehaviors as any[]) || [];
+        if (currentBehaviors.length === 0 && trait.mechanicalBehaviors && trait.mechanicalBehaviors.length > 0) {
+          await tx.update(systemElements)
+            .set({ mechanicalBehaviors: trait.mechanicalBehaviors, updatedAt: new Date() })
+            .where(eq(systemElements.id, row.id));
+        }
+        continue;
+      }
 
       const deletedLog = await tx.select({ id: auditLogs.id }).from(auditLogs).where(
         and(
@@ -236,6 +256,91 @@ export async function seedCoreTraits(actorUid: string = 'system') {
       }
     }
     return seeded;
+  });
+}
+
+export async function getDeletedSystemElements() {
+  const allTraits = SYSTEM_TRAITS.map(t => ({ id: t.id, name: t.name, kind: 'trait' as const, description: t.description }));
+  const allWeaknesses = SYSTEM_WEAKNESSES.map(w => ({ id: w.id, name: w.name, kind: 'weakness' as const, description: w.description }));
+  const allCanonical = [...allTraits, ...allWeaknesses];
+
+  const existingElements = await db.select({ id: systemElements.id, name: systemElements.name, kind: systemElements.kind }).from(systemElements);
+  const existingIds = new Set(existingElements.map(e => e.id));
+  const existingKeys = new Set(existingElements.map(e => `${e.kind}:${e.name}`));
+
+  const deleted: Array<{ id: string; name: string; kind: 'trait' | 'weakness'; description: string }> = [];
+
+  for (const canon of allCanonical) {
+    if (existingIds.has(canon.id) || existingKeys.has(`${canon.kind}:${canon.name}`)) {
+      continue;
+    }
+
+    // Check latest audit action
+    const logs = await db.select({ actionType: auditLogs.actionType, createdAt: auditLogs.createdAt })
+      .from(auditLogs)
+      .where(or(
+        eq(auditLogs.targetId, canon.id),
+        sql`(${auditLogs.details}->>'name' = ${canon.name} AND ${auditLogs.details}->>'kind' = ${canon.kind})`
+      ))
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(1);
+
+    const lastLog = logs[0];
+    if (lastLog && lastLog.actionType === 'element_deleted') {
+      deleted.push(canon);
+    }
+  }
+
+  return deleted;
+}
+
+export async function restoreSystemElements(elementIds: string[], actorUid: string = 'system') {
+  return db.transaction(async (tx) => {
+    const allTraits = SYSTEM_TRAITS.map(t => ({ ...t, kind: 'trait' as const }));
+    const allWeaknesses = SYSTEM_WEAKNESSES.map(w => ({ ...w, kind: 'weakness' as const }));
+    const allMap = new Map<string, any>();
+    for (const t of allTraits) allMap.set(t.id, t);
+    for (const w of allWeaknesses) allMap.set(w.id, w);
+
+    const restored: string[] = [];
+
+    for (const id of elementIds) {
+      const def = allMap.get(id);
+      if (!def) continue;
+
+      // Check if already exists
+      const [existing] = await tx.select().from(systemElements).where(eq(systemElements.id, id));
+      if (existing) continue;
+
+      // Insert canonical definition
+      await tx.insert(systemElements).values({
+        id: def.id,
+        kind: def.kind,
+        name: def.name,
+        description: def.description,
+        status: 'published',
+        effects: [],
+        mechanicalBehaviors: def.mechanicalBehaviors,
+        requirements: { operator: 'all', requirements: [] },
+        metadata: (def as any).metadata ?? {},
+      });
+
+      // Record element_restored audit log
+      await tx.insert(auditLogs).values({
+        actorUid,
+        actionType: 'element_restored',
+        targetId: def.id,
+        details: {
+          name: def.name,
+          kind: def.kind,
+          restoredFromSystemDefinition: true,
+        },
+      });
+
+      restored.push(def.id);
+    }
+
+    return restored;
   });
 }
 

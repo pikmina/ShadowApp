@@ -129,7 +129,29 @@ async function startServer() {
   });
 
   // System Elements API
-  const { getElements, getPublishedElements, upsertElement, deleteElement } = await import("./src/db/elements.ts");
+  const { getElements, getPublishedElements, upsertElement, deleteElement, getDeletedSystemElements, restoreSystemElements } = await import("./src/db/elements.ts");
+
+  app.get("/api/admin/deleted-system-elements", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const deleted = await getDeletedSystemElements();
+      res.json(deleted);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch deleted system elements" });
+    }
+  });
+
+  app.post("/api/admin/restore-system-elements", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const schema = z.object({ elementIds: z.array(z.string()).min(1) });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+
+      const restored = await restoreSystemElements(parsed.data.elementIds, req.dbUser?.uid);
+      res.json({ success: true, restored });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to restore system elements" });
+    }
+  });
 
   app.get("/api/elements", async (req, res) => {
     try {
