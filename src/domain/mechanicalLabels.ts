@@ -229,12 +229,44 @@ export const MECHANICAL_LABELS = {
     zone: "Zona delimitada",
     manual: "Manual",
   },
+  areaShapes: {
+    radius: "Radio",
+    diameter: "Diámetro",
+    cone: "Cono",
+    line: "Línea",
+    zone: "Zona delimitada",
+    manual: "Manual",
+  },
 
   selectionRestrictions: {
+    none: "Sin restricción",
     nearest: "Más cercano",
     random: "Aleatorio",
     specific: "Objetivo específico",
     exclude: "Excluir objetivo",
+    manual: "Manual",
+  },
+
+  ranges: {
+    self: "Personal",
+    contact: "Contacto",
+    distance: "A distancia",
+    unlimited: "Ilimitado",
+    manual: "Manual",
+  },
+
+  periods: {
+    turn: "Por turno",
+    combat: "Por combate",
+    mission: "Por misión",
+    day: "Por día",
+  },
+
+  resetConditions: {
+    when_triggered: "Al activarse el efecto",
+    turn_end: "Al fin del turno",
+    combat_end: "Al fin del combate",
+    condition: "Por condición",
     manual: "Manual",
   },
 
@@ -334,7 +366,34 @@ export const MECHANICAL_LABELS = {
 
   exceptionActions: {
     allow: "Permitir acción",
+    modify: "Modificar acción",
+    skip: "Omitir acción",
     reduce_penalty: "Reducir penalización",
+  },
+
+  comparisonOperators: {
+    eq: "Igual a (==)",
+    gte: "Mayor o igual (>=)",
+    lte: "Menor o igual (<=)",
+    neq: "Distinto (!=)",
+  },
+
+  itemReferenceTypes: {
+    tag: "Etiqueta",
+    category: "Categoría",
+    item: "ID de Artículo",
+  },
+
+  resetConditionKinds: {
+    state: "Estado / Tratamiento",
+    resource: "Recurso alcanzado",
+    roll_outcome: "Resultado de tirada",
+  },
+
+  scopeIds: {
+    quirk: "Quirk",
+    technique: "Técnicas",
+    all: "Todas las acciones",
   },
 
   // 11. CANONICAL RESOURCES & ATTRIBUTES

@@ -41,6 +41,9 @@ import {
 import {
   getMechanicalLabel,
   getAlteredStatusLabel,
+  getAttributeLabel,
+  getResourceLabel,
+  getTagLabel,
   MECHANICAL_LABELS,
 } from "../../domain/mechanicalLabels.ts";
 import { MechanicalEffectsEditor } from "./MechanicalEffectsEditor.tsx";
@@ -923,7 +926,7 @@ function ConditionsEditor({
                 }}
               >
                 <SelectTrigger className="h-7 w-38 text-xs font-semibold">
-                  <SelectValue />
+                  <SelectValue>{getMechanicalLabel("conditionTypes", cond.type)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="resource">Recurso (Valor)</SelectItem>
@@ -943,7 +946,9 @@ function ConditionsEditor({
                       value={cond.resourceId}
                       onValueChange={(val) => updateCond(i, { ...cond, resourceId: val })}
                     >
-                      <SelectTrigger className="h-7 w-20 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-20 text-xs">
+                        <SelectValue>{getResourceLabel(cond.resourceId)}</SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ES">ES</SelectItem>
                         <SelectItem value="SA">SA</SelectItem>
@@ -953,7 +958,9 @@ function ConditionsEditor({
                       value={cond.comparison}
                       onValueChange={(val: any) => updateCond(i, { ...cond, comparison: val })}
                     >
-                      <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-16 text-xs">
+                        <SelectValue>{getMechanicalLabel("comparisonOperators", cond.comparison)}</SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="<">&lt;</SelectItem>
                         <SelectItem value="<=">&le;</SelectItem>
@@ -977,7 +984,9 @@ function ConditionsEditor({
                       value={cond.resourceId}
                       onValueChange={(val) => updateCond(i, { ...cond, resourceId: val })}
                     >
-                      <SelectTrigger className="h-7 w-20 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-20 text-xs">
+                        <SelectValue>{getResourceLabel(cond.resourceId)}</SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="SA">Salud (SA)</SelectItem>
                         <SelectItem value="ES">Estamina (ES)</SelectItem>
@@ -987,7 +996,9 @@ function ConditionsEditor({
                       value={cond.comparison}
                       onValueChange={(val: any) => updateCond(i, { ...cond, comparison: val })}
                     >
-                      <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-16 text-xs">
+                        <SelectValue>{getMechanicalLabel("comparisonOperators", cond.comparison)}</SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="<=">&le;</SelectItem>
                         <SelectItem value=">=">&ge;</SelectItem>
@@ -1052,19 +1063,23 @@ function ConditionsEditor({
                       value={cond.dieSelection}
                       onValueChange={(val: any) => updateCond(i, { ...cond, dieSelection: val })}
                     >
-                      <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-32 text-xs">
+                        <SelectValue>{getMechanicalLabel("dieSelections", cond.dieSelection)}</SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="both">Ambos dados</SelectItem>
-                        <SelectItem value="any">Algún dado</SelectItem>
-                        <SelectItem value="first">Primer dado</SelectItem>
-                        <SelectItem value="second">Segundo dado</SelectItem>
+                        <SelectItem value="both">{MECHANICAL_LABELS.dieSelections.both}</SelectItem>
+                        <SelectItem value="any">{MECHANICAL_LABELS.dieSelections.any}</SelectItem>
+                        <SelectItem value="first">{MECHANICAL_LABELS.dieSelections.first}</SelectItem>
+                        <SelectItem value="second">{MECHANICAL_LABELS.dieSelections.second}</SelectItem>
                       </SelectContent>
                     </Select>
                     <Select
                       value={cond.comparison}
                       onValueChange={(val: any) => updateCond(i, { ...cond, comparison: val })}
                     >
-                      <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-16 text-xs">
+                        <SelectValue>{getMechanicalLabel("comparisonOperators", cond.comparison)}</SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="=">=</SelectItem>
                         <SelectItem value=">=">&ge;</SelectItem>
@@ -1092,12 +1107,14 @@ function ConditionsEditor({
                       value={cond.scope}
                       onValueChange={(val: any) => updateCond(i, { ...cond, scope: val })}
                     >
-                      <SelectTrigger className="h-7 w-28 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-28 text-xs">
+                        <SelectValue>{getMechanicalLabel("tagScopes", cond.scope)}</SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="attack">En el ataque</SelectItem>
-                        <SelectItem value="source">En el origen</SelectItem>
-                        <SelectItem value="target">En el objetivo</SelectItem>
-                        <SelectItem value="any">Cualquiera</SelectItem>
+                        <SelectItem value="attack">{MECHANICAL_LABELS.tagScopes.attack}</SelectItem>
+                        <SelectItem value="source">{MECHANICAL_LABELS.tagScopes.source}</SelectItem>
+                        <SelectItem value="target">{MECHANICAL_LABELS.tagScopes.target}</SelectItem>
+                        <SelectItem value="any">{MECHANICAL_LABELS.tagScopes.any}</SelectItem>
                       </SelectContent>
                     </Select>
                   </>
@@ -1186,12 +1203,14 @@ function ResolutionEditor({
             value={resolution.type}
             onValueChange={(val: any) => onChange({ ...resolution, type: val })}
           >
-            <SelectTrigger className="h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs bg-background">
+              <SelectValue>{getMechanicalLabel("resolutions", resolution.type)}</SelectValue>
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="automatic">Automática (Sin tirada)</SelectItem>
-              <SelectItem value="rd">Dificultad Fija (RD)</SelectItem>
-              <SelectItem value="roll">Tirada enfrentada</SelectItem>
-              <SelectItem value="manual">Manual / Arbitraria</SelectItem>
+              <SelectItem value="automatic">{MECHANICAL_LABELS.resolutions.automatic}</SelectItem>
+              <SelectItem value="rd">{MECHANICAL_LABELS.resolutions.rd}</SelectItem>
+              <SelectItem value="roll">{MECHANICAL_LABELS.resolutions.roll}</SelectItem>
+              <SelectItem value="manual">{MECHANICAL_LABELS.resolutions.manual}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1258,13 +1277,15 @@ function ResolutionEditor({
                       onChange({ ...resolution, outcomes: copy });
                     }}
                   >
-                    <SelectTrigger className="h-7 w-40 text-xs font-semibold"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-7 w-40 text-xs font-semibold">
+                      <SelectValue>{getMechanicalLabel("outcomes", out.outcome)}</SelectValue>
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="success">Éxito</SelectItem>
-                      <SelectItem value="failure">Fallo</SelectItem>
-                      <SelectItem value="critical">Crítico</SelectItem>
-                      <SelectItem value="failure_margin">Fallo por margen (&ge; X)</SelectItem>
-                      <SelectItem value="success_margin">Éxito por margen (&ge; X)</SelectItem>
+                      <SelectItem value="success">{MECHANICAL_LABELS.outcomes.success}</SelectItem>
+                      <SelectItem value="failure">{MECHANICAL_LABELS.outcomes.failure}</SelectItem>
+                      <SelectItem value="critical">{MECHANICAL_LABELS.outcomes.critical}</SelectItem>
+                      <SelectItem value="failure_margin">{MECHANICAL_LABELS.outcomes.failure_margin}</SelectItem>
+                      <SelectItem value="success_margin">{MECHANICAL_LABELS.outcomes.success_margin}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -1358,6 +1379,9 @@ function EffectsListEditor({
       case "barrier":
         newEff = { id, type: "barrier", amount: 5 };
         break;
+      case "attribute_modifier":
+        newEff = { id, type: "attribute_modifier", attributeId: "fue", amount: 1, operation: "add" };
+        break;
       case "cost_modifier":
         newEff = { id, type: "cost_modifier", scopeId: "quirk", amount: 2, operation: "multiply" };
         break;
@@ -1430,22 +1454,22 @@ function EffectsListEditor({
                     }}
                   >
                     <SelectTrigger className="h-7 w-52 text-xs font-bold">
-                      <SelectValue />
+                      <SelectValue>{getMechanicalLabel("effectTypes", eff.type)}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="damage">💥 Daño (Dados)</SelectItem>
-                      <SelectItem value="healing">💚 Curación (SA/ES)</SelectItem>
-                      <SelectItem value="barrier">🛡️ Barrera</SelectItem>
-                      <SelectItem value="cost_modifier">⚡ Modificar Coste de ES (×, +, =)</SelectItem>
-                      <SelectItem value="incoming_damage_modifier">🔥 Modificar Daño Entrante</SelectItem>
-                      <SelectItem value="outgoing_damage_modifier">⚔️ Modificar Daño Saliente</SelectItem>
-                      <SelectItem value="roll_modifier">🎲 Modificador de Tirada</SelectItem>
-                      <SelectItem value="attribute_modifier">📊 Modificador de Atributo</SelectItem>
-                      <SelectItem value="status_apply">🌀 Aplicar Estado Alterado</SelectItem>
-                      <SelectItem value="turn_loss">🛑 Pérdida de Turno</SelectItem>
-                      <SelectItem value="action_block">🔒 Bloqueo de Acción / Quirk</SelectItem>
-                      <SelectItem value="counter_modifier">🔢 Modificar Contador</SelectItem>
-                      <SelectItem value="manual">📝 Efecto Manual / Narrativo</SelectItem>
+                      <SelectItem value="damage">💥 {MECHANICAL_LABELS.effectTypes.damage}</SelectItem>
+                      <SelectItem value="healing">💚 {MECHANICAL_LABELS.effectTypes.healing}</SelectItem>
+                      <SelectItem value="barrier">🛡️ {MECHANICAL_LABELS.effectTypes.barrier}</SelectItem>
+                      <SelectItem value="attribute_modifier">📊 {MECHANICAL_LABELS.effectTypes.attribute_modifier}</SelectItem>
+                      <SelectItem value="cost_modifier">⚡ {MECHANICAL_LABELS.effectTypes.cost_modifier}</SelectItem>
+                      <SelectItem value="incoming_damage_modifier">🔥 {MECHANICAL_LABELS.effectTypes.incoming_damage_modifier}</SelectItem>
+                      <SelectItem value="outgoing_damage_modifier">⚔️ {MECHANICAL_LABELS.effectTypes.outgoing_damage_modifier}</SelectItem>
+                      <SelectItem value="roll_modifier">🎲 {MECHANICAL_LABELS.effectTypes.roll_modifier}</SelectItem>
+                      <SelectItem value="status_apply">🌀 {MECHANICAL_LABELS.effectTypes.status_apply}</SelectItem>
+                      <SelectItem value="turn_loss">🛑 {MECHANICAL_LABELS.effectTypes.turn_loss}</SelectItem>
+                      <SelectItem value="action_block">🔒 {MECHANICAL_LABELS.effectTypes.action_block}</SelectItem>
+                      <SelectItem value="counter_modifier">🔢 {MECHANICAL_LABELS.effectTypes.counter_modifier}</SelectItem>
+                      <SelectItem value="manual">📝 {MECHANICAL_LABELS.effectTypes.manual}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -1829,16 +1853,18 @@ function TargetEditor({
           value={target.type || "self"}
           onValueChange={(val) => onChange({ ...target, type: val })}
         >
-          <SelectTrigger className="h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs bg-background">
+            <SelectValue>{getMechanicalLabel("targets", target.type || "self")}</SelectValue>
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="self">Uno mismo (Self)</SelectItem>
-            <SelectItem value="enemy">Enemigo</SelectItem>
-            <SelectItem value="ally">Aliado</SelectItem>
-            <SelectItem value="character">Cualquier personaje</SelectItem>
-            <SelectItem value="area">Área</SelectItem>
-            <SelectItem value="roll">Tirada</SelectItem>
-            <SelectItem value="resource">Recurso</SelectItem>
-            <SelectItem value="manual">Manual</SelectItem>
+            <SelectItem value="self">{MECHANICAL_LABELS.targets.self}</SelectItem>
+            <SelectItem value="enemy">{MECHANICAL_LABELS.targets.enemy}</SelectItem>
+            <SelectItem value="ally">{MECHANICAL_LABELS.targets.ally}</SelectItem>
+            <SelectItem value="character">{MECHANICAL_LABELS.targets.character}</SelectItem>
+            <SelectItem value="area">{MECHANICAL_LABELS.targets.area}</SelectItem>
+            <SelectItem value="roll">{MECHANICAL_LABELS.targets.roll}</SelectItem>
+            <SelectItem value="resource">{MECHANICAL_LABELS.targets.resource}</SelectItem>
+            <SelectItem value="manual">{MECHANICAL_LABELS.targets.manual}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -1854,12 +1880,14 @@ function TargetEditor({
             })
           }
         >
-          <SelectTrigger className="h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs bg-background">
+            <SelectValue>{getMechanicalLabel("ranges", target.range?.type || "contact")}</SelectValue>
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="self">Personal</SelectItem>
-            <SelectItem value="contact">Contacto</SelectItem>
-            <SelectItem value="distance">Distancia (metros)</SelectItem>
-            <SelectItem value="unlimited">Ilimitado</SelectItem>
+            <SelectItem value="self">{MECHANICAL_LABELS.ranges.self}</SelectItem>
+            <SelectItem value="contact">{MECHANICAL_LABELS.ranges.contact}</SelectItem>
+            <SelectItem value="distance">{MECHANICAL_LABELS.ranges.distance}</SelectItem>
+            <SelectItem value="unlimited">{MECHANICAL_LABELS.ranges.unlimited}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -1898,12 +1926,14 @@ function TargetEditor({
                 })
               }
             >
-              <SelectTrigger className="h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs bg-background">
+                <SelectValue>{getMechanicalLabel("areaShapes", target.area?.shape || "radius")}</SelectValue>
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="radius">Radio (m)</SelectItem>
-                <SelectItem value="cone">Cono (m)</SelectItem>
-                <SelectItem value="line">Línea (m)</SelectItem>
-                <SelectItem value="zone">Zona</SelectItem>
+                <SelectItem value="radius">{MECHANICAL_LABELS.areaShapes.radius}</SelectItem>
+                <SelectItem value="cone">{MECHANICAL_LABELS.areaShapes.cone}</SelectItem>
+                <SelectItem value="line">{MECHANICAL_LABELS.areaShapes.line}</SelectItem>
+                <SelectItem value="zone">{MECHANICAL_LABELS.areaShapes.zone}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1937,12 +1967,14 @@ function TargetEditor({
             onChange({ ...target, selectionRestriction: val === "none" ? undefined : val })
           }
         >
-          <SelectTrigger className="h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs bg-background">
+            <SelectValue>{getMechanicalLabel("selectionRestrictions", target.selectionRestriction || "none")}</SelectValue>
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">Sin restricción</SelectItem>
-            <SelectItem value="nearest">Más cercano</SelectItem>
-            <SelectItem value="random">Aleatorio</SelectItem>
-            <SelectItem value="specific">Específico</SelectItem>
+            <SelectItem value="none">{MECHANICAL_LABELS.selectionRestrictions.none}</SelectItem>
+            <SelectItem value="nearest">{MECHANICAL_LABELS.selectionRestrictions.nearest}</SelectItem>
+            <SelectItem value="random">{MECHANICAL_LABELS.selectionRestrictions.random}</SelectItem>
+            <SelectItem value="specific">{MECHANICAL_LABELS.selectionRestrictions.specific}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -1974,17 +2006,19 @@ function TemporalityEditor({
               })
             }
           >
-            <SelectTrigger className="h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs bg-background">
+              <SelectValue>{getMechanicalLabel("durations", temporality.duration?.type || "instant")}</SelectValue>
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="instant">Instantáneo</SelectItem>
-              <SelectItem value="turns">Turnos</SelectItem>
-              <SelectItem value="until_turn_end">Hasta fin de turno</SelectItem>
-              <SelectItem value="until_next_turn">Hasta siguiente turno</SelectItem>
-              <SelectItem value="until_next_roll">Hasta siguiente tirada</SelectItem>
-              <SelectItem value="until_next_use">Hasta siguiente uso</SelectItem>
-              <SelectItem value="while_condition">Mientras condición se cumpla</SelectItem>
-              <SelectItem value="while_owned">Mientras se posea</SelectItem>
-              <SelectItem value="permanent">Permanente</SelectItem>
+              <SelectItem value="instant">{MECHANICAL_LABELS.durations.instant}</SelectItem>
+              <SelectItem value="turns">{MECHANICAL_LABELS.durations.turns}</SelectItem>
+              <SelectItem value="until_turn_end">{MECHANICAL_LABELS.durations.until_turn_end}</SelectItem>
+              <SelectItem value="until_next_turn">{MECHANICAL_LABELS.durations.until_next_turn}</SelectItem>
+              <SelectItem value="until_next_roll">{MECHANICAL_LABELS.durations.until_next_roll}</SelectItem>
+              <SelectItem value="until_next_use">{MECHANICAL_LABELS.durations.until_next_use}</SelectItem>
+              <SelectItem value="while_condition">{MECHANICAL_LABELS.durations.while_condition}</SelectItem>
+              <SelectItem value="while_owned">{MECHANICAL_LABELS.durations.while_owned}</SelectItem>
+              <SelectItem value="permanent">{MECHANICAL_LABELS.durations.permanent}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -2021,12 +2055,14 @@ function TemporalityEditor({
               })
             }
           >
-            <SelectTrigger className="h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs bg-background">
+              <SelectValue>{getMechanicalLabel("frequencies", temporality.frequency?.type || "once")}</SelectValue>
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="once">Una vez al activar</SelectItem>
-              <SelectItem value="each_turn">Cada turno</SelectItem>
-              <SelectItem value="turn_start">Al inicio de turno</SelectItem>
-              <SelectItem value="turn_end">Al final de turno</SelectItem>
+              <SelectItem value="once">{MECHANICAL_LABELS.frequencies.once}</SelectItem>
+              <SelectItem value="each_turn">{MECHANICAL_LABELS.frequencies.each_turn}</SelectItem>
+              <SelectItem value="turn_start">{MECHANICAL_LABELS.frequencies.turn_start}</SelectItem>
+              <SelectItem value="turn_end">{MECHANICAL_LABELS.frequencies.turn_end}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -2152,12 +2188,14 @@ function LimitationsEditor({
                   onChange(copy);
                 }}
               >
-                <SelectTrigger className="h-7 w-44 text-xs font-semibold"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 w-44 text-xs font-semibold">
+                  <SelectValue>{getMechanicalLabel("limitationTypes", lim.type)}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cooldown">⏱️ Enfriamiento (Cooldown)</SelectItem>
-                  <SelectItem value="usage_limit">🔢 Límite de Usos</SelectItem>
-                  <SelectItem value="item_requirement">🎒 Requisito de Objeto/Tag</SelectItem>
-                  <SelectItem value="manual">📝 Requisito Manual</SelectItem>
+                  <SelectItem value="cooldown">{MECHANICAL_LABELS.limitationTypes.cooldown}</SelectItem>
+                  <SelectItem value="usage_limit">{MECHANICAL_LABELS.limitationTypes.usage_limit}</SelectItem>
+                  <SelectItem value="item_requirement">{MECHANICAL_LABELS.limitationTypes.item_requirement}</SelectItem>
+                  <SelectItem value="manual">{MECHANICAL_LABELS.limitationTypes.manual}</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -2200,12 +2238,14 @@ function LimitationsEditor({
                       onChange(copy);
                     }}
                   >
-                    <SelectTrigger className="h-7 w-28 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-7 w-28 text-xs">
+                      <SelectValue>{getMechanicalLabel("periods", lim.period)}</SelectValue>
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="turn">Turno</SelectItem>
-                      <SelectItem value="combat">Combate</SelectItem>
-                      <SelectItem value="mission">Misión</SelectItem>
-                      <SelectItem value="day">Día</SelectItem>
+                      <SelectItem value="turn">{MECHANICAL_LABELS.periods.turn}</SelectItem>
+                      <SelectItem value="combat">{MECHANICAL_LABELS.periods.combat}</SelectItem>
+                      <SelectItem value="mission">{MECHANICAL_LABELS.periods.mission}</SelectItem>
+                      <SelectItem value="day">{MECHANICAL_LABELS.periods.day}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -2221,11 +2261,13 @@ function LimitationsEditor({
                       onChange(copy);
                     }}
                   >
-                    <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-7 w-24 text-xs">
+                      <SelectValue>{getMechanicalLabel("itemReferenceTypes", lim.referenceType)}</SelectValue>
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="tag">Etiqueta</SelectItem>
-                      <SelectItem value="category">Categoría</SelectItem>
-                      <SelectItem value="item">Artículo ID</SelectItem>
+                      <SelectItem value="tag">{MECHANICAL_LABELS.itemReferenceTypes.tag}</SelectItem>
+                      <SelectItem value="category">{MECHANICAL_LABELS.itemReferenceTypes.category}</SelectItem>
+                      <SelectItem value="item">{MECHANICAL_LABELS.itemReferenceTypes.item}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Input
@@ -2246,12 +2288,14 @@ function LimitationsEditor({
                       onChange(copy);
                     }}
                   >
-                    <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-7 w-24 text-xs">
+                      <SelectValue>{getMechanicalLabel("itemRequirementModes", lim.mode)}</SelectValue>
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="require">Requerir</SelectItem>
-                      <SelectItem value="consume">Consumir</SelectItem>
-                      <SelectItem value="equip">Equipar</SelectItem>
-                      <SelectItem value="reserve">Reservar</SelectItem>
+                      <SelectItem value="require">{MECHANICAL_LABELS.itemRequirementModes.require}</SelectItem>
+                      <SelectItem value="consume">{MECHANICAL_LABELS.itemRequirementModes.consume}</SelectItem>
+                      <SelectItem value="equip">{MECHANICAL_LABELS.itemRequirementModes.equip}</SelectItem>
+                      <SelectItem value="reserve">{MECHANICAL_LABELS.itemRequirementModes.reserve}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -2352,13 +2396,15 @@ function ControlEditor({
                   })
                 }
               >
-                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue>{getMechanicalLabel("resetConditions", control.counter.resetCondition || "when_triggered")}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="when_triggered">Al detonar efecto</SelectItem>
-                  <SelectItem value="turn_end">Fin de turno</SelectItem>
-                  <SelectItem value="combat_end">Fin de combate</SelectItem>
-                  <SelectItem value="condition">Condicional (Estado/Recurso)</SelectItem>
-                  <SelectItem value="manual">Manual / Acción externa</SelectItem>
+                  <SelectItem value="when_triggered">{MECHANICAL_LABELS.resetConditions.when_triggered}</SelectItem>
+                  <SelectItem value="turn_end">{MECHANICAL_LABELS.resetConditions.turn_end}</SelectItem>
+                  <SelectItem value="combat_end">{MECHANICAL_LABELS.resetConditions.combat_end}</SelectItem>
+                  <SelectItem value="condition">{MECHANICAL_LABELS.resetConditions.condition}</SelectItem>
+                  <SelectItem value="manual">{MECHANICAL_LABELS.resetConditions.manual}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2388,11 +2434,13 @@ function ControlEditor({
                     })
                   }
                 >
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue>{getMechanicalLabel("resetConditionKinds", control.counter.resetConditionDetails?.kind || "state")}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="state">Estado / Tratamiento</SelectItem>
-                    <SelectItem value="resource">Recurso alcanzado</SelectItem>
-                    <SelectItem value="roll_outcome">Resultado de Tirada</SelectItem>
+                    <SelectItem value="state">{MECHANICAL_LABELS.resetConditionKinds.state}</SelectItem>
+                    <SelectItem value="resource">{MECHANICAL_LABELS.resetConditionKinds.resource}</SelectItem>
+                    <SelectItem value="roll_outcome">{MECHANICAL_LABELS.resetConditionKinds.roll_outcome}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2435,12 +2483,14 @@ function ControlEditor({
                     })
                   }
                 >
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue>{getMechanicalLabel("comparisonOperators", control.counter.resetConditionDetails?.operator || "eq")}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="eq">Igual a (==)</SelectItem>
-                    <SelectItem value="gte">Mayor o igual (&gt;=)</SelectItem>
-                    <SelectItem value="lte">Menor o igual (&lt;=)</SelectItem>
-                    <SelectItem value="neq">Distinto (!=)</SelectItem>
+                    <SelectItem value="eq">=</SelectItem>
+                    <SelectItem value="gte">&ge;</SelectItem>
+                    <SelectItem value="lte">&le;</SelectItem>
+                    <SelectItem value="neq">!=</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2497,7 +2547,9 @@ function ControlEditor({
                     onChange({ ...control, exception: { ...control.exception, costResource: val } })
                   }
                 >
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue>{getResourceLabel(control.exception.costResource || "ES")}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ES">Estamina (ES)</SelectItem>
                     <SelectItem value="SA">Salud (SA)</SelectItem>
@@ -2524,11 +2576,13 @@ function ControlEditor({
                     onChange({ ...control, exception: { ...control.exception, action: val } })
                   }
                 >
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue>{getMechanicalLabel("exceptionActions", control.exception.action || "allow")}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="allow">Permitir (allow)</SelectItem>
-                    <SelectItem value="modify">Modificar (modify)</SelectItem>
-                    <SelectItem value="skip">Omitir (skip)</SelectItem>
+                    <SelectItem value="allow">{MECHANICAL_LABELS.exceptionActions.allow}</SelectItem>
+                    <SelectItem value="modify">{MECHANICAL_LABELS.exceptionActions.modify}</SelectItem>
+                    <SelectItem value="skip">{MECHANICAL_LABELS.exceptionActions.skip}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -84,7 +84,9 @@ export function MechanicalEffectsEditor({ effects, mechanics, onChange, hideCost
       {maxLevel && (
         <Select value={String(selectedMinLevel)} onValueChange={v => setSelectedMinLevel(parseInt(v, 10) || 1)}>
           <SelectTrigger>
-            <SelectValue placeholder="Nivel" />
+            <SelectValue placeholder="Nivel">
+              {selectedMinLevel === 1 ? 'Desde Nv. 1 (Base)' : `Desde Nv. ${selectedMinLevel}`}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl => (
@@ -143,7 +145,9 @@ export function MechanicalEffectsEditor({ effects, mechanics, onChange, hideCost
             <div className="shrink-0 flex items-center gap-1.5 mr-1">
               <Select value={String(effectMinLevel)} onValueChange={v => updateMinLevel(reference.applicationId, parseInt(v, 10) || 1)}>
                 <SelectTrigger className="h-7 w-28 text-xs font-mono">
-                  <SelectValue />
+                  <SelectValue>
+                    {effectMinLevel === 1 ? 'Nv. 1+' : `Nv. ${effectMinLevel}+`}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl => (

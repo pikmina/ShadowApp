@@ -184,7 +184,12 @@ export default function TechniquesAdmin() {
                     <Badge variant={el.status === "published" ? "default" : "secondary"}>{el.status}</Badge>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {el.effects.length} Bloques conectados
+                    {(() => {
+                      const count = Array.isArray(el.mechanicalBehaviors) && el.mechanicalBehaviors.length > 0
+                        ? el.mechanicalBehaviors.reduce((acc: number, b: any) => acc + (b.effects?.length ?? 0), 0)
+                        : (el.effects?.length ?? 0);
+                      return `${count} ${count === 1 ? "bloque conectado" : "bloques conectados"}`;
+                    })()}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
