@@ -31,6 +31,7 @@ import {
 } from "../ui/accordion";
 import {
   createDefaultMechanicalBehavior,
+  createDefaultMechanicalEffect,
   type MechanicalBehavior,
   type MechanicalBehaviorMode,
   type MechanicalCondition,
@@ -1367,40 +1368,21 @@ function EffectsListEditor({
   };
 
   const addEffect = (type: MechanicalEffectItem["type"] = "damage") => {
-    let newEff: MechanicalEffectItem;
-    const id = nanoid(8);
-    switch (type) {
-      case "damage":
-        newEff = { id, type: "damage", dice: "2D6" };
-        break;
-      case "healing":
-        newEff = { id, type: "healing", resourceId: "SA", amount: 4 };
-        break;
-      case "barrier":
-        newEff = { id, type: "barrier", amount: 5 };
-        break;
-      case "attribute_modifier":
-        newEff = { id, type: "attribute_modifier", attributeId: "fue", amount: 1, operation: "add" };
-        break;
-      case "cost_modifier":
-        newEff = { id, type: "cost_modifier", scopeId: "quirk", amount: 2, operation: "multiply" };
-        break;
-      case "incoming_damage_modifier":
-        newEff = { id, type: "incoming_damage_modifier", amount: 4, operation: "add", tagFilter: "fire" };
-        break;
-      case "roll_modifier":
-        newEff = { id, type: "roll_modifier", rollType: "action", amount: -2, operation: "add" };
-        break;
-      case "status_apply":
-        newEff = { id, type: "status_apply", statusElementId: "status_aturdido", turns: 1 };
-        break;
-      case "turn_loss":
-        newEff = { id, type: "turn_loss", turns: 1 };
-        break;
-      default:
-        newEff = { id, type: "damage", dice: "1D6" };
-    }
+    const newEff = createDefaultMechanicalEffect(type);
     onChange([...effects, newEff]);
+  };
+
+  const changeEffectType = (index: number, newType: MechanicalEffectItem["type"]) => {
+    const current = effects[index];
+    const newEff = createDefaultMechanicalEffect(
+      newType,
+      current?.id,
+      current?.target,
+      current?.temporality
+    );
+    const updated = [...effects];
+    updated[index] = newEff;
+    onChange(updated);
   };
 
   const updateEffect = (index: number, updated: MechanicalEffectItem) => {
@@ -1448,10 +1430,7 @@ function EffectsListEditor({
                   </Badge>
                   <Select
                     value={eff.type}
-                    onValueChange={(val: any) => {
-                      addEffect(val);
-                      removeEffect(i);
-                    }}
+                    onValueChange={(val: any) => changeEffectType(i, val)}
                   >
                     <SelectTrigger className="h-7 w-52 text-xs font-bold">
                       <SelectValue>{getMechanicalLabel("effectTypes", eff.type)}</SelectValue>
@@ -1531,10 +1510,10 @@ function EffectsListEditor({
                         value={eff.resourceId}
                         onValueChange={(val: any) => updateEffect(i, { ...eff, resourceId: val })}
                       >
-                        <SelectTrigger className="h-7 w-20 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-7 w-28 text-xs"><SelectValue>{getResourceLabel(eff.resourceId)}</SelectValue></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="SA">SA</SelectItem>
-                          <SelectItem value="ES">ES</SelectItem>
+                          <SelectItem value="SA">Salud (SA)</SelectItem>
+                          <SelectItem value="ES">Estamina (ES)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1564,6 +1543,57 @@ function EffectsListEditor({
                   </div>
                 )}
 
+                {eff.type === "attribute_modifier" && (
+                  <>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Atributo</Label>
+                      <Select
+                        value={eff.attributeId}
+                        onValueChange={(val) => updateEffect(i, { ...eff, attributeId: val })}
+                      >
+                        <SelectTrigger className="h-7 w-36 text-xs font-medium">
+                          <SelectValue>{getAttributeLabel(eff.attributeId)}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fue">Fuerza (FUE)</SelectItem>
+                          <SelectItem value="res">Resistencia (RES)</SelectItem>
+                          <SelectItem value="des">Destreza (DES)</SelectItem>
+                          <SelectItem value="int">Inteligencia (INT)</SelectItem>
+                          <SelectItem value="vel">Velocidad (VEL)</SelectItem>
+                          <SelectItem value="vol">Voluntad (VOL)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Cantidad</Label>
+                      <Input
+                        type="number"
+                        value={eff.amount}
+                        onChange={(e) => updateEffect(i, { ...eff, amount: parseInt(e.target.value, 10) || 0 })}
+                        className="h-7 w-20 font-mono text-xs"
+                      />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Operación</Label>
+                      <Select
+                        value={eff.operation || "add"}
+                        onValueChange={(val: any) => updateEffect(i, { ...eff, operation: val })}
+                      >
+                        <SelectTrigger className="h-7 w-28 text-xs">
+                          <SelectValue>{getMechanicalLabel("modifierOperations", eff.operation || "add")}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="add">Sumar (+)</SelectItem>
+                          <SelectItem value="subtract">Restar (-)</SelectItem>
+                          <SelectItem value="multiply">Multiplicar (×)</SelectItem>
+                          <SelectItem value="divide">Dividir (/)</SelectItem>
+                          <SelectItem value="set">Establecer (=)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+
                 {eff.type === "cost_modifier" && (
                   <>
                     <div className="grid gap-1">
@@ -1572,7 +1602,7 @@ function EffectsListEditor({
                         value={eff.scopeId || "quirk"}
                         onValueChange={(val) => updateEffect(i, { ...eff, scopeId: val })}
                       >
-                        <SelectTrigger className="h-7 w-28 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-7 w-28 text-xs"><SelectValue>{getMechanicalLabel("scopeIds", eff.scopeId || "quirk")}</SelectValue></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="quirk">Quirk</SelectItem>
                           <SelectItem value="technique">Técnica</SelectItem>
@@ -1586,7 +1616,7 @@ function EffectsListEditor({
                         value={eff.operation || "add"}
                         onValueChange={(val: any) => updateEffect(i, { ...eff, operation: val })}
                       >
-                        <SelectTrigger className="h-7 w-28 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-7 w-28 text-xs"><SelectValue>{getMechanicalLabel("modifierOperations", eff.operation || "add")}</SelectValue></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="add">Sumar (+)</SelectItem>
                           <SelectItem value="subtract">Restar (-)</SelectItem>
@@ -1627,6 +1657,56 @@ function EffectsListEditor({
                         placeholder="Ej: fire, impact..."
                         className="h-7 w-32 text-xs"
                       />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Operación</Label>
+                      <Select
+                        value={eff.operation || "add"}
+                        onValueChange={(val: any) => updateEffect(i, { ...eff, operation: val })}
+                      >
+                        <SelectTrigger className="h-7 w-28 text-xs">
+                          <SelectValue>{getMechanicalLabel("modifierOperations", eff.operation || "add")}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="add">Sumar (+)</SelectItem>
+                          <SelectItem value="subtract">Restar (-)</SelectItem>
+                          <SelectItem value="multiply">Multiplicar (×)</SelectItem>
+                          <SelectItem value="divide">Dividir (/)</SelectItem>
+                          <SelectItem value="set">Establecer (=)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+
+                {eff.type === "outgoing_damage_modifier" && (
+                  <>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Modificador</Label>
+                      <Input
+                        type="number"
+                        value={eff.amount}
+                        onChange={(e) => updateEffect(i, { ...eff, amount: parseInt(e.target.value, 10) || 0 })}
+                        className="h-7 w-20 font-mono text-xs"
+                      />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Operación</Label>
+                      <Select
+                        value={eff.operation || "add"}
+                        onValueChange={(val: any) => updateEffect(i, { ...eff, operation: val })}
+                      >
+                        <SelectTrigger className="h-7 w-28 text-xs">
+                          <SelectValue>{getMechanicalLabel("modifierOperations", eff.operation || "add")}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="add">Sumar (+)</SelectItem>
+                          <SelectItem value="subtract">Restar (-)</SelectItem>
+                          <SelectItem value="multiply">Multiplicar (×)</SelectItem>
+                          <SelectItem value="divide">Dividir (/)</SelectItem>
+                          <SelectItem value="set">Establecer (=)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </>
                 )}
@@ -1718,6 +1798,93 @@ function EffectsListEditor({
                       value={eff.turns}
                       onChange={(e) => updateEffect(i, { ...eff, turns: parseInt(e.target.value, 10) || 1 })}
                       className="h-7 w-20 text-xs"
+                    />
+                  </div>
+                )}
+
+                {eff.type === "action_block" && (
+                  <>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Acción Bloqueada</Label>
+                      <Select
+                        value={eff.blockedAction || "all"}
+                        onValueChange={(val) => updateEffect(i, { ...eff, blockedAction: val })}
+                      >
+                        <SelectTrigger className="h-7 w-36 text-xs font-medium">
+                          <SelectValue>{getMechanicalLabel("blockedActions", eff.blockedAction || "all")}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas las acciones</SelectItem>
+                          <SelectItem value="quirk">Quirk</SelectItem>
+                          <SelectItem value="technique">Técnicas</SelectItem>
+                          <SelectItem value="movement">Movimiento</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Duración (Turnos)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={eff.duration || 1}
+                        onChange={(e) => updateEffect(i, { ...eff, duration: parseInt(e.target.value, 10) || 1 })}
+                        className="h-7 w-20 text-xs"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {eff.type === "counter_modifier" && (
+                  <>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">ID de Contador</Label>
+                      <Input
+                        value={eff.counterId || ""}
+                        onChange={(e) => updateEffect(i, { ...eff, counterId: e.target.value })}
+                        placeholder="Ej: combat_counter..."
+                        className="h-7 w-32 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Operación</Label>
+                      <Select
+                        value={eff.operation || "increment"}
+                        onValueChange={(val: any) => updateEffect(i, { ...eff, operation: val })}
+                      >
+                        <SelectTrigger className="h-7 w-36 text-xs">
+                          <SelectValue>{getMechanicalLabel("counterOperations", eff.operation || "increment")}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="increment">Incrementar (+)</SelectItem>
+                          <SelectItem value="decrement">Decrementar (-)</SelectItem>
+                          <SelectItem value="set">Establecer valor fijo</SelectItem>
+                          <SelectItem value="reset">Reiniciar a cero</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Valor</Label>
+                      <Input
+                        type="number"
+                        value={eff.value ?? 1}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10) || 0;
+                          updateEffect(i, { ...eff, value: val });
+                        }}
+                        className="h-7 w-20 font-mono text-xs"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {eff.type === "manual" && (
+                  <div className="grid gap-1 w-full max-w-md">
+                    <Label className="text-[11px]">Instrucción / Mensaje Narrativo</Label>
+                    <Input
+                      value={eff.message || ""}
+                      onChange={(e) => updateEffect(i, { ...eff, message: e.target.value })}
+                      placeholder="Descripción del efecto manual..."
+                      className="h-7 text-xs"
                     />
                   </div>
                 )}

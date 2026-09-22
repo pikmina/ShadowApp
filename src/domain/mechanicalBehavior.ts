@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nanoid } from "nanoid";
 
 // ==========================================
 // 1. MODES
@@ -757,4 +758,49 @@ export function isMechanicalBehavior(candidate: unknown): candidate is Mechanica
 
 export function isMechanicalBehaviorList(candidate: unknown): candidate is MechanicalBehavior[] {
   return Array.isArray(candidate) && candidate.length > 0 && candidate.every(isMechanicalBehavior);
+}
+
+export function createDefaultMechanicalEffect(
+  type: MechanicalEffectItem["type"],
+  existingId?: string,
+  existingTarget?: MechanicalTarget,
+  existingTemporality?: MechanicalTemporality
+): MechanicalEffectItem {
+  const id = existingId || nanoid(8);
+  const base = {
+    id,
+    ...(existingTarget ? { target: existingTarget } : {}),
+    ...(existingTemporality ? { temporality: existingTemporality } : {}),
+  };
+
+  switch (type) {
+    case "damage":
+      return { ...base, type: "damage", dice: "2D6" };
+    case "healing":
+      return { ...base, type: "healing", resourceId: "SA", amount: 4 };
+    case "barrier":
+      return { ...base, type: "barrier", amount: 5 };
+    case "attribute_modifier":
+      return { ...base, type: "attribute_modifier", attributeId: "fue", amount: 1, operation: "add" };
+    case "cost_modifier":
+      return { ...base, type: "cost_modifier", scopeId: "quirk", amount: 2, operation: "multiply" };
+    case "incoming_damage_modifier":
+      return { ...base, type: "incoming_damage_modifier", amount: 4, operation: "add", tagFilter: "fire" };
+    case "outgoing_damage_modifier":
+      return { ...base, type: "outgoing_damage_modifier", amount: 2, operation: "add" };
+    case "roll_modifier":
+      return { ...base, type: "roll_modifier", rollType: "action", amount: -2, operation: "add" };
+    case "status_apply":
+      return { ...base, type: "status_apply", statusElementId: "core.status.stunned", turns: 1 };
+    case "turn_loss":
+      return { ...base, type: "turn_loss", turns: 1 };
+    case "action_block":
+      return { ...base, type: "action_block", blockedAction: "all", duration: 1 };
+    case "counter_modifier":
+      return { ...base, type: "counter_modifier", counterId: "combat_counter", operation: "increment", value: 1 };
+    case "manual":
+      return { ...base, type: "manual", message: "Efecto manual a resolver por la narración." };
+    default:
+      return { ...base, type: "damage", dice: "1D6" };
+  }
 }
