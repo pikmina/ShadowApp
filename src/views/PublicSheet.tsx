@@ -548,12 +548,12 @@ export default function PublicSheet() {
                             <span className="block font-oxanium text-[9.5px] font-bold uppercase tracking-wider text-primary">{label}</span>
                             {purchasedBonus > 0 && (
                               <span className="text-[9px] font-mono font-bold px-1 py-0.5 rounded leading-none bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-                                +{purchasedBonus} comp
+                                Mejora: +{purchasedBonus}
                               </span>
                             )}
                             {traitBonus !== 0 && (
                               <span className={`text-[9px] font-mono font-bold px-1 py-0.5 rounded leading-none ${traitBonus > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
-                                {traitBonus > 0 ? `+${traitBonus}` : traitBonus} rasgo
+                                Rasgo: {traitBonus > 0 ? `+${traitBonus}` : traitBonus}
                               </span>
                             )}
                           </div>
@@ -562,7 +562,7 @@ export default function PublicSheet() {
                               {displayValue(value, '—')}
                             </strong>
                             {hasBonus && hasValue(value) && (
-                              <span className="text-[10px] text-text2/60 font-oxanium" title={`Base: ${base}`}>
+                              <span className="text-[10px] text-text2/60 font-oxanium" title={`Base: ${base}${purchasedBonus ? `, Mejora: +${purchasedBonus}` : ''}${traitBonus ? `, Rasgo: ${traitBonus > 0 ? `+${traitBonus}` : traitBonus}` : ''}`}>
                                 (Base: {base})
                               </span>
                             )}

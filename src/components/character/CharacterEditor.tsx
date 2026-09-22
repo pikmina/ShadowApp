@@ -1144,12 +1144,12 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                           </span>
                           {purchasedAttrPoints > 0 && (
                             <span className="text-cyan-400 font-semibold">
-                              (+{purchasedAttrPoints} comprados)
+                              (Mejoras: +{purchasedAttrPoints})
                             </span>
                           )}
                           {traitAttrPoints !== 0 && (
                             <span className="text-emerald-400 font-semibold">
-                              ({traitAttrPoints > 0 ? `+${traitAttrPoints}` : traitAttrPoints} rasgos)
+                              (Rasgos: {traitAttrPoints > 0 ? `+${traitAttrPoints}` : traitAttrPoints})
                             </span>
                           )}
                           <span className="text-muted-foreground">
@@ -1197,7 +1197,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                             <span>Base: {baseVal}</span>
                             {purchasedVal > 0 && (
                               <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
-                                Comprado: +{purchasedVal}
+                                Mejora: +{purchasedVal}
                               </Badge>
                             )}
                             {traitVal !== 0 && (
