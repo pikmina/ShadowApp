@@ -457,19 +457,6 @@ export async function updatePossession(moderatorUid: string, characterId: number
       ));
     }
 
-    if (element.kind === 'attribute_upgrade') {
-      const attrId = (element.metadata as any)?.attributeId || 'FUE';
-      const currentAttrVal = Number((character.profileData as Record<string, any>)?.[attrId]) || 0;
-      const updatedVal = Math.max(0, currentAttrVal + quantityChange);
-      await tx.update(characters).set({
-        profileData: {
-          ...(character.profileData as Record<string, any>),
-          [attrId]: updatedVal,
-        },
-        updatedAt: new Date(),
-      }).where(eq(characters.id, characterId));
-    }
-
     await tx.insert(auditLogs).values({
       actorUid: moderatorUid,
       actionType: 'possession_update',

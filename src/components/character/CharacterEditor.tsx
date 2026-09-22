@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus, FileText } from "lucide-react";
 import { toast } from "sonner";
-import { validateCharacter, calculateDerivedStats, calculateTraitAttributeBonus } from "@/lib/characterValidation";
+import { validateCharacter, calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses } from "@/lib/characterValidation";
 import { Badge } from "@/components/ui/badge";
 import { CharacterEmployments, CharacterEnrollments } from "./CharacterRelations";
 import { profileValue, type CoreProfileKey } from "@/domain/coreProfileFields";
@@ -1078,16 +1078,13 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         })()}
 
         {activeTab === 'Atributos' && (() => {
-          const purchasedAttrPoints = Array.isArray(character?.possessions)
-            ? character.possessions
-                .filter((p: any) => (p.element?.kind || p.kind) === 'attribute_upgrade')
-                .reduce((sum: number, p: any) => sum + (Number(p.possession?.quantity ?? p.quantity ?? 1)), 0)
-            : 0;
+          const purchasedBonus = calculatePurchasedAttributeBonuses(character?.possessions || [], elements);
+          const purchasedAttrPoints = purchasedBonus.total;
 
           const traitBonus = calculateTraitAttributeBonus(formData, elements, mechanicsList);
           const traitAttrPoints = traitBonus.total;
           const validation = validateCharacter(formData, stagesList, purchasedAttrPoints, 5, traitAttrPoints);
-          const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList);
+          const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList, character?.possessions || []);
           const stage = stagesList.find((s: any) => s.name.toLowerCase() === String(formData['basic_stage'] || formData['stage'] || formData['etapa'] || '').toLowerCase());
           
           return (
@@ -1131,30 +1128,33 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <Label className="text-sm font-bold uppercase tracking-widest text-foreground">Atributos Base</Label>
                     {stage && (() => {
                       const baseSum = (Number(formData.FUE)||0) + (Number(formData.DES)||0) + (Number(formData.RES)||0) + (Number(formData.INT)||0) + (Number(formData.VOL)||0) + (Number(formData.VEL)||0);
-                      const allowedBaseBudget = stage.attrPoints + purchasedAttrPoints;
+                      const allowedBaseBudget = stage.attrPoints;
                       const isOverBudget = baseSum > allowedBaseBudget;
-                      const effectiveTotal = baseSum + traitAttrPoints;
+                      const effectiveTotal = baseSum + purchasedAttrPoints + traitAttrPoints;
                       return (
-                        <div className="text-right">
-                          <span className="text-xs font-mono text-muted-foreground">
+                        <div className="text-right flex items-center gap-2 flex-wrap text-xs font-mono">
+                          <span className="text-muted-foreground">
                             Puntos base: <strong className={isOverBudget ? 'text-red-500' : 'text-primary'}>
                               {baseSum}
                             </strong> / {allowedBaseBudget}
                           </span>
                           {purchasedAttrPoints > 0 && (
-                            <span className="text-[11px] font-mono text-muted-foreground ml-2">
-                              ({stage.attrPoints} de etapa + {purchasedAttrPoints} comprados)
+                            <span className="text-cyan-400 font-semibold">
+                              (+{purchasedAttrPoints} comprados)
                             </span>
                           )}
                           {traitAttrPoints !== 0 && (
-                            <span className="text-[11px] font-mono text-emerald-400/90 ml-2">
-                              ({traitAttrPoints > 0 ? `+${traitAttrPoints}` : traitAttrPoints} por rasgos — Total efectivo: {effectiveTotal})
+                            <span className="text-emerald-400 font-semibold">
+                              ({traitAttrPoints > 0 ? `+${traitAttrPoints}` : traitAttrPoints} rasgos)
                             </span>
                           )}
+                          <span className="text-muted-foreground">
+                            (Total efectivo: <strong>{effectiveTotal}</strong>)
+                          </span>
                         </div>
                       );
                     })()}
@@ -1168,18 +1168,21 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                       { id: 'VOL', label: 'Voluntad', icon: Flame },
                       { id: 'VEL', label: 'Velocidad', icon: Wind }
                     ].map(attr => {
-                      const bonus = traitBonus.byAttr[attr.id] || 0;
                       const baseVal = Number(formData[attr.id]) || 0;
-                      const totalVal = baseVal + bonus;
+                      const purchasedVal = purchasedBonus.byAttr[attr.id] || 0;
+                      const traitVal = traitBonus.byAttr[attr.id] || 0;
+                      const effectiveVal = baseVal + purchasedVal + traitVal;
+                      const hasModifiers = purchasedVal !== 0 || traitVal !== 0;
+
                       return (
-                        <div key={attr.id} className="relative border border-border bg-bg2/40 p-3 rounded-md">
-                          <attr.icon className="absolute right-3 top-1/2 -translate-y-1/2 size-8 text-muted-foreground/10" />
+                        <div key={attr.id} className="relative border border-border bg-bg2/40 p-3 rounded-md space-y-2">
+                          <attr.icon className="absolute right-3 top-2 size-8 text-muted-foreground/10" />
                           <div className="flex items-center justify-between">
                             <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">{attr.label}</Label>
-                            {bonus !== 0 && (
-                              <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 font-mono font-bold ${bonus > 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'}`}>
-                                {bonus > 0 ? `+${bonus}` : bonus} rasgo (Total: {totalVal})
-                              </Badge>
+                            {hasModifiers && (
+                              <span className="text-xs font-mono font-bold text-primary">
+                                Efectivo: {effectiveVal}
+                              </span>
                             )}
                           </div>
                           <Input 
@@ -1188,8 +1191,21 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                             max={stage?.maxAttr || 10} 
                             value={formData[attr.id] || ''} 
                             onChange={e => updateField(attr.id, parseInt(e.target.value) || 0)} 
-                            className="mt-1 font-mono text-lg bg-background" 
+                            className="font-mono text-lg bg-background" 
                           />
+                          <div className="flex flex-wrap items-center gap-1 text-[10px] font-mono text-muted-foreground">
+                            <span>Base: {baseVal}</span>
+                            {purchasedVal > 0 && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
+                                Comprado: +{purchasedVal}
+                              </Badge>
+                            )}
+                            {traitVal !== 0 && (
+                              <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 ${traitVal > 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border-rose-500/30'}`}>
+                                Rasgo: {traitVal > 0 ? `+${traitVal}` : traitVal}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       );
                     })}

@@ -57,7 +57,7 @@ import {
 import { CyberFillerPanel } from '@/components/ui/cyber-filler-panel';
 import { CyberModule } from '@/components/ui/cyber-module';
 import { EntityPanel } from '@/components/ui/entity-panel';
-import { calculateDerivedStats, calculateTraitAttributeBonus } from '@/lib/characterValidation';
+import { calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses } from '@/lib/characterValidation';
 import { cn } from '@/lib/utils';
 
 const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
@@ -151,10 +151,14 @@ export default function PublicSheet() {
 
   let derived = null;
   try {
-    derived = (character && stagesList.length > 0) ? calculateDerivedStats(profile, stagesList, combinedElements, mechanicsList) : null;
+    derived = (character && stagesList.length > 0) ? calculateDerivedStats(profile, stagesList, combinedElements, mechanicsList, character?.possessions || []) : null;
   } catch (err) {
     console.error("Error calculating derived stats:", err);
   }
+
+  const purchasedBonusData = useMemo(() => {
+    return calculatePurchasedAttributeBonuses(character?.possessions || [], combinedElements);
+  }, [character?.possessions, combinedElements]);
 
   const traitBonusData = useMemo(() => {
     return calculateTraitAttributeBonus(profile, combinedElements, mechanicsList);
@@ -218,15 +222,19 @@ export default function PublicSheet() {
   ].map(attr => {
     const rawVal = readValue(profile, [attr.key, attr.key.toLowerCase(), attr.label.toLowerCase()]);
     const baseVal = Number(rawVal || 0);
-    const bonus = traitBonusData.byAttr[attr.key] || 0;
-    const finalVal = baseVal + bonus;
+    const purchasedBonus = purchasedBonusData.byAttr[attr.key] || 0;
+    const traitBonus = traitBonusData.byAttr[attr.key] || 0;
+    const totalBonus = purchasedBonus + traitBonus;
+    const finalVal = baseVal + totalBonus;
     return {
       label: attr.label,
       key: attr.key,
       icon: attr.icon,
       base: baseVal,
-      bonus,
-      hasBonus: bonus !== 0,
+      purchasedBonus,
+      traitBonus,
+      bonus: totalBonus,
+      hasBonus: totalBonus !== 0,
       value: hasValue(rawVal) ? finalVal : undefined,
     };
   });
@@ -530,17 +538,22 @@ export default function PublicSheet() {
                     <HeartPulse className="size-3.5 text-accent2" /> Atributos Base
                   </h2>
                   <div className="grid grid-cols-2 gap-2 flex-1 content-start">
-                    {baseAttributes.map(({ label, base, bonus, hasBonus, value, icon: Icon }) => (
+                    {baseAttributes.map(({ label, base, purchasedBonus, traitBonus, hasBonus, value, icon: Icon }) => (
                       <div key={label} className="flex items-center justify-between rounded border border-bg4/50 bg-bg1/90 px-3 py-2 text-right">
                         <div className="text-text2/50 shrink-0 flex items-center justify-center">
                           <Icon className="size-5" strokeWidth={1.5} />
                         </div>
                         <div className="text-right min-w-0">
-                          <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-1 flex-wrap">
                             <span className="block font-oxanium text-[9.5px] font-bold uppercase tracking-wider text-primary">{label}</span>
-                            {hasBonus && (
-                              <span className={`text-[9px] font-mono font-bold px-1 py-0.5 rounded leading-none ${bonus > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
-                                {bonus > 0 ? `+${bonus}` : bonus}
+                            {purchasedBonus > 0 && (
+                              <span className="text-[9px] font-mono font-bold px-1 py-0.5 rounded leading-none bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                                +{purchasedBonus} comp
+                              </span>
+                            )}
+                            {traitBonus !== 0 && (
+                              <span className={`text-[9px] font-mono font-bold px-1 py-0.5 rounded leading-none ${traitBonus > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+                                {traitBonus > 0 ? `+${traitBonus}` : traitBonus} rasgo
                               </span>
                             )}
                           </div>

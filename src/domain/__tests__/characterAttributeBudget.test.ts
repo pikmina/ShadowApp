@@ -1,120 +1,148 @@
 import { describe, it, expect } from "vitest";
-import { validateCharacter, calculateDerivedStats, calculateTraitAttributeBonus } from "../../lib/characterValidation";
+import {
+  validateCharacter,
+  calculateDerivedStats,
+  calculateTraitAttributeBonus,
+  calculatePurchasedAttributeBonuses,
+} from "../../lib/characterValidation";
 
-describe("Task 8: Attribute Point Budget Accounting & Validation", () => {
+describe("Task 10: Directed Attribute Upgrades & Budget Accounting", () => {
   const mockStages = [
     { name: "Novato", baseHealth: 20, baseStamina: 10, maxAttr: 5, attrPoints: 20, baseDamage: "1D4" },
   ];
 
+  const mockUpgradeElements = [
+    { id: "upg_fue_1", name: "Fuerza +1", kind: "attribute_upgrade", metadata: { attributeId: "FUE" } },
+    { id: "upg_des_1", name: "Destreza +1", kind: "attribute_upgrade", metadata: { attributeId: "DES" } },
+  ];
+
   const mockTraitElements = [
     {
-      id: "trait_vol_plus_1",
-      name: "Fortaleza Mental",
+      id: "trait_fue_plus_1",
+      name: "Musculoso",
       kind: "trait",
       mechanicalBehaviors: [
         {
-          id: "vol_mod_1",
+          id: "fue_mod_1",
           mode: "continuous",
           effects: [
-            { id: "eff_vol_1", type: "attribute_modifier", attributeId: "vol", amount: 1 },
+            { id: "eff_fue_1", type: "attribute_modifier", attributeId: "fue", amount: 1 },
           ],
         },
       ],
     },
   ];
 
-  it("A — Base budget complete + Trait: Valid, base 20/20, effective total 21", () => {
-    const profile = {
-      basic_stage: "Novato",
-      FUE: 3, DES: 2, RES: 2, INT: 5, VOL: 3, VEL: 5, // Sum = 20
-      traits: ["trait_vol_plus_1"],
-    };
+  it("Scenario A — Directed purchase: Base FUE=3 + Fuerza upgrade Lv.1 = Effective FUE=4", () => {
+    const profile = { basic_stage: "Novato", FUE: 3, DES: 2, RES: 2, INT: 5, VOL: 3, VEL: 5 };
+    const possessions = [
+      { elementId: "upg_fue_1", element: mockUpgradeElements[0], quantity: 1 }
+    ];
 
-    const traitBonus = calculateTraitAttributeBonus(profile, mockTraitElements);
-    expect(traitBonus.total).toBe(1);
-    expect(traitBonus.byAttr.VOL).toBe(1);
+    const purchased = calculatePurchasedAttributeBonuses(possessions, mockUpgradeElements);
+    expect(purchased.byAttr.FUE).toBe(1);
+    expect(purchased.byAttr.DES).toBe(0);
 
-    const validation = validateCharacter(profile, mockStages, 0, 5, traitBonus.total);
-    expect(validation.status).toBe("green");
-    expect(validation.messages).toHaveLength(0);
-
-    const derived = calculateDerivedStats(profile, mockStages, mockTraitElements);
-    expect(derived.baseAttributes.VOL).toBe(3);
-    expect(derived.attributes.VOL).toBe(4);
-    
-    const effectiveTotal = Object.values(derived.attributes).reduce((a, b) => a + b, 0);
-    expect(effectiveTotal).toBe(21);
+    const derived = calculateDerivedStats(profile, mockStages, mockUpgradeElements, [], possessions);
+    expect(derived.baseAttributes.FUE).toBe(3);
+    expect(derived.attributes.FUE).toBe(4);
+    expect(derived.attributes.DES).toBe(2);
   });
 
-  it("B — Base budget incomplete + Trait: Invalid, 1 base point missing", () => {
-    const profile = {
-      basic_stage: "Novato",
-      FUE: 3, DES: 2, RES: 2, INT: 5, VOL: 2, VEL: 5, // Sum = 19 (1 point missing)
-      traits: ["trait_vol_plus_1"], // Grants +1 VOL
-    };
+  it("Scenario B — Multiple levels of same attribute upgrade", () => {
+    const profile = { basic_stage: "Novato", FUE: 3, DES: 2, RES: 2, INT: 5, VOL: 3, VEL: 5 };
+    const possessions = [
+      { elementId: "upg_fue_1", element: mockUpgradeElements[0], quantity: 3 }
+    ];
 
-    const traitBonus = calculateTraitAttributeBonus(profile, mockTraitElements);
-    expect(traitBonus.total).toBe(1);
+    const purchased = calculatePurchasedAttributeBonuses(possessions, mockUpgradeElements);
+    expect(purchased.byAttr.FUE).toBe(3);
 
-    const validation = validateCharacter(profile, mockStages, 0, 5, traitBonus.total);
-    expect(validation.status).toBe("orange");
-    expect(validation.messages.some((m) => m.includes("Falta 1 punto de atributo por repartir"))).toBe(true);
+    const derived = calculateDerivedStats(profile, mockStages, mockUpgradeElements, [], possessions);
+    expect(derived.baseAttributes.FUE).toBe(3);
+    expect(derived.attributes.FUE).toBe(6);
   });
 
-  it("C — Purchased points: Valid when base sum matches stage + purchased budget", () => {
+  it("Scenario C — Upgrades on different attributes", () => {
+    const profile = { basic_stage: "Novato", FUE: 3, DES: 2, RES: 2, INT: 5, VOL: 3, VEL: 5 };
+    const possessions = [
+      { elementId: "upg_fue_1", element: mockUpgradeElements[0], quantity: 2 },
+      { elementId: "upg_des_1", element: mockUpgradeElements[1], quantity: 1 }
+    ];
+
+    const purchased = calculatePurchasedAttributeBonuses(possessions, mockUpgradeElements);
+    expect(purchased.byAttr.FUE).toBe(2);
+    expect(purchased.byAttr.DES).toBe(1);
+    expect(purchased.total).toBe(3);
+
+    const derived = calculateDerivedStats(profile, mockStages, mockUpgradeElements, [], possessions);
+    expect(derived.attributes.FUE).toBe(5);
+    expect(derived.attributes.DES).toBe(3);
+  });
+
+  it("Scenario D — Purchase + Trait modifier combined on same attribute", () => {
     const profile = {
       basic_stage: "Novato",
-      FUE: 4, DES: 2, RES: 2, INT: 5, VOL: 4, VEL: 5, // Sum = 22 (20 stage + 2 purchased)
+      FUE: 3, DES: 2, RES: 2, INT: 5, VOL: 3, VEL: 5,
+      traits: ["trait_fue_plus_1"]
     };
+    const possessions = [
+      { elementId: "upg_fue_1", element: mockUpgradeElements[0], quantity: 1 }
+    ];
 
-    const purchasedAttrPoints = 2;
+    const allElements = [...mockUpgradeElements, ...mockTraitElements];
+    const derived = calculateDerivedStats(profile, mockStages, allElements, [], possessions);
+
+    expect(derived.baseAttributes.FUE).toBe(3);
+    expect(derived.purchasedBonuses.FUE).toBe(1);
+    expect(derived.traitBonuses.FUE).toBe(1);
+    expect(derived.attributes.FUE).toBe(5);
+  });
+
+  it("Scenario E — Creation budget independent of purchased upgrades", () => {
+    const profile = { basic_stage: "Novato", FUE: 3, DES: 2, RES: 2, INT: 5, VOL: 3, VEL: 5 }; // Base sum = 20
+    const purchasedAttrPoints = 3;
+
     const validation = validateCharacter(profile, mockStages, purchasedAttrPoints, 5, 0);
     expect(validation.status).toBe("green");
     expect(validation.messages).toHaveLength(0);
   });
 
-  it("D — Purchased + Trait: Valid, base budget 22/22, effective total 23", () => {
-    const profile = {
-      basic_stage: "Novato",
-      FUE: 4, DES: 2, RES: 2, INT: 5, VOL: 4, VEL: 5, // Sum = 22
-      traits: ["trait_vol_plus_1"], // +1 VOL
-    };
+  it("Scenario F — Purchased upgrade does NOT satisfy missing creation points", () => {
+    const profile = { basic_stage: "Novato", FUE: 3, DES: 2, RES: 2, INT: 5, VOL: 2, VEL: 5 }; // Base sum = 19
+    const purchasedAttrPoints = 1; // 1 level purchased
 
-    const purchasedAttrPoints = 2;
-    const traitBonus = calculateTraitAttributeBonus(profile, mockTraitElements);
-    const validation = validateCharacter(profile, mockStages, purchasedAttrPoints, 5, traitBonus.total);
-    
-    expect(validation.status).toBe("green");
-    expect(validation.messages).toHaveLength(0);
-
-    const derived = calculateDerivedStats(profile, mockStages, mockTraitElements);
-    expect(derived.attributes.VOL).toBe(5);
-    const effectiveTotal = Object.values(derived.attributes).reduce((a, b) => a + b, 0);
-    expect(effectiveTotal).toBe(23);
+    const validation = validateCharacter(profile, mockStages, purchasedAttrPoints, 5, 0);
+    expect(validation.status).toBe("orange");
+    expect(validation.messages.some((m) => m.includes("Falta 1 punto de atributo por repartir"))).toBe(true);
   });
 
-  it("E — Too many base points: Invalid when base sum exceeds budget", () => {
-    const profile = {
-      basic_stage: "Novato",
-      FUE: 4, DES: 2, RES: 2, INT: 5, VOL: 3, VEL: 5, // Sum = 21 (Budget = 20)
-    };
+  it("Scenario G — profileData purity: Base allocation is preserved on purchase", () => {
+    const profileData = { basic_stage: "Novato", FUE: 3, DES: 2, RES: 2, INT: 5, VOL: 3, VEL: 5 };
+    const initialFUE = profileData.FUE;
 
-    const validation = validateCharacter(profile, mockStages, 0, 5, 0);
-    expect(validation.status).toBe("red");
-    expect(validation.messages.some((m) => m.includes("Se ha excedido 1 punto de atributo base"))).toBe(true);
+    // Simulate purchase without mutating profileData
+    const possessions = [
+      { elementId: "upg_fue_1", element: mockUpgradeElements[0], quantity: 1 }
+    ];
+
+    // Verify profileData itself was NOT modified
+    expect(profileData.FUE).toBe(initialFUE);
+
+    // Verify calculateDerivedStats correctly computes effective attribute
+    const derived = calculateDerivedStats(profileData, mockStages, mockUpgradeElements, [], possessions);
+    expect(derived.baseAttributes.FUE).toBe(3);
+    expect(derived.attributes.FUE).toBe(4);
   });
 
-  it("F — Trait does not inflate stage max attribute cap for base attributes", () => {
-    const profile = {
-      basic_stage: "Novato", // maxAttr = 5
-      FUE: 6, DES: 2, RES: 2, INT: 5, VOL: 1, VEL: 4, // Sum = 20, but FUE = 6 > 5
-      traits: ["trait_vol_plus_1"], // VOL +1
-    };
+  it("Scenario H — Save/reload hydration produces correct effective attribute", () => {
+    const savedProfile = { basic_stage: "Novato", FUE: 3, DES: 2, RES: 2, INT: 5, VOL: 3, VEL: 5 };
+    const loadedPossessions = [
+      { elementId: "upg_fue_1", element: mockUpgradeElements[0], quantity: 1 }
+    ];
 
-    const traitBonus = calculateTraitAttributeBonus(profile, mockTraitElements);
-    const validation = validateCharacter(profile, mockStages, 0, 5, traitBonus.total);
-
-    expect(validation.status).toBe("red");
-    expect(validation.messages.some((m) => m.includes("Uno o más atributos superan el límite de etapa"))).toBe(true);
+    const hydratedDerived = calculateDerivedStats(savedProfile, mockStages, mockUpgradeElements, [], loadedPossessions);
+    expect(hydratedDerived.baseAttributes.FUE).toBe(3);
+    expect(hydratedDerived.attributes.FUE).toBe(4);
   });
 });

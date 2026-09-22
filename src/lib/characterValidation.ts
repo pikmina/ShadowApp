@@ -43,7 +43,7 @@ export function validateCharacter(
   const baseSum = fue + des + res + int + vol + vel;
   const maxAttr = stage.maxAttr || 0;
   const attrPoints = stage.attrPoints || 0;
-  const allowedBaseBudget = attrPoints + (Number(purchasedAttrPoints) || 0);
+  const allowedBaseBudget = attrPoints;
 
   if (purchasedAttrPoints > maxPurchased) {
     status = 'red';
@@ -158,10 +158,50 @@ export function calculateTraitAttributeBonus(
   return { total, byAttr };
 }
 
-export function calculateDerivedStats(profile: Record<string, any>, stages: any[], elements: any[] = [], mechanics: SystemMechanicsConfig = []) {
+export function calculatePurchasedAttributeBonuses(
+  possessions: any[] = [],
+  elements: any[] = []
+): { total: number; byAttr: Record<string, number> } {
+  const byAttr: Record<string, number> = { FUE: 0, DES: 0, RES: 0, INT: 0, VOL: 0, VEL: 0 };
+  let total = 0;
+
+  if (!Array.isArray(possessions)) return { total, byAttr };
+
+  possessions.forEach((p: any) => {
+    const el = p.element || elements.find((e: any) => e.id === p.elementId || e.id === p.id);
+    const kind = el?.kind || p.kind;
+    if (kind === 'attribute_upgrade') {
+      const metadata = el?.metadata || p.metadata || {};
+      const rawAttr = String(metadata.attributeId || 'FUE').trim().toUpperCase();
+      const qty = Number(p.possession?.quantity ?? p.quantity ?? 1) || 0;
+
+      if (['FUE', 'FUERZA'].includes(rawAttr)) { byAttr.FUE += qty; total += qty; }
+      else if (['DES', 'DESTREZA'].includes(rawAttr)) { byAttr.DES += qty; total += qty; }
+      else if (['RES', 'RESISTENCIA'].includes(rawAttr)) { byAttr.RES += qty; total += qty; }
+      else if (['INT', 'INTELIGENCIA'].includes(rawAttr)) { byAttr.INT += qty; total += qty; }
+      else if (['VOL', 'VOLUNTAD'].includes(rawAttr)) { byAttr.VOL += qty; total += qty; }
+      else if (['VEL', 'VELOCIDAD'].includes(rawAttr)) { byAttr.VEL += qty; total += qty; }
+    }
+  });
+
+  return { total, byAttr };
+}
+
+export function calculateDerivedStats(
+  profile: Record<string, any>,
+  stages: any[],
+  elements: any[] = [],
+  mechanics: SystemMechanicsConfig = [],
+  possessions: any[] = []
+) {
   const stageName = String(profile['basic_stage'] || profile['stage'] || profile['etapa'] || '').trim();
   const stage = stages.find((s: any) => s.name.toLowerCase() === stageName.toLowerCase());
 
+  const activePossessions = (possessions && possessions.length > 0)
+    ? possessions
+    : (Array.isArray(profile.possessions) ? profile.possessions : []);
+
+  const purchasedBonuses = calculatePurchasedAttributeBonuses(activePossessions, elements);
   const traitBonuses = calculateTraitAttributeBonus(profile, elements, mechanics);
 
   const baseFue = Number(profile['FUE'] || profile['fue'] || profile['fuerza']) || 0;
@@ -171,12 +211,12 @@ export function calculateDerivedStats(profile: Record<string, any>, stages: any[
   const baseVol = Number(profile['VOL'] || profile['vol'] || profile['voluntad']) || 0;
   const baseVel = Number(profile['VEL'] || profile['vel'] || profile['velocidad']) || 0;
 
-  let fue = baseFue + (traitBonuses.byAttr.FUE || 0);
-  let des = baseDes + (traitBonuses.byAttr.DES || 0);
-  let res = baseRes + (traitBonuses.byAttr.RES || 0);
-  let int = baseInt + (traitBonuses.byAttr.INT || 0);
-  let vol = baseVol + (traitBonuses.byAttr.VOL || 0);
-  let vel = baseVel + (traitBonuses.byAttr.VEL || 0);
+  let fue = baseFue + (purchasedBonuses.byAttr.FUE || 0) + (traitBonuses.byAttr.FUE || 0);
+  let des = baseDes + (purchasedBonuses.byAttr.DES || 0) + (traitBonuses.byAttr.DES || 0);
+  let res = baseRes + (purchasedBonuses.byAttr.RES || 0) + (traitBonuses.byAttr.RES || 0);
+  let int = baseInt + (purchasedBonuses.byAttr.INT || 0) + (traitBonuses.byAttr.INT || 0);
+  let vol = baseVol + (purchasedBonuses.byAttr.VOL || 0) + (traitBonuses.byAttr.VOL || 0);
+  let vel = baseVel + (purchasedBonuses.byAttr.VEL || 0) + (traitBonuses.byAttr.VEL || 0);
 
   let extraIni = 0;
   let extraEvasion = 0;
@@ -293,6 +333,15 @@ export function calculateDerivedStats(profile: Record<string, any>, stages: any[
       VOL: baseVol,
       VEL: baseVel
     },
-    attributeBonuses: traitBonuses.byAttr
+    purchasedBonuses: purchasedBonuses.byAttr,
+    traitBonuses: traitBonuses.byAttr,
+    attributeBonuses: {
+      FUE: (purchasedBonuses.byAttr.FUE || 0) + (traitBonuses.byAttr.FUE || 0),
+      DES: (purchasedBonuses.byAttr.DES || 0) + (traitBonuses.byAttr.DES || 0),
+      RES: (purchasedBonuses.byAttr.RES || 0) + (traitBonuses.byAttr.RES || 0),
+      INT: (purchasedBonuses.byAttr.INT || 0) + (traitBonuses.byAttr.INT || 0),
+      VOL: (purchasedBonuses.byAttr.VOL || 0) + (traitBonuses.byAttr.VOL || 0),
+      VEL: (purchasedBonuses.byAttr.VEL || 0) + (traitBonuses.byAttr.VEL || 0)
+    }
   };
 }

@@ -220,9 +220,6 @@ export async function processPurchase(moderatorUid: string, characterId: number,
 
         if (element.kind === 'attribute_upgrade') {
           attrUpgradeLevels.set(offer.elementId, toLevel);
-          const attrId = (element.metadata as any)?.attributeId || 'FUE';
-          const currentAttrVal = Number((character.profileData as Record<string, any>)?.[attrId]) || 0;
-          attributeUpdates[attrId] = currentAttrVal + (toLevel - fromLevel);
         }
 
         auditDetails.push({
@@ -284,9 +281,6 @@ export async function processPurchase(moderatorUid: string, characterId: number,
 
         if (element.kind === 'attribute_upgrade') {
           attrUpgradeLevels.set(offer.elementId, (attrUpgradeLevels.get(offer.elementId) || 0) + quantity);
-          const attrId = (element.metadata as any)?.attributeId || 'FUE';
-          const currentAttrVal = Number((character.profileData as Record<string, any>)?.[attrId]) || 0;
-          attributeUpdates[attrId] = currentAttrVal + quantity;
         }
 
         possessionsToAdd[offer.elementId] = (possessionsToAdd[offer.elementId] || 0) + quantity;
