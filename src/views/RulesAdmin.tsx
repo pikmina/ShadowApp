@@ -52,6 +52,7 @@ const defaultStage = {
   baseDefenses: 10,
   attrPoints: 20,
   maxAttr: 6,
+  maxAttributesAtCap: 2,
   baseDamage: "1D8",
   habN1: 3, habN2: 2, habN3: 1, habN4: 0, habN5: 0,
   techN1: 3, techN2: 0, techN3: 0,
@@ -375,7 +376,10 @@ export default function RulesAdmin() {
                           <TableCell>{stage.minAge} - {stage.maxAge} años</TableCell>
                           <TableCell>{stage.exp} / {stage.yen}</TableCell>
                           <TableCell>{stage.baseHealth} / {stage.baseDefenses}</TableCell>
-                          <TableCell>{stage.attrPoints} pts (Máx {stage.maxAttr})</TableCell>
+                          <TableCell>
+                            {stage.attrPoints} pts (Máx {stage.maxAttr}
+                            {typeof stage.maxAttributesAtCap === 'number' ? ` · ${stage.maxAttributesAtCap} al máx` : ''})
+                          </TableCell>
                           <TableCell>{stage.baseDamage}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
@@ -789,6 +793,19 @@ export default function RulesAdmin() {
               <div className="grid gap-2">
                 <Label>Máximo por Atributo</Label>
                 <Input type="number" value={stageForm.maxAttr} onChange={e => setStageForm({...stageForm, maxAttr: Number(e.target.value)})} />
+              </div>
+              <div className="grid gap-2 col-span-2 sm:col-span-1">
+                <Label>Atributos al Máximo Permitidos</Label>
+                <Input 
+                  type="number" 
+                  min="0"
+                  max="6"
+                  value={stageForm.maxAttributesAtCap ?? ''} 
+                  onChange={e => setStageForm({
+                    ...stageForm, 
+                    maxAttributesAtCap: e.target.value === '' ? undefined : Number(e.target.value)
+                  })} 
+                />
               </div>
 
               <h4 className="col-span-2 font-bold text-sm text-foreground mt-2 border-b pb-1">Habilidades Máximas Permitidas</h4>

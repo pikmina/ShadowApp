@@ -714,7 +714,7 @@ const RAW_SYSTEM_WEAKNESSES: Array<{
         id: "mb_mala_cara_support_check",
         mode: "reactive",
         trigger: {
-          kind: "receive_healing",
+          kind: "receive_support",
         },
         conditions: [
           {
@@ -734,9 +734,7 @@ const RAW_SYSTEM_WEAKNESSES: Array<{
               effects: [
                 {
                   id: "eff_mala_cara_reject_support",
-                  type: "incoming_healing_modifier",
-                  amount: -999,
-                  operation: "add",
+                  type: "effect_block",
                 },
               ],
             },

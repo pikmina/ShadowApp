@@ -1092,6 +1092,22 @@ export function getActiveContinuousModifiers(
 // 14. EJECUCIÓN GENÉRICA DE COMPORTAMIENTOS ACTIVOS Y REACTIVOS
 // ============================================================================
 
+export interface IncomingEffectContext {
+  effect: MechanicalEffectItem;
+  sourceEntityId: string;
+  targetEntityId: string;
+  relationship: "self" | "ally" | "enemy";
+  isSupport: boolean;
+  blocked?: boolean;
+  blockedReason?: string;
+}
+
+export type InterceptIncomingEffectFn = (
+  ctx: IncomingEffectContext,
+  world: RuleWorld,
+  encounter: EncounterRuntimeState
+) => { blocked: boolean; blockedReason?: string; newWorld?: RuleWorld; newEncounter?: EncounterRuntimeState };
+
 export interface ExecuteBehaviorOptions {
   behavior: MechanicalBehavior;
   elementId?: string;
@@ -1105,6 +1121,8 @@ export interface ExecuteBehaviorOptions {
   signals?: string[];
   attackTags?: string[];
   useException?: boolean;
+  targetOwnedBehaviors?: Array<{ elementId: string; behavior: MechanicalBehavior }>;
+  interceptIncomingEffect?: InterceptIncomingEffectFn;
 }
 
 export interface ExecuteBehaviorResult {
@@ -1131,6 +1149,8 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
     signals,
     attackTags,
     useException = false,
+    targetOwnedBehaviors,
+    interceptIncomingEffect,
   } = options;
 
   let newWorld = structuredClone(world);
@@ -1301,6 +1321,108 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
         });
         continue;
       }
+    }
+
+    // Helper for incoming effect interception on target
+    const evaluateTargetInterception = (
+      targetId: string,
+      effectToApply: MechanicalEffectItem
+    ): { blocked: boolean; blockedReason?: string } => {
+      const isSelf = sourceEntityId === targetId;
+      const rel: "self" | "ally" | "enemy" = isSelf
+        ? "self"
+        : sourceEntity?.faction && newWorld[targetId]?.faction && sourceEntity.faction === newWorld[targetId].faction
+        ? "ally"
+        : "ally";
+
+      const tags = attackTags ?? (event?.payload?.tags as string[] | undefined) ?? [];
+      const isSupport =
+        tags.includes("support") ||
+        effectToApply.type === "healing" ||
+        effectToApply.type === "barrier" ||
+        (effectToApply.type === "status_apply" && tags.includes("support"));
+
+      const incomingCtx: IncomingEffectContext = {
+        effect: effectToApply,
+        sourceEntityId,
+        targetEntityId: targetId,
+        relationship: rel,
+        isSupport,
+        blocked: false,
+      };
+
+      if (interceptIncomingEffect) {
+        const customRes = interceptIncomingEffect(incomingCtx, newWorld, newEncounter);
+        if (customRes.newWorld) newWorld = customRes.newWorld;
+        if (customRes.newEncounter) newEncounter = customRes.newEncounter;
+        if (customRes.blocked) {
+          return { blocked: true, blockedReason: customRes.blockedReason };
+        }
+      }
+
+      if (targetOwnedBehaviors && targetOwnedBehaviors.length > 0 && isSupport && !isSelf) {
+        const targetParticipant = getOrCreateParticipantState(newEncounter, targetId);
+        const actionKey = event?.id ?? `action_${sourceEntityId}_turn_${newEncounter.turn}`;
+
+        for (const { behavior: targetB } of targetOwnedBehaviors) {
+          if (targetB.mode !== "reactive") continue;
+          const matchesKind =
+            targetB.trigger?.kind === "receive_healing" ||
+            targetB.trigger?.kind === "receive_barrier" ||
+            targetB.trigger?.kind === "receive_support";
+          if (!matchesKind) continue;
+
+          const hasSupportTagCond = (targetB.conditions ?? []).some(
+            (c) => c.type === "tag" && c.tag === "support"
+          );
+          if (hasSupportTagCond && !isSupport) continue;
+
+          if (targetB.resolution?.type === "rd") {
+            const actionExecKey = `${targetB.id}:${actionKey}`;
+            const actionExecResultKey = `${actionExecKey}:blocked`;
+            if (!targetParticipant.executedBehaviorEvents.includes(actionExecKey)) {
+              const diff = targetB.resolution.difficulty ?? 12;
+              const roll = rollResult ?? 10;
+              const resOutcomes = resolveOutcomesForRoll(roll, diff, targetB.resolution.outcomes);
+              targetParticipant.executedBehaviorEvents.push(actionExecKey);
+
+              const hasBlock = resOutcomes.effectsToApply.some(
+                (e: any) =>
+                  e.type === "effect_block" ||
+                  e.type === "action_block" ||
+                  (e.type === "incoming_healing_modifier" && e.amount < 0)
+              );
+              if (hasBlock) {
+                targetParticipant.executedBehaviorEvents.push(actionExecResultKey);
+                return { blocked: true, blockedReason: `${targetB.name ?? targetB.id} rejected support` };
+              }
+            } else {
+              if (targetParticipant.executedBehaviorEvents.includes(actionExecResultKey)) {
+                return { blocked: true, blockedReason: `${targetB.name ?? targetB.id} rejected support` };
+              }
+            }
+          }
+        }
+      }
+
+      return { blocked: false };
+    };
+
+    // Pre-application interception check on actualTargetId
+    const interception = evaluateTargetInterception(actualTargetId, eff);
+    if (interception.blocked) {
+      newEncounter.traceLog.push({
+        timestamp: Date.now(),
+        turn: newEncounter.turn,
+        behaviorId: behavior.id,
+        behaviorName: behavior.name,
+        mode: behavior.mode,
+        eventId: event?.id,
+        conditionsPassed: true,
+        limitationsPassed: true,
+        appliedEffects: [`blocked:${eff.type}`],
+      });
+      continue;
     }
 
     switch (eff.type) {
@@ -1560,6 +1682,7 @@ export function dispatchMechanicalEvent(options: DispatchEventOptions): Dispatch
         dice: options.dice ?? (event.payload?.dice as number[] | undefined),
         attackTags: options.attackTags ?? (event.payload?.tags as string[] | undefined) ?? (event.payload?.tag ? [event.payload.tag as string] : undefined),
         signals: options.signals,
+        targetOwnedBehaviors: event.targetEntityId ? (ownedBehaviorsByEntity[event.targetEntityId] ?? []) : undefined,
       });
 
       if (res.success) {
@@ -1844,6 +1967,759 @@ export function buildCharacterRuleEntityState(
   }
 
   return baseState;
+}
+
+// ============================================================================
+// 19. INITIATIVE RESOLUTION (calculateBaseInitiative & calculateCombatInitiative)
+// ============================================================================
+
+/**
+ * Calculates the canonical base initiative from INT and VEL attributes.
+ * Formula: Math.floor(Math.floor((INT + VEL) / 2) / 2)
+ */
+export function calculateBaseInitiative(int: number = 0, vel: number = 0): number {
+  return Math.floor(Math.floor(((int || 0) + (vel || 0)) / 2) / 2);
+}
+
+export interface CalculateCombatInitiativeOptions {
+  entity: RuleEntityState;
+  participant?: ParticipantRuntimeState;
+  ownedBehaviors?: OwnedBehaviorEntry[];
+  encounter?: EncounterRuntimeState;
+  world?: RuleWorld;
+  signals?: string[];
+  diceRoll?: number;
+  baseIni?: number;
+}
+
+export interface CombatInitiativeResult {
+  baseIni: number;
+  contextualModifier: number;
+  diceRoll: number;
+  total: number;
+}
+
+/**
+ * Resolves combat initiative for an entity within an encounter.
+ * 
+ * Rules:
+ * - baseIni comes from options.baseIni or calculateBaseInitiative(INT, VEL)
+ * - If encounter.turn === 1, the contextual signal 'first_turn' is supplied to evaluate
+ *   first-turn-specific modifiers (e.g. Reflejos Rápidos)
+ * - At encounter.turn >= 2, 'first_turn' is not supplied
+ * - All active derived_stat_modifier effects targeting 'ini' are summed
+ * - Total = baseIni + contextualModifier + diceRoll
+ */
+export function calculateCombatInitiative(
+  options: CalculateCombatInitiativeOptions
+): CombatInitiativeResult {
+  const { entity, encounter, world } = options;
+
+  // 1. Base initiative from explicit option or derived from entity attributes
+  const int = entity.attributes?.INT ?? entity.attributes?.int ?? 0;
+  const vel = entity.attributes?.VEL ?? entity.attributes?.vel ?? 0;
+  const baseIni = options.baseIni ?? calculateBaseInitiative(int, vel);
+
+  // 2. Prepare contextual signals specifically for initiative resolution
+  // At encounter.turn === 1, inject 'first_turn'. At encounter.turn >= 2, exclude 'first_turn'.
+  const rawSignals = options.signals ?? [];
+  const effectiveSignals = rawSignals.filter((s) =>
+    encounter && encounter.turn >= 2 ? s !== "first_turn" : true
+  );
+  if (encounter && encounter.turn === 1) {
+    if (!effectiveSignals.includes("first_turn")) {
+      effectiveSignals.push("first_turn");
+    }
+  }
+
+  // 3. Resolve participant state
+  const participant =
+    options.participant ??
+    (entity.id && encounter?.participants[entity.id]
+      ? encounter.participants[entity.id]
+      : createParticipantRuntimeState(entity.id ?? "entity"));
+
+  // 4. Evaluate continuous modifiers with the contextual signals
+  const continuousMods = getActiveContinuousModifiers(
+    options.ownedBehaviors ?? [],
+    entity,
+    participant,
+    world,
+    effectiveSignals
+  );
+
+  // 5. Sum all active derived_stat_modifier targeting 'ini'
+  let contextualModifier = 0;
+  for (const mod of continuousMods.derivedStatModifiers) {
+    const stat = (mod.statId || "").trim().toLowerCase();
+    if (stat === "ini" || stat === "iniciativa" || stat === "initiative") {
+      if (mod.operation === "subtract") {
+        contextualModifier -= mod.amount;
+      } else {
+        contextualModifier += mod.amount;
+      }
+    }
+  }
+
+  // 6. Final sum with dice contribution
+  const diceRoll = options.diceRoll ?? 0;
+  const total = baseIni + contextualModifier + diceRoll;
+
+  return {
+    baseIni,
+    contextualModifier,
+    diceRoll,
+    total,
+  };
+}
+
+// ============================================================================
+// 19. EJECUCIÓN MULTI-OBJETIVO (executeMultiTargetBehavior)
+// ============================================================================
+
+/**
+ * Resolves the relationship of a target entity relative to a source entity.
+ * Uses explicit faction tags from RuleEntityState.
+ * Returns 'self' if IDs match.
+ * Returns 'ally' if both have matching factions.
+ * Returns 'enemy' if both have differing factions.
+ * Returns 'unknown' if either entity is missing or lacks a faction.
+ */
+export function resolveEntityRelationship(
+  sourceEntityId: string,
+  targetEntityId: string,
+  world: RuleWorld
+): "self" | "ally" | "enemy" | "unknown" {
+  if (sourceEntityId === targetEntityId) {
+    return "self";
+  }
+  const source = world[sourceEntityId];
+  const target = world[targetEntityId];
+  if (!source || !target) {
+    return "unknown";
+  }
+  if (source.faction && target.faction) {
+    return source.faction === target.faction ? "ally" : "enemy";
+  }
+  return "unknown";
+}
+
+export interface ExecuteMultiTargetBehaviorOptions {
+  behavior: MechanicalBehavior;
+  elementId?: string;
+  sourceEntityId: string;
+  targetEntityIds: string[];
+  world: RuleWorld;
+  encounter: EncounterRuntimeState;
+  event?: MechanicalEvent;
+  rollResult?: number;
+  dice?: number[];
+  signals?: string[];
+  attackTags?: string[];
+  useException?: boolean;
+  targetOwnedBehaviors?:
+    | Record<string, Array<{ elementId: string; behavior: MechanicalBehavior }>>
+    | Array<{ elementId: string; behavior: MechanicalBehavior }>;
+  interceptIncomingEffect?: InterceptIncomingEffectFn;
+}
+
+export interface TargetExecutionResult {
+  targetEntityId: string;
+  appliedEffects: MechanicalEffectItem[];
+  blockedEffects: string[];
+  actualAmountCredited?: number;
+}
+
+export interface ExecuteMultiTargetBehaviorResult {
+  success: boolean;
+  reasons?: string[];
+  normalizedTargetIds: string[];
+  targetResults: Record<string, TargetExecutionResult>;
+  usageConsumed: boolean;
+  newWorld: RuleWorld;
+  newEncounter: EncounterRuntimeState;
+  appliedEffects: MechanicalEffectItem[];
+  resolution?: ResolutionResult;
+  emittedEvents: MechanicalEvent[];
+}
+
+/**
+ * Executes a mechanical behavior across multiple targets as a single action.
+ * Evaluates conditions and usage limitations once at the action level.
+ * Validates target quantity and relationship constraints atomically before applying effects.
+ * Consumes usage counters exactly once upon successful execution.
+ */
+export function executeMultiTargetBehavior(
+  options: ExecuteMultiTargetBehaviorOptions
+): ExecuteMultiTargetBehaviorResult {
+  const {
+    behavior,
+    elementId,
+    sourceEntityId,
+    targetEntityIds,
+    world,
+    encounter,
+    event,
+    rollResult,
+    dice,
+    signals,
+    attackTags,
+    useException = false,
+    targetOwnedBehaviors,
+    interceptIncomingEffect,
+  } = options;
+
+  let newWorld = structuredClone(world);
+  let newEncounter = structuredClone(encounter);
+
+  const sourceEntity = newWorld[sourceEntityId];
+  if (!sourceEntity) {
+    return {
+      success: false,
+      reasons: [`Source entity not found: ${sourceEntityId}`],
+      normalizedTargetIds: [],
+      targetResults: {},
+      usageConsumed: false,
+      newWorld,
+      newEncounter,
+      appliedEffects: [],
+      emittedEvents: [],
+    };
+  }
+
+  const participant = getOrCreateParticipantState(newEncounter, sourceEntityId);
+
+  // 1. Normalize target IDs (deduplicate while preserving order)
+  const rawTargets = targetEntityIds ?? [];
+  const normalizedTargetIds = Array.from(new Set(rawTargets));
+
+  if (normalizedTargetIds.length === 0) {
+    return {
+      success: false,
+      reasons: ["No targets provided"],
+      normalizedTargetIds: [],
+      targetResults: {},
+      usageConsumed: false,
+      newWorld,
+      newEncounter,
+      appliedEffects: [],
+      emittedEvents: [],
+    };
+  }
+
+  // 2. Validate quantity contract
+  const targetDef = behavior.target;
+  const quantityDef = targetDef?.quantity;
+  if (quantityDef) {
+    if (quantityDef.mode === "up_to") {
+      const maxCount = quantityDef.count ?? 1;
+      if (normalizedTargetIds.length > maxCount) {
+        return {
+          success: false,
+          reasons: [
+            `Target count ${normalizedTargetIds.length} exceeds maximum allowed of ${maxCount}`,
+          ],
+          normalizedTargetIds,
+          targetResults: {},
+          usageConsumed: false,
+          newWorld,
+          newEncounter,
+          appliedEffects: [],
+          emittedEvents: [],
+        };
+      }
+    } else if (quantityDef.mode === "exact") {
+      const exactCount = quantityDef.count ?? 1;
+      if (normalizedTargetIds.length !== exactCount) {
+        return {
+          success: false,
+          reasons: [
+            `Target count ${normalizedTargetIds.length} does not match exact required count of ${exactCount}`,
+          ],
+          normalizedTargetIds,
+          targetResults: {},
+          usageConsumed: false,
+          newWorld,
+          newEncounter,
+          appliedEffects: [],
+          emittedEvents: [],
+        };
+      }
+    } else if (quantityDef.mode === "all") {
+      // Automatic discovery not implemented; operates on explicit list provided
+    }
+  }
+
+  // 3. Atomic Target Relationship & Existence Validation
+  // If ANY target violates the contract, fail the entire action before applying any effects or consuming usage.
+  const targetType = targetDef?.type ?? "ally";
+  for (const tid of normalizedTargetIds) {
+    const targetEntity = newWorld[tid];
+    if (!targetEntity) {
+      return {
+        success: false,
+        reasons: [`Target entity not found: ${tid}`],
+        normalizedTargetIds,
+        targetResults: {},
+        usageConsumed: false,
+        newWorld,
+        newEncounter,
+        appliedEffects: [],
+        emittedEvents: [],
+      };
+    }
+
+    const rel = resolveEntityRelationship(sourceEntityId, tid, newWorld);
+
+    if (targetType === "ally") {
+      if (tid === sourceEntityId || rel === "self") {
+        return {
+          success: false,
+          reasons: [`Cannot target self when target type is ally: ${tid}`],
+          normalizedTargetIds,
+          targetResults: {},
+          usageConsumed: false,
+          newWorld,
+          newEncounter,
+          appliedEffects: [],
+          emittedEvents: [],
+        };
+      }
+      if (rel !== "ally") {
+        return {
+          success: false,
+          reasons: [
+            `Target ${tid} is not an ally of ${sourceEntityId} (resolved as ${rel})`,
+          ],
+          normalizedTargetIds,
+          targetResults: {},
+          usageConsumed: false,
+          newWorld,
+          newEncounter,
+          appliedEffects: [],
+          emittedEvents: [],
+        };
+      }
+    } else if (targetType === "enemy") {
+      if (rel !== "enemy") {
+        return {
+          success: false,
+          reasons: [
+            `Target ${tid} is not an enemy of ${sourceEntityId} (resolved as ${rel})`,
+          ],
+          normalizedTargetIds,
+          targetResults: {},
+          usageConsumed: false,
+          newWorld,
+          newEncounter,
+          appliedEffects: [],
+          emittedEvents: [],
+        };
+      }
+    } else if (targetType === "self") {
+      if (tid !== sourceEntityId) {
+        return {
+          success: false,
+          reasons: [`Target ${tid} must be self`],
+          normalizedTargetIds,
+          targetResults: {},
+          usageConsumed: false,
+          newWorld,
+          newEncounter,
+          appliedEffects: [],
+          emittedEvents: [],
+        };
+      }
+    }
+  }
+
+  // 4. Anti-loop / duplicate execution check on event
+  if (event) {
+    const execKey = `${behavior.id}:${event.id}`;
+    if (participant.executedBehaviorEvents.includes(execKey)) {
+      return {
+        success: false,
+        reasons: ["Behavior already executed for this event"],
+        normalizedTargetIds,
+        targetResults: {},
+        usageConsumed: false,
+        newWorld,
+        newEncounter,
+        appliedEffects: [],
+        emittedEvents: [],
+      };
+    }
+  }
+
+  // 5. Action-level Conditions evaluation (once)
+  const evalCtx: ConditionEvaluationContext = {
+    entity: sourceEntity,
+    participant,
+    world: newWorld,
+    event,
+    rollResult,
+    dice,
+    signals,
+    attackTags,
+  };
+
+  let conditionsPassed = evaluateMechanicalConditions(
+    behavior.conditions,
+    behavior.conditionLogic,
+    evalCtx
+  );
+
+  // 6. Action-level Limitations check (once)
+  let limitationResult = checkLimitations(
+    behavior,
+    participant,
+    sourceEntity,
+    newEncounter.turn
+  );
+
+  if (!conditionsPassed || !limitationResult.passed) {
+    const exception = behavior.control?.exception;
+    if (useException && exception && exception.allowWhenRequirementFailed) {
+      const costRes = (exception.costResource ?? "ES") as "SA" | "ES";
+      const costAmt = exception.costAmount ?? 0;
+      if (sourceEntity.resources[costRes].current >= costAmt) {
+        sourceEntity.resources[costRes].current -= costAmt;
+        if (costRes === "ES") participant.esSpentThisTurn += costAmt;
+        else participant.hpLostThisTurn += costAmt;
+        conditionsPassed = true;
+        limitationResult = { passed: true };
+      } else {
+        return {
+          success: false,
+          reasons: [`Insufficient resource for exception: ${costRes} < ${costAmt}`],
+          normalizedTargetIds,
+          targetResults: {},
+          usageConsumed: false,
+          newWorld,
+          newEncounter,
+          appliedEffects: [],
+          emittedEvents: [],
+        };
+      }
+    } else {
+      return {
+        success: false,
+        reasons: !conditionsPassed ? ["Conditions not met"] : ["Limitations violated"],
+        normalizedTargetIds,
+        targetResults: {},
+        usageConsumed: false,
+        newWorld,
+        newEncounter,
+        appliedEffects: [],
+        emittedEvents: [],
+      };
+    }
+  }
+
+  // 7. Resolution (if any)
+  let resolutionResult: ResolutionResult | undefined;
+  const effectsToExecute: MechanicalEffectItem[] = [...behavior.effects];
+
+  if (behavior.resolution) {
+    if (behavior.resolution.type === "rd") {
+      const diff = behavior.resolution.difficulty ?? 12;
+      const roll = rollResult ?? 10;
+      resolutionResult = resolveOutcomesForRoll(roll, diff, behavior.resolution.outcomes);
+      effectsToExecute.push(...resolutionResult.effectsToApply);
+    } else if (behavior.resolution.type === "roll") {
+      const diff = behavior.resolution.difficulty ?? 10;
+      const roll = rollResult ?? 10;
+      resolutionResult = resolveOutcomesForRoll(roll, diff, behavior.resolution.outcomes);
+      effectsToExecute.push(...resolutionResult.effectsToApply);
+    }
+  }
+
+  // 8. Apply effects per target
+  const targetResults: Record<string, TargetExecutionResult> = {};
+  const allAppliedEffects: MechanicalEffectItem[] = [];
+  const emittedEvents: MechanicalEvent[] = [];
+
+  // Action identity shared across targets for Task 17 interception deduplication
+  const actionKey = event?.id ?? `action_${sourceEntityId}_turn_${newEncounter.turn}_${behavior.id}`;
+
+  const helperGetTargetBehaviors = (tid: string) => {
+    if (!targetOwnedBehaviors) return undefined;
+    if (Array.isArray(targetOwnedBehaviors)) return targetOwnedBehaviors;
+    return targetOwnedBehaviors[tid];
+  };
+
+  for (const tid of normalizedTargetIds) {
+    const targetEntity = newWorld[tid];
+    const targetParticipant = getOrCreateParticipantState(newEncounter, tid);
+    const specificOwnedBehaviors = helperGetTargetBehaviors(tid);
+
+    const appliedForTarget: MechanicalEffectItem[] = [];
+    const blockedForTarget: string[] = [];
+    let creditedAmountForTarget = 0;
+
+    for (const eff of effectsToExecute) {
+      // Temporality check
+      const temporality = eff.temporality ?? behavior.temporality;
+      const durationType = temporality?.duration?.type ?? "instant";
+
+      if (
+        durationType === "until_next_use" ||
+        durationType === "until_next_roll" ||
+        durationType === "until_turn_end"
+      ) {
+        if (eff.type === "cost_modifier") {
+          targetParticipant.pendingModifiers.push({
+            id: `${eff.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            sourceElementId: elementId,
+            scope: eff.scopeId ?? "all",
+            type: "cost",
+            amount: eff.amount,
+            operation: eff.operation,
+            duration: durationType,
+          });
+          appliedForTarget.push(eff);
+          continue;
+        }
+        if (eff.type === "roll_modifier" || eff.type === "penalty" || eff.type === "bonus") {
+          targetParticipant.pendingModifiers.push({
+            id: `${eff.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            sourceElementId: elementId,
+            scope: eff.type === "roll_modifier" ? (eff.rollType ?? "action_roll") : "all",
+            type: "roll",
+            amount: eff.type === "penalty" ? -Math.abs(eff.amount) : eff.amount,
+            operation: eff.operation,
+            duration: durationType,
+          });
+          appliedForTarget.push(eff);
+          continue;
+        }
+      }
+
+      // Incoming effect interception check (Mala Cara / custom interception)
+      const tags = attackTags ?? (event?.payload?.tags as string[] | undefined) ?? [];
+      const isSupport =
+        tags.includes("support") ||
+        eff.type === "healing" ||
+        eff.type === "barrier" ||
+        (eff.type === "status_apply" && tags.includes("support"));
+
+      const rel = resolveEntityRelationship(sourceEntityId, tid, newWorld);
+      const incomingCtx: IncomingEffectContext = {
+        effect: eff,
+        sourceEntityId,
+        targetEntityId: tid,
+        relationship: rel === "unknown" ? "ally" : rel,
+        isSupport,
+        blocked: false,
+      };
+
+      let isBlocked = false;
+      let blockReason: string | undefined;
+
+      if (interceptIncomingEffect) {
+        const customRes = interceptIncomingEffect(incomingCtx, newWorld, newEncounter);
+        if (customRes.newWorld) newWorld = customRes.newWorld;
+        if (customRes.newEncounter) newEncounter = customRes.newEncounter;
+        if (customRes.blocked) {
+          isBlocked = true;
+          blockReason = customRes.blockedReason;
+        }
+      }
+
+      if (!isBlocked && specificOwnedBehaviors && specificOwnedBehaviors.length > 0 && isSupport && tid !== sourceEntityId) {
+        for (const { behavior: targetB } of specificOwnedBehaviors) {
+          if (targetB.mode !== "reactive") continue;
+          const matchesKind =
+            targetB.trigger?.kind === "receive_healing" ||
+            targetB.trigger?.kind === "receive_barrier" ||
+            targetB.trigger?.kind === "receive_support";
+          if (!matchesKind) continue;
+
+          const hasSupportTagCond = (targetB.conditions ?? []).some(
+            (c) => c.type === "tag" && c.tag === "support"
+          );
+          if (hasSupportTagCond && !isSupport) continue;
+
+          if (targetB.resolution?.type === "rd") {
+            const actionExecKey = `${targetB.id}:${actionKey}`;
+            const actionExecResultKey = `${actionExecKey}:blocked`;
+            if (!targetParticipant.executedBehaviorEvents.includes(actionExecKey)) {
+              const diff = targetB.resolution.difficulty ?? 12;
+              const roll = rollResult ?? 10;
+              const resOutcomes = resolveOutcomesForRoll(roll, diff, targetB.resolution.outcomes);
+              targetParticipant.executedBehaviorEvents.push(actionExecKey);
+
+              const hasBlock = resOutcomes.effectsToApply.some(
+                (e: any) =>
+                  e.type === "effect_block" ||
+                  e.type === "action_block" ||
+                  (e.type === "incoming_healing_modifier" && e.amount < 0)
+              );
+              if (hasBlock) {
+                targetParticipant.executedBehaviorEvents.push(actionExecResultKey);
+                isBlocked = true;
+                blockReason = `${targetB.name ?? targetB.id} rejected support`;
+                break;
+              }
+            } else {
+              if (targetParticipant.executedBehaviorEvents.includes(actionExecResultKey)) {
+                isBlocked = true;
+                blockReason = `${targetB.name ?? targetB.id} rejected support`;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (isBlocked) {
+        blockedForTarget.push(eff.type);
+        newEncounter.traceLog.push({
+          timestamp: Date.now(),
+          turn: newEncounter.turn,
+          behaviorId: behavior.id,
+          behaviorName: behavior.name,
+          mode: behavior.mode,
+          eventId: event?.id,
+          conditionsPassed: true,
+          limitationsPassed: true,
+          appliedEffects: [`blocked:${eff.type}:${tid}`],
+        });
+        continue;
+      }
+
+      appliedForTarget.push(eff);
+      if (!allAppliedEffects.includes(eff)) {
+        allAppliedEffects.push(eff);
+      }
+
+      const currentTargetEntity = newWorld[tid];
+
+      switch (eff.type) {
+        case "healing": {
+          const res = processHealingPipeline({
+            baseHealing: eff.amount,
+            resourceId: eff.resourceId,
+            healerId: sourceEntityId,
+            targetId: tid,
+            world: newWorld,
+            encounter: newEncounter,
+          });
+          newWorld = res.newWorld;
+          creditedAmountForTarget += res.actualAmountCredited;
+          break;
+        }
+
+        case "damage": {
+          const dmg = parseInt(eff.dice, 10) || 4;
+          const res = processDamagePipeline({
+            baseDamage: dmg,
+            attackerId: sourceEntityId,
+            targetId: tid,
+            tags: attackTags,
+            world: newWorld,
+            encounter: newEncounter,
+          });
+          newWorld = res.newWorld;
+          break;
+        }
+
+        case "barrier": {
+          currentTargetEntity.barrier += eff.amount;
+          break;
+        }
+
+        case "status_apply": {
+          currentTargetEntity.statuses.push({
+            sourceId: behavior.id,
+            statusElementId: eff.statusElementId,
+            expiresAt: eff.turns ? newEncounter.turn + eff.turns : undefined,
+          });
+          break;
+        }
+
+        case "status_remove": {
+          currentTargetEntity.statuses = currentTargetEntity.statuses.filter(
+            (s) => s.statusElementId !== eff.statusElementId
+          );
+          break;
+        }
+
+        case "resource_modifier": {
+          const res = currentTargetEntity.resources[eff.resourceId as "SA" | "ES"];
+          if (res) {
+            const op = eff.operation ?? "add";
+            res.current = applyModifierMath(res.current, [{ operation: op, amount: eff.amount }]);
+          }
+          break;
+        }
+
+        default:
+          break;
+      }
+    }
+
+    targetResults[tid] = {
+      targetEntityId: tid,
+      appliedEffects: appliedForTarget,
+      blockedEffects: blockedForTarget,
+      actualAmountCredited: creditedAmountForTarget,
+    };
+  }
+
+  // 9. Update limitations & cooldowns EXACTLY ONCE on source participant
+  for (const lim of behavior.limitations ?? []) {
+    if (lim.type === "cooldown") {
+      participant.cooldowns[behavior.id] = newEncounter.turn + lim.turns + 1;
+    } else if (lim.type === "usage_limit") {
+      const key = `${lim.period}:current:${behavior.id}`;
+      participant.usageCounters[key] = (participant.usageCounters[key] ?? 0) + 1;
+    }
+  }
+
+  // 10. Update control counters on source (if configured)
+  if (behavior.control?.counter) {
+    const cConf = behavior.control.counter;
+    const cKey = makeCounterKey(sourceEntityId, elementId, behavior.id, cConf.id);
+    const inc = cConf.incrementOnTrigger ?? 1;
+    const newVal = mutateCounter(participant, cKey, "increment", inc, cConf.cap, cConf.initialValue ?? 0);
+    if (behavior.control.accumulation) {
+      const accum = behavior.control.accumulation;
+      if (newVal >= accum.threshold && accum.resetOnThreshold) {
+        participant.activeCounters[cKey] = cConf.initialValue ?? 0;
+      }
+    }
+  }
+
+  if (event) {
+    participant.executedBehaviorEvents.push(`${behavior.id}:${event.id}`);
+  }
+
+  newEncounter.traceLog.push({
+    timestamp: Date.now(),
+    turn: newEncounter.turn,
+    behaviorId: behavior.id,
+    behaviorName: behavior.name,
+    mode: behavior.mode,
+    eventId: event?.id,
+    conditionsPassed: true,
+    limitationsPassed: true,
+    appliedEffects: allAppliedEffects.map((e) => e.type),
+  });
+
+  return {
+    success: true,
+    normalizedTargetIds,
+    targetResults,
+    usageConsumed: true,
+    newWorld,
+    newEncounter,
+    appliedEffects: allAppliedEffects,
+    resolution: resolutionResult,
+    emittedEvents,
+  };
 }
 
 

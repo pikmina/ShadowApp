@@ -218,6 +218,7 @@ export default function SystemManual() {
                       <th className="px-4 py-3 font-medium text-center">Edad</th>
                       <th className="px-4 py-3 font-medium text-center">Pts. Atributo</th>
                       <th className="px-4 py-3 font-medium text-center">Máx. por Atributo</th>
+                      <th className="px-4 py-3 font-medium text-center">Atributos al Máx</th>
                       <th className="px-4 py-3 font-medium text-center">Salud Base</th>
                       <th className="px-4 py-3 font-medium text-center">Estamina Base</th>
                       <th className="px-4 py-3 font-medium text-center">Dado Base</th>
@@ -230,6 +231,9 @@ export default function SystemManual() {
                         <td className="px-4 py-3 text-center text-muted-foreground">{st.minAge} - {st.maxAge}</td>
                         <td className="px-4 py-3 text-center">{st.attrPoints}</td>
                         <td className="px-4 py-3 text-center">{st.maxAttr}</td>
+                        <td className="px-4 py-3 text-center font-mono font-medium text-cyan-400">
+                          {typeof st.maxAttributesAtCap === 'number' ? st.maxAttributesAtCap : '—'}
+                        </td>
                         <td className="px-4 py-3 text-center text-red-400 font-medium">{st.baseHealth}</td>
                         <td className="px-4 py-3 text-center text-emerald-400 font-medium">{st.baseStamina}</td>
                         <td className="px-4 py-3 text-center text-orange-400 font-medium">{st.baseDamage}</td>
@@ -237,7 +241,7 @@ export default function SystemManual() {
                     ))}
                     {stages.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground bg-card">No hay etapas configuradas en el sistema.</td>
+                        <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground bg-card">No hay etapas configuradas en el sistema.</td>
                       </tr>
                     )}
                   </tbody>

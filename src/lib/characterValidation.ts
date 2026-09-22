@@ -1,5 +1,6 @@
 import { resolvePassiveEffects } from "../domain/ruleEngine";
 import { appliedMechanicReferenceSchema, resolveAppliedMechanics, type SystemMechanicsConfig } from '../domain/systemMechanics';
+import { calculateBaseInitiative } from '../domain/mechanicalRuntime';
 
 export interface ValidationResult {
   status: 'green' | 'orange' | 'red';
@@ -71,6 +72,28 @@ export function validateCharacter(
     messages.push(`Uno o más atributos superan el límite de etapa (Máx. ${maxAttr}).`);
   }
 
+  // Validate number of base attributes at the maximum cap
+  const configuredMaxAtCap = typeof stage.maxAttributesAtCap === 'number' && Number.isFinite(stage.maxAttributesAtCap)
+    ? stage.maxAttributesAtCap
+    : null;
+
+  if (configuredMaxAtCap !== null && maxAttr > 0) {
+    const traitList = Array.isArray(profile.traits) ? profile.traits : [];
+    const hasTalentoso = traitList.some((t: any) => {
+      const id = typeof t === 'string' ? t : (t?.id || t?.elementId || '');
+      return id === 'core.trait.talented';
+    });
+
+    const allowedAtCap = configuredMaxAtCap + (hasTalentoso ? 1 : 0);
+    const baseAttrs = [fue, des, res, int, vol, vel];
+    const countAtCap = baseAttrs.filter(val => val === maxAttr).length;
+
+    if (countAtCap > allowedAtCap) {
+      status = 'red';
+      messages.push(`Se ha superado el límite de atributos al máximo (${countAtCap}/${allowedAtCap}).`);
+    }
+  }
+
   return { status, messages };
 }
 
@@ -140,7 +163,13 @@ export function calculateTraitAttributeBonus(
       ? el.effects.filter((effect: unknown) => !appliedMechanicReferenceSchema.safeParse(effect).success)
       : [];
 
-    [...directEffects, ...referencedEffects, ...behaviorEffects].forEach((eff: any) => {
+    // Precedence rule:
+    // If usable MechanicalBehavior effects exist, use mechanicalBehaviors and ignore legacy directEffects.
+    // If no usable MechanicalBehavior effects exist, fallback to legacy directEffects.
+    // Legitimate referencedEffects (from appliedMechanicReferenceSchema) are preserved.
+    const activeDirectEffects = behaviorEffects.length > 0 ? [] : directEffects;
+
+    [...behaviorEffects, ...activeDirectEffects, ...referencedEffects].forEach((eff: any) => {
       const rawAttr = String(eff.attributeId || eff.statId || eff.target || '').trim().toUpperCase();
       const amount = Number(eff.amount ?? eff.value ?? 0);
 
@@ -269,7 +298,13 @@ export function calculateDerivedStats(
       ? el.effects.filter((effect: unknown) => !appliedMechanicReferenceSchema.safeParse(effect).success)
       : [];
 
-    [...directEffects, ...referencedEffects, ...behaviorEffects].forEach((eff: any) => {
+    // Precedence rule:
+    // If usable MechanicalBehavior effects exist, use mechanicalBehaviors and ignore legacy directEffects.
+    // If no usable MechanicalBehavior effects exist, fallback to legacy directEffects.
+    // Legitimate referencedEffects (from appliedMechanicReferenceSchema) are preserved.
+    const activeDirectEffects = behaviorEffects.length > 0 ? [] : directEffects;
+
+    [...behaviorEffects, ...activeDirectEffects, ...referencedEffects].forEach((eff: any) => {
       const attrId = String(eff.attributeId || eff.statId || eff.target || '').trim().toUpperCase();
       const amount = Number(eff.amount ?? eff.value ?? 0);
 
@@ -294,7 +329,7 @@ export function calculateDerivedStats(
   const coraje = 10 + vol + extraCoraje;
   const modFue = calculateModifier(fue);
   const modDes = calculateModifier(des);
-  const iniciativa = calculateModifier(Math.floor((int + vel) / 2)) + extraIni;
+  const iniciativa = calculateBaseInitiative(int, vel) + extraIni;
   const reduccionDano = extraRed;
   
   // Daño Físico format: "1D8 + 2" (or just "1D8" if mod is 0, or "1D8 - 1" if negative)

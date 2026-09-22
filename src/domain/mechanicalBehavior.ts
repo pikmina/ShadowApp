@@ -474,6 +474,13 @@ export const mechanicalEffectItemSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     id: z.string().min(1),
+    type: z.literal("effect_block"),
+    scope: z.enum(["all", "support", "damage", "healing", "barrier"]).or(z.string()).optional().default("support"),
+    target: mechanicalTargetSchema.optional(),
+    temporality: mechanicalTemporalitySchema.optional(),
+  }),
+  z.object({
+    id: z.string().min(1),
     type: z.literal("turn_loss"),
     turns: z.number().int().positive().default(1),
     target: mechanicalTargetSchema.optional(),

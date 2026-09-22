@@ -438,13 +438,13 @@ describe('Fase 3 — Migración de las 23 Debilidades a MechanicalBehavior', () 
 
       // Chequeo de soporte entrante en fallo (tirada 8 contra RD 12)
       const resFail = dispatchMechanicalEvent({
-        event: { kind: 'receive_healing', sourceEntityId: 'hero', payload: { tags: ['support'] } },
+        event: { kind: 'receive_support', sourceEntityId: 'hero', payload: { tags: ['support'] } },
         world,
         encounter,
         ownedBehaviors: owned,
         rollResult: 8,
       });
-      expect(resFail.appliedEffects.some((e) => e.type === 'incoming_healing_modifier' && e.amount < 0)).toBe(true);
+      expect(resFail.appliedEffects.some((e) => e.type === 'effect_block')).toBe(true);
     });
   });
 

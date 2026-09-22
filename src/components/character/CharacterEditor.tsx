@@ -1142,6 +1142,29 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                               {baseSum}
                             </strong> / {allowedBaseBudget}
                           </span>
+                          {typeof stage.maxAttributesAtCap === 'number' && stage.maxAttr > 0 && (() => {
+                            const traitList = Array.isArray(formData.traits) ? formData.traits : [];
+                            const hasTalentoso = traitList.some((t: any) => {
+                              const id = typeof t === 'string' ? t : (t?.id || t?.elementId || '');
+                              return id === 'core.trait.talented';
+                            });
+                            const allowedAtCap = stage.maxAttributesAtCap + (hasTalentoso ? 1 : 0);
+                            const countAtCap = ['FUE', 'DES', 'RES', 'INT', 'VOL', 'VEL'].filter(
+                              attr => (Number(formData[attr]) || 0) === stage.maxAttr
+                            ).length;
+                            const isCapExceeded = countAtCap > allowedAtCap;
+
+                            return (
+                              <span className="text-muted-foreground">
+                                Al máximo ({stage.maxAttr}): <strong className={isCapExceeded ? 'text-red-500' : 'text-primary'}>
+                                  {countAtCap}
+                                </strong> / {allowedAtCap}
+                                {hasTalentoso && (
+                                  <span className="text-emerald-400 font-semibold ml-1">(+1 Talentoso)</span>
+                                )}
+                              </span>
+                            );
+                          })()}
                           {purchasedAttrPoints > 0 && (
                             <span className="text-cyan-400 font-semibold">
                               (Mejoras: +{purchasedAttrPoints})

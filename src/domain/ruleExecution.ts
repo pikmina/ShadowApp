@@ -3,6 +3,11 @@ import type { ResolvedRuleGroup } from './systemMechanics';
 import type { RuleOperation } from './ruleEngine';
 
 export type RuleEntityState = {
+  id?: string;
+  name?: string;
+  level?: number;
+  rank?: string;
+  faction?: string;
   resources: Record<'SA' | 'ES', { current: number; max: number }>;
   barrier: number;
   barriers?: Array<{ sourceId: string; amount: number; expiresAt?: number; cap?: { min: number; max: number } }>;

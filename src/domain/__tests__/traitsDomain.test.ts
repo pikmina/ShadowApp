@@ -225,10 +225,12 @@ describe('Domain: 14 SYSTEM_TRAITS Integration & Mechanics', () => {
       expect(wealth.metadata?.supportPending?.[0]).toContain('pago mensual manual');
     });
 
-    it('talented specifies manual cap exception note without inventing arbitrary rules', () => {
+    it('talented specifies cap exception behavior without pending note', () => {
       const talented = SYSTEM_TRAITS.find(t => t.id === 'core.trait.talented')!;
+      expect(talented.mechanicalBehaviors[0].id).toBe('talented.cap-exception');
       expect(talented.mechanicalBehaviors[0].effects[0].type).toBe('manual');
-      expect(talented.metadata?.supportPending?.[0]).toContain('Las etapas no definen');
+      expect((talented.mechanicalBehaviors[0].effects[0] as any).message).toContain('maxAttributesAtCap + 1');
+      expect(talented.metadata?.supportPending).toEqual([]);
     });
 
     it('flying specifies narrative capability note', () => {
