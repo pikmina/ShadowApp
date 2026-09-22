@@ -30,37 +30,38 @@ describe("Mechanical Effect Editor Logic & Hydration", () => {
       expect(effect.type).toBe(type);
 
       // Verify specific required fields per type
+      const eff = effect as any;
       if (type === "damage") {
-        expect(effect.dice).toBeDefined();
+        expect(eff.dice).toBeDefined();
       } else if (type === "healing") {
-        expect(effect.resourceId).toBeDefined();
-        expect(effect.amount).toBeDefined();
+        expect(eff.resourceId).toBeDefined();
+        expect(eff.amount).toBeDefined();
       } else if (type === "barrier") {
-        expect(effect.amount).toBeDefined();
+        expect(eff.amount).toBeDefined();
       } else if (type === "attribute_modifier") {
-        expect(effect.attributeId).toBeDefined();
-        expect(effect.amount).toBeDefined();
+        expect(eff.attributeId).toBeDefined();
+        expect(eff.amount).toBeDefined();
       } else if (type === "cost_modifier") {
-        expect(effect.scopeId).toBeDefined();
-        expect(effect.amount).toBeDefined();
+        expect(eff.scopeId).toBeDefined();
+        expect(eff.amount).toBeDefined();
       } else if (type === "incoming_damage_modifier") {
-        expect(effect.amount).toBeDefined();
+        expect(eff.amount).toBeDefined();
       } else if (type === "outgoing_damage_modifier") {
-        expect(effect.amount).toBeDefined();
+        expect(eff.amount).toBeDefined();
       } else if (type === "roll_modifier") {
-        expect(effect.rollType).toBeDefined();
-        expect(effect.amount).toBeDefined();
+        expect(eff.rollType).toBeDefined();
+        expect(eff.amount).toBeDefined();
       } else if (type === "status_apply") {
-        expect(effect.statusElementId).toBeDefined();
+        expect(eff.statusElementId).toBeDefined();
       } else if (type === "turn_loss") {
-        expect(effect.turns).toBeDefined();
+        expect(eff.turns).toBeDefined();
       } else if (type === "action_block") {
-        expect(effect.blockedAction).toBeDefined();
+        expect(eff.blockedAction).toBeDefined();
       } else if (type === "counter_modifier") {
-        expect(effect.counterId).toBeDefined();
-        expect(effect.value).toBeDefined();
+        expect(eff.counterId).toBeDefined();
+        expect(eff.value).toBeDefined();
       } else if (type === "manual") {
-        expect(effect.message).toBeDefined();
+        expect(eff.message).toBeDefined();
       }
     });
   });

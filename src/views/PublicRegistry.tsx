@@ -210,7 +210,7 @@ export default function PublicRegistry() {
                   
                   {c.status === 'occupied' && c.linkedCharacterId && (
                     <div className="mt-4 pt-4 border-t border-white/10 text-right">
-                      <Link to={`/sheet/${c.linkedCharacterId}`} className="text-xs font-oxanium text-slate-300 hover:text-cyan-400 transition-colors uppercase tracking-widest inline-flex items-center gap-1">
+                      <Link to={`/sheet/${c.linkedCharacterId}`} target="_blank" rel="noopener noreferrer" className="text-xs font-oxanium text-slate-300 hover:text-cyan-400 transition-colors uppercase tracking-widest inline-flex items-center gap-1">
                         Ver Ficha <span aria-hidden="true">&rarr;</span>
                       </Link>
                     </div>
@@ -265,7 +265,7 @@ function PublicEmployments() {
                           <div key={occ.employmentId} className="flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary/70"></span>
                             {occ.characterId ? (
-                              <Link to={`/sheet/${occ.characterId}`} className="hover:text-primary transition-colors text-foreground">{occ.name}</Link>
+                              <Link to={`/sheet/${occ.characterId}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors text-foreground">{occ.name}</Link>
                             ) : (
                               <span className="text-foreground">{occ.name}</span>
                             )}
@@ -330,7 +330,7 @@ function PublicClasses() {
                     {cls.students.length === 0 && <span className="text-muted-foreground text-xs italic">Sin alumnos inscritos</span>}
                     {cls.students.map((student: any) => (
                       <div key={student.enrollmentId} className="flex items-center justify-between text-sm bg-muted/20 p-2 rounded">
-                        {student.characterId ? <Link to={`/sheet/${student.characterId}`} className="hover:text-primary transition-colors text-foreground truncate mr-2">{student.name}</Link> : <span className="truncate mr-2 text-foreground">{student.name}</span>}
+                        {student.characterId ? <Link to={`/sheet/${student.characterId}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors text-foreground truncate mr-2">{student.name}</Link> : <span className="truncate mr-2 text-foreground">{student.name}</span>}
                         {student.canon && <Badge variant="secondary" className="text-[9px] shrink-0">Canon</Badge>}
                       </div>
                     ))}

@@ -1134,19 +1134,25 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-bold uppercase tracking-widest text-foreground">Atributos Base</Label>
                     {stage && (() => {
-                      const totalPts = (Number(formData.FUE)||0) + (Number(formData.DES)||0) + (Number(formData.RES)||0) + (Number(formData.INT)||0) + (Number(formData.VOL)||0) + (Number(formData.VEL)||0);
-                      const extraPts = purchasedAttrPoints + traitAttrPoints;
-                      const basePts = Math.max(0, totalPts - extraPts);
+                      const baseSum = (Number(formData.FUE)||0) + (Number(formData.DES)||0) + (Number(formData.RES)||0) + (Number(formData.INT)||0) + (Number(formData.VOL)||0) + (Number(formData.VEL)||0);
+                      const allowedBaseBudget = stage.attrPoints + purchasedAttrPoints;
+                      const isOverBudget = baseSum > allowedBaseBudget;
+                      const effectiveTotal = baseSum + traitAttrPoints;
                       return (
                         <div className="text-right">
                           <span className="text-xs font-mono text-muted-foreground">
-                            Puntos base: <strong className={basePts > stage.attrPoints ? 'text-red-500' : 'text-primary'}>
-                              {basePts}
-                            </strong> / {stage.attrPoints}
+                            Puntos base: <strong className={isOverBudget ? 'text-red-500' : 'text-primary'}>
+                              {baseSum}
+                            </strong> / {allowedBaseBudget}
                           </span>
-                          {extraPts > 0 && (
+                          {purchasedAttrPoints > 0 && (
                             <span className="text-[11px] font-mono text-muted-foreground ml-2">
-                              (+{extraPts} extras: {purchasedAttrPoints > 0 ? `${purchasedAttrPoints} comprados` : ''}{purchasedAttrPoints > 0 && traitAttrPoints > 0 ? ', ' : ''}{traitAttrPoints > 0 ? `${traitAttrPoints} por rasgos` : ''} — Total: {totalPts})
+                              ({stage.attrPoints} de etapa + {purchasedAttrPoints} comprados)
+                            </span>
+                          )}
+                          {traitAttrPoints !== 0 && (
+                            <span className="text-[11px] font-mono text-emerald-400/90 ml-2">
+                              ({traitAttrPoints > 0 ? `+${traitAttrPoints}` : traitAttrPoints} por rasgos — Total efectivo: {effectiveTotal})
                             </span>
                           )}
                         </div>

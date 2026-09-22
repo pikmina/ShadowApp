@@ -270,7 +270,7 @@ export default function CanonCharactersAdmin() {
                               </Button>
                             )}
                             {c.status === 'occupied' && c.linkedCharacterId && (
-                              <Button variant="ghost" size="icon" title="Ver ficha" onClick={() => navigate(`/sheet/${c.linkedCharacterId}`)}>
+                              <Button variant="ghost" size="icon" title="Ver ficha" onClick={() => window.open(`/sheet/${c.linkedCharacterId}`, '_blank')}>
                                 <Eye className="size-4" />
                               </Button>
                             )}

@@ -40,36 +40,35 @@ export function validateCharacter(
   let vol = Number(profile['VOL'] || profile['vol'] || profile['voluntad']) || 0;
   let vel = Number(profile['VEL'] || profile['vel'] || profile['velocidad']) || 0;
 
-  const totalPoints = fue + des + res + int + vol + vel;
+  const baseSum = fue + des + res + int + vol + vel;
   const maxAttr = stage.maxAttr || 0;
   const attrPoints = stage.attrPoints || 0;
-  const extraPoints = (Number(purchasedAttrPoints) || 0) + (Number(traitAttrPoints) || 0);
-  const allowedTotal = attrPoints + extraPoints;
-  const basePoints = Math.max(0, totalPoints - extraPoints);
+  const allowedBaseBudget = attrPoints + (Number(purchasedAttrPoints) || 0);
 
   if (purchasedAttrPoints > maxPurchased) {
     status = 'red';
     messages.push(`Se ha superado el límite de mejoras de atributo permitidas (${purchasedAttrPoints}/${maxPurchased}).`);
   }
 
-  if (totalPoints < allowedTotal) {
+  if (baseSum < allowedBaseBudget) {
     status = status === 'red' ? 'red' : 'orange';
-    const msg = extraPoints > 0
-      ? `Faltan puntos por repartir (${totalPoints}/${allowedTotal} total, ${basePoints}/${attrPoints} base).`
-      : `Faltan puntos por repartir (${totalPoints}/${attrPoints}).`;
+    const missing = allowedBaseBudget - baseSum;
+    const msg = missing === 1
+      ? `Falta 1 punto de atributo por repartir (${baseSum}/${allowedBaseBudget} puntos base distribuidos).`
+      : `Faltan ${missing} puntos de atributo por repartir (${baseSum}/${allowedBaseBudget} puntos base distribuidos).`;
     messages.push(msg);
-  } else if (totalPoints > allowedTotal) {
+  } else if (baseSum > allowedBaseBudget) {
     status = 'red';
-    const msg = extraPoints > 0
-      ? `Se han excedido los puntos de atributo base (${basePoints}/${attrPoints}).`
-      : `Se han excedido los puntos de atributo (${totalPoints}/${attrPoints}).`;
+    const excess = baseSum - allowedBaseBudget;
+    const msg = excess === 1
+      ? `Se ha excedido 1 punto de atributo base (${baseSum}/${allowedBaseBudget}).`
+      : `Se han excedido ${excess} puntos de atributo base (${baseSum}/${allowedBaseBudget}).`;
     messages.push(msg);
   }
 
-  const effectiveMaxAttr = maxAttr + extraPoints;
-  if (fue > effectiveMaxAttr || des > effectiveMaxAttr || res > effectiveMaxAttr || int > effectiveMaxAttr || vol > effectiveMaxAttr || vel > effectiveMaxAttr) {
+  if (fue > maxAttr || des > maxAttr || res > maxAttr || int > maxAttr || vol > maxAttr || vel > maxAttr) {
     status = 'red';
-    messages.push(`Uno o más atributos superan el límite de etapa (Máx. ${effectiveMaxAttr}).`);
+    messages.push(`Uno o más atributos superan el límite de etapa (Máx. ${maxAttr}).`);
   }
 
   return { status, messages };

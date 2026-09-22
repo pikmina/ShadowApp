@@ -305,7 +305,7 @@ export default function CharactersAdmin() {
           return (
             <EntityPanel key={character.id} variant="character" pattern="dots" accent="accent2" cornerTicks className="group flex flex-col h-full rounded-xl bg-black/40 border border-border/50 transition-colors hover:border-primary/60 !p-0 !gap-0 overflow-hidden">
               <div className="flex-1 flex flex-row items-stretch min-h-40 w-full">
-              <Link to={`/sheet/${character.id}`} className="relative flex w-28 shrink-0 items-center justify-center overflow-hidden border-r border-border/50 bg-black/20 self-stretch" aria-label={`Abrir ficha pública de ${name}`}>
+              <Link to={`/sheet/${character.id}`} target="_blank" rel="noopener noreferrer" className="relative flex w-28 shrink-0 items-center justify-center overflow-hidden border-r border-border/50 bg-black/20 self-stretch" aria-label={`Abrir ficha pública de ${name}`}>
                 {avatar ? (
                   <img src={String(avatar)} alt={name} className="absolute inset-0 size-full object-cover grayscale opacity-90 transition-all duration-300 group-hover:grayscale-0 group-hover:opacity-100" />
                 ) : (
@@ -344,7 +344,7 @@ export default function CharactersAdmin() {
                 <div>
                   <div className="my-2 border-t border-dashed border-border/50" />
                   <div className="flex items-center gap-1.5">
-                    <Button variant="outline" size="icon" className="size-8 rounded bg-background/50 border-border/50 text-muted-foreground hover:text-foreground" onClick={() => navigate(`/sheet/${character.id}`)} title="Ver ficha pública" aria-label="Ver ficha pública"><Eye className="size-3.5" /></Button>
+                    <Button variant="outline" size="icon" className="size-8 rounded bg-background/50 border-border/50 text-muted-foreground hover:text-foreground" onClick={() => window.open(`/sheet/${character.id}`, '_blank')} title="Ver ficha pública" aria-label="Ver ficha pública"><Eye className="size-3.5" /></Button>
                     <Button variant="outline" size="icon" className="size-8 rounded bg-background/50 border-border/50 text-muted-foreground hover:text-foreground" onClick={() => { setSelectedCharacterId(character.id); setEditing(true); }} title="Editar ficha" aria-label="Editar ficha"><Edit2 className="size-3.5" /></Button>
                     <Button variant="outline" size="icon" className="size-8 rounded bg-background/50 border-border/50 text-muted-foreground hover:text-foreground" onClick={() => setRewardingCharId(character.id)} title="Administrar recompensas" aria-label="Administrar recompensas"><Award className="size-3.5" /></Button>
                     {dbUser?.role === 'superadmin' && (
