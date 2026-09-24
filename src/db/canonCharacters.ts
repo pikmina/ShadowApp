@@ -1,6 +1,6 @@
 import { eq, or, and, isNull, isNotNull, asc } from 'drizzle-orm';
 import { db } from './index.ts';
-import { canonCharacters, characters, auditLogs } from './schema.ts';
+import { canonCharacters, characters, auditLogs, characterEmployments, characterEnrollments } from './schema.ts';
 import { getOwnerEmployments } from './employments.ts';
 import { getOwnerEnrollment } from './academicClasses.ts';
 

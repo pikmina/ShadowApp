@@ -338,6 +338,23 @@ export default function CanonCharactersAdmin() {
           </div>
         </div>
       </EntityPanel>
+
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar personaje canon?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará el personaje canon del catálogo. Esta acción no se puede deshacer y no podrá realizarse si el personaje está asignado o tiene una ficha vinculada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeletion} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
