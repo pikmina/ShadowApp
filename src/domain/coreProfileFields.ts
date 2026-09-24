@@ -39,3 +39,53 @@ export function profileValue(profile: Record<string, unknown>, key: CoreProfileK
   for (const candidate of candidates[key]) if (profile[candidate] !== undefined && profile[candidate] !== null) return profile[candidate];
   return undefined;
 }
+
+export interface CharacterNameSource {
+  id?: number | string | null;
+  name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  profileData?: Record<string, unknown> | null;
+}
+
+/**
+ * Canonical display-name resolver for characters.
+ * Guarantees that internal IDs are never leaked to the user.
+ * Precedence:
+ * 1. Combines basic_name/firstName and last_name/lastName if both exist
+ * 2. basic_name / firstName
+ * 3. last_name / lastName
+ * 4. top-level name / profileData.name
+ * 5. Fallback: "Personaje sin nombre" (NEVER returns an internal numeric/UUID ID)
+ */
+export function resolveCharacterDisplayName(
+  char?: CharacterNameSource | null,
+  fallback: string = 'Personaje sin nombre'
+): string {
+  if (!char) return fallback;
+
+  const profile = (char.profileData || {}) as Record<string, unknown>;
+  const firstRaw = profileValue(profile, 'basic_name') ?? char.firstName;
+  const first = typeof firstRaw === 'string' ? firstRaw.trim() : '';
+
+  const lastRaw = profileValue(profile, 'last_name') ?? char.lastName;
+  const last = typeof lastRaw === 'string' ? lastRaw.trim() : '';
+
+  if (first && last) {
+    return `${first} ${last}`;
+  }
+  if (first) {
+    return first;
+  }
+  if (last) {
+    return last;
+  }
+
+  const directName = typeof char.name === 'string' ? char.name.trim() : '';
+  if (directName) {
+    return directName;
+  }
+
+  return fallback;
+}
+

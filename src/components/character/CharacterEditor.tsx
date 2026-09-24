@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { validateCharacter, calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses } from "@/lib/characterValidation";
 import { Badge } from "@/components/ui/badge";
 import { CharacterEmployments, CharacterEnrollments } from "./CharacterRelations";
+import { CharacterTechniquesEditor } from "./CharacterTechniquesEditor";
 import { profileValue, type CoreProfileKey } from "@/domain/coreProfileFields";
 
 const profileWithRelationalElements = (character?: any) => {
@@ -779,8 +780,8 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             return minA - minB;
           });
           
-          // Reordenar las pestañas estándar y personalizadas ('Datos', 'Quirk', 'Atributos', 'Rasgos y Debilidades', 'Habilidades', 'Inventario', 'Licencias y Permisos'...)
-          const customTabs = ['Atributos', 'Rasgos y Debilidades', 'Habilidades', 'Inventario', 'Licencias y Permisos'];
+          // Reordenar las pestañas estándar y personalizadas ('Datos', 'Quirk', 'Atributos', 'Rasgos y Debilidades', 'Habilidades', 'Técnicas', 'Inventario', 'Licencias y Permisos'...)
+          const customTabs = ['Atributos', 'Rasgos y Debilidades', 'Habilidades', 'Técnicas', 'Inventario', 'Licencias y Permisos'];
           let sortedCats = [...new Set([...allCats, ...customTabs])].sort((a, b) => {
             const getOrder = (cat: string) => {
               if (cat === 'Datos') return 1;
@@ -788,8 +789,9 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
               if (cat === 'Atributos') return 3;
               if (cat === 'Rasgos y Debilidades' || cat === 'Rasgos' || cat.toLowerCase().includes('rasgo')) return 4;
               if (cat === 'Habilidades' || cat.toLowerCase().includes('habilidad')) return 5;
-              if (cat === 'Inventario') return 6;
-              if (cat === 'Licencias y Permisos' || cat.toLowerCase().includes('licencia')) return 7;
+              if (cat === 'Técnicas' || cat === 'Tecnicas' || cat.toLowerCase().includes('técnica') || cat.toLowerCase().includes('tecnica')) return 6;
+              if (cat === 'Inventario') return 7;
+              if (cat === 'Licencias y Permisos' || cat.toLowerCase().includes('licencia')) return 8;
               const minOrder = groupedFields[cat] ? Math.min(...groupedFields[cat].map((f: any) => f.order)) : 999;
               return 100 + minOrder;
             };
@@ -1646,7 +1648,14 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
           </Card>
         )}
 
-        {activeTab !== 'Atributos' && activeTab !== 'Inventario' && activeTab !== 'Licencias y Permisos' && activeTab !== 'Rasgos' && activeTab !== 'Rasgos y Debilidades' && activeTab !== 'Habilidades' && activeTab && groupedFields[activeTab] && (
+        {activeTab === 'Técnicas' && (
+          <CharacterTechniquesEditor
+            characterId={character?.id}
+            mechanics={mechanicsList}
+          />
+        )}
+
+        {activeTab !== 'Atributos' && activeTab !== 'Inventario' && activeTab !== 'Licencias y Permisos' && activeTab !== 'Rasgos' && activeTab !== 'Rasgos y Debilidades' && activeTab !== 'Habilidades' && activeTab !== 'Técnicas' && activeTab !== 'Tecnicas' && activeTab && groupedFields[activeTab] && (
           <div key={activeTab}>
             <div>
 

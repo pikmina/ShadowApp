@@ -1427,10 +1427,27 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
 
     switch (eff.type) {
       case "damage": {
-        const dmg = parseInt(eff.dice, 10) || 4;
+        let baseDmg = 4;
+        const formula = (eff as any).formula ?? (eff as any).magnitude?.formula ?? eff.dice;
+        if (event?.payload?.rolls && eff.id && event.payload.rolls[eff.id]) {
+          const r = event.payload.rolls[eff.id];
+          baseDmg = Array.isArray(r) ? r.reduce((s: number, d: number) => s + d, 0) : Number(r);
+        } else if (typeof (eff as any).amount === "number") {
+          baseDmg = (eff as any).amount;
+        } else if (typeof formula === "string") {
+          const match = /^(\d+)[dD](\d+)$/.exec(formula.trim());
+          if (match) {
+            baseDmg = parseInt(match[1], 10) * Math.ceil(parseInt(match[2], 10) / 2);
+          } else {
+            baseDmg = parseInt(formula, 10) || 4;
+          }
+        } else if (rollResult !== undefined) {
+          baseDmg = rollResult;
+        }
+
         if (actualTarget) {
           const res = processDamagePipeline({
-            baseDamage: dmg,
+            baseDamage: baseDmg,
             attackerId: sourceEntityId,
             targetId: actualTargetId,
             tags: attackTags,
@@ -1444,8 +1461,28 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
 
       case "healing": {
         if (actualTarget) {
+          let baseHealing = eff.amount ?? 0;
+          const isDice = (eff as any).magnitude?.kind === "dice" || (eff as any).kind === "dice" || Boolean((eff as any).dice) || Boolean((eff as any).formula);
+          if (isDice) {
+            const formula = (eff as any).magnitude?.formula ?? (eff as any).formula ?? (eff as any).dice;
+            if (rollResult !== undefined) {
+              baseHealing = rollResult;
+            } else if (dice && dice.length > 0) {
+              baseHealing = dice.reduce((s, d) => s + d, 0);
+            } else if (event?.payload?.rolls && eff.id && event.payload.rolls[eff.id]) {
+              const r = event.payload.rolls[eff.id];
+              baseHealing = Array.isArray(r) ? r.reduce((s: number, d: number) => s + d, 0) : Number(r);
+            } else {
+              const match = /^(\d+)[dD](\d+)$/.exec(formula);
+              if (match) {
+                baseHealing = parseInt(match[1], 10) * Math.ceil(parseInt(match[2], 10) / 2);
+              }
+            }
+          } else {
+            baseHealing = (eff as any).magnitude?.amount ?? eff.amount ?? 0;
+          }
           const res = processHealingPipeline({
-            baseHealing: eff.amount,
+            baseHealing,
             resourceId: eff.resourceId,
             healerId: sourceEntityId,
             targetId: actualTargetId,
@@ -2599,8 +2636,28 @@ export function executeMultiTargetBehavior(
 
       switch (eff.type) {
         case "healing": {
+          let baseHealing = eff.amount ?? 0;
+          const isDice = (eff as any).magnitude?.kind === "dice" || (eff as any).kind === "dice" || Boolean((eff as any).dice) || Boolean((eff as any).formula);
+          if (isDice) {
+            const formula = (eff as any).magnitude?.formula ?? (eff as any).formula ?? (eff as any).dice;
+            if (rollResult !== undefined) {
+              baseHealing = rollResult;
+            } else if (dice && dice.length > 0) {
+              baseHealing = dice.reduce((s, d) => s + d, 0);
+            } else if (event?.payload?.rolls && eff.id && event.payload.rolls[eff.id]) {
+              const r = event.payload.rolls[eff.id];
+              baseHealing = Array.isArray(r) ? r.reduce((s: number, d: number) => s + d, 0) : Number(r);
+            } else {
+              const match = /^(\d+)[dD](\d+)$/.exec(formula);
+              if (match) {
+                baseHealing = parseInt(match[1], 10) * Math.ceil(parseInt(match[2], 10) / 2);
+              }
+            }
+          } else {
+            baseHealing = (eff as any).magnitude?.amount ?? eff.amount ?? 0;
+          }
           const res = processHealingPipeline({
-            baseHealing: eff.amount,
+            baseHealing,
             resourceId: eff.resourceId,
             healerId: sourceEntityId,
             targetId: tid,
@@ -2613,9 +2670,20 @@ export function executeMultiTargetBehavior(
         }
 
         case "damage": {
-          const dmg = parseInt(eff.dice, 10) || 4;
+          let baseDmg = 4;
+          const formula = (eff as any).formula ?? (eff as any).magnitude?.formula ?? eff.dice;
+          if (typeof formula === "string") {
+            const match = /^(\d+)[dD](\d+)$/.exec(formula.trim());
+            if (match) {
+              baseDmg = parseInt(match[1], 10) * Math.ceil(parseInt(match[2], 10) / 2);
+            } else {
+              baseDmg = parseInt(formula, 10) || 4;
+            }
+          } else if (typeof (eff as any).amount === "number") {
+            baseDmg = (eff as any).amount;
+          }
           const res = processDamagePipeline({
-            baseDamage: dmg,
+            baseDamage: baseDmg,
             attackerId: sourceEntityId,
             targetId: tid,
             tags: attackTags,

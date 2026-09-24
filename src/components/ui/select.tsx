@@ -2,23 +2,65 @@ import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "cn"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
+import { resolveDomainLabel } from "../../domain/mechanicalLabels"
+
+interface SelectContextValue {
+  value?: any;
+  itemMap: Map<string, React.ReactNode>;
+  registerItem: (value: string, label: React.ReactNode) => void;
+}
+
+const SelectContext = React.createContext<SelectContextValue | null>(null);
 
 function Select<Value = any>({
   value,
   defaultValue,
   onValueChange,
+  children,
   ...props
 }: SelectPrimitive.Root.Props<Value>) {
   const isControlled = value !== undefined || onValueChange !== undefined;
   const normalizedValue = isControlled ? ((value ?? "") as Value) : undefined;
+  const itemMapRef = React.useRef<Map<string, React.ReactNode>>(new Map());
+
+  // Recursively extract items from children tree on every render to ensure
+  // item labels are known even when the dropdown popup is closed / unmounted
+  const extractItems = React.useCallback((nodes: React.ReactNode) => {
+    React.Children.forEach(nodes, (child) => {
+      if (!React.isValidElement(child)) return;
+      const childProps = child.props as any;
+      if (childProps && childProps.value !== undefined) {
+        itemMapRef.current.set(String(childProps.value), childProps.children);
+      }
+      if (childProps && childProps.children) {
+        extractItems(childProps.children);
+      }
+    });
+  }, []);
+
+  extractItems(children);
+
+  const registerItem = React.useCallback((val: string, label: React.ReactNode) => {
+    itemMapRef.current.set(String(val), label);
+  }, []);
+
+  const contextValue = React.useMemo(() => ({
+    value: normalizedValue !== undefined ? normalizedValue : defaultValue,
+    itemMap: itemMapRef.current,
+    registerItem,
+  }), [normalizedValue, defaultValue, registerItem]);
 
   return (
-    <SelectPrimitive.Root
-      value={normalizedValue}
-      defaultValue={defaultValue}
-      onValueChange={onValueChange}
-      {...props}
-    />
+    <SelectContext.Provider value={contextValue}>
+      <SelectPrimitive.Root
+        value={normalizedValue}
+        defaultValue={defaultValue}
+        onValueChange={onValueChange}
+        {...props}
+      >
+        {children}
+      </SelectPrimitive.Root>
+    </SelectContext.Provider>
   );
 }
 
@@ -32,13 +74,53 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   )
 }
 
-function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
+function SelectValue({ className, children, placeholder, ...props }: SelectPrimitive.Value.Props) {
+  const ctx = React.useContext(SelectContext);
+
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
       className={cn("flex flex-1 text-left", className)}
+      placeholder={placeholder}
       {...props}
-    />
+    >
+      {(val: any) => {
+        // If explicit children was passed, use it directly
+        if (children !== undefined && children !== null) {
+          if (typeof children === "function") {
+            return (children as any)(val);
+          }
+          return children;
+        }
+
+        const effectiveVal = val !== undefined && val !== null && val !== "" ? val : ctx?.value;
+        if (effectiveVal === undefined || effectiveVal === null || effectiveVal === "") {
+          return placeholder ?? "";
+        }
+
+        const strVal = String(effectiveVal);
+
+        // 1. Look up in the pre-extracted item map
+        const mappedLabel = ctx?.itemMap.get(strVal);
+        if (mappedLabel !== undefined && mappedLabel !== null) {
+          return mappedLabel;
+        }
+
+        // 2. Pure numeric IDs without matching item in map: NEVER leak raw ID
+        if (/^\d+$/.test(strVal)) {
+          return placeholder ?? "Seleccionar...";
+        }
+
+        // 3. Centralized domain presentation label resolution
+        const placeholderStr = typeof placeholder === "string" ? placeholder : undefined;
+        const resolved = resolveDomainLabel(strVal, { placeholder: placeholderStr });
+        if (resolved) {
+          return resolved;
+        }
+
+        return placeholder ?? "";
+      }}
+    </SelectPrimitive.Value>
   )
 }
 
@@ -125,11 +207,18 @@ function SelectLabel({
 function SelectItem({
   className,
   children,
+  value,
   ...props
 }: SelectPrimitive.Item.Props) {
+  const ctx = React.useContext(SelectContext);
+  if (ctx && value !== undefined) {
+    ctx.registerItem(String(value), children);
+  }
+
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
+      value={value}
       className={cn(
         "relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className

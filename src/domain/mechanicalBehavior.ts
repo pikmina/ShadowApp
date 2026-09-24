@@ -195,8 +195,11 @@ export type MechanicalConditionLogic = z.infer<typeof conditionLogicSchema>;
 export const targetTypeSchema = z.enum([
   "self",
   "ally",
+  "allies",
   "enemy",
+  "enemies",
   "character",
+  "any",
   "object",
   "area",
   "roll",
@@ -316,7 +319,18 @@ export const mechanicalEffectItemSchema = z.discriminatedUnion("type", [
     id: z.string().min(1),
     type: z.literal("healing"),
     resourceId: z.enum(["SA", "ES"]).default("SA"),
-    amount: z.number().positive(),
+    kind: z.enum(["fixed", "dice"]).optional(),
+    amount: z.number().positive().optional(),
+    dice: z.string().min(1).optional(),
+    formula: z.string().min(1).optional(),
+    magnitude: z
+      .discriminatedUnion("kind", [
+        z.object({ kind: z.literal("fixed"), amount: z.number().positive() }),
+        z.object({ kind: z.literal("dice"), formula: z.string().min(1) }),
+      ])
+      .optional(),
+    ruleId: z.string().optional(),
+    runtimeKey: z.string().optional(),
     target: mechanicalTargetSchema.optional(),
     temporality: mechanicalTemporalitySchema.optional(),
   }),
@@ -324,6 +338,8 @@ export const mechanicalEffectItemSchema = z.discriminatedUnion("type", [
     id: z.string().min(1),
     type: z.literal("barrier"),
     amount: z.number().positive(),
+    ruleId: z.string().optional(),
+    runtimeKey: z.string().optional(),
     target: mechanicalTargetSchema.optional(),
     temporality: mechanicalTemporalitySchema.optional(),
   }),
@@ -570,6 +586,22 @@ export function resolveEffectiveTemporality(
 export const resolutionTypeSchema = z.enum(["automatic", "roll", "rd", "manual"]);
 export type ResolutionType = z.infer<typeof resolutionTypeSchema>;
 
+export const ATTACK_TYPES = ["physical", "mental"] as const;
+export const attackTypeSchema = z.enum(ATTACK_TYPES);
+export type AttackType = z.infer<typeof attackTypeSchema>;
+
+/**
+ * Pure canonical helper: derives the opposed target defense from the attack classification.
+ * Physical -> EVA (Evasión)
+ * Mental   -> COR (Coraje)
+ * Target defense is strictly derived and NEVER independently persisted.
+ */
+export function deriveTargetDefense(attackType?: AttackType | string | null): "EVA" | "COR" | undefined {
+  if (attackType === "physical") return "EVA";
+  if (attackType === "mental") return "COR";
+  return undefined;
+}
+
 export const outcomeTypeSchema = z.enum([
   "success",
   "failure",
@@ -590,11 +622,14 @@ export type DifferentiatedOutcome = z.infer<typeof differentiatedOutcomeSchema>;
 
 export const mechanicalResolutionSchema = z.object({
   type: resolutionTypeSchema.default("automatic"),
-  difficulty: z.number().int().optional(), // e.g. 12, 16 for RD
-  attribute: z.string().optional(), // e.g. 'FUE', 'Carisma', 'Presencia'
+  difficulty: z.number().int().optional(), // e.g. 12, 16 for explicit RD
+  attribute: z.string().optional(), // e.g. 'FUE', 'DES', 'INT', etc.
   skill: z.string().optional(),
+  attackType: attackTypeSchema.optional(), // 'physical' | 'mental'
   description: z.string().optional(),
-  outcomes: z.array(differentiatedOutcomeSchema).optional().default([]),
+  outcomes: z.array(differentiatedOutcomeSchema).optional(),
+  isExplicit: z.boolean().optional(),
+  explicitOverride: z.boolean().optional(),
 });
 export type MechanicalResolution = z.infer<typeof mechanicalResolutionSchema>;
 
@@ -782,7 +817,7 @@ export function createDefaultMechanicalEffect(
 
   switch (type) {
     case "damage":
-      return { ...base, type: "damage", dice: "2D6" };
+      return { ...base, type: "damage", dice: "2D6", damageType: "fisico" };
     case "healing":
       return { ...base, type: "healing", resourceId: "SA", amount: 4 };
     case "barrier":

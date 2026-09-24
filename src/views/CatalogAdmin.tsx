@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
 import { MechanicalBehaviorsEditor } from "../components/mechanics/MechanicalBehaviorsEditor";
+import { MechanicalDescriptionPreview } from "../components/mechanics/MechanicalDescriptionPreview";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import {
@@ -647,6 +648,7 @@ export default function CatalogAdmin() {
                     <Label>Descripción Narrativa</Label>
                     <Textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="h-32" placeholder="Describe qué hace esto a nivel narrativo y de rol..." />
                   </div>
+                  <MechanicalDescriptionPreview behaviors={form.mechanicalBehaviors || []} />
                   <div className="flex items-center justify-between rounded-lg border border-border/70 p-3.5 bg-card/50 mt-2">
                     <div className="space-y-0.5">
                       <Label htmlFor="catalog-item-status" className="text-sm font-medium cursor-pointer">

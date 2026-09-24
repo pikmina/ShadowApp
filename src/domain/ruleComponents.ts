@@ -5,6 +5,12 @@ export const ruleDurationSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('turns'), turns: z.number().int().positive() }),
   z.strictObject({ mode: z.literal('sustained') }),
   z.strictObject({ mode: z.literal('while_condition') }),
+  z.strictObject({ mode: z.literal('until_turn_end') }),
+  z.strictObject({ mode: z.literal('until_next_turn') }),
+  z.strictObject({ mode: z.literal('until_next_roll') }),
+  z.strictObject({ mode: z.literal('until_next_use') }),
+  z.strictObject({ mode: z.literal('while_owned') }),
+  z.strictObject({ mode: z.literal('permanent') }),
 ]);
 export const predicateSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('contact'), sense: z.enum(['physical', 'visual', 'auditory']) }),
@@ -36,6 +42,7 @@ export const ruleComponentSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('condition'), role: z.enum(['condition', 'requirement', 'limiter']), match: z.enum(['all', 'any']), predicates: z.array(predicateSchema).min(1) }),
   z.strictObject({ kind: z.literal('consequence'), role: z.enum(['cost', 'consequence']), when: z.enum(['activation', 'each_turn', 'end', 'after_damage']), consequence: consequenceSchema }),
   z.strictObject({ kind: z.literal('cap'), subject: z.enum(['stamina_cost', 'damage', 'healing', 'barrier', 'attribute_modifier']), min: z.number(), max: z.number() }),
+  z.strictObject({ kind: z.literal('damage_type'), damageType: z.string().min(1) }),
 ]).superRefine((component, ctx) => {
   if (component.kind === 'cap' && component.subject !== 'attribute_modifier' && component.min < 0) ctx.addIssue({ code: 'custom', message: 'Este límite no admite valores negativos' });
   if ((component.kind === 'cap' || component.kind === 'target_count') && component.min > component.max) ctx.addIssue({ code: 'custom', message: 'El mínimo supera al máximo' });

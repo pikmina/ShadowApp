@@ -1,5 +1,5 @@
 import { relations, sql } from 'drizzle-orm';
-import { integer, pgTable, serial, text, timestamp, jsonb, boolean, pgEnum, unique, varchar, check, uniqueIndex } from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, text, timestamp, jsonb, boolean, pgEnum, unique, varchar, check, uniqueIndex, index } from 'drizzle-orm/pg-core';
 
 export const roleEnum = pgEnum('role', ['player', 'moderator', 'superadmin']);
 export const elementKindEnum = pgEnum('element_kind', [
@@ -11,6 +11,7 @@ export const elementKindEnum = pgEnum('element_kind', [
 ]);
 export const elementStatusEnum = pgEnum('element_status', ['draft', 'published', 'archived']);
 export const offerStatusEnum = pgEnum('offer_status', ['draft', 'scheduled', 'available', 'paused', 'ended', 'archived']);
+export const techniqueSourceTypeEnum = pgEnum('technique_source_type', ['quirk', 'physical', 'weapon']);
 
 // Users Table (Auth + Roles)
 export const users = pgTable('users', {
@@ -123,6 +124,24 @@ export const characterSheetFields = pgTable('character_sheet_fields', {
   coreKeyUnq: uniqueIndex('character_sheet_fields_core_key_unique').on(t.coreKey),
 }));
 
+// Character Techniques Table (Character-Owned Techniques)
+export const characterTechniques = pgTable('character_techniques', {
+  id: text('id').primaryKey(),
+  characterId: integer('character_id').references(() => characters.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  description: text('description').default(''),
+  level: integer('level').default(1).notNull(),
+  sourceType: techniqueSourceTypeEnum('source_type').notNull(),
+  activationAttributeId: text('activation_attribute_id'),
+  mechanicalBehaviors: jsonb('mechanical_behaviors').notNull().default([]),
+  revision: integer('revision').default(1).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  characterIdx: index('character_techniques_character_id_idx').on(table.characterId),
+  levelCheck: check('character_techniques_level_check', sql`${table.level} >= 1 AND ${table.level} <= 5`),
+}));
+
 // Audit Logs Table
 export const auditLogs = pgTable('audit_logs', {
   id: serial('id').primaryKey(),
@@ -145,9 +164,14 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const charactersRelations = relations(characters, ({ one, many }) => ({
   user: one(users, { fields: [characters.userId], references: [users.id] }),
   possessions: many(elementPossessions),
+  techniques: many(characterTechniques),
   canonCharacter: one(canonCharacters, { fields: [characters.canonCharacterId], references: [canonCharacters.id] }),
   employments: many(characterEmployments),
   enrollments: many(characterEnrollments)
+}));
+
+export const characterTechniquesRelations = relations(characterTechniques, ({ one }) => ({
+  character: one(characters, { fields: [characterTechniques.characterId], references: [characters.id] }),
 }));
 
 export const systemElementsRelations = relations(systemElements, ({ many }) => ({

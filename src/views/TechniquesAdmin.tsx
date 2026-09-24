@@ -1,10 +1,27 @@
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import useSWR from "swr";
-import { apiFetch, fetcher } from "../lib/api";
-import { MechanicalBehaviorsEditor } from "../components/mechanics/MechanicalBehaviorsEditor";
-import { useAuth } from "../contexts/AuthContext";
-import { Button } from "../components/ui/button";
+import React, { useState, useMemo } from 'react';
+import useSWR from 'swr';
+import {
+  Swords,
+  Plus,
+  Edit2,
+  Trash2,
+  Search,
+  Zap,
+  Filter,
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  User,
+  Sparkles,
+  Dices,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { apiFetch, fetcher } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Badge } from '../components/ui/badge';
 import {
   Table,
   TableBody,
@@ -12,272 +29,662 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../components/ui/table";
+} from '../components/ui/table';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-} from "../components/ui/dialog";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { Textarea } from "../components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+} from '../components/ui/dialog';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../components/ui/select";
-import { Badge } from "../components/ui/badge";
-import { Plus, Settings2, Trash2, Edit2, Eye, EyeOff, Swords } from "lucide-react";
-import { SectionHeader } from "../components/common/SectionHeader";
-import { nanoid } from "nanoid";
-import { ScrollArea } from "../components/ui/scroll-area";
-
-
-const defaultForm = {
-  id: "",
-  kind: "technique_entitlement",
-  name: "",
-  description: "",
-  status: "draft",
-  effects: [] as any[],
-  mechanicalBehaviors: [] as any[],
-  requirements: { operator: "all", requirements: [] as any[] }
-};
-
-const STATUS_TYPES: Record<string, string> = {
-  draft: "Borrador (Oculto)",
-  published: "Publicado"
-};
+} from '../components/ui/select';
+import { SectionHeader } from '../components/common/SectionHeader';
+import {
+  CharacterTechniqueDialog,
+  SOURCE_TYPE_BADGES,
+  FUNCTIONAL_CATEGORY_CONFIG,
+} from '../components/character/CharacterTechniquesEditor';
+import { MechanicalDescriptionPreview } from '../components/mechanics/MechanicalDescriptionPreview';
+import {
+  type CharacterTechnique,
+  type TechniqueSourceType,
+  type TechniqueFunctionalCategory,
+  deriveTechniqueFunctionalCategories,
+  deriveTechniqueRollContract,
+} from '../domain/characterTechnique';
+import {
+  calculateTechniqueStructuralCost,
+  type SystemMechanicsConfig,
+} from '../domain/systemMechanics';
+import { createCoreCategories } from '../domain/coreRuleCatalog';
+import { resolveCharacterDisplayName } from '../domain/coreProfileFields';
+import { getAttributeLabel, getSourceTypeLabel } from '../domain/mechanicalLabels';
 
 export default function TechniquesAdmin() {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
 
-  const { data: rules } = useSWR(user ? "/api/rules" : null, fetcher);
-  const mechanicsRule = rules?.find((r: any) => r.key === "system_mechanics") || { value: [] };
-  const mechanics = Array.isArray(mechanicsRule.value) ? mechanicsRule.value : [];
-
-  const { data: rawElements, mutate } = useSWR(
-    user ? "/api/admin/elements" : null, fetcher
+  // 1. Fetch all techniques globally (with character owner info)
+  const {
+    data: rawTechniques,
+    isLoading,
+    mutate,
+  } = useSWR<Array<CharacterTechnique & { characterName: string }>>(
+    user ? '/api/admin/character-techniques' : null,
+    fetcher
   );
 
-  const elements = rawElements?.filter((el: any) => el.kind === "technique_entitlement");
+  // 2. Fetch all characters for the character picker
+  const { data: charactersList } = useSWR<Array<{ id: number; name?: string; profileData?: Record<string, any> }>>(
+    user ? '/api/admin/characters' : null,
+    fetcher
+  );
 
-  const [isDialogOpen, setIsDialogOpen] = useState(() => searchParams.get('create') === 'true');
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("info");
-  const [form, setForm] = useState(defaultForm);
+  // 3. Fetch rules for mechanics and stamina costs
+  const { data: rawRules } = useSWR<Array<{ key: string; value: any }>>(
+    user ? '/api/rules' : null,
+    fetcher
+  );
 
-  useEffect(() => {
-    if (searchParams.get('create') === 'true') {
-      setForm({ ...defaultForm, id: nanoid(8) });
-      setIsDialogOpen(true);
+  const staminaCosts = useMemo(() => {
+    return rawRules?.find((r) => r.key === 'stamina_execution_costs')?.value;
+  }, [rawRules]);
+
+  const effectiveMechanics: SystemMechanicsConfig = useMemo(() => {
+    const ruleMechanics = rawRules?.find((r) => r.key === 'system_mechanics')?.value;
+    if (ruleMechanics && Array.isArray(ruleMechanics) && ruleMechanics.length > 0) {
+      return ruleMechanics;
     }
-  }, [searchParams]);
+    return createCoreCategories();
+  }, [rawRules]);
 
-  const handleOpenDialog = (el?: any) => {
-    if (el) {
-      setForm({
-        id: el.id,
-        kind: el.kind,
-        name: el.name,
-        description: el.description,
-        status: el.status,
-        effects: el.effects || [],
-        mechanicalBehaviors: el.mechanicalBehaviors || [],
-        requirements: el.requirements || { operator: "all", requirements: [] }
-      });
-    } else {
-      setForm(defaultForm);
-    }
-    setActiveTab("info");
-    setIsDialogOpen(true);
+  // Search & Filter State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCharacterFilter, setSelectedCharacterFilter] = useState<string>('all');
+  const [selectedSourceFilter, setSelectedSourceFilter] = useState<string>('all');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  const [expandedTechniqueId, setExpandedTechniqueId] = useState<string | null>(null);
+
+  // Character Picker Modal State (for "+ Crear Técnica")
+  const [isCharacterPickerOpen, setIsCharacterPickerOpen] = useState(false);
+  const [pickerSelectedCharId, setPickerSelectedCharId] = useState<string>('');
+  const [charSearchQuery, setCharSearchQuery] = useState('');
+
+  // Canonical Editor Dialog State
+  const [isEditorDialogOpen, setIsEditorDialogOpen] = useState(false);
+  const [activeTargetCharacter, setActiveTargetCharacter] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+  const [activeEditingTechnique, setActiveEditingTechnique] = useState<CharacterTechnique | null>(
+    null
+  );
+
+  // Delete Confirmation Dialog State
+  const [deleteConfirmTech, setDeleteConfirmTech] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Handle Open Create Flow (prompts for character selection)
+  const handleStartCreate = () => {
+    setPickerSelectedCharId('');
+    setCharSearchQuery('');
+    setIsCharacterPickerOpen(true);
   };
 
-  const handleSave = async () => {
-        try {
-      const res = await apiFetch("/api/elements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form)
-      });
-      if (!res.ok) throw new Error("Error saving");
-      setIsDialogOpen(false);
-      mutate();
-    } catch (e) {
-      console.error(e);
-      alert("Error al guardar elemento");
-    }
+  const handleConfirmCharacterSelection = () => {
+    if (!pickerSelectedCharId) return;
+    const charIdNum = parseInt(pickerSelectedCharId, 10);
+    const char = charactersList?.find((c) => c.id === charIdNum);
+    if (!char) return;
+
+    setActiveTargetCharacter({ id: char.id, name: resolveCharacterDisplayName(char) });
+    setActiveEditingTechnique(null);
+    setIsCharacterPickerOpen(false);
+    setIsEditorDialogOpen(true);
   };
 
-  
-  const handleToggleStatus = async (el: any) => {
+  // Handle Edit
+  const handleOpenEdit = (tech: CharacterTechnique & { characterName: string }) => {
+    setActiveTargetCharacter({ id: tech.characterId, name: tech.characterName || 'Personaje sin nombre' });
+    setActiveEditingTechnique(tech);
+    setIsEditorDialogOpen(true);
+  };
+
+  // Handle Delete
+  const handleDelete = async () => {
+    if (!deleteConfirmTech) return;
+    setIsDeleting(true);
     try {
-      const updatedEl = { ...el, status: el.status === "published" ? "draft" : "published" };
-      const res = await apiFetch("/api/elements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedEl)
+      const res = await apiFetch(`/api/character-techniques/${deleteConfirmTech.id}`, {
+        method: 'DELETE',
       });
-      if (!res.ok) throw new Error("Error saving");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Error al eliminar la técnica');
+      }
+
+      toast.success(`Técnica "${deleteConfirmTech.name}" eliminada`);
+      setDeleteConfirmTech(null);
       mutate();
-    } catch (e) {
-      console.error(e);
-      alert("Error al actualizar estado");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Error al eliminar la técnica');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      await apiFetch(`/api/elements/${id}`, {
-        method: "DELETE" });
-      mutate();
-      setDeleteConfirmId(null);
-    } catch (e) {
-      alert("Error borrando: " + (e as Error).message);
-    }
-  };
+  // Filtered Character List for Picker Dialog
+  const filteredPickerCharacters = useMemo(() => {
+    if (!Array.isArray(charactersList)) return [];
+    if (!charSearchQuery.trim()) return charactersList;
+    const query = charSearchQuery.toLowerCase();
+    return charactersList.filter((c) =>
+      resolveCharacterDisplayName(c).toLowerCase().includes(query)
+    );
+  }, [charactersList, charSearchQuery]);
 
+  // Filtered Techniques Table
+  const allTechniques = Array.isArray(rawTechniques) ? rawTechniques : [];
+  const filteredTechniques = useMemo(() => {
+    return allTechniques.filter((tech) => {
+      // Search query (name, description, character name)
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase();
+        const matchesName = tech.name.toLowerCase().includes(q);
+        const matchesDesc = (tech.description || '').toLowerCase().includes(q);
+        const matchesChar = (tech.characterName || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesDesc && !matchesChar) return false;
+      }
+
+      // Filter by character
+      if (selectedCharacterFilter !== 'all') {
+        if (String(tech.characterId) !== selectedCharacterFilter) return false;
+      }
+
+      // Filter by origin source
+      if (selectedSourceFilter !== 'all') {
+        if (tech.sourceType !== selectedSourceFilter) return false;
+      }
+
+      // Filter by functional category
+      if (selectedCategoryFilter !== 'all') {
+        const cats = deriveTechniqueFunctionalCategories(tech.mechanicalBehaviors);
+        if (!cats.includes(selectedCategoryFilter as TechniqueFunctionalCategory)) return false;
+      }
+
+      return true;
+    });
+  }, [
+    allTechniques,
+    searchTerm,
+    selectedCharacterFilter,
+    selectedSourceFilter,
+    selectedCategoryFilter,
+  ]);
 
   return (
     <div className="space-y-6">
+      {/* Section Header */}
       <SectionHeader
+        title="Catálogo de Técnicas"
+        description="Administración global de habilidades activas y técnicas de combate de todos los personajes."
         icon={Swords}
-        title="Gestión de Técnicas"
-        description="Diseña y balancea las habilidades activas de los personajes."
         actions={
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="size-4 mr-2" aria-hidden="true" />
-            Crear Técnica
+          <Button onClick={handleStartCreate} className="gap-2">
+            <Plus className="size-4" /> Crear Técnica
           </Button>
         }
       />
 
-      <div className="rounded-md border bg-card shadow-sm overflow-hidden">
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between p-4 bg-card/60 border border-border/80 rounded-lg">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por técnica, personaje o descripción..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Character Filter */}
+          <Select
+            value={selectedCharacterFilter}
+            onValueChange={setSelectedCharacterFilter}
+          >
+            <SelectTrigger className="w-[180px] h-9 text-xs">
+              <SelectValue placeholder="Todos los personajes">
+                {selectedCharacterFilter === 'all'
+                  ? 'Todos los personajes'
+                  : resolveCharacterDisplayName(
+                      charactersList?.find((c) => String(c.id) === selectedCharacterFilter)
+                    )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los personajes</SelectItem>
+              {Array.isArray(charactersList) &&
+                charactersList.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {resolveCharacterDisplayName(c)}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+
+          {/* Source Type Filter */}
+          <Select value={selectedSourceFilter} onValueChange={setSelectedSourceFilter}>
+            <SelectTrigger className="w-[130px] h-9 text-xs">
+              <SelectValue placeholder="Todos los orígenes">
+                {selectedSourceFilter === 'all'
+                  ? 'Todos los orígenes'
+                  : getSourceTypeLabel(selectedSourceFilter)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los orígenes</SelectItem>
+              <SelectItem value="quirk">Don</SelectItem>
+              <SelectItem value="physical">Física</SelectItem>
+              <SelectItem value="weapon">Arma</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Category Filter */}
+          <Select
+            value={selectedCategoryFilter}
+            onValueChange={setSelectedCategoryFilter}
+          >
+            <SelectTrigger className="w-[140px] h-9 text-xs">
+              <SelectValue placeholder="Todas las categorías">
+                {selectedCategoryFilter === 'all'
+                  ? 'Todas las categorías'
+                  : FUNCTIONAL_CATEGORY_CONFIG[selectedCategoryFilter as TechniqueFunctionalCategory]?.label ||
+                    selectedCategoryFilter}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorías</SelectItem>
+              <SelectItem value="offensive">Ofensiva</SelectItem>
+              <SelectItem value="support">Soporte</SelectItem>
+              <SelectItem value="defensive">Defensiva</SelectItem>
+              <SelectItem value="control">Control</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {(searchTerm ||
+            selectedCharacterFilter !== 'all' ||
+            selectedSourceFilter !== 'all' ||
+            selectedCategoryFilter !== 'all') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedCharacterFilter('all');
+                setSelectedSourceFilter('all');
+                setSelectedCategoryFilter('all');
+              }}
+              className="text-xs h-9 px-2"
+            >
+              Limpiar
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Global Techniques Table */}
+      <div className="border border-border/80 rounded-lg overflow-hidden bg-card/40">
         <Table>
-          <TableHeader className="bg-muted">
+          <TableHeader className="bg-muted/40">
             <TableRow>
-              <TableHead>Nombre de la Técnica</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead>Efectos Mecánicos</TableHead>
+              <TableHead className="w-[28%]">Técnica</TableHead>
+              <TableHead className="w-[18%]">Personaje</TableHead>
+              <TableHead className="w-[12%]">Origen</TableHead>
+              <TableHead className="w-[12%]">Nivel (Coste ES)</TableHead>
+              <TableHead className="w-[16%]">Clasificación</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(!elements || elements.length === 0) ? (
+            {isLoading ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
-                  No hay técnicas. Haz clic en "Crear Técnica" para comenzar.
+                <TableCell colSpan={6} className="text-center py-12 text-xs text-muted-foreground">
+                  Cargando catálogo global de técnicas...
+                </TableCell>
+              </TableRow>
+            ) : filteredTechniques.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-12 space-y-2">
+                  <Swords className="size-8 text-muted-foreground/40 mx-auto" />
+                  <p className="text-sm font-semibold text-foreground">
+                    No se encontraron técnicas
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {allTechniques.length === 0
+                      ? 'No hay ninguna técnica creada en el sistema.'
+                      : 'Ninguna técnica coincide con los filtros seleccionados.'}
+                  </p>
                 </TableCell>
               </TableRow>
             ) : (
-              elements.map((el: any) => (
-                <TableRow key={el.id}>
-                  <TableCell className="font-semibold">{el.name}</TableCell>
-                  <TableCell>
-                    <Badge variant={el.status === "published" ? "default" : "secondary"}>{el.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {(() => {
-                      const count = Array.isArray(el.mechanicalBehaviors) && el.mechanicalBehaviors.length > 0
-                        ? el.mechanicalBehaviors.reduce((acc: number, b: any) => acc + (b.effects?.length ?? 0), 0)
-                        : (el.effects?.length ?? 0);
-                      return `${count} ${count === 1 ? "bloque conectado" : "bloques conectados"}`;
-                    })()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="icon" title={el.status === "published" ? `Pasar a borrador` : `Publicar`} onClick={() => handleToggleStatus(el)}>
-                        {el.status === "published" ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </Button>
-                      <Button variant="outline" size="icon" onClick={() => handleOpenDialog(el)}><Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" /></Button>
-                      {deleteConfirmId === el.id ? (
-                        <div className="flex items-center gap-1">
-                          <Button variant="destructive" size="sm" onClick={() => handleDelete(el.id)}>Confirmar</Button>
-                          <Button variant="outline" size="icon" onClick={() => setDeleteConfirmId(null)}>X</Button>
+              filteredTechniques.map((tech) => {
+                const structuralCost = calculateTechniqueStructuralCost(
+                  tech,
+                  effectiveMechanics,
+                  staminaCosts
+                );
+                const categories = deriveTechniqueFunctionalCategories(tech.mechanicalBehaviors);
+                const rollContract = deriveTechniqueRollContract(tech.mechanicalBehaviors, {
+                  structuralCost,
+                  supportDifficultyTiers: staminaCosts?.supportDifficulty,
+                  activationAttributeId: tech.activationAttributeId,
+                });
+                const sourceMeta =
+                  SOURCE_TYPE_BADGES[tech.sourceType] || SOURCE_TYPE_BADGES.quirk;
+                const isExpanded = expandedTechniqueId === tech.id;
+
+                return (
+                  <React.Fragment key={tech.id}>
+                    <TableRow className="hover:bg-muted/30 transition-colors">
+                      {/* Name and Description */}
+                      <TableCell className="align-top py-3">
+                        <div className="space-y-1">
+                          <span className="font-oxanium font-bold text-sm text-foreground block">
+                            {tech.name}
+                          </span>
+                          {tech.description ? (
+                            <p className="text-xs text-muted-foreground line-clamp-1">
+                              {tech.description}
+                            </p>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground/60 italic">
+                              Sin descripción
+                            </span>
+                          )}
                         </div>
-                      ) : (
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteConfirmId(el.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+                      </TableCell>
+
+                      {/* Character Owner */}
+                      <TableCell className="align-top py-3">
+                        <div className="flex items-center gap-1.5 text-xs font-medium">
+                          <User className="size-3.5 text-primary shrink-0" />
+                          <span className="font-semibold text-foreground truncate">
+                            {tech.characterName || 'Personaje sin nombre'}
+                          </span>
+                        </div>
+                      </TableCell>
+
+                      {/* Origin Source */}
+                      <TableCell className="align-top py-3">
+                        <span
+                          className={`inline-flex px-2 py-0.5 rounded text-[10px] uppercase font-bold font-mono ${sourceMeta.bg} ${sourceMeta.text} border ${sourceMeta.border}`}
+                        >
+                          {sourceMeta.label}
+                        </span>
+                      </TableCell>
+
+                      {/* Level and Structural Cost */}
+                      <TableCell className="align-top py-3">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge
+                            variant="outline"
+                            className="font-mono text-xs text-primary border-primary/30 bg-primary/5"
+                          >
+                            Nivel {tech.level}
+                          </Badge>
+                          <span className="font-mono text-[11px] text-muted-foreground">
+                            ({structuralCost} ES)
+                          </span>
+                        </div>
+                      </TableCell>
+
+                      {/* Functional Categories & Roll */}
+                      <TableCell className="align-top py-3">
+                        <div className="space-y-1.5">
+                          {categories.length > 0 ? (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {categories.map((cat) => {
+                                const config = FUNCTIONAL_CATEGORY_CONFIG[cat];
+                                const Icon = config.icon;
+                                return (
+                                  <span
+                                    key={cat}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider font-mono ${config.bg} ${config.text} border ${config.border}`}
+                                  >
+                                    <Icon className="size-2.5" />
+                                    {config.label}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] font-mono text-muted-foreground uppercase">
+                              Sin clasificar
+                            </span>
+                          )}
+
+                          {/* Roll summary */}
+                          {rollContract.behaviors.some((b) => b.requiresRoll) ? (
+                            <div className="flex items-center gap-1 text-[10px] font-mono text-amber-400">
+                              <Dices className="size-3 shrink-0" />
+                              <span>
+                                {rollContract.behaviors
+                                  .filter((b) => b.requiresRoll)
+                                  .map((b) => {
+                                    const oppLabel =
+                                      b.opposition?.label ||
+                                      (b.attackType === 'mental' ? 'Coraje' : 'Evasión');
+                                    return `ACC vs ${oppLabel}`;
+                                  })
+                                  .join(' / ')}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] font-mono text-muted-foreground block">
+                              Automática
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+
+                      {/* Actions */}
+                      <TableCell className="text-right align-top py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs"
+                            onClick={() =>
+                              setExpandedTechniqueId(isExpanded ? null : tech.id)
+                            }
+                            title="Ver detalles mecánicos"
+                          >
+                            {isExpanded ? (
+                              <ChevronUp className="size-3.5" />
+                            ) : (
+                              <ChevronDown className="size-3.5" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2.5 text-xs gap-1"
+                            onClick={() => handleOpenEdit(tech)}
+                          >
+                            <Edit2 className="size-3.5" /> Editar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() =>
+                              setDeleteConfirmTech({ id: tech.id, name: tech.name })
+                            }
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Expandable Breakdown Row */}
+                    {isExpanded && (
+                      <TableRow className="bg-muted/15">
+                        <TableCell colSpan={6} className="p-4 border-b">
+                          <div className="space-y-3 bg-card/70 border border-border/60 p-4 rounded-lg">
+                            <div className="flex items-center justify-between text-xs font-semibold text-foreground uppercase tracking-wider border-b border-border/40 pb-2">
+                              <span className="flex items-center gap-1.5">
+                                <Layers className="size-3.5 text-primary" />
+                                Comportamientos Mecánicos ({tech.mechanicalBehaviors.length})
+                              </span>
+                              {tech.activationAttributeId && (
+                                <span className="font-mono text-[11px] text-muted-foreground">
+                                  Atributo de Activación: {getAttributeLabel(tech.activationAttributeId)}
+                                </span>
+                              )}
+                            </div>
+                            <MechanicalDescriptionPreview behaviors={tech.mechanicalBehaviors} />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="admin-dialog sm:max-w-[1000px] lg:max-w-[1100px] h-[85vh] flex flex-col p-0">
-          <DialogHeader className="px-6 py-4 border-b">
-            <DialogTitle>{form.id ? "Editar Técnica" : "Diseñador de Técnicas"}</DialogTitle>
+      {/* CHARACTER PICKER DIALOG (Prompt when clicking "+ Crear Técnica") */}
+      <Dialog open={isCharacterPickerOpen} onOpenChange={setIsCharacterPickerOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-oxanium text-lg uppercase tracking-wider text-primary flex items-center gap-2">
+              <Zap className="size-5" /> Crear Técnica
+            </DialogTitle>
             <DialogDescription>
-              Construye técnicas de combate paso a paso sin programar.
+              ¿Para qué personaje deseas crear la técnica? Selecciona un personaje de la lista.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col w-full h-full">
-              <div className="px-4 sm:px-6 pt-3 pb-2 border-b bg-muted/40 overflow-x-auto no-scrollbar">
-                <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto h-auto p-1 gap-1 bg-card border border-border/50">
-                  <TabsTrigger value="info" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">1. Info Básica</TabsTrigger>
-                  <TabsTrigger value="effects" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">2. Efectos Mecánicos</TabsTrigger>
-                  <TabsTrigger value="reqs" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">3. Requisitos anteriores</TabsTrigger>
-                </TabsList>
-              </div>
 
-              <div className="flex-1 overflow-y-auto px-6 py-4">
-                <TabsContent value="info" className="mt-0 space-y-4">
-                  <div className="grid gap-2">
-                    <Label>Nombre de la Técnica</Label>
-                    <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Ej: Lluvia de Acero, Golpe Fulminante..." />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Descripción Narrativa</Label>
-                    <Textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="h-32" placeholder="Describe qué hace esto a nivel narrativo y de rol..." />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Estado de Publicación</Label>
-                    <Select value={form.status} onValueChange={v => setForm({...form, status: v})}>
-                      <SelectTrigger>
-                        <SelectValue>{STATUS_TYPES[form.status] || "Selecciona un estado"}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="draft">Borrador (Oculto)</SelectItem>
-                        <SelectItem value="published">Publicado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="reqs" className="space-y-3"><p className="text-sm text-muted-foreground">Los requisitos de ejecución se seleccionan desde Reglas del Sistema en Efectos Mecánicos. Los requisitos anteriores de adquisición se conservan sin reinterpretarlos.</p>{form.requirements.requirements.map((req, index) => <div key={req._id ?? index} className="rounded border p-3 text-sm">{req.type}: {req.target} {req.min !== undefined ? `≥ ${req.min}` : ''}</div>)}</TabsContent>
-
-                <TabsContent value="effects" className="mt-0">
-                  <MechanicalBehaviorsEditor
-                    behaviors={form.mechanicalBehaviors || []}
-                    onChange={(behaviors) => setForm((current) => ({ ...current, mechanicalBehaviors: behaviors }))}
-                    legacyEffects={form.effects || []}
-                    onLegacyChange={(effects) => setForm((current) => ({ ...current, effects }))}
-                    mechanics={mechanics}
-                  />
-                </TabsContent>
-              </div>
-            </Tabs>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wider font-bold">
+                Personaje <span className="text-red-400">*</span>
+              </Label>
+              <Input
+                placeholder="Buscar o filtrar personaje..."
+                value={charSearchQuery}
+                onChange={(e) => setCharSearchQuery(e.target.value)}
+                className="mb-2 text-xs"
+              />
+              <Select
+                value={pickerSelectedCharId}
+                onValueChange={setPickerSelectedCharId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Seleccionar personaje...">
+                    {pickerSelectedCharId
+                      ? resolveCharacterDisplayName(
+                          charactersList?.find((c) => String(c.id) === pickerSelectedCharId)
+                        )
+                      : "Seleccionar personaje..."}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {filteredPickerCharacters.length > 0 ? (
+                    filteredPickerCharacters.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {resolveCharacterDisplayName(c)}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="none" disabled>
+                      No se encontraron personajes
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          
 
-        </div>
-          <DialogFooter className="px-6 py-4 border-t bg-muted shrink-0">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave}>Guardar Técnica</Button>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCharacterPickerOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmCharacterSelection}
+              disabled={!pickerSelectedCharId}
+            >
+              Continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CANONICAL TECHNIQUE CREATE / EDIT DIALOG */}
+      {activeTargetCharacter && (
+        <CharacterTechniqueDialog
+          isOpen={isEditorDialogOpen}
+          onOpenChange={setIsEditorDialogOpen}
+          characterId={activeTargetCharacter.id}
+          characterName={activeTargetCharacter.name}
+          technique={activeEditingTechnique}
+          onSaved={() => {
+            mutate();
+          }}
+          mechanics={effectiveMechanics}
+        />
+      )}
+
+      {/* DELETE CONFIRMATION DIALOG */}
+      <Dialog
+        open={Boolean(deleteConfirmTech)}
+        onOpenChange={() => setDeleteConfirmTech(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="size-5" /> Eliminar Técnica
+            </DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar permanentemente la técnica "
+              {deleteConfirmTech?.name}"? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmTech(null)}
+              disabled={isDeleting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Eliminando...' : 'Eliminar Permanentemente'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

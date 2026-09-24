@@ -45,10 +45,17 @@ import {
   getAttributeLabel,
   getResourceLabel,
   getTagLabel,
+  getCounterLabel,
+  getConditionLogicLabel,
   MECHANICAL_LABELS,
 } from "../../domain/mechanicalLabels.ts";
+import {
+  deriveEffectiveBehaviorResolution,
+} from "../../domain/characterTechnique.ts";
 import { MechanicalEffectsEditor } from "./MechanicalEffectsEditor.tsx";
+import { MechanicalDescriptionPreview } from "./MechanicalDescriptionPreview.tsx";
 import type { SystemMechanicsConfig } from "../../domain/systemMechanics.ts";
+import { getCategoryOptions, findHealingOption, getValidHealingOptions, getBarrierAmount } from "../../domain/coreRuleCatalog.ts";
 
 interface MechanicalBehaviorsEditorProps {
   behaviors: MechanicalBehavior[];
@@ -234,18 +241,22 @@ export function MechanicalBehaviorsEditor({
               </div>
             </div>
           ) : (
-            behaviors.map((behavior, bIndex) => (
-              <SingleBehaviorCard
-                key={behavior.id}
-                behavior={behavior}
-                index={bIndex}
-                total={behaviors.length}
-                onUpdate={(updated) => updateBehavior(bIndex, updated)}
-                onRemove={() => removeBehavior(bIndex)}
-                onMoveUp={() => moveBehavior(bIndex, "up")}
-                onMoveDown={() => moveBehavior(bIndex, "down")}
-              />
-            ))
+            <>
+              <MechanicalDescriptionPreview behaviors={behaviors} />
+              {behaviors.map((behavior, bIndex) => (
+                <SingleBehaviorCard
+                  key={behavior.id}
+                  behavior={behavior}
+                  index={bIndex}
+                  total={behaviors.length}
+                  onUpdate={(updated) => updateBehavior(bIndex, updated)}
+                  onRemove={() => removeBehavior(bIndex)}
+                  onMoveUp={() => moveBehavior(bIndex, "up")}
+                  onMoveDown={() => moveBehavior(bIndex, "down")}
+                  mechanics={mechanics}
+                />
+              ))}
+            </>
           )}
         </div>
       )}
@@ -264,6 +275,7 @@ interface SingleBehaviorCardProps {
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  mechanics?: SystemMechanicsConfig;
 }
 
 function SingleBehaviorCard({
@@ -274,8 +286,11 @@ function SingleBehaviorCard({
   onRemove,
   onMoveUp,
   onMoveDown,
+  mechanics = [],
 }: SingleBehaviorCardProps) {
   const mode = behavior.mode;
+  const activationOptions = getCategoryOptions(mechanics, "activation");
+  const triggerOptions = getCategoryOptions(mechanics, "trigger");
 
   const handleModeChange = (newMode: MechanicalBehaviorMode) => {
     let updated: MechanicalBehavior = { ...behavior, mode: newMode };
@@ -466,11 +481,12 @@ function SingleBehaviorCard({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="action">Acción Estándar</SelectItem>
-                        <SelectItem value="quick_action">Acción Rápida</SelectItem>
-                        <SelectItem value="voluntary_reaction">Reacción Voluntaria</SelectItem>
-                        <SelectItem value="free_action">Acción Gratuita</SelectItem>
-                        <SelectItem value="manual">Manual / Especial</SelectItem>
+                        {activationOptions.map((opt) => (
+                          <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                            {opt.name || getMechanicalLabel("actionTypes", opt.runtimeKey)}
+                            {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -590,25 +606,12 @@ function SingleBehaviorCard({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="receive_damage">Al recibir daño</SelectItem>
-                        <SelectItem value="deal_damage">Al infligir daño</SelectItem>
-                        <SelectItem value="receive_healing">Al recibir curación</SelectItem>
-                        <SelectItem value="attacked">Al ser atacado</SelectItem>
-                        <SelectItem value="attack">Al realizar un ataque</SelectItem>
-                        <SelectItem value="use_quirk">Al usar Quirk</SelectItem>
-                        <SelectItem value="use_technique">Al usar Técnica</SelectItem>
-                        <SelectItem value="roll">Al realizar una tirada</SelectItem>
-                        <SelectItem value="roll_success">Éxito en tirada</SelectItem>
-                        <SelectItem value="roll_failure">Fallo en tirada</SelectItem>
-                        <SelectItem value="critical">Al obtener crítico</SelectItem>
-                        <SelectItem value="spend_resource">Al gastar recurso</SelectItem>
-                        <SelectItem value="resource_threshold_crossed">Al cruzar umbral de recurso</SelectItem>
-                        <SelectItem value="turn_start">Al inicio de turno</SelectItem>
-                        <SelectItem value="turn_end">Al final de turno</SelectItem>
-                        <SelectItem value="combat_start">Al iniciar combate</SelectItem>
-                        <SelectItem value="combat_end">Al finalizar combate</SelectItem>
-                        <SelectItem value="consume_item">Al consumir objeto</SelectItem>
-                        <SelectItem value="manual">Manual / Detonante narrativo</SelectItem>
+                        {triggerOptions.map((opt) => (
+                          <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                            {opt.name || getMechanicalLabel("triggers", opt.runtimeKey)}
+                            {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -714,23 +717,30 @@ function SingleBehaviorCard({
           </AccordionItem>
 
           {/* 4. RESOLUTION SECTION */}
-          <AccordionItem value="resolution" className="border rounded-md px-3 bg-muted/10">
-            <AccordionTrigger className="py-2.5 hover:no-underline text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="size-3.5" />
-                <span>Resolución</span>
-                <Badge variant="outline" className="text-[10px] font-normal ml-1">
-                  {getMechanicalLabel("resolutions", behavior.resolution?.type || "automatic")}
-                </Badge>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-2 pb-3 space-y-3">
-              <ResolutionEditor
-                resolution={behavior.resolution || { type: "automatic", outcomes: [] }}
-                onChange={(resolution) => onUpdate({ ...behavior, resolution })}
-              />
-            </AccordionContent>
-          </AccordionItem>
+          {(() => {
+            const effRes = deriveEffectiveBehaviorResolution(behavior);
+            return (
+              <AccordionItem value="resolution" className="border rounded-md px-3 bg-muted/10">
+                <AccordionTrigger className="py-2.5 hover:no-underline text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="size-3.5" />
+                    <span>Resolución</span>
+                    <Badge variant="outline" className="text-[10px] font-normal ml-1">
+                      {effRes.summaryLabel}
+                    </Badge>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pt-2 pb-3 space-y-3">
+                  <ResolutionEditor
+                    behavior={behavior}
+                    resolution={behavior.resolution || { type: "automatic", outcomes: [] }}
+                    onChange={(resolution) => onUpdate({ ...behavior, resolution })}
+                    mechanics={mechanics}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })()}
 
           {/* 5. EFFECTS SECTION (REQUIRED 1..N EFFECTS) */}
           <AccordionItem value="effects" className="border rounded-md px-3 bg-muted/10">
@@ -747,6 +757,7 @@ function SingleBehaviorCard({
               <EffectsListEditor
                 effects={behavior.effects}
                 onChange={(effects) => onUpdate({ ...behavior, effects })}
+                mechanics={mechanics}
               />
             </AccordionContent>
           </AccordionItem>
@@ -766,6 +777,7 @@ function SingleBehaviorCard({
               <TargetEditor
                 target={behavior.target || { type: "self" }}
                 onChange={(target) => onUpdate({ ...behavior, target })}
+                mechanics={mechanics}
               />
             </AccordionContent>
           </AccordionItem>
@@ -785,6 +797,7 @@ function SingleBehaviorCard({
               <TemporalityEditor
                 temporality={behavior.temporality || { duration: { type: "instant" } }}
                 onChange={(temporality) => onUpdate({ ...behavior, temporality })}
+                mechanics={mechanics}
               />
             </AccordionContent>
           </AccordionItem>
@@ -804,6 +817,7 @@ function SingleBehaviorCard({
               <LimitationsEditor
                 limitations={behavior.limitations}
                 onChange={(limitations) => onUpdate({ ...behavior, limitations })}
+                mechanics={mechanics}
               />
             </AccordionContent>
           </AccordionItem>
@@ -814,7 +828,12 @@ function SingleBehaviorCard({
               <div className="flex items-center gap-2">
                 <Sliders className="size-3.5" />
                 <span>Control Avanzado (Contadores, Caps, Resets, Excepciones)</span>
-                {behavior.control && (
+                {behavior.control?.counter && (
+                  <Badge variant="secondary" className="text-[10px] font-normal ml-1">
+                    {behavior.control.counter.name || getCounterLabel(behavior.control.counter.id) || "Contador activo"}
+                  </Badge>
+                )}
+                {behavior.control && !behavior.control.counter && (
                   <Badge variant="secondary" className="text-[10px] font-normal ml-1">
                     configurado
                   </Badge>
@@ -874,7 +893,7 @@ function ConditionsEditor({
           <span className="font-semibold text-muted-foreground">Lógica:</span>
           <Select value={logic} onValueChange={(val: any) => onChange(conditions, val)}>
             <SelectTrigger className="h-7 w-32 text-xs bg-background">
-              <SelectValue />
+              <SelectValue>{getConditionLogicLabel(logic)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas (AND)</SelectItem>
@@ -915,6 +934,8 @@ function ConditionsEditor({
                     updateCond(i, { type: "resource", resourceId: "ES", comparison: "<=", value: 3, negated: cond.negated });
                   } else if (val === "status") {
                     updateCond(i, { type: "status", statusElementId: "core.status.stunned", present: true, negated: cond.negated });
+                  } else if (val === "counter") {
+                    updateCond(i, { type: "counter", counterId: "combat_counter", comparison: ">=", value: 1, negated: cond.negated });
                   } else if (val === "tag") {
                     updateCond(i, { type: "tag", tag: "fire", scope: "attack", negated: cond.negated });
                   } else if (val === "die") {
@@ -933,6 +954,7 @@ function ConditionsEditor({
                   <SelectItem value="resource">Recurso (Valor)</SelectItem>
                   <SelectItem value="percentage">Recurso (Porcentaje)</SelectItem>
                   <SelectItem value="status">Estado Alterado</SelectItem>
+                  <SelectItem value="counter">Contador de combate</SelectItem>
                   <SelectItem value="die">Dado Individual</SelectItem>
                   <SelectItem value="tag">Etiqueta (Tag)</SelectItem>
                   <SelectItem value="manual">Manual / Narrativa</SelectItem>
@@ -1058,6 +1080,50 @@ function ConditionsEditor({
                   </>
                 )}
 
+                {cond.type === "counter" && (
+                  <>
+                    <Select
+                      value={cond.counterId || "combat_counter"}
+                      onValueChange={(val: any) => updateCond(i, { ...cond, counterId: val })}
+                    >
+                      <SelectTrigger className="h-7 w-40 text-xs">
+                        <SelectValue>{getCounterLabel(cond.counterId || "combat_counter")}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="combat_counter">Contador de combate</SelectItem>
+                        <SelectItem value="charges">Cargas</SelectItem>
+                        <SelectItem value="combo">Combo</SelectItem>
+                        <SelectItem value="uses">Usos</SelectItem>
+                        <SelectItem value="focus">Concentración</SelectItem>
+                        <SelectItem value="heat">Calor / Tensión</SelectItem>
+                        <SelectItem value="impacto">Impacto</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={cond.comparison}
+                      onValueChange={(val: any) => updateCond(i, { ...cond, comparison: val })}
+                    >
+                      <SelectTrigger className="h-7 w-16 text-xs">
+                        <SelectValue>{cond.comparison}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="=">=</SelectItem>
+                        <SelectItem value=">=">&ge;</SelectItem>
+                        <SelectItem value="<=">&le;</SelectItem>
+                        <SelectItem value=">">&gt;</SelectItem>
+                        <SelectItem value="<">&lt;</SelectItem>
+                        <SelectItem value="!=">&ne;</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      value={cond.value}
+                      onChange={(e) => updateCond(i, { ...cond, value: parseInt(e.target.value, 10) || 0 })}
+                      className="h-7 w-16 text-xs font-mono"
+                    />
+                  </>
+                )}
+
                 {cond.type === "die" && (
                   <>
                     <Select
@@ -1161,19 +1227,41 @@ function ConditionsEditor({
 // Sub-component: Resolution Editor
 // =========================================================================
 function ResolutionEditor({
+  behavior,
   resolution,
   onChange,
+  mechanics = [],
 }: {
+  behavior: MechanicalBehavior;
   resolution: {
     type: "automatic" | "roll" | "rd" | "manual";
     difficulty?: number;
     attribute?: string;
     skill?: string;
+    attackType?: "physical" | "mental";
     description?: string;
     outcomes?: DifferentiatedOutcome[];
+    isExplicit?: boolean;
+    explicitOverride?: boolean;
   };
   onChange: (res: any) => void;
+  mechanics?: SystemMechanicsConfig;
 }) {
+  const effective = deriveEffectiveBehaviorResolution(behavior);
+  const isExplicit = Boolean(
+    resolution?.isExplicit ||
+    resolution?.explicitOverride ||
+    (resolution?.type &&
+      resolution.type !== "automatic" &&
+      (resolution.type === "rd" ||
+        resolution.type === "manual" ||
+        Boolean(resolution.attribute) ||
+        Boolean(resolution.skill)))
+  );
+  const activeType = isExplicit ? resolution.type : effective.type;
+
+  const resolutionOptions = getCategoryOptions(mechanics, "resolution");
+
   const addOutcome = () => {
     const newOutcome: DifferentiatedOutcome = {
       id: nanoid(6),
@@ -1197,54 +1285,262 @@ function ResolutionEditor({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {!isExplicit ? (
+        <div className="flex items-center justify-between p-2 rounded bg-primary/10 border border-primary/20 text-xs">
+          <span className="text-primary font-medium">
+            Resolución derivada automáticamente: <strong>{effective.summaryLabel}</strong>
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            (Modifica cualquier campo para override manual)
+          </span>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between p-2 rounded bg-amber-500/10 border border-amber-500/30 text-xs">
+          <span className="text-amber-400 font-medium">
+            Resolución manual (Override activo)
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
+            onClick={() =>
+              onChange({
+                type: "automatic",
+                isExplicit: false,
+                explicitOverride: false,
+                outcomes: resolution.outcomes,
+              })
+            }
+          >
+            Restaurar derivación automática
+          </Button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <div className="grid gap-1.5">
           <Label className="text-xs">Tipo de Resolución</Label>
           <Select
-            value={resolution.type}
-            onValueChange={(val: any) => onChange({ ...resolution, type: val })}
+            value={activeType}
+            onValueChange={(val: any) =>
+              onChange({ ...resolution, type: val, isExplicit: true, explicitOverride: true })
+            }
           >
             <SelectTrigger className="h-8 text-xs bg-background">
-              <SelectValue>{getMechanicalLabel("resolutions", resolution.type)}</SelectValue>
+              <SelectValue>{getMechanicalLabel("resolutions", activeType)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="automatic">{MECHANICAL_LABELS.resolutions.automatic}</SelectItem>
-              <SelectItem value="rd">{MECHANICAL_LABELS.resolutions.rd}</SelectItem>
-              <SelectItem value="roll">{MECHANICAL_LABELS.resolutions.roll}</SelectItem>
-              <SelectItem value="manual">{MECHANICAL_LABELS.resolutions.manual}</SelectItem>
+              {resolutionOptions.map((opt) => (
+                <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                  {opt.name || getMechanicalLabel("resolutions", opt.runtimeKey)}
+                  {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
 
-        {resolution.type === "rd" && (
+        {activeType === "roll" && (
           <>
             <div className="grid gap-1.5">
-              <Label className="text-xs">Dificultad (RD)</Label>
+              <Label className="text-xs">Tipo de Ataque (Oposición)</Label>
+              <Select
+                value={resolution.attackType || effective.attackType || "none"}
+                onValueChange={(val: string) =>
+                  onChange({
+                    ...resolution,
+                    type: "roll",
+                    attackType: val === "none" ? undefined : (val as "physical" | "mental"),
+                    isExplicit: true,
+                    explicitOverride: true,
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                  <SelectValue placeholder="Selecciona tipo de ataque" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin clasificar / Acción general</SelectItem>
+                  <SelectItem value="physical">Físico (contra Evasión)</SelectItem>
+                  <SelectItem value="mental">Mental (contra Coraje)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Atributo Exigido</Label>
+              <Select
+                value={resolution.attribute || "none"}
+                onValueChange={(val) =>
+                  onChange({
+                    ...resolution,
+                    type: "roll",
+                    attribute: val === "none" ? undefined : val,
+                    isExplicit: true,
+                    explicitOverride: true,
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue placeholder="Seleccionar Atributo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin atributo específico</SelectItem>
+                  <SelectItem value="FUE">Fuerza (FUE)</SelectItem>
+                  <SelectItem value="DES">Destreza (DES)</SelectItem>
+                  <SelectItem value="RES">Resistencia (RES)</SelectItem>
+                  <SelectItem value="INT">Inteligencia (INT)</SelectItem>
+                  <SelectItem value="VOL">Voluntad (VOL)</SelectItem>
+                  <SelectItem value="VEL">Velocidad (VEL)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Habilidad (Opcional)</Label>
+              <Select
+                value={resolution.skill || "none"}
+                onValueChange={(val) =>
+                  onChange({
+                    ...resolution,
+                    type: "roll",
+                    skill: val === "none" ? undefined : val,
+                    isExplicit: true,
+                    explicitOverride: true,
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue placeholder="Seleccionar Habilidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin habilidad específica</SelectItem>
+                  <SelectItem value="Combate cuerpo a cuerpo">Combate cuerpo a cuerpo</SelectItem>
+                  <SelectItem value="Combate con armas">Combate con armas</SelectItem>
+                  <SelectItem value="Tirador">Tirador</SelectItem>
+                  <SelectItem value="Dominio de Quirk">Dominio de Quirk</SelectItem>
+                  <SelectItem value="Atletismo">Atletismo</SelectItem>
+                  <SelectItem value="Percepción">Percepción</SelectItem>
+                  <SelectItem value="Medicina">Medicina</SelectItem>
+                  <SelectItem value="Sigilo">Sigilo</SelectItem>
+                  <SelectItem value="Tecnología">Tecnología</SelectItem>
+                  <SelectItem value="Acrobacia">Acrobacia</SelectItem>
+                  <SelectItem value="Intimidación">Intimidación</SelectItem>
+                  <SelectItem value="Estrategia">Estrategia</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
+
+        {activeType === "rd" && (
+          <>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Dificultad (RD fija)</Label>
               <Input
                 type="number"
-                value={resolution.difficulty ?? 12}
-                onChange={(e) =>
-                  onChange({ ...resolution, difficulty: parseInt(e.target.value, 10) || 0 })
-                }
-                placeholder="Ej: 12, 16..."
+                value={resolution.difficulty ?? (effective.difficulty ?? "")}
+                onChange={(e) => {
+                  const val = e.target.value.trim();
+                  onChange({
+                    ...resolution,
+                    type: "rd",
+                    difficulty: val === "" ? undefined : parseInt(val, 10) || 0,
+                    isExplicit: true,
+                    explicitOverride: true,
+                  });
+                }}
+                placeholder="Ej: 12, 16... (vacío = RD sistema)"
                 className="h-8 text-xs bg-background font-mono font-bold"
               />
             </div>
             <div className="grid gap-1.5">
-              <Label className="text-xs">Atributo / Habilidad Exigida</Label>
-              <Input
-                value={resolution.attribute || ""}
-                onChange={(e) => onChange({ ...resolution, attribute: e.target.value })}
-                placeholder="Ej: FUE, Presencia, Carisma..."
-                className="h-8 text-xs bg-background"
-              />
+              <Label className="text-xs">Atributo Exigido</Label>
+              <Select
+                value={resolution.attribute || "none"}
+                onValueChange={(val) =>
+                  onChange({
+                    ...resolution,
+                    type: "rd",
+                    attribute: val === "none" ? undefined : val,
+                    isExplicit: true,
+                    explicitOverride: true,
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue placeholder="Seleccionar Atributo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin atributo específico</SelectItem>
+                  <SelectItem value="FUE">Fuerza (FUE)</SelectItem>
+                  <SelectItem value="DES">Destreza (DES)</SelectItem>
+                  <SelectItem value="RES">Resistencia (RES)</SelectItem>
+                  <SelectItem value="INT">Inteligencia (INT)</SelectItem>
+                  <SelectItem value="VOL">Voluntad (VOL)</SelectItem>
+                  <SelectItem value="VEL">Velocidad (VEL)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Habilidad (Opcional)</Label>
+              <Select
+                value={resolution.skill || "none"}
+                onValueChange={(val) =>
+                  onChange({
+                    ...resolution,
+                    type: "rd",
+                    skill: val === "none" ? undefined : val,
+                    isExplicit: true,
+                    explicitOverride: true,
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue placeholder="Seleccionar Habilidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin habilidad específica</SelectItem>
+                  <SelectItem value="Combate cuerpo a cuerpo">Combate cuerpo a cuerpo</SelectItem>
+                  <SelectItem value="Combate con armas">Combate con armas</SelectItem>
+                  <SelectItem value="Tirador">Tirador</SelectItem>
+                  <SelectItem value="Dominio de Quirk">Dominio de Quirk</SelectItem>
+                  <SelectItem value="Atletismo">Atletismo</SelectItem>
+                  <SelectItem value="Percepción">Percepción</SelectItem>
+                  <SelectItem value="Medicina">Medicina</SelectItem>
+                  <SelectItem value="Sigilo">Sigilo</SelectItem>
+                  <SelectItem value="Tecnología">Tecnología</SelectItem>
+                  <SelectItem value="Acrobacia">Acrobacia</SelectItem>
+                  <SelectItem value="Intimidación">Intimidación</SelectItem>
+                  <SelectItem value="Estrategia">Estrategia</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </>
         )}
+
+        {activeType === "manual" && (
+          <div className="grid gap-1.5 sm:col-span-2 md:col-span-3">
+            <Label className="text-xs">Instrucción / Descripción Narrativa</Label>
+            <Input
+              value={resolution.description || ""}
+              onChange={(e) =>
+                onChange({
+                  ...resolution,
+                  type: "manual",
+                  description: e.target.value,
+                  isExplicit: true,
+                  explicitOverride: true,
+                })
+              }
+              placeholder="Instrucción de resolución o criterio del narrador..."
+              className="h-8 text-xs bg-background"
+            />
+          </div>
+        )}
       </div>
 
-      {/* Differentiated Outcomes for RD */}
-      {resolution.type === "rd" && (
+      {/* Differentiated Outcomes for RD or Roll */}
+      {(activeType === "rd" || activeType === "roll") && (
         <div className="pt-2 border-t space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground">
@@ -1357,11 +1653,17 @@ function ResolutionEditor({
 function EffectsListEditor({
   effects,
   onChange,
+  mechanics = [],
 }: {
   effects: MechanicalEffectItem[];
   onChange: (effects: MechanicalEffectItem[]) => void;
+  mechanics?: SystemMechanicsConfig;
 }) {
   const [openOverrides, setOpenOverrides] = useState<Record<string, boolean>>({});
+  const damageOptions = getCategoryOptions(mechanics, "damage");
+  const knownDamageDice = damageOptions.map((opt) => opt.runtimeKey);
+  const damageTypeOptions = getCategoryOptions(mechanics, "damage_type");
+  const rollTypeOptions = getCategoryOptions(mechanics, "roll_type");
 
   const toggleOverride = (id: string) => {
     setOpenOverrides((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -1483,65 +1785,217 @@ function EffectsListEditor({
                   <>
                     <div className="grid gap-1">
                       <Label className="text-[11px]">Fórmula de Dados</Label>
-                      <Input
-                        value={eff.dice}
-                        onChange={(e) => updateEffect(i, { ...eff, dice: e.target.value })}
-                        placeholder="Ej: 2D6, 4, 1D8+2..."
-                        className="h-7 w-28 font-mono text-xs font-bold"
-                      />
-                    </div>
-                    <div className="grid gap-1">
-                      <Label className="text-[11px]">Tipo de Daño (opcional)</Label>
-                      <Input
-                        value={eff.damageType || ""}
-                        onChange={(e) => updateEffect(i, { ...eff, damageType: e.target.value })}
-                        placeholder="Ej: fuego, impacto..."
-                        className="h-7 w-32 text-xs"
-                      />
-                    </div>
-                  </>
-                )}
-
-                {eff.type === "healing" && (
-                  <>
-                    <div className="grid gap-1">
-                      <Label className="text-[11px]">Recurso</Label>
                       <Select
-                        value={eff.resourceId}
-                        onValueChange={(val: any) => updateEffect(i, { ...eff, resourceId: val })}
+                        value={(eff as any).ruleId || (eff as any).runtimeKey || eff.dice || "2D6"}
+                        onValueChange={(val) => {
+                          const matched = damageOptions.find((opt) => opt.id === val || opt.runtimeKey === val || opt.name === val);
+                          const resolvedFormula = matched?.formula || matched?.runtimeKey || matched?.name || val;
+                          updateEffect(i, {
+                            ...eff,
+                            dice: resolvedFormula,
+                            formula: resolvedFormula,
+                            ruleId: matched?.id,
+                            runtimeKey: matched?.runtimeKey,
+                          } as any);
+                        }}
                       >
-                        <SelectTrigger className="h-7 w-28 text-xs"><SelectValue>{getResourceLabel(eff.resourceId)}</SelectValue></SelectTrigger>
+                        <SelectTrigger className="h-7 w-32 text-xs font-mono font-bold">
+                          <SelectValue placeholder="Seleccionar dado...">
+                            {damageOptions.find((opt) => opt.id === ((eff as any).ruleId || eff.dice) || opt.runtimeKey === ((eff as any).runtimeKey || eff.dice) || opt.formula === eff.dice || opt.name === eff.dice)?.name || eff.dice || "Seleccionar..."}
+                          </SelectValue>
+                        </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="SA">Salud (SA)</SelectItem>
-                          <SelectItem value="ES">Estamina (ES)</SelectItem>
+                          {damageOptions.map((opt) => (
+                            <SelectItem key={opt.id || opt.runtimeKey} value={opt.id || opt.runtimeKey}>
+                              {opt.name || opt.formula || opt.runtimeKey}
+                              {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                            </SelectItem>
+                          ))}
+                          {!damageOptions.some((opt) => opt.id === eff.dice || opt.runtimeKey === eff.dice || opt.formula === eff.dice || opt.name === eff.dice) && eff.dice && (
+                            <SelectItem key="legacy" value={eff.dice} disabled>
+                              {eff.dice} (Personalizado)
+                            </SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="grid gap-1">
-                      <Label className="text-[11px]">Cantidad</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={eff.amount}
-                        onChange={(e) => updateEffect(i, { ...eff, amount: parseInt(e.target.value, 10) || 1 })}
-                        className="h-7 w-20 font-mono text-xs"
-                      />
+                      <Label className="text-[11px]">Tipo de Daño</Label>
+                      <Select
+                        value={eff.damageType || "fisico"}
+                        onValueChange={(val) => {
+                          const matched = damageTypeOptions.find((opt) => opt.runtimeKey === val);
+                          updateEffect(i, {
+                            ...eff,
+                            damageType: val,
+                            ...(matched ? { damageTypeRuleId: matched.id } : {}),
+                          } as any);
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-36 text-xs">
+                          <SelectValue>
+                            {damageTypeOptions.find((opt) => opt.runtimeKey === (eff.damageType || "fisico"))?.name ||
+                              getMechanicalLabel("damageTypes", eff.damageType || "fisico")}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {damageTypeOptions.map((opt) => (
+                            <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                              {opt.name || getMechanicalLabel("damageTypes", opt.runtimeKey)}
+                              {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                            </SelectItem>
+                          ))}
+                          {!damageTypeOptions.some((opt) => opt.runtimeKey === (eff.damageType || "fisico")) && eff.damageType && (
+                            <SelectItem key="legacy" value={eff.damageType}>
+                              {getMechanicalLabel("damageTypes", eff.damageType) || eff.damageType}
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </>
                 )}
 
-                {eff.type === "barrier" && (
-                  <div className="grid gap-1">
-                    <Label className="text-[11px]">Puntos de Barrera</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={eff.amount}
-                      onChange={(e) => updateEffect(i, { ...eff, amount: parseInt(e.target.value, 10) || 1 })}
-                      className="h-7 w-24 font-mono text-xs"
-                    />
-                  </div>
-                )}
+                {eff.type === "healing" && (() => {
+                  const healingOption = findHealingOption(mechanics, eff as any, eff.resourceId || "SA");
+                  const validOptions = getValidHealingOptions(mechanics, eff.resourceId || "SA");
+                  const isInvalid = (eff.amount !== undefined || (eff as any).formula !== undefined || (eff as any).dice !== undefined) && !healingOption;
+                  const currentSelectedKey = healingOption?.id || (healingOption ? `${healingOption.kind}:${healingOption.kind === 'dice' ? healingOption.formula : healingOption.amount}` : "");
+
+                  return (
+                    <>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Recurso</Label>
+                        <Select
+                          value={eff.resourceId || "SA"}
+                          onValueChange={(val: any) => {
+                            const newOpt = findHealingOption(mechanics, eff as any, val);
+                            updateEffect(i, {
+                              ...eff,
+                              resourceId: val,
+                              ruleId: newOpt?.id,
+                              runtimeKey: newOpt?.runtimeKey,
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="h-7 w-28 text-xs">
+                            <SelectValue>{getResourceLabel(eff.resourceId || "SA")}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="SA">Salud (SA)</SelectItem>
+                            <SelectItem value="ES">Estamina (ES)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="grid gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <Label className="text-[11px]">Curación</Label>
+                          {healingOption && (
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              ({healingOption.cost > 0 ? `+${healingOption.cost} CE` : `${healingOption.cost} CE`})
+                            </span>
+                          )}
+                        </div>
+                        <Select
+                          value={currentSelectedKey || "unconfigured"}
+                          onValueChange={(val: string) => {
+                            const selected = validOptions.find(o => o.ruleId === val || `${o.kind}:${o.kind === 'dice' ? o.formula : o.amount}` === val);
+                            if (selected) {
+                              updateEffect(i, {
+                                ...eff,
+                                kind: selected.kind,
+                                amount: selected.kind === "fixed" ? selected.amount : undefined,
+                                formula: selected.kind === "dice" ? selected.formula : undefined,
+                                dice: selected.kind === "dice" ? selected.formula : undefined,
+                                magnitude: selected.magnitude,
+                                ruleId: selected.ruleId,
+                                runtimeKey: selected.runtimeKey,
+                              } as any);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className={`h-7 min-w-[140px] font-mono text-xs ${isInvalid ? "border-red-500 focus-visible:ring-red-500 text-red-500" : ""}`}>
+                            <SelectValue placeholder="Seleccionar curación">
+                              {healingOption ? (
+                                `${healingOption.name || (healingOption.kind === "dice" ? healingOption.formula : healingOption.amount)} (${healingOption.cost > 0 ? `+${healingOption.cost} CE` : `${healingOption.cost} CE`})`
+                              ) : isInvalid ? (
+                                `${(eff as any).formula ?? (eff as any).dice ?? eff.amount ?? "No configurado"}`
+                              ) : (
+                                "Seleccionar..."
+                              )}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {validOptions.map((opt) => (
+                              <SelectItem key={opt.ruleId} value={opt.ruleId}>
+                                {opt.name ? `${opt.name} (${opt.cost > 0 ? `+${opt.cost} CE` : `${opt.cost} CE`})` : opt.label}
+                              </SelectItem>
+                            ))}
+                            {isInvalid && (
+                              <SelectItem value="unconfigured" disabled>
+                                {(eff as any).formula ?? (eff as any).dice ?? eff.amount} (No configurado)
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {isInvalid && (
+                        <div className="w-full text-[11px] text-red-500 font-medium">
+                          Esta cantidad o fórmula no está configurada en las reglas del sistema.
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+
+                {eff.type === "barrier" && (() => {
+                  const barrierOptions = getCategoryOptions(mechanics, "barrier");
+                  const barrierList = barrierOptions
+                    .map((opt) => ({
+                      id: opt.id,
+                      runtimeKey: opt.runtimeKey,
+                      name: opt.name,
+                      cost: opt.cost,
+                      amount: getBarrierAmount(opt),
+                    }))
+                    .filter((b) => b.amount > 0)
+                    .sort((a, b) => a.amount - b.amount);
+
+                  return (
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Puntos de Barrera</Label>
+                      <Select
+                        value={eff.amount ? String(eff.amount) : ""}
+                        onValueChange={(val) => {
+                          const numVal = parseInt(val, 10);
+                          const matchedOpt = barrierList.find((b) => b.amount === numVal);
+                          updateEffect(i, {
+                            ...eff,
+                            amount: numVal,
+                            ruleId: matchedOpt?.id,
+                            runtimeKey: matchedOpt?.runtimeKey,
+                          } as any);
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-36 text-xs font-mono font-bold">
+                          <SelectValue placeholder="Seleccionar barrera...">
+                            {eff.amount ? `${eff.amount} Puntos` : "Seleccionar barrera..."}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {barrierList.map((opt) => (
+                            <SelectItem key={opt.id} value={String(opt.amount)}>
+                              {opt.name || `${opt.amount} Puntos`}
+                              {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })()}
 
                 {eff.type === "attribute_modifier" && (
                   <>
@@ -1555,12 +2009,12 @@ function EffectsListEditor({
                           <SelectValue>{getAttributeLabel(eff.attributeId)}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="fue">Fuerza (FUE)</SelectItem>
-                          <SelectItem value="res">Resistencia (RES)</SelectItem>
-                          <SelectItem value="des">Destreza (DES)</SelectItem>
-                          <SelectItem value="int">Inteligencia (INT)</SelectItem>
-                          <SelectItem value="vel">Velocidad (VEL)</SelectItem>
-                          <SelectItem value="vol">Voluntad (VOL)</SelectItem>
+                          <SelectItem value="FUE">Fuerza (FUE)</SelectItem>
+                          <SelectItem value="RES">Resistencia (RES)</SelectItem>
+                          <SelectItem value="DES">Destreza (DES)</SelectItem>
+                          <SelectItem value="INT">Inteligencia (INT)</SelectItem>
+                          <SelectItem value="VEL">Velocidad (VEL)</SelectItem>
+                          <SelectItem value="VOL">Voluntad (VOL)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1715,12 +2169,22 @@ function EffectsListEditor({
                   <>
                     <div className="grid gap-1">
                       <Label className="text-[11px]">Tipo de Tirada</Label>
-                      <Input
+                      <Select
                         value={eff.rollType || "action"}
-                        onChange={(e) => updateEffect(i, { ...eff, rollType: e.target.value })}
-                        placeholder="action, defense, attack..."
-                        className="h-7 w-28 text-xs"
-                      />
+                        onValueChange={(val) => updateEffect(i, { ...eff, rollType: val })}
+                      >
+                        <SelectTrigger className="h-7 w-36 text-xs">
+                          <SelectValue>{getMechanicalLabel("rollTypes", eff.rollType || "action")}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {rollTypeOptions.map((opt) => (
+                            <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                              {opt.name || getMechanicalLabel("rollTypes", opt.runtimeKey)}
+                              {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="grid gap-1">
                       <Label className="text-[11px]">Modificador</Label>
@@ -1734,60 +2198,59 @@ function EffectsListEditor({
                   </>
                 )}
 
-                {eff.type === "status_apply" && (
-                  <>
-                    <div className="grid gap-1">
-                      <Label className="text-[11px]">Estado Alterado</Label>
-                      <Select
-                        value={
-                          ["core.status.stunned", "core.status.vulnerable", "core.status.berserker", "core.status.paralyzed", "support_blocked"].includes(eff.statusElementId)
-                            ? eff.statusElementId
-                            : "custom"
-                        }
-                        onValueChange={(val) => {
-                          if (val !== "custom") {
-                            updateEffect(i, { ...eff, statusElementId: val });
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="h-7 w-48 text-xs font-medium">
-                          <SelectValue placeholder="Seleccionar estado...">
-                            {getAlteredStatusLabel(eff.statusElementId)}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="core.status.stunned">Aturdido</SelectItem>
-                          <SelectItem value="core.status.vulnerable">Vulnerable</SelectItem>
-                          <SelectItem value="core.status.berserker">Berserker</SelectItem>
-                          <SelectItem value="core.status.paralyzed">Paralizado</SelectItem>
-                          <SelectItem value="support_blocked">Soporte Bloqueado</SelectItem>
-                          <SelectItem value="custom">Otro (ID manual)...</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {(!["core.status.stunned", "core.status.vulnerable", "core.status.berserker", "core.status.paralyzed", "support_blocked"].includes(eff.statusElementId)) && (
+                {eff.type === "status_apply" && (() => {
+                  const statusOptions = getCategoryOptions(mechanics, "status");
+                  return (
+                    <>
                       <div className="grid gap-1">
-                        <Label className="text-[11px]">ID técnico de estado</Label>
-                        <Input
+                        <Label className="text-[11px]">Estado Alterado</Label>
+                        <Select
                           value={eff.statusElementId}
-                          onChange={(e) => updateEffect(i, { ...eff, statusElementId: e.target.value })}
-                          placeholder="ID de estado..."
-                          className="h-7 w-36 text-xs font-mono"
+                          onValueChange={(val) => {
+                            const matched = statusOptions.find((s) => s.id === val || s.runtimeKey === val);
+                            updateEffect(i, {
+                              ...eff,
+                              statusElementId: val,
+                              ruleId: matched?.id,
+                              runtimeKey: matched?.runtimeKey,
+                            } as any);
+                          }}
+                        >
+                          <SelectTrigger className="h-7 w-48 text-xs font-medium">
+                            <SelectValue placeholder="Seleccionar estado...">
+                              {statusOptions.find((s) => s.id === eff.statusElementId || s.runtimeKey === eff.statusElementId)?.name ||
+                                getAlteredStatusLabel(eff.statusElementId)}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {statusOptions.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.name}
+                                {s.cost > 0 ? ` (+${s.cost} CE)` : s.cost < 0 ? ` (${s.cost} CE)` : ""}
+                              </SelectItem>
+                            ))}
+                            {!statusOptions.some((s) => s.id === eff.statusElementId || s.runtimeKey === eff.statusElementId) &&
+                              eff.statusElementId && (
+                                <SelectItem key="custom" value={eff.statusElementId}>
+                                  {getAlteredStatusLabel(eff.statusElementId)}
+                                </SelectItem>
+                              )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Duración (Turnos)</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={eff.turns || 1}
+                          onChange={(e) => updateEffect(i, { ...eff, turns: parseInt(e.target.value, 10) || 1 })}
+                          className="h-7 w-20 text-xs"
                         />
                       </div>
-                    )}
-                    <div className="grid gap-1">
-                      <Label className="text-[11px]">Duración (Turnos)</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={eff.turns || 1}
-                        onChange={(e) => updateEffect(i, { ...eff, turns: parseInt(e.target.value, 10) || 1 })}
-                        className="h-7 w-20 text-xs"
-                      />
-                    </div>
-                  </>
-                )}
+                    </>
+                  );
+                })()}
 
                 {eff.type === "turn_loss" && (
                   <div className="grid gap-1">
@@ -1837,13 +2300,39 @@ function EffectsListEditor({
                 {eff.type === "counter_modifier" && (
                   <>
                     <div className="grid gap-1">
-                      <Label className="text-[11px]">ID de Contador</Label>
-                      <Input
-                        value={eff.counterId || ""}
-                        onChange={(e) => updateEffect(i, { ...eff, counterId: e.target.value })}
-                        placeholder="Ej: combat_counter..."
-                        className="h-7 w-32 text-xs font-mono"
-                      />
+                      <Label className="text-[11px]">Contador</Label>
+                      <Select
+                        value={eff.counterId || "combat_counter"}
+                        onValueChange={(val: any) => {
+                          if (val === "custom") {
+                            updateEffect(i, { ...eff, counterId: "nuevo_contador" });
+                          } else {
+                            updateEffect(i, { ...eff, counterId: val });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-40 text-xs">
+                          <SelectValue>{getCounterLabel(eff.counterId || "combat_counter")}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="combat_counter">Contador de combate</SelectItem>
+                          <SelectItem value="charges">Cargas</SelectItem>
+                          <SelectItem value="combo">Combo</SelectItem>
+                          <SelectItem value="uses">Usos</SelectItem>
+                          <SelectItem value="focus">Concentración</SelectItem>
+                          <SelectItem value="heat">Calor / Tensión</SelectItem>
+                          <SelectItem value="impacto">Impacto</SelectItem>
+                          <SelectItem value="custom">Otro (personalizado)...</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {eff.counterId && !["combat_counter", "charges", "combo", "uses", "focus", "heat", "impacto"].includes(eff.counterId) && (
+                        <Input
+                          value={eff.counterId || ""}
+                          onChange={(e) => updateEffect(i, { ...eff, counterId: e.target.value })}
+                          placeholder="ID de contador..."
+                          className="h-7 w-32 text-xs font-mono"
+                        />
+                      )}
                     </div>
                     <div className="grid gap-1">
                       <Label className="text-[11px]">Operación</Label>
@@ -2008,10 +2497,17 @@ function EffectsListEditor({
 function TargetEditor({
   target,
   onChange,
+  mechanics = [],
 }: {
   target: any;
   onChange: (target: any) => void;
+  mechanics?: SystemMechanicsConfig;
 }) {
+  const targetOptions = getCategoryOptions(mechanics, "target");
+  const rangeOptions = getCategoryOptions(mechanics, "range");
+  const areaOptions = getCategoryOptions(mechanics, "area");
+  const selectionOptions = getCategoryOptions(mechanics, "selection_restriction");
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
       <div className="grid gap-1.5">
@@ -2024,14 +2520,12 @@ function TargetEditor({
             <SelectValue>{getMechanicalLabel("targets", target.type || "self")}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="self">{MECHANICAL_LABELS.targets.self}</SelectItem>
-            <SelectItem value="enemy">{MECHANICAL_LABELS.targets.enemy}</SelectItem>
-            <SelectItem value="ally">{MECHANICAL_LABELS.targets.ally}</SelectItem>
-            <SelectItem value="character">{MECHANICAL_LABELS.targets.character}</SelectItem>
-            <SelectItem value="area">{MECHANICAL_LABELS.targets.area}</SelectItem>
-            <SelectItem value="roll">{MECHANICAL_LABELS.targets.roll}</SelectItem>
-            <SelectItem value="resource">{MECHANICAL_LABELS.targets.resource}</SelectItem>
-            <SelectItem value="manual">{MECHANICAL_LABELS.targets.manual}</SelectItem>
+            {targetOptions.map((opt) => (
+              <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                {opt.name || getMechanicalLabel("targets", opt.runtimeKey)}
+                {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -2051,10 +2545,12 @@ function TargetEditor({
             <SelectValue>{getMechanicalLabel("ranges", target.range?.type || "contact")}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="self">{MECHANICAL_LABELS.ranges.self}</SelectItem>
-            <SelectItem value="contact">{MECHANICAL_LABELS.ranges.contact}</SelectItem>
-            <SelectItem value="distance">{MECHANICAL_LABELS.ranges.distance}</SelectItem>
-            <SelectItem value="unlimited">{MECHANICAL_LABELS.ranges.unlimited}</SelectItem>
+            {rangeOptions.map((opt) => (
+              <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                {opt.name || getMechanicalLabel("ranges", opt.runtimeKey)}
+                {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -2097,10 +2593,12 @@ function TargetEditor({
                 <SelectValue>{getMechanicalLabel("areaShapes", target.area?.shape || "radius")}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="radius">{MECHANICAL_LABELS.areaShapes.radius}</SelectItem>
-                <SelectItem value="cone">{MECHANICAL_LABELS.areaShapes.cone}</SelectItem>
-                <SelectItem value="line">{MECHANICAL_LABELS.areaShapes.line}</SelectItem>
-                <SelectItem value="zone">{MECHANICAL_LABELS.areaShapes.zone}</SelectItem>
+                {areaOptions.map((opt) => (
+                  <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                    {opt.name || getMechanicalLabel("areaShapes", opt.runtimeKey)}
+                    {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -2139,9 +2637,12 @@ function TargetEditor({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">{MECHANICAL_LABELS.selectionRestrictions.none}</SelectItem>
-            <SelectItem value="nearest">{MECHANICAL_LABELS.selectionRestrictions.nearest}</SelectItem>
-            <SelectItem value="random">{MECHANICAL_LABELS.selectionRestrictions.random}</SelectItem>
-            <SelectItem value="specific">{MECHANICAL_LABELS.selectionRestrictions.specific}</SelectItem>
+            {selectionOptions.map((opt) => (
+              <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                {opt.name || getMechanicalLabel("selectionRestrictions", opt.runtimeKey)}
+                {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -2155,10 +2656,15 @@ function TargetEditor({
 function TemporalityEditor({
   temporality,
   onChange,
+  mechanics = [],
 }: {
   temporality: any;
   onChange: (temp: any) => void;
+  mechanics?: SystemMechanicsConfig;
 }) {
+  const durationOptions = getCategoryOptions(mechanics, "duration");
+  const frequencyOptions = getCategoryOptions(mechanics, "frequency");
+
   return (
     <div className="space-y-3 text-xs">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -2177,15 +2683,12 @@ function TemporalityEditor({
               <SelectValue>{getMechanicalLabel("durations", temporality.duration?.type || "instant")}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="instant">{MECHANICAL_LABELS.durations.instant}</SelectItem>
-              <SelectItem value="turns">{MECHANICAL_LABELS.durations.turns}</SelectItem>
-              <SelectItem value="until_turn_end">{MECHANICAL_LABELS.durations.until_turn_end}</SelectItem>
-              <SelectItem value="until_next_turn">{MECHANICAL_LABELS.durations.until_next_turn}</SelectItem>
-              <SelectItem value="until_next_roll">{MECHANICAL_LABELS.durations.until_next_roll}</SelectItem>
-              <SelectItem value="until_next_use">{MECHANICAL_LABELS.durations.until_next_use}</SelectItem>
-              <SelectItem value="while_condition">{MECHANICAL_LABELS.durations.while_condition}</SelectItem>
-              <SelectItem value="while_owned">{MECHANICAL_LABELS.durations.while_owned}</SelectItem>
-              <SelectItem value="permanent">{MECHANICAL_LABELS.durations.permanent}</SelectItem>
+              {durationOptions.map((opt) => (
+                <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                  {opt.name || getMechanicalLabel("durations", opt.runtimeKey)}
+                  {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -2226,10 +2729,12 @@ function TemporalityEditor({
               <SelectValue>{getMechanicalLabel("frequencies", temporality.frequency?.type || "once")}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="once">{MECHANICAL_LABELS.frequencies.once}</SelectItem>
-              <SelectItem value="each_turn">{MECHANICAL_LABELS.frequencies.each_turn}</SelectItem>
-              <SelectItem value="turn_start">{MECHANICAL_LABELS.frequencies.turn_start}</SelectItem>
-              <SelectItem value="turn_end">{MECHANICAL_LABELS.frequencies.turn_end}</SelectItem>
+              {frequencyOptions.map((opt) => (
+                <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                  {opt.name || getMechanicalLabel("frequencies", opt.runtimeKey)}
+                  {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -2303,15 +2808,21 @@ function TemporalityEditor({
 function LimitationsEditor({
   limitations,
   onChange,
+  mechanics = [],
 }: {
   limitations: MechanicalLimitation[];
   onChange: (lim: MechanicalLimitation[]) => void;
+  mechanics?: SystemMechanicsConfig;
 }) {
+  const usageOptions = getCategoryOptions(mechanics, "usage");
+  const cooldownOptions = getCategoryOptions(mechanics, "cooldown");
+
   const addLimitation = () => {
+    const defaultTurn = cooldownOptions.length > 0 ? (parseInt(cooldownOptions[0].runtimeKey, 10) || 1) : 1;
     const newLim: MechanicalLimitation = {
       id: nanoid(6),
       type: "cooldown",
-      turns: 1,
+      turns: defaultTurn,
     };
     onChange([...limitations, newLim]);
   };
@@ -2366,22 +2877,41 @@ function LimitationsEditor({
                 </SelectContent>
               </Select>
 
-              {lim.type === "cooldown" && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted-foreground">Turnos:</span>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={lim.turns}
-                    onChange={(e) => {
-                      const copy = [...limitations];
-                      copy[i] = { ...lim, turns: parseInt(e.target.value, 10) || 1 };
-                      onChange(copy);
-                    }}
-                    className="h-7 w-16 text-xs font-mono"
-                  />
-                </div>
-              )}
+              {lim.type === "cooldown" && (() => {
+                const matchedOption = cooldownOptions.find(
+                  (opt) => opt.runtimeKey === String(lim.turns) || opt.id.endsWith(`.${lim.turns}`)
+                );
+                return (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground">Turnos:</span>
+                    <Select
+                      value={String(lim.turns)}
+                      onValueChange={(val) => {
+                        const copy = [...limitations];
+                        copy[i] = { ...lim, turns: parseInt(val, 10) || 1 };
+                        onChange(copy);
+                      }}
+                    >
+                      <SelectTrigger className="h-7 w-32 text-xs font-mono">
+                        <SelectValue>{matchedOption ? matchedOption.name : `${lim.turns} turnos`}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cooldownOptions.map((opt) => (
+                          <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                            {opt.name}
+                            {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                          </SelectItem>
+                        ))}
+                        {!cooldownOptions.some((opt) => opt.runtimeKey === String(lim.turns)) && (
+                          <SelectItem key="unconfigured" value={String(lim.turns)} disabled>
+                            {lim.turns} turnos (No configurado)
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })()}
 
               {lim.type === "usage_limit" && (
                 <div className="flex items-center gap-2">
@@ -2409,10 +2939,12 @@ function LimitationsEditor({
                       <SelectValue>{getMechanicalLabel("periods", lim.period)}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="turn">{MECHANICAL_LABELS.periods.turn}</SelectItem>
-                      <SelectItem value="combat">{MECHANICAL_LABELS.periods.combat}</SelectItem>
-                      <SelectItem value="mission">{MECHANICAL_LABELS.periods.mission}</SelectItem>
-                      <SelectItem value="day">{MECHANICAL_LABELS.periods.day}</SelectItem>
+                      {usageOptions.map((opt) => (
+                        <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                          {opt.name || getMechanicalLabel("periods", opt.runtimeKey)}
+                          {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

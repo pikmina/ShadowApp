@@ -21,6 +21,7 @@ export const componentTemplates: Record<RuleComponent['kind'], RuleComponent> = 
   condition: { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'manual', signalId: 'signal-id' }] },
   consequence: { kind: 'consequence', role: 'consequence', when: 'end', consequence: { kind: 'attribute', attributeId: 'INT', amount: -2, turns: 3, untilEnd: false } },
   cap: { kind: 'cap', subject: 'stamina_cost', min: 0, max: 100 },
+  damage_type: { kind: 'damage_type', damageType: 'fisico' },
 };
 
 const predicateTemplates = { contact: { kind: 'contact', sense: 'physical' }, conscious: { kind: 'conscious' }, resource: { kind: 'resource', resourceId: 'ES', comparison: 'lte', percent: 50 }, ability_active: { kind: 'ability_active', abilityId: 'ability-id' }, item: { kind: 'item', elementId: 'element-id', quantity: 1 }, consumable: { kind: 'consumable', elementId: 'element-id', quantity: 1 }, manual: { kind: 'manual', signalId: 'signal-id' }, die: { kind: 'die', min: 1, max: 5 } };

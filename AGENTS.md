@@ -951,3 +951,103 @@ Before completing UI work:
 # ALERTS AND CONFIRMATIONS
 Never use \`window.confirm\` or native browser popups for confirmations, as they can be blocked by iframe sandbox policies.
 Always use Shadcn's \`AlertDialog\` component (\`src/components/ui/alert-dialog.tsx\`) for any deletion or destructive action confirmation.
+
+## User-Facing Identity and Labels — REQUIRED
+
+Internal identifiers MUST NEVER be used as user-facing labels.
+
+This applies to all UI rendered for users or administrators, including:
+
+- database IDs
+- numeric IDs
+- UUIDs
+- ruleId
+- runtimeKey
+- categoryKey
+- behavior.id
+- effect.id
+- characterId
+- element IDs
+- enum/raw technical values
+
+Identifiers may be used internally as:
+
+- React keys
+- Select values
+- API parameters
+- foreign keys
+- persistence references
+- routing identifiers
+- lookup keys
+
+but MUST NOT be rendered as the visible text of a control, option, badge, warning, toast, table cell, description, or validation message.
+
+### Selects
+
+Every selector involving an entity MUST explicitly separate:
+
+Value:
+- stable internal identifier
+
+Display:
+- human-readable name or label
+
+Example:
+
+Correct:
+
+<SelectItem value={String(character.id)}>
+  {getCharacterDisplayName(character)}
+</SelectItem>
+
+Incorrect:
+
+<SelectItem value={String(character.id)}>
+  {character.id}
+</SelectItem>
+
+### Display-name precedence
+
+For entities with multiple possible naming fields, use a centralized display-name resolver.
+
+For characters, use the canonical character naming fields already present in the domain and produce a human-readable name such as:
+
+"Nombre Apellido"
+
+or the appropriate canonical full-name representation used by the application.
+
+Do NOT independently reconstruct character names differently in each component.
+
+If a human-readable name cannot be resolved, show a neutral localized fallback such as:
+
+"Personaje sin nombre"
+
+NEVER fall back to the internal ID.
+
+### Technical enums and runtime keys
+
+Raw values such as:
+
+enemy
+damage_type
+automatic
+physical
+runtimeKey
+UUID
+
+must not be displayed directly when a localized/domain label exists.
+
+Resolve them through the canonical label/configuration source.
+
+### Validation before completion
+
+Whenever a task adds or modifies UI, audit all newly rendered values and verify:
+
+1. No internal ID is visible.
+2. No UUID is visible.
+3. No runtimeKey/categoryKey is visible.
+4. No raw enum is visible when a localized label exists.
+5. Entity selectors display human-readable names.
+6. Internal identifiers remain only in value/key/persistence layers.
+
+A task is NOT complete if technical identifiers are visible in normal UI.

@@ -46,6 +46,14 @@ async function startServer() {
   try {
     const { db } = await import("./src/db/index.ts");
     const { sql } = await import("drizzle-orm");
+    const existingResult = await db.execute<{ enumlabel: string }>(sql`
+      SELECT e.enumlabel
+      FROM pg_enum e
+      JOIN pg_type t ON e.enumtypid = t.oid
+      WHERE t.typname = 'element_kind';
+    `);
+    const existingLabels = new Set((existingResult.rows || []).map((r: any) => r.enumlabel));
+
     const elementKindValues = [
       'trait', 'weakness', 'skill', 'equipment', 'weapon', 
       'ammunition', 'consumable', 'license', 'permission', 'certification',
@@ -54,7 +62,9 @@ async function startServer() {
       'background', 'vehicle', 'real_estate', 'clandestine_asset'
     ];
     for (const val of elementKindValues) {
-      await db.execute(sql.raw(`ALTER TYPE "element_kind" ADD VALUE IF NOT EXISTS '${val}';`));
+      if (!existingLabels.has(val)) {
+        await db.execute(sql.raw(`ALTER TYPE "element_kind" ADD VALUE '${val}';`));
+      }
     }
   } catch (err: any) {
     console.warn("Notice: Enum verification at server start:", err?.message || err);
@@ -897,6 +907,171 @@ async function startServer() {
       const { payEmploymentBatch } = await import("./src/db/employments.ts");
       res.json(await payEmploymentBatch(req.dbUser.uid, parsed.data.periodLabel, parsed.data.notes ?? null, parsed.data.items));
     } catch (error: any) { res.status(error.status || 500).json({ error: error.message }); }
+  });
+
+  // --- Character Techniques API ---
+  app.get("/api/admin/character-techniques", requireAuth, requireRole(["superadmin", "moderator"]), async (_req: AuthRequest, res) => {
+    try {
+      const { getAllCharacterTechniques } = await import("./src/db/characterTechniques.ts");
+      const techniques = await getAllCharacterTechniques();
+      res.json(techniques);
+    } catch (error: any) {
+      console.error("Fetch all character techniques error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch character techniques" });
+    }
+  });
+
+  app.get("/api/characters/:characterId/techniques", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const characterId = parseInt(req.params.characterId, 10);
+      if (isNaN(characterId)) return res.status(400).json({ error: "Invalid character ID" });
+
+      const { getCharacterById } = await import("./src/db/characters.ts");
+      const char = await getCharacterById(characterId);
+      if (!char) return res.status(404).json({ error: "Character not found" });
+
+      const isMod = req.dbUser?.role === "superadmin" || req.dbUser?.role === "moderator";
+      const isOwner = char.userId === req.dbUser?.id;
+      if (!isMod && !isOwner) {
+        return res.status(403).json({ error: "Forbidden: You do not own this character" });
+      }
+
+      const { getCharacterTechniquesByCharacterId } = await import("./src/db/characterTechniques.ts");
+      const techniques = await getCharacterTechniquesByCharacterId(characterId);
+      res.json(techniques);
+    } catch (error: any) {
+      console.error("Fetch character techniques error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch techniques" });
+    }
+  });
+
+  app.post("/api/characters/:characterId/techniques", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const characterId = parseInt(req.params.characterId, 10);
+      if (isNaN(characterId)) return res.status(400).json({ error: "Invalid character ID" });
+
+      const { getCharacterById } = await import("./src/db/characters.ts");
+      const char = await getCharacterById(characterId);
+      if (!char) return res.status(404).json({ error: "Character not found" });
+
+      const isMod = req.dbUser?.role === "superadmin" || req.dbUser?.role === "moderator";
+      const isOwner = char.userId === req.dbUser?.id;
+      if (!isMod && !isOwner) {
+        return res.status(403).json({ error: "Forbidden: You do not own this character" });
+      }
+
+      const { createCharacterTechnique } = await import("./src/db/characterTechniques.ts");
+      const { createCharacterTechniqueSchema } = await import("./src/domain/characterTechnique.ts");
+
+      const validated = createCharacterTechniqueSchema.parse({
+        ...req.body,
+        characterId,
+      });
+
+      // API boundary validation against system_mechanics
+      const rules = await getRules();
+      const sysMechRule = rules.find((r) => r.key === "system_mechanics")?.value;
+      const { createCoreCategories } = await import("./src/domain/coreRuleCatalog.ts");
+      const { findHealingOption } = await import("./src/domain/systemMechanics.ts");
+      const effectiveMechanics = Array.isArray(sysMechRule) && sysMechRule.length > 0 ? sysMechRule : createCoreCategories();
+
+      for (const b of (validated.mechanicalBehaviors || [])) {
+        for (const eff of (b.effects || [])) {
+          if (eff.type === 'healing') {
+            const healingOpt = findHealingOption(effectiveMechanics, eff as any, eff.resourceId || 'SA');
+            if (!healingOpt) {
+              return res.status(400).json({ error: "Esta cantidad no está configurada en las reglas del sistema." });
+            }
+          }
+        }
+      }
+
+      const technique = await createCharacterTechnique(validated);
+      res.status(201).json(technique);
+    } catch (error: any) {
+      console.error("Create character technique error:", error);
+      if (error?.name === "ZodError" || error?.status === 400) {
+        return res.status(400).json({ error: error.message || "Validation failed", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Failed to create technique" });
+    }
+  });
+
+  app.put("/api/character-techniques/:id", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { getCharacterTechniqueById, updateCharacterTechnique } = await import("./src/db/characterTechniques.ts");
+      const existing = await getCharacterTechniqueById(id);
+      if (!existing) return res.status(404).json({ error: "Technique not found" });
+
+      const { getCharacterById } = await import("./src/db/characters.ts");
+      const char = await getCharacterById(existing.characterId);
+      if (!char) return res.status(404).json({ error: "Character not found" });
+
+      const isMod = req.dbUser?.role === "superadmin" || req.dbUser?.role === "moderator";
+      const isOwner = char.userId === req.dbUser?.id;
+      if (!isMod && !isOwner) {
+        return res.status(403).json({ error: "Forbidden: You do not own this character" });
+      }
+
+      const { updateCharacterTechniqueSchema } = await import("./src/domain/characterTechnique.ts");
+      const validated = updateCharacterTechniqueSchema.parse(req.body);
+
+      // API boundary validation against system_mechanics
+      if (Array.isArray(validated.mechanicalBehaviors)) {
+        const rules = await getRules();
+        const sysMechRule = rules.find((r) => r.key === "system_mechanics")?.value;
+        const { createCoreCategories } = await import("./src/domain/coreRuleCatalog.ts");
+        const { findHealingOption } = await import("./src/domain/systemMechanics.ts");
+        const effectiveMechanics = Array.isArray(sysMechRule) && sysMechRule.length > 0 ? sysMechRule : createCoreCategories();
+
+        for (const b of validated.mechanicalBehaviors) {
+          for (const eff of (b.effects || [])) {
+            if (eff.type === 'healing') {
+              const healingOpt = findHealingOption(effectiveMechanics, eff as any, eff.resourceId || 'SA');
+              if (!healingOpt) {
+                return res.status(400).json({ error: "Esta cantidad no está configurada en las reglas del sistema." });
+              }
+            }
+          }
+        }
+      }
+
+      const updated = await updateCharacterTechnique(id, validated, req.body.expectedRevision);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update character technique error:", error);
+      if (error?.status === 409) return res.status(409).json({ error: error.message });
+      if (error?.name === "ZodError" || error?.status === 400) {
+        return res.status(400).json({ error: error.message || "Validation failed", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Failed to update technique" });
+    }
+  });
+
+  app.delete("/api/character-techniques/:id", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { getCharacterTechniqueById, deleteCharacterTechnique } = await import("./src/db/characterTechniques.ts");
+      const existing = await getCharacterTechniqueById(id);
+      if (!existing) return res.status(404).json({ error: "Technique not found" });
+
+      const { getCharacterById } = await import("./src/db/characters.ts");
+      const char = await getCharacterById(existing.characterId);
+      if (!char) return res.status(404).json({ error: "Character not found" });
+
+      const isMod = req.dbUser?.role === "superadmin" || req.dbUser?.role === "moderator";
+      const isOwner = char.userId === req.dbUser?.id;
+      if (!isMod && !isOwner) {
+        return res.status(403).json({ error: "Forbidden: You do not own this character" });
+      }
+
+      const deleted = await deleteCharacterTechnique(id);
+      res.json({ success: deleted });
+    } catch (error: any) {
+      console.error("Delete character technique error:", error);
+      res.status(500).json({ error: error.message || "Failed to delete technique" });
+    }
   });
 
   // --- Classes Admin API ---

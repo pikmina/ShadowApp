@@ -68,7 +68,25 @@ export function applyRuleOperations(world: RuleWorld, bearerId: string, sourceId
           entity.resources.SA.current -= damage; damageDealt += damage;
           break;
         }
-        case 'healing': debit(entity, effect.resourceId, effect.amount); break;
+        case 'healing': {
+          const isDice = (effect as any).magnitude?.kind === 'dice' || (effect as any).kind === 'dice' || Boolean((effect as any).dice) || Boolean((effect as any).formula);
+          if (isDice) {
+            const formula = (effect as any).magnitude?.formula ?? (effect as any).formula ?? (effect as any).dice;
+            const match = /^(\d+)[dD](\d+)$/.exec(formula);
+            if (!match) throw new Error('Unsupported healing dice');
+            const dice = rolls[effect.id];
+            if (!dice || dice.length !== Number(match[1]) || dice.some(d => !Number.isInteger(d) || d < 1 || d > Number(match[2]))) {
+              throw new Error('Missing or invalid individual healing dice');
+            }
+            const rolled = dice.reduce((sum, d) => sum + d, 0);
+            const total = op.cap ? Math.max(op.cap.min, Math.min(op.cap.max, rolled)) : rolled;
+            debit(entity, effect.resourceId, total);
+          } else {
+            const amt = (effect as any).magnitude?.amount ?? effect.amount;
+            debit(entity, effect.resourceId, amt);
+          }
+          break;
+        }
         case 'barrier': entity.barrier += effect.amount; (entity.barriers ??= []).push({ sourceId, amount: effect.amount, expiresAt, ...(op.cap ? { cap: op.cap } : {}) }); break;
         case 'attribute_modifier': case 'derived_stat_modifier':
           entity.modifiers.push({ sourceId, statId: effect.type === 'attribute_modifier' ? effect.attributeId : effect.statId, amount: effect.amount, expiresAt, ...(op.cap ? { cap: op.cap } : {}) }); break;

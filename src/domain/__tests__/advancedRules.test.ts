@@ -61,9 +61,9 @@ test('modifier caps clamp the combined modifier, not every contribution separate
   expect(entity.attributes.FUE).toBe(1);
 });
 
-test('self damage is a consequence, not an affordability requirement', () => {
-  const group = resolveAppliedMechanics(refs('barrier.30', 'self_damage.base'), categories).groups[0];
-  const before = world(); before.self.resources.SA.current = 1;
+test('health cost is a consequence, not an affordability requirement', () => {
+  const group = resolveAppliedMechanics(refs('barrier.30', 'health_cost.base'), categories).groups[0];
+  const before = world(); before.self.resources.SA.current = 0;
   const result = executeRuleGroup(group, { ...c, resources: before.self.resources }, createRuleRuntime(), before, 'self', 'source');
   expect(result.valid).toBe(true); expect(result.world.self.resources.SA.current).toBe(-1);
 });

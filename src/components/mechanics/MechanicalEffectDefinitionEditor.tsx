@@ -40,7 +40,15 @@ export function describeEffect(effect: MechanicalEffectDefinition, targeting?: E
   if (effect.type === "attribute_modifier") behavior += ` ${effect.attributeId} ${effect.amount >= 0 ? "+" : ""}${effect.amount}`;
   if (effect.type === "derived_stat_modifier") behavior += ` ${effect.statId} ${effect.amount >= 0 ? "+" : ""}${effect.amount}`;
   if (effect.type === "damage") behavior += ` ${effect.dice}`;
-  if (effect.type === "healing" || effect.type === "barrier") behavior += ` +${effect.amount}`;
+  if (effect.type === "barrier") behavior += ` +${effect.amount}`;
+  if (effect.type === "healing") {
+    const isDice = (effect as any).magnitude?.kind === "dice" || (effect as any).kind === "dice" || Boolean((effect as any).dice) || Boolean((effect as any).formula);
+    if (isDice) {
+      behavior += ` ${(effect as any).magnitude?.formula ?? (effect as any).formula ?? (effect as any).dice}`;
+    } else {
+      behavior += ` +${(effect as any).magnitude?.amount ?? effect.amount}`;
+    }
+  }
   if (effect.type === "currency") behavior += ` ${effect.amount} ${effect.currencyId}`;
   if (effect.type === "manual_resolution") behavior += `: ${effect.message}`;
   if (effect.type === "cost_adjustment") behavior += ` ${effect.scopeId} ${effect.amount}`;
@@ -77,7 +85,93 @@ function ValueFields({ value, patch }: { value: MechanicalEffectDefinition; patc
     case "attribute_modifier": return <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Atributo</Label><Select value={value.attributeId} onValueChange={attributeId => patch({ attributeId })}><SelectTrigger><SelectValue>{value.attributeId}</SelectValue></SelectTrigger><SelectContent>{["FUE","DES","RES","INT","VOL","VEL"].map(id => <SelectItem key={id} value={id}>{id}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label>Cantidad</Label><Input type="number" value={value.amount} onChange={e => patch({ amount: Number(e.target.value) })} /></div></div>;
     case "derived_stat_modifier": return <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Estadística</Label><Select value={value.statId} onValueChange={statId => patch({ statId })}><SelectTrigger><SelectValue>{{"INI":"Iniciativa","EVA":"Evasión","COR":"Coraje","SAL":"Salud máxima","EST":"Estamina máxima","RED":"Reducción de daño"}[value.statId] || value.statId}</SelectValue></SelectTrigger><SelectContent><SelectItem value="INI">Iniciativa</SelectItem><SelectItem value="EVA">Evasión</SelectItem><SelectItem value="COR">Coraje</SelectItem><SelectItem value="SAL">Salud máxima</SelectItem><SelectItem value="EST">Estamina máxima</SelectItem><SelectItem value="RED">Reducción de daño</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label>Cantidad</Label><Input type="number" value={value.amount} onChange={e => patch({ amount: Number(e.target.value) })} /></div></div>;
     case "damage": return <div className="space-y-2"><Label>Dados / Cantidad de Daño</Label><Input value={value.dice} onChange={e => patch({ dice: e.target.value })} placeholder="Ej. 2D6" /></div>;
-    case "healing": return <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Recurso</Label><Select value={value.resourceId} onValueChange={resourceId => patch({ resourceId })}><SelectTrigger><SelectValue>{value.resourceId === "SA" ? "Salud" : "Estamina"}</SelectValue></SelectTrigger><SelectContent><SelectItem value="SA">Salud</SelectItem><SelectItem value="ES">Estamina</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label>Cantidad</Label><Input type="number" min={1} value={value.amount} onChange={e => patch({ amount: Number(e.target.value) })} /></div></div>;
+    case "healing": {
+      const isDice = (value as any).magnitude?.kind === "dice" || (value as any).kind === "dice" || Boolean((value as any).dice) || Boolean((value as any).formula);
+      return (
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="space-y-2">
+            <Label>Recurso</Label>
+            <Select value={value.resourceId} onValueChange={resourceId => patch({ resourceId })}>
+              <SelectTrigger><SelectValue>{value.resourceId === "SA" ? "Salud" : "Estamina"}</SelectValue></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SA">Salud</SelectItem>
+                <SelectItem value="ES">Estamina</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Tipo de Magnitud</Label>
+            <Select
+              value={isDice ? "dice" : "fixed"}
+              onValueChange={(k) => {
+                if (k === "dice") {
+                  const formula = (value as any).dice || (value as any).formula || "1D6";
+                  patch({
+                    kind: "dice",
+                    formula,
+                    dice: formula,
+                    magnitude: { kind: "dice", formula },
+                    amount: undefined,
+                  });
+                } else {
+                  const amount = typeof value.amount === "number" && value.amount > 0 ? value.amount : 2;
+                  patch({
+                    kind: "fixed",
+                    amount,
+                    magnitude: { kind: "fixed", amount },
+                    formula: undefined,
+                    dice: undefined,
+                  });
+                }
+              }}
+            >
+              <SelectTrigger><SelectValue>{isDice ? "Dados" : "Fija"}</SelectValue></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fixed">Fija</SelectItem>
+                <SelectItem value="dice">Dados</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            {isDice ? (
+              <>
+                <Label>Fórmula de Dados</Label>
+                <Input
+                  value={(value as any).formula ?? (value as any).dice ?? "1D6"}
+                  onChange={e => {
+                    const formula = e.target.value.toUpperCase();
+                    patch({
+                      kind: "dice",
+                      formula,
+                      dice: formula,
+                      magnitude: { kind: "dice", formula },
+                    });
+                  }}
+                  placeholder="Ej. 1D6"
+                />
+              </>
+            ) : (
+              <>
+                <Label>Cantidad</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={value.amount ?? 1}
+                  onChange={e => {
+                    const amount = Number(e.target.value);
+                    patch({
+                      kind: "fixed",
+                      amount,
+                      magnitude: { kind: "fixed", amount },
+                    });
+                  }}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
     case "barrier": return <div className="space-y-2"><Label>Puntos de Barrera</Label><Input type="number" min={1} value={value.amount} onChange={e => patch({ amount: Number(e.target.value) })} /></div>;
     case "status": return <div className="space-y-2"><Label>Estado Alterado a Aplicar</Label><Input value={value.statusElementId} onChange={e => patch({ statusElementId: e.target.value })} placeholder="ID estable del estado" /></div>;
     case "currency": return <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Recompensa</Label><Select value={value.currencyId} onValueChange={currencyId => patch({ currencyId })}><SelectTrigger><SelectValue>{value.currencyId === "yen" ? "Yenes" : "Experiencia"}</SelectValue></SelectTrigger><SelectContent><SelectItem value="yen">Yenes</SelectItem><SelectItem value="exp">Experiencia</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label>Cantidad</Label><Input type="number" value={value.amount} onChange={e => patch({ amount: Number(e.target.value) })} /></div></div>;

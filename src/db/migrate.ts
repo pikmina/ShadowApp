@@ -49,7 +49,8 @@ export async function runMigration() {
       'users', 'characters', 'system_rules', 'system_elements', 'shop_offers',
       'element_possessions', 'audit_logs', 'canon_characters', 'institutions',
       'departments', 'positions', 'character_employments', 'employment_payments',
-      'academic_years', 'class_groups', 'character_enrollments', 'character_sheet_fields'
+      'academic_years', 'class_groups', 'character_enrollments', 'character_sheet_fields',
+      'character_techniques'
     ];
 
     const legacyBaseTables = ['users', 'characters', 'system_rules', 'system_elements'];
@@ -94,62 +95,76 @@ export async function runMigration() {
     else if (legacyBaseTables.every(t => existingTables.has(t))) {
       console.log("Existing database detected with baseline tables. Running safe incremental migrations...");
 
-      await adminDb.transaction(async (tx) => {
-        // Ensure all enum types exist, creating them if missing
-        await tx.execute(sql`
-          DO $$
-          BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'element_kind') THEN
-              CREATE TYPE "element_kind" AS ENUM(
-                'trait', 'weakness', 'skill', 'equipment', 'weapon', 
-                'ammunition', 'consumable', 'license', 'permission', 'certification',
-                'character_resource', 'attribute_upgrade', 'technique_entitlement', 
-                'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient',
-                'background', 'vehicle', 'real_estate', 'clandestine_asset'
-              );
-            END IF;
+      // Ensure all enum types exist, creating them if missing (outside transaction block for ALTER TYPE safety)
+      await adminPool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'element_kind') THEN
+            CREATE TYPE "element_kind" AS ENUM(
+              'trait', 'weakness', 'skill', 'equipment', 'weapon', 
+              'ammunition', 'consumable', 'license', 'permission', 'certification',
+              'character_resource', 'attribute_upgrade', 'technique_entitlement', 
+              'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient',
+              'background', 'vehicle', 'real_estate', 'clandestine_asset'
+            );
+          END IF;
 
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'role') THEN
-              CREATE TYPE "role" AS ENUM('player', 'moderator', 'superadmin');
-            END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'role') THEN
+            CREATE TYPE "role" AS ENUM('player', 'moderator', 'superadmin');
+          END IF;
 
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'element_status') THEN
-              CREATE TYPE "element_status" AS ENUM('draft', 'published', 'archived');
-            END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'element_status') THEN
+            CREATE TYPE "element_status" AS ENUM('draft', 'published', 'archived');
+          END IF;
 
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'offer_status') THEN
-              CREATE TYPE "offer_status" AS ENUM('draft', 'scheduled', 'available', 'paused', 'ended', 'archived');
-            END IF;
-          END $$;
-        `);
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'offer_status') THEN
+            CREATE TYPE "offer_status" AS ENUM('draft', 'scheduled', 'available', 'paused', 'ended', 'archived');
+          END IF;
 
-        // Add missing enum values if enums already existed with fewer values
-        const elementKindValues = [
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'technique_source_type') THEN
+            CREATE TYPE "technique_source_type" AS ENUM('quirk', 'physical', 'weapon');
+          END IF;
+        END $$;
+      `);
+
+      // Safely add missing enum values if enums already existed with fewer values
+      const existingEnumsRes = await adminPool.query(`
+        SELECT t.typname, e.enumlabel
+        FROM pg_enum e
+        JOIN pg_type t ON e.enumtypid = t.oid;
+      `);
+      const existingEnumMap = new Map<string, Set<string>>();
+      for (const row of existingEnumsRes.rows) {
+        if (!existingEnumMap.has(row.typname)) {
+          existingEnumMap.set(row.typname, new Set());
+        }
+        existingEnumMap.get(row.typname)!.add(row.enumlabel);
+      }
+
+      const expectedEnums: Record<string, string[]> = {
+        element_kind: [
           'trait', 'weakness', 'skill', 'equipment', 'weapon', 
           'ammunition', 'consumable', 'license', 'permission', 'certification',
           'character_resource', 'attribute_upgrade', 'technique_entitlement', 
           'altered_status', 'plus_ultra_effect', 'crafting_material', 'ingredient',
           'background', 'vehicle', 'real_estate', 'clandestine_asset'
-        ];
-        for (const val of elementKindValues) {
-          await tx.execute(sql.raw(`ALTER TYPE "element_kind" ADD VALUE IF NOT EXISTS '${val}';`));
-        }
+        ],
+        role: ['player', 'moderator', 'superadmin'],
+        element_status: ['draft', 'published', 'archived'],
+        offer_status: ['draft', 'scheduled', 'available', 'paused', 'ended', 'archived'],
+        technique_source_type: ['quirk', 'physical', 'weapon'],
+      };
 
-        const roleValues = ['player', 'moderator', 'superadmin'];
-        for (const val of roleValues) {
-          await tx.execute(sql.raw(`ALTER TYPE "role" ADD VALUE IF NOT EXISTS '${val}';`));
+      for (const [typname, values] of Object.entries(expectedEnums)) {
+        const existingValues = existingEnumMap.get(typname) || new Set();
+        for (const val of values) {
+          if (!existingValues.has(val)) {
+            await adminPool.query(`ALTER TYPE "${typname}" ADD VALUE '${val}';`);
+          }
         }
+      }
 
-        const elementStatusValues = ['draft', 'published', 'archived'];
-        for (const val of elementStatusValues) {
-          await tx.execute(sql.raw(`ALTER TYPE "element_status" ADD VALUE IF NOT EXISTS '${val}';`));
-        }
-
-        const offerStatusValues = ['draft', 'scheduled', 'available', 'paused', 'ended', 'archived'];
-        for (const val of offerStatusValues) {
-          await tx.execute(sql.raw(`ALTER TYPE "offer_status" ADD VALUE IF NOT EXISTS '${val}';`));
-        }
-
+      await adminDb.transaction(async (tx) => {
         // Create missing tables idempotently
         await tx.execute(sql`
           CREATE TABLE IF NOT EXISTS "canon_characters" (
@@ -269,6 +284,19 @@ export async function runMigration() {
             "updated_at" timestamp DEFAULT now() NOT NULL
           );
 
+          CREATE TABLE IF NOT EXISTS "character_techniques" (
+            "id" text PRIMARY KEY NOT NULL,
+            "character_id" integer NOT NULL,
+            "name" text NOT NULL,
+            "description" text DEFAULT '',
+            "level" integer DEFAULT 1 NOT NULL,
+            "source_type" "technique_source_type" NOT NULL,
+            "mechanical_behaviors" jsonb DEFAULT '[]'::jsonb NOT NULL,
+            "revision" integer DEFAULT 1 NOT NULL,
+            "created_at" timestamp DEFAULT now() NOT NULL,
+            "updated_at" timestamp DEFAULT now() NOT NULL
+          );
+
           CREATE TABLE IF NOT EXISTS "employment_payments" (
             "id" varchar(100) PRIMARY KEY NOT NULL,
             "batch_id" varchar(100) NOT NULL,
@@ -317,6 +345,7 @@ export async function runMigration() {
           ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "requirements" jsonb DEFAULT '{"operator":"all","requirements":[]}'::jsonb NOT NULL;
           ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "optional_bonuses" jsonb DEFAULT '[]'::jsonb NOT NULL;
           ALTER TABLE "shop_offers" ADD COLUMN IF NOT EXISTS "requirements" jsonb DEFAULT '{"operator":"all","requirements":[]}'::jsonb NOT NULL;
+          ALTER TABLE "character_techniques" ADD COLUMN IF NOT EXISTS "activation_attribute_id" text;
         `);
 
         // Preserve canon-owned relations
@@ -383,11 +412,21 @@ export async function runMigration() {
             IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'character_enrollments_exactly_one_owner') THEN
               ALTER TABLE "character_enrollments" ADD CONSTRAINT "character_enrollments_exactly_one_owner" CHECK (num_nonnulls("character_id", "canon_character_id") = 1);
             END IF;
+
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'character_techniques_character_id_characters_id_fk') THEN
+              ALTER TABLE "character_techniques" ADD CONSTRAINT "character_techniques_character_id_characters_id_fk" FOREIGN KEY ("character_id") REFERENCES "public"."characters"("id") ON DELETE cascade ON UPDATE no action;
+            END IF;
+
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'character_techniques_level_check') THEN
+              ALTER TABLE "character_techniques" ADD CONSTRAINT "character_techniques_level_check" CHECK ("level" >= 1 AND "level" <= 5);
+            END IF;
           END $$;
         `);
 
-        // Partial unique indexes
+        // Partial unique indexes and entity indexes
         await tx.execute(sql`
+          CREATE INDEX IF NOT EXISTS "character_techniques_character_id_idx"
+            ON "character_techniques" ("character_id");
           CREATE UNIQUE INDEX IF NOT EXISTS "character_employments_active_character_position"
             ON "character_employments" ("character_id", "position_id") WHERE "status" = 'active' AND "character_id" IS NOT NULL;
           CREATE UNIQUE INDEX IF NOT EXISTS "character_employments_active_canon_position"

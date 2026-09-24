@@ -61,8 +61,10 @@ export const MECHANICAL_LABELS = {
     equip_item: "Equipar objeto",
     unequip_item: "Desequipar objeto",
     manual: "Manual / Narrativo",
+    action_interrupted: "Interrumpirse la acción",
     channel_interrupted: "Canalización interrumpida",
     traumatic_stimulus: "Estímulo traumático",
+    receive_support: "Recibir soporte",
     ally_support_received: "Recibir soporte de aliado",
     roll_resolution: "Resolución de tirada",
   },
@@ -92,6 +94,19 @@ export const MECHANICAL_LABELS = {
   conditionLogic: {
     all: "Todas las condiciones (Y)",
     any: "Cualquiera de las condiciones (O)",
+    and: "Todas las condiciones (Y)",
+    or: "Cualquiera de las condiciones (O)",
+  },
+
+  counters: {
+    combat_counter: "Contador de combate",
+    charges: "Cargas",
+    combo: "Combo",
+    uses: "Usos",
+    focus: "Concentración",
+    heat: "Calor / Tensión",
+    impacto: "impacto",
+    bleed_stacks: "Cargas de sangrado",
   },
 
   dieSelections: {
@@ -118,9 +133,11 @@ export const MECHANICAL_LABELS = {
   },
 
   turnHistoryEvents: {
-    used_quirk: "Usó Quirk este turno",
-    used_technique: "Usó Técnica este turno",
-    consecutive_turns_used: "Turnos consecutivos de uso",
+    used_quirk: "ha usado Quirk este turno",
+    used_quirk_this_turn: "ha usado Quirk este turno",
+    used_technique: "ha usado Técnica este turno",
+    used_technique_this_turn: "ha usado Técnica este turno",
+    consecutive_turns_used: "turnos consecutivos de uso",
   },
 
   // 5. RESOLUTIONS
@@ -393,7 +410,58 @@ export const MECHANICAL_LABELS = {
   scopeIds: {
     quirk: "Quirk",
     technique: "Técnicas",
-    all: "Todas las acciones",
+    channeling: "Canalización",
+    offensive: "Acciones Ofensivas",
+    support: "Acciones de Soporte",
+    all: "todas las acciones",
+    movement: "Movimiento",
+  },
+
+  rollTypes: {
+    all: "cualquier acción",
+    action: "Acción general",
+    attack: "Tirada de ataque",
+    defense: "Tirada de defensa",
+    saving: "Tirada de salvación",
+    skill: "Prueba de habilidad",
+    mental_defense: "Defensa mental",
+    quirk: "Quirk",
+    technique: "Técnica",
+    physical: "Físico",
+    mental: "Mental",
+    evasion: "Evasión",
+    carisma: "Carisma",
+    presencia: "Presencia",
+  },
+
+  skills: {
+    alerta: "Alerta",
+    dominio_quirk: "Dominio de Quirk",
+    carisma: "Carisma",
+    presencia: "Presencia",
+    sigilo: "Sigilo",
+    atletismo: "Atletismo",
+    "Combate cuerpo a cuerpo": "Combate cuerpo a cuerpo",
+    "Combate con armas": "Combate con armas",
+    "Tirador": "Tirador",
+    "Dominio de Quirk": "Dominio de Quirk",
+    "Atletismo": "Atletismo",
+    "Percepción": "Percepción",
+    "Medicina": "Medicina",
+    "Sigilo": "Sigilo",
+    "Tecnología": "Tecnología",
+    "Acrobacia": "Acrobacia",
+    "Intimidación": "Intimidación",
+    "Estrategia": "Estrategia",
+  },
+
+  derivedStats: {
+    ini: "Iniciativa",
+    iniciativa: "Iniciativa",
+    eva: "Evasión",
+    evasion: "Evasión",
+    cor: "Coraje",
+    coraje: "Coraje",
   },
 
   // 11. CANONICAL RESOURCES & ATTRIBUTES
@@ -444,6 +512,46 @@ export const MECHANICAL_LABELS = {
     physical: "Físico",
     critical: "Crítico",
     armor_pierced: "Perforación de armadura",
+  },
+  // 14. SOURCE TYPES
+  sourceTypes: {
+    quirk: "Don",
+    physical: "Física",
+    weapon: "Arma",
+  },
+  // 15. DAMAGE TYPES
+  damageTypes: {
+    fisico: "Físico",
+    cinetico: "Cinético",
+    fuego: "Fuego",
+    hielo: "Hielo",
+    electrico: "Eléctrico",
+    acido: "Ácido",
+    psiquico: "Psíquico / Mental",
+    sonoro: "Sonoro",
+    cortante: "Cortante",
+    perforante: "Perforante",
+    contundente: "Contundente",
+  },
+  // 16. ATTACK TYPES & OPPOSITION
+  attackTypes: {
+    physical: "Físico",
+    mental: "Mental",
+  },
+  oppositions: {
+    target_evasion: "Evasión",
+    target_courage: "Coraje",
+    support_defense_rd: "RD del Sistema",
+    explicit_rd: "RD",
+    narrator_rd: "RD del Narrador",
+  },
+  // 17. ADMINISTRATIVE & UI FILTERS
+  filterScopes: {
+    all: "Todos",
+    all_characters: "Todos los personajes",
+    all_sources: "Todos los orígenes",
+    all_categories: "Todas las categorías",
+    all_classifications: "Todas las clasificaciones",
   },
 } as const;
 
@@ -510,3 +618,175 @@ export function getTagLabel(tag: string | undefined | null): string {
   if (!tag) return "";
   return MECHANICAL_LABELS.tags[tag as keyof typeof MECHANICAL_LABELS.tags] ?? tag;
 }
+
+/**
+ * Specialized helper to get the Spanish name of a stat, skill, or attribute
+ */
+export function getStatOrSkillLabel(id: string | undefined | null): string {
+  if (!id) return "";
+  const key = id.toLowerCase();
+  const attr = (MECHANICAL_LABELS.attributes as Record<string, string>)[id] ||
+    (MECHANICAL_LABELS.attributes as Record<string, string>)[key];
+  if (attr) return attr;
+
+  const skill = (MECHANICAL_LABELS.skills as Record<string, string>)[id] ||
+    (MECHANICAL_LABELS.skills as Record<string, string>)[key];
+  if (skill) return skill;
+
+  const derived = (MECHANICAL_LABELS.derivedStats as Record<string, string>)[id] ||
+    (MECHANICAL_LABELS.derivedStats as Record<string, string>)[key];
+  if (derived) return derived;
+
+  return humanizeFallback(id);
+}
+
+/**
+ * Specialized helper to get the Spanish name of a roll type or check scope
+ */
+export function getRollTypeLabel(rollType: string | undefined | null): string {
+  if (!rollType) return "";
+  const key = rollType.toLowerCase();
+  return (
+    (MECHANICAL_LABELS.rollTypes as Record<string, string>)[rollType] ||
+    (MECHANICAL_LABELS.rollTypes as Record<string, string>)[key] ||
+    getStatOrSkillLabel(rollType)
+  );
+}
+
+/**
+ * Specialized helper to get the Spanish name of a technique source type
+ */
+export function getSourceTypeLabel(sourceType: string | undefined | null): string {
+  if (!sourceType) return "";
+  const dict = MECHANICAL_LABELS.sourceTypes as Record<string, string>;
+  return dict[sourceType] || humanizeFallback(sourceType);
+}
+
+/**
+ * Specialized helper to get the Spanish name of a counter
+ */
+export function getCounterLabel(counterId: string | undefined | null): string {
+  if (!counterId) return "";
+  const dict = MECHANICAL_LABELS.counters as Record<string, string>;
+  if (dict[counterId]) return dict[counterId];
+  const lower = counterId.toLowerCase();
+  if (dict[lower]) return dict[lower];
+  return humanizeFallback(counterId);
+}
+
+/**
+ * Specialized helper to get the Spanish name of condition combination logic
+ */
+export function getConditionLogicLabel(logic: string | undefined | null): string {
+  if (!logic) return "";
+  if (logic === "all" || logic === "and") return "Todas (AND)";
+  if (logic === "any" || logic === "or") return "Alguna (OR)";
+  const dict = MECHANICAL_LABELS.conditionLogic as Record<string, string>;
+  return dict[logic] || humanizeFallback(logic);
+}
+
+/**
+ * Universal Presentation Label Resolver
+ * Maps any machine/technical value to its localized user-facing label across domain categories.
+ * Never leaks raw technical literals when a human-readable equivalent is available.
+ */
+export function resolveDomainLabel(
+  val: string | undefined | null,
+  context?: { placeholder?: string; category?: string }
+): string {
+  if (val === undefined || val === null || val === "") {
+    return context?.placeholder ?? "";
+  }
+
+  const str = String(val).trim();
+
+  // If specific category is requested
+  if (context?.category && context.category in MECHANICAL_LABELS) {
+    const dict = MECHANICAL_LABELS[context.category as MechanicalLabelCategory] as Record<string, string>;
+    if (dict && dict[str]) return dict[str];
+  }
+
+  // 1. Generic structural filters
+  if (str === "all") {
+    return context?.placeholder ?? "Todos";
+  }
+  if (str === "any") {
+    return "Alguna";
+  }
+  if (str === "and") {
+    return "Todas (AND)";
+  }
+  if (str === "or") {
+    return "Alguna (OR)";
+  }
+
+  // 2. Official attributes (preserve system abbreviations like FUE, DES, etc.)
+  const attr = getAttributeLabel(str);
+  if (attr && attr !== str && attr !== humanizeFallback(str)) return attr;
+  if (/^(FUE|DES|RES|INT|VOL|VEL)$/i.test(str)) {
+    return getAttributeLabel(str.toUpperCase());
+  }
+
+  // 3. Triggers
+  const trgDict = MECHANICAL_LABELS.triggers as Record<string, string>;
+  if (trgDict[str]) return trgDict[str];
+
+  // 4. Action Types
+  const actDict = MECHANICAL_LABELS.actionTypes as Record<string, string>;
+  if (actDict[str]) return actDict[str];
+
+  // 5. Counters
+  const cntDict = MECHANICAL_LABELS.counters as Record<string, string>;
+  if (cntDict[str]) return cntDict[str];
+
+  // 6. Source Types
+  const srcDict = MECHANICAL_LABELS.sourceTypes as Record<string, string>;
+  if (srcDict[str]) return srcDict[str];
+
+  // 7. Effect Types
+  const effDict = MECHANICAL_LABELS.effectTypes as Record<string, string>;
+  if (effDict[str]) return effDict[str];
+
+  // 8. Resolutions
+  const resDict = MECHANICAL_LABELS.resolutions as Record<string, string>;
+  if (resDict[str]) return resDict[str];
+
+  // 9. Targets & Ranges
+  const tgtDict = MECHANICAL_LABELS.targets as Record<string, string>;
+  if (tgtDict[str]) return tgtDict[str];
+  const rngDict = MECHANICAL_LABELS.ranges as Record<string, string>;
+  if (rngDict[str]) return rngDict[str];
+
+  // 10. Damage Types
+  const dmgDict = MECHANICAL_LABELS.damageTypes as Record<string, string>;
+  if (dmgDict[str]) return dmgDict[str];
+
+  // 11. Altered Statuses
+  const stsDict = MECHANICAL_LABELS.alteredStatuses as Record<string, string>;
+  if (stsDict[str]) return stsDict[str];
+
+  // 12. Reset Conditions
+  const rstDict = MECHANICAL_LABELS.resetConditions as Record<string, string>;
+  if (rstDict[str]) return rstDict[str];
+
+  // 13. Outcomes
+  const outDict = MECHANICAL_LABELS.outcomes as Record<string, string>;
+  if (outDict[str]) return outDict[str];
+
+  // 14. Condition Types
+  const cndTypeDict = MECHANICAL_LABELS.conditionTypes as Record<string, string>;
+  if (cndTypeDict[str]) return cndTypeDict[str];
+
+  // 15. Counter Operations
+  const cntOpDict = MECHANICAL_LABELS.counterOperations as Record<string, string>;
+  if (cntOpDict[str]) return cntOpDict[str];
+
+  // If pure numeric ID without pre-registered label, do not leak raw number if placeholder is present
+  if (/^\d+$/.test(str)) {
+    return context?.placeholder ?? "Seleccionar...";
+  }
+
+  return humanizeFallback(str);
+}
+
+

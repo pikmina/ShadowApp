@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { createCoreCategories, migrateCoreCategories, validateCoreCategories } from '../coreRuleCatalog';
+import { createCoreCategories, migrateCoreCategories, validateCoreCategories, CORE_CATEGORIES } from '../coreRuleCatalog';
 import { resolveAppliedMechanics, systemMechanicsConfigSchema, validatePersistedMechanicalEffects, calculateExecutionStaminaCost, type ResolvedRuleGroup } from '../systemMechanics';
 import { evaluateRuleGroup, type RuleContext } from '../ruleEngine';
 import { ruleComponentSchema } from '../ruleComponents';
@@ -17,7 +17,7 @@ const allies = [1, 2, 3].map(i => ({ id: `ally${i}`, kind: 'character' as const,
 describe('Core catalog and compatibility', () => {
   test('seeds all core categories with stable IDs, preserves edited options and is idempotent', () => {
     expect(validateCoreCategories(categories)).toBe(true);
-    expect(categories).toHaveLength(30);
+    expect(categories).toHaveLength(Object.keys(CORE_CATEGORIES).length);
     const edited = structuredClone(categories); edited[0].name = 'Impacto'; edited[0].rules[0].cost = 0; edited[1].rules = [];
     expect(migrateCoreCategories(edited)).toEqual(edited);
     expect(validateCoreCategories(edited.slice(1))).toBe(false);
@@ -126,7 +126,19 @@ describe('Composed universal rules', () => {
     expect(evaluateRuleGroup(group('barrier.30', 'additional_requirement.consumption'), context()).valid).toBe(false);
   });
   test('recoil uses damage after mitigation and floor rounding', () => {
-    const g = group('damage.4d8', 'recoil.half');
+    const baseGroup = group('damage.4d8');
+    const g: ResolvedRuleGroup = {
+      ...baseGroup,
+      components: [
+        ...baseGroup.components,
+        {
+          kind: 'consequence',
+          role: 'consequence',
+          when: 'after_damage',
+          consequence: { kind: 'recoil', fraction: 0.5 },
+        },
+      ],
+    };
     const first = evaluateRuleGroup(g, context());
     const hit = evaluateRuleGroup(g, context({ event: 'after_damage', eventId: 'hit1', damageDealt: 9 }), first.state);
     expect(hit.operations).toContainEqual({ kind: 'resource', resourceId: 'SA', amount: -4, unavoidable: true });

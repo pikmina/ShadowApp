@@ -91,11 +91,23 @@ export async function deleteCharacter(characterId: number, actorUid?: string) {
   });
 }
 
-import { elementPossessions, auditLogs, systemElements, characterEmployments, characterEnrollments } from './schema.ts';
+import { elementPossessions, auditLogs, systemElements, characterEmployments, characterEnrollments, characterTechniques } from './schema.ts';
 import { systemRules } from './schema.ts';
 import { sql, and, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { evaluateRequirements, requirementGroupSchema } from '../domain/requirements.ts';
+import { getCharacterTechniquesByCharacterId } from './characterTechniques.ts';
+
+export async function getCharacterTechniques(characterId: number) {
+  return getCharacterTechniquesByCharacterId(characterId);
+}
+
+export async function getCharacterWithTechniques(characterId: number) {
+  const character = await getCharacterById(characterId);
+  if (!character) return null;
+  const techniques = await getCharacterTechniquesByCharacterId(characterId);
+  return { ...character, techniques };
+}
 
 export async function getCharacterPossessions(characterId: number) {
   return db.select({ possession: elementPossessions, element: systemElements })
