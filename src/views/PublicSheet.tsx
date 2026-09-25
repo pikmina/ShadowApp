@@ -59,6 +59,7 @@ import { CyberModule } from '@/components/ui/cyber-module';
 import { EntityPanel } from '@/components/ui/entity-panel';
 import { calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses } from '@/lib/characterValidation';
 import { calculateTechniqueStructuralCost } from '@/domain/systemMechanics';
+import { describeMechanicalBehavior, generateAutoDescription } from '@/domain/mechanicalDescription';
 import { cn } from '@/lib/utils';
 
 const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
@@ -346,9 +347,10 @@ export default function PublicSheet() {
     const fromCharacterTechniques = Array.isArray(character?.techniques)
       ? character.techniques.map((t: any) => {
           let costStr = '';
+          let costNum: number | undefined = undefined;
           try {
             const staminaCostsRule = Array.isArray(rules) ? rules.find((r: any) => r.key === 'stamina_execution_costs')?.value : undefined;
-            const costNum = calculateTechniqueStructuralCost(t, mechanicsList, staminaCostsRule);
+            costNum = calculateTechniqueStructuralCost(t, mechanicsList, staminaCostsRule);
             if (costNum > 0) costStr = `${costNum} CE`;
           } catch {
             costStr = '';
@@ -356,10 +358,26 @@ export default function PublicSheet() {
           if (!costStr) {
             costStr = t.cost || (t.level ? `${t.level * 2} CE` : '2 CE');
           }
+
+          const numVal = costNum ?? (parseInt(costStr) || 2);
+          let autoDesc = '';
+          if (Array.isArray(t.mechanicalBehaviors) && t.mechanicalBehaviors.length > 0) {
+            autoDesc = t.mechanicalBehaviors.map((b: any) => {
+              const res = describeMechanicalBehavior(b, { format: 'compact', context: { staminaCost: numVal } });
+              return res.text;
+            }).filter(Boolean).join(' ');
+          }
+          if (!autoDesc) {
+            autoDesc = `Coste: ${costStr}`;
+          } else if (!autoDesc.toLowerCase().includes('coste') && !autoDesc.toLowerCase().includes('ce') && !autoDesc.toLowerCase().includes('estamina')) {
+            autoDesc = `${autoDesc} Coste: ${costStr}.`;
+          }
+
           return {
             id: t.id,
             name: t.name,
             description: t.description,
+            autoDescription: autoDesc,
             cost: costStr,
             type: t.sourceType === 'quirk' ? 'DON / QUIRK' : (t.sourceType?.toUpperCase() || 'QUIRK'),
             target: t.activationAttributeId ? `ATR: ${t.activationAttributeId}` : 'VS EVA',
@@ -371,15 +389,32 @@ export default function PublicSheet() {
     // 2. From entitlement possessions
     const fromPossessions = possessionRows
       .filter((r: any) => r?.element?.kind === 'technique_entitlement')
-      .map((r: any) => ({
-        id: r.element.id,
-        name: r.element.name,
-        description: r.element.description,
-        cost: r.element.metadata?.cost || r.element.metadata?.ce || '3 CE',
-        type: r.element.metadata?.type || 'OFENSIVA',
-        target: r.element.metadata?.target || 'VS EVA',
-        level: r.element.metadata?.level || '1'
-      }));
+      .map((r: any) => {
+        const costStr = r.element.metadata?.cost || r.element.metadata?.ce || '3 CE';
+        let autoDesc = '';
+        if (Array.isArray(r.element.mechanicalBehaviors) && r.element.mechanicalBehaviors.length > 0) {
+          autoDesc = r.element.mechanicalBehaviors.map((b: any) => {
+            const res = describeMechanicalBehavior(b, { format: 'compact', context: { staminaCost: parseInt(costStr) || 3 } });
+            return res.text;
+          }).filter(Boolean).join(' ');
+        }
+        if (!autoDesc) {
+          autoDesc = `Coste: ${costStr}`;
+        } else if (!autoDesc.toLowerCase().includes('coste') && !autoDesc.toLowerCase().includes('ce') && !autoDesc.toLowerCase().includes('estamina')) {
+          autoDesc = `${autoDesc} Coste: ${costStr}.`;
+        }
+
+        return {
+          id: r.element.id,
+          name: r.element.name,
+          description: r.element.description,
+          autoDescription: autoDesc,
+          cost: costStr,
+          type: r.element.metadata?.type || 'OFENSIVA',
+          target: r.element.metadata?.target || 'VS EVA',
+          level: r.element.metadata?.level || '1'
+        };
+      });
 
     // 3. From profile data
     const fromProfile = Array.isArray(profile.techniques)
@@ -397,18 +432,21 @@ export default function PublicSheet() {
             id: pTech,
             name: el.name || pTech,
             description: el.description || '',
-            cost: '3 ES',
+            autoDescription: 'Coste: 3 CE',
+            cost: '3 CE',
             type: 'OFENSIVA',
             target: 'VS EVA',
             level: '1'
           });
         }
       } else if (pTech && !combined.some(c => c.id === pTech.id || c.name === pTech.name)) {
+        const pCost = pTech.cost || '3 CE';
         combined.push({
           id: pTech.id,
           name: pTech.name,
           description: pTech.description || pTech.desc || '',
-          cost: pTech.cost || '3 ES',
+          autoDescription: pTech.autoDescription || `Coste: ${pCost}`,
+          cost: pCost,
           type: pTech.type || 'OFENSIVA',
           target: pTech.target || 'VS EVA',
           level: String(pTech.level || '1')
@@ -1097,6 +1135,15 @@ export default function PublicSheet() {
                         {tech.description}
                       </p>
                     )}
+                    <div className="mt-1.5 rounded bg-bg2/80 p-2.5 border border-border/30 text-[10px] text-text1/90 space-y-1">
+                      <div className="flex items-center gap-1 text-primary text-[9px] font-semibold uppercase tracking-wider">
+                        <Sparkles className="w-3 h-3" />
+                        <span>Descripción Mecánica:</span>
+                      </div>
+                      <p className="leading-normal font-mono text-text1">
+                        {generateAutoDescription(tech)}
+                      </p>
+                    </div>
                   </div>
                 ))}
               </div>

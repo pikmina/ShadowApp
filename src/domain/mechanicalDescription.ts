@@ -1243,3 +1243,49 @@ export function describeMechanicalBehavior(
     sections,
   };
 }
+
+/**
+ * Helper to generate a complete auto-description for a technique object.
+ * Always includes the CE stamina cost and mechanical behavior details.
+ */
+export function generateAutoDescription(tech: any): string {
+  if (!tech) return "";
+  const costStr = tech.cost || (tech.level ? `${tech.level * 2} CE` : '2 CE');
+  const costNum = parseInt(costStr) || undefined;
+
+  // 1. Try mechanicalBehaviors array
+  const behaviors = Array.isArray(tech.mechanicalBehaviors) ? tech.mechanicalBehaviors : [];
+  if (behaviors.length > 0) {
+    const parts = behaviors.map((b: any) => {
+      try {
+        const res = describeMechanicalBehavior(b, { format: 'compact', context: { staminaCost: costNum } });
+        return res.text;
+      } catch {
+        return '';
+      }
+    }).filter(Boolean);
+
+    if (parts.length > 0) {
+      let full = parts.join(' ');
+      if (!full.toLowerCase().includes('coste') && !full.toLowerCase().includes('ce') && !full.toLowerCase().includes('estamina')) {
+        full = `${full} Coste: ${costStr}.`;
+      }
+      return full;
+    }
+  }
+
+  // 2. Try metadata or attributes if present
+  const metadata = tech.metadata || {};
+  const metaParts: string[] = [];
+  if (tech.activationAttributeId) metaParts.push(`Atributo: ${tech.activationAttributeId}`);
+  if (tech.target || metadata.target) metaParts.push(`Objetivo: ${tech.target || metadata.target}`);
+  if (tech.actionType || metadata.actionType) metaParts.push(`Acción: ${tech.actionType || metadata.actionType}`);
+  if (tech.range || metadata.range) metaParts.push(`Rango: ${tech.range || metadata.range}`);
+
+  if (metaParts.length > 0) {
+    return `${metaParts.join(' · ')}. Coste: ${costStr}.`;
+  }
+
+  // 3. Fallback description with cost CE
+  return `Efecto general de combate. Coste: ${costStr}.`;
+}

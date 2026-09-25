@@ -96,7 +96,6 @@ export async function deleteElement(id: string, actorUid: string = 'system') {
     await db.transaction(async (tx) => {
       const [element] = await tx.select().from(systemElements).where(eq(systemElements.id, id));
       if (!element) throw Object.assign(new Error('Element not found'), { status: 404 });
-      if (element.status !== 'draft') throw Object.assign(new Error('Only unused draft elements can be deleted; archive published elements instead'), { status: 409 });
       const [possession] = await tx.select({ id: elementPossessions.id }).from(elementPossessions).where(eq(elementPossessions.elementId, id));
       const [offer] = await tx.select({ id: shopOffers.id }).from(shopOffers).where(eq(shopOffers.elementId, id));
       if (possession || offer) throw Object.assign(new Error('Element has related possessions or offers and cannot be deleted'), { status: 409 });

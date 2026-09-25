@@ -5,10 +5,18 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 import { systemMechanicsConfigSchema, type SystemMechanicsConfig } from '../../domain/systemMechanics';
 import { createEffectDefinition, describeEffect, MechanicalEffectDefinitionEditor } from './MechanicalEffectDefinitionEditor';
 import { RuleComponentEditor, componentTemplates } from './RuleComponentEditor';
-import { Edit2, Plus, Trash2, Swords, Shield, HeartHandshake, Brain, Lock, Wrench, Package, HandFist, HeartPulse, BrickWall, UserRoundPlus, UserRoundMinus, BugOff, MessageSquareDiff, Handshake, Target, Hash, FoldHorizontal, LandPlot, Hourglass, Star, Clock, ArrowUpCircle, Ban, HandGrab, Eye, Ear, UserStar, Parentheses, KeyRound, CookingPot, Dices, BatteryCharging, BatteryPlus, BoneFracture, ClockArrowDown, Flame, LineDotRightHorizontal, ClockArrowRight, RefreshCw, Settings2 } from 'lucide-react';
+import { Edit2, Plus, Trash2, Swords, Shield, HeartHandshake, Brain, Lock, Wrench, Package, HandFist, HeartPulse, BrickWall, UserRoundPlus, UserRoundMinus, BugOff, MessageSquareDiff, Handshake, Target, Hash, FoldHorizontal, LandPlot, Hourglass, Star, Clock, ArrowUpCircle, Ban, HandGrab, Eye, Ear, UserStar, Parentheses, KeyRound, CookingPot, Dices, BatteryCharging, BatteryPlus, BoneFracture, ClockArrowDown, Flame, LineDotRightHorizontal, ClockArrowRight, RefreshCw, Settings2, Sparkles, AlertCircle } from 'lucide-react';
 
 type Category = SystemMechanicsConfig[number];
 
@@ -72,15 +80,18 @@ const getLogicalTypeLabel = (type: string) => {
 
 export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: SystemMechanicsConfig; onSave: (value: SystemMechanicsConfig) => Promise<void> }) {
   const [draft, setDraft] = useState<Category | null>(null);
+  const [backupDraft, setBackupDraft] = useState<Category | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState('');
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [isNewOption, setIsNewOption] = useState<boolean>(false);
+
   const save = async (next: SystemMechanicsConfig) => {
     const parsed = systemMechanicsConfigSchema.safeParse(next);
     if (!parsed.success) { setError(parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('\n')); return; }
     setSaving(true); setError('');
-    try { await onSave(parsed.data); setDraft(null); } catch (e) { setError(e instanceof Error ? e.message : 'Error al guardar'); } finally { setSaving(false); }
+    try { await onSave(parsed.data); setDraft(null); setBackupDraft(null); } catch (e) { setError(e instanceof Error ? e.message : 'Error al guardar'); } finally { setSaving(false); }
   };
 
   const saveWithoutClosing = async (draftOverride?: Category): Promise<boolean> => {
@@ -99,6 +110,16 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
     } finally { 
       setSaving(false); 
     }
+  };
+
+  const handleCancelOption = () => {
+    if (backupDraft) {
+      setDraft(backupDraft);
+    }
+    setEditingRuleId(null);
+    setBackupDraft(null);
+    setIsNewOption(false);
+    setError('');
   };
   
   if (!draft) {
@@ -157,16 +178,20 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
   }
   
   const patchRule = (index: number, patch: object) => setDraft({ ...draft, rules: draft.rules.map((r, i) => i === index ? { ...r, ...patch } : r) });
+  
+  const editingIndex = draft.rules.findIndex(r => r.id === editingRuleId);
+  const editingRule = editingIndex !== -1 ? draft.rules[editingIndex] : null;
+
   return <div className="space-y-6">
     <div className="flex items-center justify-between border-b pb-4">
       <h2 className="text-xl font-bold">{draft.id ? "Editar Categoría" : "Nueva Categoría"}</h2>
       <div className="flex gap-3">
-        <Button variant="outline" disabled={saving} onClick={() => { setDraft(null); setEditingRuleId(null); setError(''); }}>Volver</Button>
+        <Button variant="outline" disabled={saving} onClick={() => { setDraft(null); setEditingRuleId(null); setBackupDraft(null); setError(''); }}>Volver</Button>
         <Button disabled={saving} onClick={() => save(mechanics.some(c => c.id === draft.id) ? mechanics.map(c => c.id === draft.id ? draft : c) : [...mechanics, draft])}>{saving ? 'Guardando…' : 'Guardar categoría'}</Button>
       </div>
     </div>
     
-    {error && <p role="alert" className="whitespace-pre-wrap text-sm text-destructive">{error}</p>}
+    {error && !editingRuleId && <p role="alert" className="whitespace-pre-wrap text-sm text-destructive bg-destructive/10 p-3 rounded-lg border border-destructive/20">{error}</p>}
     
     <div className="grid gap-6 sm:grid-cols-2 bg-card p-5 rounded-lg border">
       <div className="space-y-3"><Label className="text-sm font-semibold">Nombre</Label><Input value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></div>
@@ -197,108 +222,167 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
         <h3 className="text-lg font-semibold">Opciones de la Categoría</h3>
         <Button variant="outline" size="sm" disabled={saving} onClick={() => {
           const newId = nanoid();
-          const newDraft = { ...draft, rules: [...draft.rules, draft.rules[0] ? { ...structuredClone(draft.rules[0]), id: newId, name: 'Nueva opción', cost: 0 } : { id: newId, name: 'Nueva opción', cost: 0, ruleType: 'component', component: structuredClone(componentTemplates.duration) }] } as Category;
+          setBackupDraft(structuredClone(draft));
+          const newRule = draft.rules[0] 
+            ? { ...structuredClone(draft.rules[0]), id: newId, name: 'Nueva opción', cost: 0 } 
+            : { id: newId, name: 'Nueva opción', cost: 0, ruleType: 'component' as const, component: structuredClone(componentTemplates.duration) };
+          const newDraft = { ...draft, rules: [...draft.rules, newRule] } as Category;
           setDraft(newDraft);
           setEditingRuleId(newId);
+          setIsNewOption(true);
           setError('');
         }}>
           <Plus className="w-4 h-4 mr-2" /> Añadir Opción
         </Button>
       </div>
-      
-      {(() => {
-        const editingIndex = draft.rules.findIndex(r => r.id === editingRuleId);
-        if (editingIndex === -1) return null;
-        const r = draft.rules[editingIndex];
-        const i = editingIndex;
-        
-        return (
-            <div className="space-y-5 rounded-lg border border-primary/50 bg-black/20 p-5 shadow-sm mb-6">
-              <div className="flex items-center justify-between border-b border-border/50 pb-3">
-                <h4 className="text-sm font-semibold text-primary">Editando Opción</h4>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={saving} onClick={async () => {
-                    const ok = await saveWithoutClosing();
-                    if (ok) setEditingRuleId(null);
-                  }}>{saving ? 'Guardando...' : 'Hecho'}</Button>
+
+      {/* OPTION EDIT MODAL */}
+      <Dialog open={editingRuleId !== null} onOpenChange={(open) => { if (!open) handleCancelOption(); }}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden border border-primary/30 shadow-2xl bg-card">
+          {editingRule && (
+            <>
+              <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0 bg-muted/20">
+                <div className="flex items-center gap-2">
+                  <DialogTitle className="text-lg font-bold text-foreground">
+                    {isNewOption ? "Nueva Opción Mecánica" : `Editar Opción: ${editingRule.name || "Sin nombre"}`}
+                  </DialogTitle>
+                  <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-medium ml-auto">
+                    {draft.name || "Categoría"}
+                  </span>
                 </div>
-              </div>
-              
-              <div className="grid gap-6 sm:grid-cols-3">
-                <div className="space-y-3"><Label className="text-sm font-semibold">Nombre de Opción</Label><Input value={r.name} onChange={e => patchRule(i, { name: e.target.value })} /></div>
-                <div className="space-y-3"><Label className="text-sm font-semibold">CE adicional</Label><Input type="number" value={r.cost} onChange={e => patchRule(i, { cost: Number(e.target.value) })} /></div>
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold">Clase</Label>
-                  <Select value={r.ruleType} onValueChange={ruleType => setDraft({ ...draft, rules: draft.rules.map((old, j) => i !== j ? old : { id: old.id, name: old.name, cost: old.cost, mechDesc: old.mechDesc, ruleType: ruleType as typeof old.ruleType, ...(ruleType === 'effect' ? { effect: createEffectDefinition('damage') } : ruleType === 'component' ? { component: structuredClone(componentTemplates.duration) } : {}) }) })}>
-                    <SelectTrigger><SelectValue>{{ effect: "Efecto", component: "Aplicación / regla", cost_modifier: "Ajuste CE" }[r.ruleType]}</SelectValue></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="effect">Efecto</SelectItem>
-                      <SelectItem value="component">Aplicación / regla</SelectItem>
-                      <SelectItem value="cost_modifier">Ajuste CE</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Configura el comportamiento mecánico, coste de estamina (CE) y parámetros ejecutables.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                {error && (
+                  <div role="alert" className="p-3 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md whitespace-pre-wrap flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold">Nombre de Opción</Label>
+                    <Input value={editingRule.name} onChange={e => patchRule(editingIndex, { name: e.target.value })} placeholder="Ej. Daño Severo" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold">CE adicional (Coste de Estamina)</Label>
+                    <Input type="number" value={editingRule.cost} onChange={e => patchRule(editingIndex, { cost: Number(e.target.value) })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold">Clase de Regla</Label>
+                    <Select value={editingRule.ruleType} onValueChange={ruleType => setDraft({ ...draft, rules: draft.rules.map((old, j) => editingIndex !== j ? old : { id: old.id, name: old.name, cost: old.cost, mechDesc: old.mechDesc, ruleType: ruleType as typeof old.ruleType, ...(ruleType === 'effect' ? { effect: createEffectDefinition('damage') } : ruleType === 'component' ? { component: structuredClone(componentTemplates.duration) } : {}) }) })}>
+                      <SelectTrigger><SelectValue>{{ effect: "Efecto", component: "Aplicación / regla", cost_modifier: "Ajuste CE" }[editingRule.ruleType]}</SelectValue></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="effect">Efecto</SelectItem>
+                        <SelectItem value="component">Aplicación / regla</SelectItem>
+                        <SelectItem value="cost_modifier">Ajuste CE</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+
+                {editingRule.effect && (
+                  <div className="pt-2">
+                    <Label className="text-xs font-semibold mb-2 block">Definición de Efecto Mecánico</Label>
+                    <MechanicalEffectDefinitionEditor value={editingRule.effect} independentDuration onChange={effect => patchRule(editingIndex, { effect, ...(effect.timing === 'passive' ? { cost: 0 } : {}) })} />
+                  </div>
+                )}
+
+                {editingRule.component && (
+                  <div className="pt-2">
+                    <Label className="text-xs font-semibold mb-2 block">Parámetros de la Regla / Componente</Label>
+                    <RuleComponentEditor value={editingRule.component} onChange={component => patchRule(editingIndex, { component })} />
+                  </div>
+                )}
               </div>
-              
-              {r.effect && <div className="pt-4 border-t border-border/50"><MechanicalEffectDefinitionEditor value={r.effect} independentDuration onChange={effect => patchRule(i, { effect, ...(effect.timing === 'passive' ? { cost: 0 } : {}) })} /></div>}
-              {r.component && <div className="pt-4 border-t border-border/50"><RuleComponentEditor value={r.component} onChange={component => patchRule(i, { component })} /></div>}
-              
-              <div className="flex justify-end pt-3">
-                <Button variant="ghost" className="text-destructive hover:bg-destructive/10" disabled={saving} onClick={async () => {
-                   const originalDraft = draft;
-                   const newDraft = { ...draft, rules: draft.rules.filter((_, j) => i !== j) } as Category;
-                   setDraft(newDraft);
-                   setEditingRuleId(null);
-                   const ok = await saveWithoutClosing(newDraft);
-                   if (!ok) {
-                     setDraft(originalDraft);
-                     setEditingRuleId(r.id);
-                   }
-                }}>
-                  <Trash2 className="w-4 h-4 mr-2 text-destructive"/> Eliminar Opción
+
+              <DialogFooter className="px-6 py-4 border-t bg-muted/30 shrink-0 flex items-center justify-between sm:justify-between">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive" 
+                  disabled={saving} 
+                  onClick={async () => {
+                    const newRules = draft.rules.filter((_, j) => j !== editingIndex);
+                    const newDraft = { ...draft, rules: newRules } as Category;
+                    setDraft(newDraft);
+                    const ok = await saveWithoutClosing(newDraft);
+                    if (ok) {
+                      setEditingRuleId(null);
+                      setBackupDraft(null);
+                      setIsNewOption(false);
+                    } else {
+                      if (backupDraft) setDraft(backupDraft);
+                    }
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 mr-1.5" /> Eliminar Opción
                 </Button>
-              </div>
-            </div>
-        );
-      })()}
+
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" disabled={saving} onClick={handleCancelOption}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" disabled={saving} onClick={async () => {
+                    const ok = await saveWithoutClosing();
+                    if (ok) {
+                      setEditingRuleId(null);
+                      setBackupDraft(null);
+                      setIsNewOption(false);
+                    }
+                  }}>
+                    {saving ? 'Guardando…' : 'Guardar Opción'}
+                  </Button>
+                </div>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="space-y-3">
         {draft.rules.map((r, i) => {
-          const isEditing = editingRuleId === r.id;
           return (
-              <div key={r.id} className={`flex items-center justify-between rounded-lg border bg-card p-4 transition-colors ${isEditing ? 'border-primary ring-1 ring-primary/50' : 'hover:border-primary/50'}`}>
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-3">
-                    <span className={`font-semibold text-sm ${isEditing ? 'text-primary' : ''}`}>{r.name || "Sin nombre"}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${r.cost > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
-                      {r.cost > 0 ? `+${r.cost}` : r.cost} CE
-                    </span>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground border px-1.5 py-0.5 rounded-sm bg-black/20">
-                      {{ effect: "Efecto", component: "Aplicación", cost_modifier: "Ajuste CE" }[r.ruleType] || r.ruleType}
-                    </span>
-                  </div>
-                  {r.effect && <span className="text-xs text-muted-foreground line-clamp-1">{describeEffect(r.effect, { selection: 'direct', relationship: 'any', minTargets: 1, maxTargets: 1, allowedEntityKinds: ['character'] })}</span>}
+            <div key={r.id} className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:border-primary/50">
+              <div className="flex flex-col gap-1.5 min-w-0 pr-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="font-semibold text-sm">{r.name || "Sin nombre"}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${r.cost > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
+                    {r.cost > 0 ? `+${r.cost}` : r.cost} CE
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground border px-1.5 py-0.5 rounded-sm bg-black/20">
+                    {{ effect: "Efecto", component: "Aplicación", cost_modifier: "Ajuste CE" }[r.ruleType] || r.ruleType}
+                  </span>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant={isEditing ? "secondary" : "ghost"} size="icon" onClick={() => {
-                     setEditingRuleId(isEditing ? null : r.id);
-                     if (!isEditing) window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}>
-                    <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                  </Button>
-                  <Button variant="ghost" size="icon" disabled={isEditing || saving} onClick={async () => {
-                     const originalDraft = draft;
-                     const newDraft = { ...draft, rules: draft.rules.filter((_, j) => i !== j) } as Category;
-                     setDraft(newDraft);
-                     const ok = await saveWithoutClosing(newDraft);
-                     if (!ok) {
-                       setDraft(originalDraft);
-                     }
-                  }}>
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
-                </div>
+                {r.effect && <span className="text-xs text-muted-foreground line-clamp-1">{describeEffect(r.effect, { selection: 'direct', relationship: 'any', minTargets: 1, maxTargets: 1, allowedEntityKinds: ['character'] })}</span>}
               </div>
+              <div className="flex gap-2 shrink-0">
+                <Button variant="outline" size="sm" onClick={() => {
+                   setBackupDraft(structuredClone(draft));
+                   setEditingRuleId(r.id);
+                   setIsNewOption(false);
+                   setError('');
+                }}>
+                  <Edit2 className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+                  Editar
+                </Button>
+                <Button variant="ghost" size="icon" disabled={saving} onClick={async () => {
+                   const originalDraft = draft;
+                   const newDraft = { ...draft, rules: draft.rules.filter((_, j) => i !== j) } as Category;
+                   setDraft(newDraft);
+                   const ok = await saveWithoutClosing(newDraft);
+                   if (!ok) {
+                     setDraft(originalDraft);
+                   }
+                }}>
+                  <Trash2 className="w-4 h-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
           );
         })}
         {draft.rules.length === 0 && <p className="text-sm text-muted-foreground text-center py-6 border rounded-lg border-dashed">No hay opciones configuradas.</p>}

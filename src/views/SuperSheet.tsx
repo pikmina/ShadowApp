@@ -65,6 +65,7 @@ import {
 } from '@/components/ui/accordion';
 import { calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses } from '@/lib/characterValidation';
 import { calculateTechniqueStructuralCost } from '@/domain/systemMechanics';
+import { describeMechanicalBehavior, generateAutoDescription } from '@/domain/mechanicalDescription';
 import { cn } from '@/lib/utils';
 
 const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
@@ -633,9 +634,10 @@ export default function SuperSheet() {
     const fromCharacterTechniques = Array.isArray(character?.techniques)
       ? character.techniques.map((t: any) => {
           let costStr = '';
+          let costNum: number | undefined = undefined;
           try {
             const staminaCostsRule = Array.isArray(rules) ? rules.find((r: any) => r.key === 'stamina_execution_costs')?.value : undefined;
-            const costNum = calculateTechniqueStructuralCost(t, mechanicsList, staminaCostsRule);
+            costNum = calculateTechniqueStructuralCost(t, mechanicsList, staminaCostsRule);
             if (costNum > 0) costStr = `${costNum} CE`;
           } catch {
             costStr = '';
@@ -643,10 +645,26 @@ export default function SuperSheet() {
           if (!costStr) {
             costStr = t.cost || (t.level ? `${t.level * 2} CE` : '2 CE');
           }
+
+          const numVal = costNum ?? (parseInt(costStr) || 2);
+          let autoDesc = '';
+          if (Array.isArray(t.mechanicalBehaviors) && t.mechanicalBehaviors.length > 0) {
+            autoDesc = t.mechanicalBehaviors.map((b: any) => {
+              const res = describeMechanicalBehavior(b, { format: 'compact', context: { staminaCost: numVal } });
+              return res.text;
+            }).filter(Boolean).join(' ');
+          }
+          if (!autoDesc) {
+            autoDesc = `Coste: ${costStr}`;
+          } else if (!autoDesc.toLowerCase().includes('coste') && !autoDesc.toLowerCase().includes('ce') && !autoDesc.toLowerCase().includes('estamina')) {
+            autoDesc = `${autoDesc} Coste: ${costStr}.`;
+          }
+
           return {
             id: t.id,
             name: t.name,
             description: t.description,
+            autoDescription: autoDesc,
             level: t.level || 1,
             sourceType: t.sourceType,
             activationAttributeId: t.activationAttributeId,
@@ -659,15 +677,32 @@ export default function SuperSheet() {
     // 2. Entitlement possessions from system elements
     const fromPossessions = possessionRows
       .filter((r: any) => r?.element?.kind === 'technique_entitlement')
-      .map((r: any) => ({
-        id: r.element.id,
-        name: r.element.name,
-        description: r.element.description,
-        cost: r.element.metadata?.cost || r.element.metadata?.ce || '3 CE',
-        actionType: r.element.metadata?.actionType || 'Activa',
-        range: r.element.metadata?.range || 'CQC',
-        target: r.element.metadata?.target || 'Objetivo único'
-      }));
+      .map((r: any) => {
+        const costStr = r.element.metadata?.cost || r.element.metadata?.ce || '3 CE';
+        let autoDesc = '';
+        if (Array.isArray(r.element.mechanicalBehaviors) && r.element.mechanicalBehaviors.length > 0) {
+          autoDesc = r.element.mechanicalBehaviors.map((b: any) => {
+            const res = describeMechanicalBehavior(b, { format: 'compact', context: { staminaCost: parseInt(costStr) || 3 } });
+            return res.text;
+          }).filter(Boolean).join(' ');
+        }
+        if (!autoDesc) {
+          autoDesc = `Coste: ${costStr}`;
+        } else if (!autoDesc.toLowerCase().includes('coste') && !autoDesc.toLowerCase().includes('ce') && !autoDesc.toLowerCase().includes('estamina')) {
+          autoDesc = `${autoDesc} Coste: ${costStr}.`;
+        }
+
+        return {
+          id: r.element.id,
+          name: r.element.name,
+          description: r.element.description,
+          autoDescription: autoDesc,
+          cost: costStr,
+          actionType: r.element.metadata?.actionType || 'Activa',
+          range: r.element.metadata?.range || 'CQC',
+          target: r.element.metadata?.target || 'Objetivo único'
+        };
+      });
 
     // 3. Profile techniques fallback
     const fromProfile = Array.isArray(profile.techniques)
@@ -685,15 +720,18 @@ export default function SuperSheet() {
             id: pTech,
             name: el.name || pTech,
             description: el.description || '',
+            autoDescription: 'Coste: 3 CE',
             cost: '3 CE'
           });
         }
       } else if (pTech && !combined.some(c => c.id === pTech.id || c.name === pTech.name)) {
+        const pCost = pTech.cost || '3 CE';
         combined.push({
           id: pTech.id,
           name: pTech.name,
           description: pTech.description || pTech.desc || '',
-          cost: pTech.cost || '3 CE'
+          autoDescription: pTech.autoDescription || `Coste: ${pCost}`,
+          cost: pCost
         });
       }
     });
@@ -1471,6 +1509,15 @@ export default function SuperSheet() {
                       <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
                         {elem.description || tech.description || 'Sin descripción detallada.'}
                       </p>
+                      <div className="p-2.5 rounded bg-zinc-900/90 border border-cyan-500/30 text-xs text-cyan-200/90 font-mono space-y-1 mt-2.5">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-cyan-400 uppercase tracking-widest">
+                          <Sparkles className="size-3 text-cyan-400 shrink-0" />
+                          <span>MECH.EXE // DESCRIPCIÓN TÉCNICA & COSTE CE</span>
+                        </div>
+                        <p className="leading-relaxed">
+                          {generateAutoDescription(tech)}
+                        </p>
+                      </div>
                     </div>
                   );
                 })}
