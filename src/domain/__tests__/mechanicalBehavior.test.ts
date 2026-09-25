@@ -69,6 +69,19 @@ describe("MechanicalBehavior Domain Model", () => {
     expect(parsed.trigger).toBeUndefined();
   });
 
+  it("normaliza tipos de duración numéricos y 'sustained' correctamente", () => {
+    const b1 = createDefaultMechanicalBehavior("bh_dur_1", "active");
+    b1.temporality = { duration: { type: "1" as any } };
+    const p1 = mechanicalBehaviorSchema.parse(b1);
+    expect(p1.temporality?.duration?.type).toBe("turns");
+    expect(p1.temporality?.duration?.turns).toBe(1);
+
+    const b2 = createDefaultMechanicalBehavior("bh_dur_2", "active");
+    b2.temporality = { duration: { type: "sustained" as any } };
+    const p2 = mechanicalBehaviorSchema.parse(b2);
+    expect(p2.temporality?.duration?.type).toBe("until_deactivated");
+  });
+
   it("elemento con múltiples comportamientos", () => {
     const behaviors: MechanicalBehavior[] = [
       createDefaultMechanicalBehavior("bh_1", "active", "Modo Ofensivo"),

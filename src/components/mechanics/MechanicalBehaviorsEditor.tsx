@@ -2671,13 +2671,36 @@ function TemporalityEditor({
         <div className="grid gap-1.5">
           <Label className="text-xs">Duración</Label>
           <Select
-            value={temporality.duration?.type || "instant"}
-            onValueChange={(val) =>
-              onChange({
-                ...temporality,
-                duration: { ...(temporality.duration || {}), type: val },
-              })
+            value={
+              temporality.duration?.type === "turns" && temporality.duration?.turns
+                ? String(temporality.duration.turns)
+                : temporality.duration?.type || "instant"
             }
+            onValueChange={(val) => {
+              if (!isNaN(Number(val)) && Number(val) > 0) {
+                onChange({
+                  ...temporality,
+                  duration: {
+                    ...(temporality.duration || {}),
+                    type: "turns",
+                    turns: Number(val),
+                  },
+                });
+              } else if (val === "sustained") {
+                onChange({
+                  ...temporality,
+                  duration: {
+                    ...(temporality.duration || {}),
+                    type: "until_deactivated",
+                  },
+                });
+              } else {
+                onChange({
+                  ...temporality,
+                  duration: { ...(temporality.duration || {}), type: val },
+                });
+              }
+            }}
           >
             <SelectTrigger className="h-8 text-xs bg-background">
               <SelectValue>{getMechanicalLabel("durations", temporality.duration?.type || "instant")}</SelectValue>

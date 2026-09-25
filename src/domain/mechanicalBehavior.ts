@@ -215,16 +215,52 @@ export const targetQuantitySchema = z.object({
 });
 export type TargetQuantity = z.infer<typeof targetQuantitySchema>;
 
-export const targetRangeSchema = z.object({
+export const targetRangeSchema = z.preprocess((val) => {
+  if (val && typeof val === "object") {
+    const raw = val as Record<string, any>;
+    let t = raw.type;
+    let distanceMeters = raw.distanceMeters;
+
+    if (typeof t === "number" || (typeof t === "string" && !isNaN(Number(t)))) {
+      distanceMeters = distanceMeters ?? Number(t);
+      t = Number(t) === 0 ? "self" : "distance";
+    }
+
+    return {
+      ...raw,
+      type: t,
+      distanceMeters,
+    };
+  }
+  return val;
+}, z.object({
   type: z.enum(["self", "contact", "distance", "unlimited", "manual"]).default("contact"),
   distanceMeters: z.number().nonnegative().optional(),
-});
+}));
 export type TargetRange = z.infer<typeof targetRangeSchema>;
 
-export const targetAreaSchema = z.object({
+export const targetAreaSchema = z.preprocess((val) => {
+  if (val && typeof val === "object") {
+    const raw = val as Record<string, any>;
+    let shape = raw.shape;
+    let sizeMeters = raw.sizeMeters;
+
+    if (typeof shape === "number" || (typeof shape === "string" && !isNaN(Number(shape)))) {
+      sizeMeters = sizeMeters ?? Number(shape);
+      shape = "radius";
+    }
+
+    return {
+      ...raw,
+      shape,
+      sizeMeters,
+    };
+  }
+  return val;
+}, z.object({
   shape: z.enum(["radius", "diameter", "cone", "line", "zone", "manual"]).default("radius"),
   sizeMeters: z.number().positive().optional(),
-});
+}));
 export type TargetArea = z.infer<typeof targetAreaSchema>;
 
 export const selectionRestrictionSchema = z.union([
@@ -259,14 +295,35 @@ export const durationTypeSchema = z.enum([
   "until_deactivated",
   "permanent",
   "manual",
+  "sustained",
 ]);
 export type DurationType = z.infer<typeof durationTypeSchema>;
 
-export const mechanicalDurationSchema = z.object({
+export const mechanicalDurationSchema = z.preprocess((val) => {
+  if (val && typeof val === "object") {
+    const raw = val as Record<string, any>;
+    let t = raw.type;
+    let turns = raw.turns;
+
+    if (typeof t === "number" || (typeof t === "string" && !isNaN(Number(t)) && Number(t) > 0)) {
+      turns = turns ?? Number(t);
+      t = "turns";
+    } else if (t === "sustained") {
+      t = "until_deactivated";
+    }
+
+    return {
+      ...raw,
+      type: t,
+      turns,
+    };
+  }
+  return val;
+}, z.object({
   type: durationTypeSchema.default("instant"),
   turns: z.number().int().positive().optional(),
   conditionDescription: z.string().optional(),
-});
+}));
 export type MechanicalDuration = z.infer<typeof mechanicalDurationSchema>;
 
 export const frequencyTypeSchema = z.enum([
