@@ -54,6 +54,7 @@ import {
   TECHNIQUE_MIN_LEVEL,
   TECHNIQUE_MAX_LEVEL,
   TECHNIQUE_SOURCE_TYPES,
+  TECHNIQUE_FUNCTIONAL_CATEGORIES,
   type CharacterTechnique,
   type TechniqueSourceType,
   type TechniqueFunctionalCategory,
@@ -154,6 +155,7 @@ export interface TechniqueFormData {
   description: string;
   level: number;
   sourceType: TechniqueSourceType;
+  classification?: TechniqueFunctionalCategory | null;
   activationAttributeId?: string | null;
   mechanicalBehaviors: MechanicalBehavior[];
   revision?: number;
@@ -164,6 +166,7 @@ const initialFormState: TechniqueFormData = {
   description: '',
   level: 1,
   sourceType: 'quirk',
+  classification: 'offensive',
   activationAttributeId: null,
   mechanicalBehaviors: [],
 };
@@ -242,6 +245,7 @@ export function CharacterTechniqueDialog({
           description: technique.description || '',
           level: technique.level,
           sourceType: technique.sourceType,
+          classification: technique.classification ?? (deriveTechniqueFunctionalCategories(technique.mechanicalBehaviors)[0] || 'offensive'),
           activationAttributeId: technique.activationAttributeId ?? null,
           mechanicalBehaviors: Array.isArray(technique.mechanicalBehaviors)
             ? JSON.parse(JSON.stringify(technique.mechanicalBehaviors))
@@ -261,9 +265,9 @@ export function CharacterTechniqueDialog({
     staminaCosts
   );
 
-  const dialogCategories = deriveTechniqueFunctionalCategories(
-    editingTechnique.mechanicalBehaviors
-  );
+  const dialogCategories = editingTechnique.classification
+    ? [editingTechnique.classification]
+    : deriveTechniqueFunctionalCategories(editingTechnique.mechanicalBehaviors);
 
   const dialogRollContract = deriveTechniqueRollContract(
     editingTechnique.mechanicalBehaviors,
@@ -271,6 +275,7 @@ export function CharacterTechniqueDialog({
       structuralCost: dialogStructuralCost,
       supportDifficultyTiers: staminaCosts?.supportDifficulty,
       activationAttributeId: editingTechnique.activationAttributeId,
+      classification: editingTechnique.classification,
     }
   );
 
@@ -320,6 +325,7 @@ export function CharacterTechniqueDialog({
           description: editingTechnique.description.trim(),
           level: derivedLevel,
           sourceType: editingTechnique.sourceType,
+          classification: editingTechnique.classification || 'offensive',
           activationAttributeId: editingTechnique.activationAttributeId || null,
           mechanicalBehaviors: editingTechnique.mechanicalBehaviors,
           expectedRevision: editingTechnique.revision,
@@ -345,6 +351,7 @@ export function CharacterTechniqueDialog({
           description: editingTechnique.description.trim(),
           level: derivedLevel,
           sourceType: editingTechnique.sourceType,
+          classification: editingTechnique.classification || 'offensive',
           activationAttributeId: editingTechnique.activationAttributeId || null,
           mechanicalBehaviors: editingTechnique.mechanicalBehaviors,
         };
@@ -411,34 +418,7 @@ export function CharacterTechniqueDialog({
               />
             </div>
 
-            <div className="md:col-span-4 space-y-2">
-              <Label className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
-                Nivel Derivado (Coste ES)
-              </Label>
-              {(() => {
-                const structCost = calculateTechniqueStructuralCost(
-                  editingTechnique.mechanicalBehaviors,
-                  effectiveMechanics,
-                  staminaCosts
-                );
-                const lvlInfo = deriveTechniqueLevelFromCost(structCost);
-                return (
-                  <div className="flex items-center gap-2 p-2 rounded-md bg-muted/40 border text-xs font-medium h-10">
-                    <Badge
-                      variant="outline"
-                      className="bg-primary/10 text-primary border-primary/30 font-semibold"
-                    >
-                      {lvlInfo.label}
-                    </Badge>
-                    <span className="font-mono text-[11px] text-muted-foreground">
-                      ({structCost} ES)
-                    </span>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div className="md:col-span-4 space-y-2">
+            <div className="md:col-span-3 space-y-2">
               <Label className="text-xs uppercase tracking-wider font-bold">
                 Tipo de Origen
               </Label>
@@ -464,7 +444,33 @@ export function CharacterTechniqueDialog({
               </Select>
             </div>
 
-            <div className="md:col-span-4 space-y-2">
+            <div className="md:col-span-3 space-y-2">
+              <Label className="text-xs uppercase tracking-wider font-bold">
+                Clasificación
+              </Label>
+              <Select
+                value={editingTechnique.classification || 'offensive'}
+                onValueChange={(val) =>
+                  setEditingTechnique({
+                    ...editingTechnique,
+                    classification: val as TechniqueFunctionalCategory,
+                  })
+                }
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Clasificación" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TECHNIQUE_FUNCTIONAL_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {FUNCTIONAL_CATEGORY_CONFIG[cat].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-3 space-y-2">
               <Label className="text-xs uppercase tracking-wider font-bold">
                 Atributo de Activación
               </Label>
@@ -491,6 +497,33 @@ export function CharacterTechniqueDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="md:col-span-3 space-y-2">
+              <Label className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+                Nivel (Coste ES)
+              </Label>
+              {(() => {
+                const structCost = calculateTechniqueStructuralCost(
+                  editingTechnique.mechanicalBehaviors,
+                  effectiveMechanics,
+                  staminaCosts
+                );
+                const lvlInfo = deriveTechniqueLevelFromCost(structCost);
+                return (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-muted/40 border text-xs font-medium h-10">
+                    <Badge
+                      variant="outline"
+                      className="bg-primary/10 text-primary border-primary/30 font-semibold"
+                    >
+                      {lvlInfo.label}
+                    </Badge>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      ({structCost} ES)
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="md:col-span-12 space-y-2">
@@ -593,6 +626,10 @@ export function CharacterTechniqueDialog({
               }
               mechanics={effectiveMechanics}
               maxLevel={TECHNIQUE_MAX_LEVEL}
+              structuralCost={dialogStructuralCost}
+              supportDifficultyTiers={staminaCosts?.supportDifficulty}
+              activationAttributeId={editingTechnique.activationAttributeId}
+              classification={editingTechnique.classification}
             />
           </div>
         </div>
@@ -807,11 +844,14 @@ export function CharacterTechniquesEditor({
                   effectiveMechanics,
                   staminaCosts
                 );
-                const categories = deriveTechniqueFunctionalCategories(tech.mechanicalBehaviors);
+                const categories = tech.classification
+                  ? [tech.classification]
+                  : deriveTechniqueFunctionalCategories(tech.mechanicalBehaviors);
                 const rollContract = deriveTechniqueRollContract(tech.mechanicalBehaviors, {
                   structuralCost,
                   supportDifficultyTiers: staminaCosts?.supportDifficulty,
                   activationAttributeId: tech.activationAttributeId,
+                  classification: tech.classification,
                 });
                 const sourceMeta = SOURCE_TYPE_BADGES[tech.sourceType] || SOURCE_TYPE_BADGES.quirk;
                 const isExpanded = expandedTechniqueId === tech.id;

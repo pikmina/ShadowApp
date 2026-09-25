@@ -12,6 +12,7 @@ export const elementKindEnum = pgEnum('element_kind', [
 export const elementStatusEnum = pgEnum('element_status', ['draft', 'published', 'archived']);
 export const offerStatusEnum = pgEnum('offer_status', ['draft', 'scheduled', 'available', 'paused', 'ended', 'archived']);
 export const techniqueSourceTypeEnum = pgEnum('technique_source_type', ['quirk', 'physical', 'weapon']);
+export const techniqueClassificationEnum = pgEnum('technique_classification', ['offensive', 'support', 'defensive', 'control']);
 
 // Users Table (Auth + Roles)
 export const users = pgTable('users', {
@@ -132,6 +133,7 @@ export const characterTechniques = pgTable('character_techniques', {
   description: text('description').default(''),
   level: integer('level').default(1).notNull(),
   sourceType: techniqueSourceTypeEnum('source_type').notNull(),
+  classification: techniqueClassificationEnum('classification'),
   activationAttributeId: text('activation_attribute_id'),
   mechanicalBehaviors: jsonb('mechanical_behaviors').notNull().default([]),
   revision: integer('revision').default(1).notNull(),

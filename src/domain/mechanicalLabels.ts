@@ -186,6 +186,16 @@ export const MECHANICAL_LABELS = {
     currency: "Modificar Moneda / EXP",
     experience: "Otorgar Experiencia",
     manual: "Efecto Manual / Narrativo",
+    transformation: "Transformación",
+  },
+
+  transformationMagnitudes: {
+    body: "Corporal",
+    corporal: "Corporal",
+    "2m": "2 metros",
+    "5m": "5 metros",
+    "10m": "10 metros",
+    "20m": "20 metros",
   },
 
   modifierOperations: {
@@ -553,6 +563,13 @@ export const MECHANICAL_LABELS = {
     all_categories: "Todas las categorías",
     all_classifications: "Todas las clasificaciones",
   },
+  // 18. TECHNIQUE FUNCTIONAL CLASSIFICATIONS
+  techniqueClassifications: {
+    offensive: "Ofensiva",
+    support: "Soporte",
+    defensive: "Defensiva",
+    control: "Control",
+  },
 } as const;
 
 export type MechanicalLabelCategory = keyof typeof MECHANICAL_LABELS;
@@ -596,6 +613,15 @@ export function getAlteredStatusLabel(statusId: string | undefined | null): stri
 }
 
 /**
+ * Specialized helper to get the Spanish name of a transformation magnitude
+ */
+export function getTransformationMagnitudeLabel(magType: string | undefined | null): string {
+  if (!magType) return "Corporal";
+  const dict = MECHANICAL_LABELS.transformationMagnitudes as Record<string, string>;
+  return dict[magType] || dict[magType.toLowerCase()] || humanizeFallback(magType);
+}
+
+/**
  * Specialized helper to get the Spanish name of an attribute
  */
 export function getAttributeLabel(attrId: string | undefined | null): string {
@@ -617,6 +643,15 @@ export function getResourceLabel(resourceId: string | undefined | null): string 
 export function getTagLabel(tag: string | undefined | null): string {
   if (!tag) return "";
   return MECHANICAL_LABELS.tags[tag as keyof typeof MECHANICAL_LABELS.tags] ?? tag;
+}
+
+/**
+ * Specialized helper to get the Spanish name of a technique functional classification
+ */
+export function getTechniqueClassificationLabel(classification: string | undefined | null): string {
+  if (!classification) return "";
+  const dict = MECHANICAL_LABELS.techniqueClassifications as Record<string, string>;
+  return dict[classification] ?? humanizeFallback(classification);
 }
 
 /**

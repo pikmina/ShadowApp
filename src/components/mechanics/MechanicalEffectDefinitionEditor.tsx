@@ -15,6 +15,7 @@ export const effectTypeLabels: Record<MechanicalEffectType, string> = {
   choice: "Elección",
   cost_adjustment: "Modificar coste",
   manual_resolution: "Resolución manual",
+  transformation: "Transformación",
 };
 
 export function createEffectDefinition(type: MechanicalEffectType, previous?: MechanicalEffectDefinition): MechanicalEffectDefinition {
@@ -32,6 +33,7 @@ export function createEffectDefinition(type: MechanicalEffectType, previous?: Me
     case "currency": return { ...base, type, currencyId: "yen", amount: 1 };
     case "rule_override": return { ...base, type, ruleId: "rule-id" };
     case "choice": return { ...base, type, options: ["Opción"] };
+    case "transformation": return { ...base, type, magnitude: { type: "corporal", value: 1 } };
   }
 }
 
@@ -41,6 +43,7 @@ export function describeEffect(effect: MechanicalEffectDefinition, targeting?: E
   if (effect.type === "derived_stat_modifier") behavior += ` ${effect.statId} ${effect.amount >= 0 ? "+" : ""}${effect.amount}`;
   if (effect.type === "damage") behavior += ` ${effect.dice}`;
   if (effect.type === "barrier") behavior += ` +${effect.amount}`;
+  if (effect.type === "transformation") behavior += ` (${(effect as any).magnitude?.type ?? "corporal"})`;
   if (effect.type === "healing") {
     const isDice = (effect as any).magnitude?.kind === "dice" || (effect as any).kind === "dice" || Boolean((effect as any).dice) || Boolean((effect as any).formula);
     if (isDice) {
@@ -177,5 +180,38 @@ function ValueFields({ value, patch }: { value: MechanicalEffectDefinition; patc
     case "currency": return <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Recompensa</Label><Select value={value.currencyId} onValueChange={currencyId => patch({ currencyId })}><SelectTrigger><SelectValue>{value.currencyId === "yen" ? "Yenes" : "Experiencia"}</SelectValue></SelectTrigger><SelectContent><SelectItem value="yen">Yenes</SelectItem><SelectItem value="exp">Experiencia</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label>Cantidad</Label><Input type="number" value={value.amount} onChange={e => patch({ amount: Number(e.target.value) })} /></div></div>;
     case "rule_override": return <div className="space-y-2"><Label>Regla Especial</Label><Input value={value.ruleId} onChange={e => patch({ ruleId: e.target.value })} placeholder="ID estable de la regla" /></div>;
     case "choice": return <div className="space-y-2"><Label>Opciones a elegir (separadas por coma)</Label><Input value={value.options.join(", ")} onChange={e => patch({ options: e.target.value.split(",").map(item => item.trim()).filter(Boolean) })} /></div>;
+    case "transformation": {
+      const magType = (value as any).magnitude?.type || "corporal";
+      return (
+        <div className="space-y-2">
+          <Label>Magnitud de Transformación</Label>
+          <Select
+            value={magType}
+            onValueChange={(val) => {
+              const costMap: Record<string, number> = {
+                body: 1,
+                corporal: 1,
+                "2m": 2,
+                "5m": 3,
+                "10m": 4,
+                "20m": 6,
+              };
+              patch({
+                magnitude: { type: val, value: costMap[val] ?? 1 },
+              });
+            }}
+          >
+            <SelectTrigger><SelectValue>{{"body": "Corporal", "corporal": "Corporal", "2m": "2 metros", "5m": "5 metros", "10m": "10 metros", "20m": "20 metros"}[magType] || magType}</SelectValue></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="corporal">Corporal</SelectItem>
+              <SelectItem value="2m">2 metros</SelectItem>
+              <SelectItem value="5m">5 metros</SelectItem>
+              <SelectItem value="10m">10 metros</SelectItem>
+              <SelectItem value="20m">20 metros</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
   }
 }

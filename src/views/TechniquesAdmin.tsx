@@ -218,7 +218,9 @@ export default function TechniquesAdmin() {
 
       // Filter by functional category
       if (selectedCategoryFilter !== 'all') {
-        const cats = deriveTechniqueFunctionalCategories(tech.mechanicalBehaviors);
+        const cats = tech.classification
+          ? [tech.classification]
+          : deriveTechniqueFunctionalCategories(tech.mechanicalBehaviors);
         if (!cats.includes(selectedCategoryFilter as TechniqueFunctionalCategory)) return false;
       }
 
@@ -385,11 +387,14 @@ export default function TechniquesAdmin() {
                   effectiveMechanics,
                   staminaCosts
                 );
-                const categories = deriveTechniqueFunctionalCategories(tech.mechanicalBehaviors);
+                const categories = tech.classification
+                  ? [tech.classification]
+                  : deriveTechniqueFunctionalCategories(tech.mechanicalBehaviors);
                 const rollContract = deriveTechniqueRollContract(tech.mechanicalBehaviors, {
                   structuralCost,
                   supportDifficultyTiers: staminaCosts?.supportDifficulty,
                   activationAttributeId: tech.activationAttributeId,
+                  classification: tech.classification,
                 });
                 const sourceMeta =
                   SOURCE_TYPE_BADGES[tech.sourceType] || SOURCE_TYPE_BADGES.quirk;

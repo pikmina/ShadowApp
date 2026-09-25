@@ -541,6 +541,15 @@ export function describeMechanicalEffect(
       break;
     }
 
+    case "transformation": {
+      const magType = (eff as any).magnitude?.type ?? "corporal";
+      const magLabel = (MECHANICAL_LABELS.transformationMagnitudes as Record<string, string>)[magType] || "Corporal";
+      const descPart = magLabel.toLowerCase() === "corporal" ? "corporal" : `(${magLabel})`;
+      const contextPart = (eff as any).contextRef ? ` [${(eff as any).contextRef}]` : "";
+      text = `Transformación ${descPart}${contextPart}`;
+      break;
+    }
+
     default: {
       const unkType = (eff as any).type;
       text = `Efecto desconocido (${unkType})`;

@@ -124,6 +124,10 @@ export async function runMigration() {
           IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'technique_source_type') THEN
             CREATE TYPE "technique_source_type" AS ENUM('quirk', 'physical', 'weapon');
           END IF;
+
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'technique_classification') THEN
+            CREATE TYPE "technique_classification" AS ENUM('offensive', 'support', 'defensive', 'control');
+          END IF;
         END $$;
       `);
 
@@ -153,6 +157,7 @@ export async function runMigration() {
         element_status: ['draft', 'published', 'archived'],
         offer_status: ['draft', 'scheduled', 'available', 'paused', 'ended', 'archived'],
         technique_source_type: ['quirk', 'physical', 'weapon'],
+        technique_classification: ['offensive', 'support', 'defensive', 'control'],
       };
 
       for (const [typname, values] of Object.entries(expectedEnums)) {
@@ -291,6 +296,8 @@ export async function runMigration() {
             "description" text DEFAULT '',
             "level" integer DEFAULT 1 NOT NULL,
             "source_type" "technique_source_type" NOT NULL,
+            "classification" "technique_classification",
+            "activation_attribute_id" text,
             "mechanical_behaviors" jsonb DEFAULT '[]'::jsonb NOT NULL,
             "revision" integer DEFAULT 1 NOT NULL,
             "created_at" timestamp DEFAULT now() NOT NULL,
@@ -346,6 +353,7 @@ export async function runMigration() {
           ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "optional_bonuses" jsonb DEFAULT '[]'::jsonb NOT NULL;
           ALTER TABLE "shop_offers" ADD COLUMN IF NOT EXISTS "requirements" jsonb DEFAULT '{"operator":"all","requirements":[]}'::jsonb NOT NULL;
           ALTER TABLE "character_techniques" ADD COLUMN IF NOT EXISTS "activation_attribute_id" text;
+          ALTER TABLE "character_techniques" ADD COLUMN IF NOT EXISTS "classification" "technique_classification";
         `);
 
         // Preserve canon-owned relations

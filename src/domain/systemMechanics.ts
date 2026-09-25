@@ -13,6 +13,7 @@ export const mechanicalEffectTypeSchema = z.enum([
   "choice",
   "cost_adjustment",
   "manual_resolution",
+  "transformation",
 ]);
 
 export const effectTimingSchema = z.enum([
@@ -124,6 +125,16 @@ export const mechanicalEffectDefinitionSchema = z.discriminatedUnion("type", [
   z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("currency"), currencyId: z.enum(["yen", "exp"]), amount: z.number().int(), frequencyRuleId: z.string().min(1).optional() }),
   z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("rule_override"), ruleId: z.string().min(1) }),
   z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("choice"), options: z.array(z.string().min(1)).min(1) }),
+  z.strictObject({
+    ...effectDefinitionBaseShape,
+    type: z.literal("transformation"),
+    magnitude: z
+      .object({
+        type: z.string().default("corporal"),
+        value: z.number().default(1),
+      })
+      .optional(),
+  }),
 ]);
 
 export const mechanicalEffectSchema = z.discriminatedUnion("type", [
@@ -188,6 +199,16 @@ export const mechanicalEffectSchema = z.discriminatedUnion("type", [
     type: z.literal("choice"),
     options: z.array(z.string().min(1)).min(1),
   }),
+  z.strictObject({
+    ...baseEffectShape,
+    type: z.literal("transformation"),
+    magnitude: z
+      .object({
+        type: z.string().default("corporal"),
+        value: z.number().default(1),
+      })
+      .optional(),
+  }),
 ]);
 
 export const canonicalMechanicalEffectsSchema = z.array(mechanicalEffectSchema);
@@ -227,6 +248,34 @@ export const staminaExecutionCostsSchema = z.strictObject({
   supportDifficulty: z.array(supportDifficultyTierSchema).optional(),
 });
 
+function resolveTierRD(
+  tier: SupportDifficultyTier | undefined,
+  systemDifficulties?: Array<{ id: string; rd: number; name?: string }>
+): number {
+  if (!tier) return 24;
+  if (typeof tier.rd === "number" && tier.rd > 0) return tier.rd;
+  const rawId = (tier.difficultyId || "").trim();
+  const rawName = (tier.difficultyName || "").trim();
+
+  if (systemDifficulties && systemDifficulties.length > 0) {
+    const match = systemDifficulties.find(
+      (d) =>
+        (rawId && (d.id === rawId || d.id.toLowerCase() === rawId.toLowerCase() || (d.name && d.name.toLowerCase() === rawId.toLowerCase()))) ||
+        (rawName && (d.id === rawName || d.id.toLowerCase() === rawName.toLowerCase() || (d.name && d.name.toLowerCase() === rawName.toLowerCase())))
+    );
+    if (match && typeof match.rd === "number" && match.rd > 0) return match.rd;
+  }
+
+  const raw = (rawId || rawName).toLowerCase();
+  if (raw === "normal" || raw === "rd_1789241947698") return 12;
+  if (raw === "complicado" || raw === "complicated" || raw === "rd_1789241955608") return 16;
+  if (raw === "difícil" || raw === "dificil" || raw === "hard" || raw === "rd_1789241967097") return 20;
+  if (raw === "muy difícil" || raw === "muy dificil" || raw === "very_hard" || raw === "rd_1789241979874") return 24;
+  if (raw === "extremo" || raw === "extreme" || raw === "rd_1789241990811") return 28;
+  if (raw === "fácil" || raw === "facil" || raw === "easy") return 9;
+  return 24;
+}
+
 /**
  * Pure canonical helper: calculates the Support/Defense Rango de Dificultad (RD)
  * from the Technique's structural calculated stamina cost and the System Rule tiers.
@@ -239,18 +288,19 @@ export const staminaExecutionCostsSchema = z.strictObject({
  */
 export function deriveSupportDefenseRD(
   structuralCost: number,
-  tiers: SupportDifficultyTier[] = DEFAULT_SUPPORT_DIFFICULTY_TIERS
+  tiers: SupportDifficultyTier[] = DEFAULT_SUPPORT_DIFFICULTY_TIERS,
+  systemDifficulties?: Array<{ id: string; rd: number; name?: string }>
 ): number {
   const normalizedCost = Math.max(0, structuralCost);
   const activeTiers = tiers && tiers.length > 0 ? tiers : DEFAULT_SUPPORT_DIFFICULTY_TIERS;
   const sorted = [...activeTiers].sort((a, b) => a.maxCost - b.maxCost);
   for (const tier of sorted) {
     if (normalizedCost <= tier.maxCost) {
-      return tier.rd ?? (tier.difficultyId === "normal" ? 12 : tier.difficultyId === "complicated" ? 16 : tier.difficultyId === "hard" ? 20 : 24);
+      return resolveTierRD(tier, systemDifficulties);
     }
   }
   const lastTier = sorted[sorted.length - 1];
-  return lastTier?.rd ?? 24;
+  return resolveTierRD(lastTier, systemDifficulties);
 }
 
 export type HealingOptionResult = {
@@ -1177,6 +1227,27 @@ export function calculateTechniqueStructuralCost(
             mechanicCostSum += hpOpt ? hpOpt.cost : (
               lookupRuleCost('cost_adjustment', `hp${Math.abs(eff.amount)}`) || lookupRuleCost('health_cost', 'base') || lookupRuleCost('stamina_cost', 'base')
             );
+          }
+        } else if (eff.type === 'transformation') {
+          const magType = (eff as any).magnitude?.type;
+          const magVal = (eff as any).magnitude?.value;
+          const catCost = lookupRuleCost('transformation', magType) ||
+            lookupRuleCost('transformation', (eff as any).ruleId) ||
+            lookupRuleCost('transformation', (eff as any).runtimeKey);
+          if (catCost > 0) {
+            mechanicCostSum += catCost;
+          } else if (typeof magVal === 'number' && magVal > 0) {
+            mechanicCostSum += magVal;
+          } else if (magType === '2m') {
+            mechanicCostSum += 2;
+          } else if (magType === '5m') {
+            mechanicCostSum += 3;
+          } else if (magType === '10m') {
+            mechanicCostSum += 4;
+          } else if (magType === '20m') {
+            mechanicCostSum += 6;
+          } else {
+            mechanicCostSum += 1;
           }
         }
       }

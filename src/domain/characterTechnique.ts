@@ -26,6 +26,19 @@ export const techniqueSourceTypeSchema = z.enum(TECHNIQUE_SOURCE_TYPES, {
   message: `Tipo de origen inválido. Debe ser uno de: ${TECHNIQUE_SOURCE_TYPES.join(', ')}`,
 });
 
+export const TECHNIQUE_FUNCTIONAL_CATEGORIES = [
+  'offensive',
+  'support',
+  'defensive',
+  'control',
+] as const;
+
+export type TechniqueFunctionalCategory = (typeof TECHNIQUE_FUNCTIONAL_CATEGORIES)[number];
+
+export const techniqueFunctionalCategorySchema = z.enum(TECHNIQUE_FUNCTIONAL_CATEGORIES, {
+  message: `Categoría funcional inválida. Debe ser una de: ${TECHNIQUE_FUNCTIONAL_CATEGORIES.join(', ')}`,
+});
+
 export const techniqueLevelSchema = z
   .number({ message: 'El nivel de la técnica es obligatorio' })
   .int('El nivel de la técnica debe ser un número entero')
@@ -64,6 +77,7 @@ export const characterTechniqueSchema = z.object({
   description: z.string().optional().default(''),
   level: techniqueLevelSchema.default(1),
   sourceType: techniqueSourceTypeSchema,
+  classification: techniqueFunctionalCategorySchema.nullable().optional(),
   activationAttributeId: z.string().trim().nullable().optional(),
   mechanicalBehaviors: z.array(mechanicalBehaviorSchema).default([]),
   createdAt: z.date().optional(),
@@ -85,6 +99,7 @@ export const createCharacterTechniqueSchema = z
     description: z.string().optional().default(''),
     level: techniqueLevelSchema.default(1),
     sourceType: techniqueSourceTypeSchema,
+    classification: techniqueFunctionalCategorySchema.nullable().optional(),
     activationAttributeId: z.string().trim().nullable().optional(),
     mechanicalBehaviors: z.array(mechanicalBehaviorSchema).default([]),
   })
@@ -98,6 +113,7 @@ export const updateCharacterTechniqueSchema = z
     description: z.string().optional(),
     level: techniqueLevelSchema.optional(),
     sourceType: techniqueSourceTypeSchema.optional(),
+    classification: techniqueFunctionalCategorySchema.nullable().optional(),
     activationAttributeId: z.string().trim().nullable().optional(),
     mechanicalBehaviors: z.array(mechanicalBehaviorSchema).optional(),
     expectedRevision: z.number().int().positive().optional(),
@@ -109,19 +125,6 @@ export type UpdateCharacterTechniqueInput = z.input<typeof updateCharacterTechni
 // ==========================================
 // 4. FUNCTIONAL CLASSIFICATION (PART A)
 // ==========================================
-
-export const TECHNIQUE_FUNCTIONAL_CATEGORIES = [
-  'offensive',
-  'support',
-  'defensive',
-  'control',
-] as const;
-
-export type TechniqueFunctionalCategory = (typeof TECHNIQUE_FUNCTIONAL_CATEGORIES)[number];
-
-export const techniqueFunctionalCategorySchema = z.enum(TECHNIQUE_FUNCTIONAL_CATEGORIES, {
-  message: `Categoría funcional inválida. Debe ser una de: ${TECHNIQUE_FUNCTIONAL_CATEGORIES.join(', ')}`,
-});
 
 /**
  * Pure deterministic helper that derives functional categories from MechanicalBehavior[].
@@ -316,6 +319,7 @@ export interface DeriveTechniqueRollContractOptions {
   supportDifficultyTiers?: SupportDifficultyTier[];
   activationAttributeId?: string | null;
   activationAttribute?: string | null;
+  classification?: TechniqueFunctionalCategory | null;
 }
 
 export interface EffectiveBehaviorResolution {
@@ -340,6 +344,10 @@ export interface EffectiveBehaviorResolution {
  * 2. Technique activation attribute (options.activationAttributeId / options.activationAttribute)
  * 3. undefined
  *
+ * Precedence for classification:
+ * 1. Explicit technique classification (options.classification)
+ * 2. Fallback derived categories from behavior effects (deriveTechniqueFunctionalCategories)
+ *
  * Precedence for resolution:
  * 1. Explicit user override (isExplicit === true, or 'rd'/'manual' or explicit configured fields)
  * 2. Automatic derivation:
@@ -352,11 +360,16 @@ export function deriveEffectiveBehaviorResolution(
   behavior: MechanicalBehavior,
   options?: DeriveTechniqueRollContractOptions
 ): EffectiveBehaviorResolution {
+  const explicitClassification = options?.classification;
   const behaviorCategories = deriveTechniqueFunctionalCategories([behavior]);
-  const isSupportOrDefensive = behaviorCategories.includes('support') || behaviorCategories.includes('defensive');
+  const isSupportOrDefensive = explicitClassification !== undefined && explicitClassification !== null
+    ? (explicitClassification === 'support' || explicitClassification === 'defensive')
+    : (behaviorCategories.includes('support') || behaviorCategories.includes('defensive'));
   const hasDamage = (behavior.effects || []).some((e) => e.type === 'damage');
   const damageEff = (behavior.effects || []).find((e) => e.type === 'damage');
-  const isOffensive = behaviorCategories.includes('offensive') || hasDamage;
+  const isOffensive = explicitClassification !== undefined && explicitClassification !== null
+    ? explicitClassification === 'offensive'
+    : (behaviorCategories.includes('offensive') || hasDamage);
   const isDamageMental = damageEff?.damageType === 'psiquico' || (damageEff as any)?.tag === 'mental';
   const isDamagePhysical = damageEff?.damageType === 'fisico';
 
@@ -520,12 +533,16 @@ export function deriveTechniqueRollContract(
   const isTechnique = !Array.isArray(input);
   const behaviors = isTechnique ? (input?.mechanicalBehaviors ?? []) : input;
   const techActivationAttr = isTechnique ? (input as CharacterTechnique).activationAttributeId : undefined;
+  const techClassification = isTechnique ? (input as CharacterTechnique).classification : undefined;
 
   const mergedOptions: DeriveTechniqueRollContractOptions = {
     ...options,
     activationAttributeId: options?.activationAttributeId !== undefined
       ? options.activationAttributeId
       : (options?.activationAttribute !== undefined ? options.activationAttribute : techActivationAttr),
+    classification: options?.classification !== undefined
+      ? options.classification
+      : techClassification,
   };
 
   if (!behaviors || behaviors.length === 0) {
@@ -567,7 +584,9 @@ export function deriveTechniqueRollContract(
     let complete = true;
 
     const behaviorCategories = deriveTechniqueFunctionalCategories([behavior]);
-    const isOffensive = behaviorCategories.includes('offensive') || (behavior.effects || []).some((e) => e.type === 'damage');
+    const isOffensive = mergedOptions.classification !== undefined && mergedOptions.classification !== null
+      ? mergedOptions.classification === 'offensive'
+      : (behaviorCategories.includes('offensive') || (behavior.effects || []).some((e) => e.type === 'damage'));
 
     const displayName = getBehaviorDisplayName(behavior, idx);
     const subject = displayName === 'Este comportamiento' ? displayName : `El comportamiento "${displayName}"`;

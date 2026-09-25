@@ -24,6 +24,7 @@ export async function getAllCharacterTechniques(): Promise<Array<CharacterTechni
       description: characterTechniques.description,
       level: characterTechniques.level,
       sourceType: characterTechniques.sourceType,
+      classification: characterTechniques.classification,
       activationAttributeId: characterTechniques.activationAttributeId,
       mechanicalBehaviors: characterTechniques.mechanicalBehaviors,
       revision: characterTechniques.revision,
@@ -71,6 +72,7 @@ export async function createCharacterTechnique(
       description: validated.description ?? '',
       level: validated.level,
       sourceType: validated.sourceType,
+      classification: validated.classification ?? null,
       activationAttributeId: validated.activationAttributeId ?? null,
       mechanicalBehaviors: validated.mechanicalBehaviors,
       revision: 1,
@@ -164,6 +166,7 @@ export async function updateCharacterTechnique(
     if (validated.description !== undefined) updatePayload.description = validated.description;
     if (validated.level !== undefined) updatePayload.level = validated.level;
     if (validated.sourceType !== undefined) updatePayload.sourceType = validated.sourceType;
+    if (validated.classification !== undefined) updatePayload.classification = validated.classification;
     if (validated.activationAttributeId !== undefined) {
       updatePayload.activationAttributeId = validated.activationAttributeId ?? null;
     }

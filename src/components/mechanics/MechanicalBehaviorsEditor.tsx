@@ -51,10 +51,11 @@ import {
 } from "../../domain/mechanicalLabels.ts";
 import {
   deriveEffectiveBehaviorResolution,
+  type TechniqueFunctionalCategory,
 } from "../../domain/characterTechnique.ts";
 import { MechanicalEffectsEditor } from "./MechanicalEffectsEditor.tsx";
 import { MechanicalDescriptionPreview } from "./MechanicalDescriptionPreview.tsx";
-import type { SystemMechanicsConfig } from "../../domain/systemMechanics.ts";
+import type { SystemMechanicsConfig, SupportDifficultyTier } from "../../domain/systemMechanics.ts";
 import { getCategoryOptions, findHealingOption, getValidHealingOptions, getBarrierAmount } from "../../domain/coreRuleCatalog.ts";
 
 interface MechanicalBehaviorsEditorProps {
@@ -65,6 +66,10 @@ interface MechanicalBehaviorsEditorProps {
   onLegacyChange?: (effects: unknown[]) => void;
   mechanics?: SystemMechanicsConfig;
   maxLevel?: number;
+  structuralCost?: number;
+  supportDifficultyTiers?: SupportDifficultyTier[];
+  activationAttributeId?: string | null;
+  classification?: TechniqueFunctionalCategory | null;
 }
 
 export function MechanicalBehaviorsEditor({
@@ -74,6 +79,10 @@ export function MechanicalBehaviorsEditor({
   onLegacyChange,
   mechanics = [],
   maxLevel,
+  structuralCost,
+  supportDifficultyTiers,
+  activationAttributeId,
+  classification,
 }: MechanicalBehaviorsEditorProps) {
   // If element has legacy effects and no modern behaviors, allow viewing legacy editor
   const hasLegacy = Array.isArray(legacyEffects) && legacyEffects.length > 0;
@@ -254,6 +263,10 @@ export function MechanicalBehaviorsEditor({
                   onMoveUp={() => moveBehavior(bIndex, "up")}
                   onMoveDown={() => moveBehavior(bIndex, "down")}
                   mechanics={mechanics}
+                  structuralCost={structuralCost}
+                  supportDifficultyTiers={supportDifficultyTiers}
+                  activationAttributeId={activationAttributeId}
+                  classification={classification}
                 />
               ))}
             </>
@@ -276,6 +289,10 @@ interface SingleBehaviorCardProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   mechanics?: SystemMechanicsConfig;
+  structuralCost?: number;
+  supportDifficultyTiers?: SupportDifficultyTier[];
+  activationAttributeId?: string | null;
+  classification?: TechniqueFunctionalCategory | null;
 }
 
 function SingleBehaviorCard({
@@ -287,6 +304,10 @@ function SingleBehaviorCard({
   onMoveUp,
   onMoveDown,
   mechanics = [],
+  structuralCost,
+  supportDifficultyTiers,
+  activationAttributeId,
+  classification,
 }: SingleBehaviorCardProps) {
   const mode = behavior.mode;
   const activationOptions = getCategoryOptions(mechanics, "activation");
@@ -718,7 +739,12 @@ function SingleBehaviorCard({
 
           {/* 4. RESOLUTION SECTION */}
           {(() => {
-            const effRes = deriveEffectiveBehaviorResolution(behavior);
+            const effRes = deriveEffectiveBehaviorResolution(behavior, {
+              structuralCost,
+              supportDifficultyTiers,
+              activationAttributeId,
+              classification,
+            });
             return (
               <AccordionItem value="resolution" className="border rounded-md px-3 bg-muted/10">
                 <AccordionTrigger className="py-2.5 hover:no-underline text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -736,6 +762,10 @@ function SingleBehaviorCard({
                     resolution={behavior.resolution || { type: "automatic", outcomes: [] }}
                     onChange={(resolution) => onUpdate({ ...behavior, resolution })}
                     mechanics={mechanics}
+                    structuralCost={structuralCost}
+                    supportDifficultyTiers={supportDifficultyTiers}
+                    activationAttributeId={activationAttributeId}
+                    classification={classification}
                   />
                 </AccordionContent>
               </AccordionItem>
@@ -1231,6 +1261,10 @@ function ResolutionEditor({
   resolution,
   onChange,
   mechanics = [],
+  structuralCost,
+  supportDifficultyTiers,
+  activationAttributeId,
+  classification,
 }: {
   behavior: MechanicalBehavior;
   resolution: {
@@ -1246,8 +1280,17 @@ function ResolutionEditor({
   };
   onChange: (res: any) => void;
   mechanics?: SystemMechanicsConfig;
+  structuralCost?: number;
+  supportDifficultyTiers?: SupportDifficultyTier[];
+  activationAttributeId?: string | null;
+  classification?: TechniqueFunctionalCategory | null;
 }) {
-  const effective = deriveEffectiveBehaviorResolution(behavior);
+  const effective = deriveEffectiveBehaviorResolution(behavior, {
+    structuralCost,
+    supportDifficultyTiers,
+    activationAttributeId,
+    classification,
+  });
   const isExplicit = Boolean(
     resolution?.isExplicit ||
     resolution?.explicitOverride ||
@@ -1751,6 +1794,7 @@ function EffectsListEditor({
                       <SelectItem value="action_block">🔒 {MECHANICAL_LABELS.effectTypes.action_block}</SelectItem>
                       <SelectItem value="counter_modifier">🔢 {MECHANICAL_LABELS.effectTypes.counter_modifier}</SelectItem>
                       <SelectItem value="manual">📝 {MECHANICAL_LABELS.effectTypes.manual}</SelectItem>
+                      <SelectItem value="transformation">🧬 {MECHANICAL_LABELS.effectTypes.transformation}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -2376,6 +2420,63 @@ function EffectsListEditor({
                       className="h-7 text-xs"
                     />
                   </div>
+                )}
+
+                {eff.type === "transformation" && (
+                  <>
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Magnitud de Transformación</Label>
+                      <Select
+                        value={eff.magnitude?.type || "corporal"}
+                        onValueChange={(val) => {
+                          const costMap: Record<string, number> = {
+                            body: 1,
+                            corporal: 1,
+                            "2m": 2,
+                            "5m": 3,
+                            "10m": 4,
+                            "20m": 6,
+                          };
+                          const structuralValue = costMap[val] ?? 1;
+                          updateEffect(i, {
+                            ...eff,
+                            magnitude: { type: val, value: structuralValue },
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-44 text-xs font-medium">
+                          <SelectValue>
+                            {getMechanicalLabel("transformationMagnitudes", eff.magnitude?.type || "corporal")}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="corporal">Corporal (+1 CE)</SelectItem>
+                          <SelectItem value="2m">2 metros (+2 CE)</SelectItem>
+                          <SelectItem value="5m">5 metros (+3 CE)</SelectItem>
+                          <SelectItem value="10m">10 metros (+4 CE)</SelectItem>
+                          <SelectItem value="20m">20 metros (+6 CE)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-1 w-full max-w-xs">
+                      <Label className="text-[11px]">Referencia de Forma / Contexto (Opcional)</Label>
+                      <Input
+                        value={eff.contextRef || ""}
+                        onChange={(e) => updateEffect(i, { ...eff, contextRef: e.target.value })}
+                        placeholder="Ej: persona cuya sangre fue consumida"
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                    <div className="grid gap-1 w-full max-w-xs">
+                      <Label className="text-[11px]">Notas / Descripción (Opcional)</Label>
+                      <Input
+                        value={eff.description || ""}
+                        onChange={(e) => updateEffect(i, { ...eff, description: e.target.value })}
+                        placeholder="Detalles adicionales..."
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                  </>
                 )}
               </div>
 

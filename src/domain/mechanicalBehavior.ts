@@ -614,6 +614,23 @@ export const mechanicalEffectItemSchema = z.discriminatedUnion("type", [
     target: mechanicalTargetSchema.optional(),
     temporality: mechanicalTemporalitySchema.optional(),
   }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("transformation"),
+    magnitude: z
+      .object({
+        type: z.enum(["body", "corporal", "2m", "5m", "10m", "20m"]).or(z.string()).default("corporal"),
+        value: z.number().default(1),
+      })
+      .optional()
+      .default({ type: "corporal", value: 1 }),
+    ruleId: z.string().optional(),
+    runtimeKey: z.string().optional(),
+    description: z.string().optional(),
+    contextRef: z.string().optional(),
+    target: mechanicalTargetSchema.optional(),
+    temporality: mechanicalTemporalitySchema.optional(),
+  }),
 ]);
 export type MechanicalEffectItem = z.infer<typeof mechanicalEffectItemSchema>;
 
@@ -899,6 +916,8 @@ export function createDefaultMechanicalEffect(
       return { ...base, type: "counter_modifier", counterId: "combat_counter", operation: "increment", value: 1 };
     case "manual":
       return { ...base, type: "manual", message: "Efecto manual a resolver por la narración." };
+    case "transformation":
+      return { ...base, type: "transformation", magnitude: { type: "corporal", value: 1 } };
     default:
       return { ...base, type: "damage", dice: "1D6" };
   }

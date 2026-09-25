@@ -39,6 +39,7 @@ export const CORE_CATEGORIES = {
   die_condition: 'Dado individual',
   health_cost: 'Coste de HP',
   caps: 'Límites / caps',
+  transformation: 'Transformación',
 } as const;
 export type CoreCategoryKey = keyof typeof CORE_CATEGORIES;
 
@@ -169,6 +170,13 @@ export function createCoreCategories(): SystemMechanicsConfig {
   effect('status', 'stunned', 'Aturdido', { type: 'status', statusElementId: 'core.status.stunned' });
   effect('cost_adjustment', 'quirk1', '+1 a costes de quirk', { type: 'cost_adjustment', scopeId: 'quirk', amount: 1 });
   effect('manual_resolution', 'unstable', 'Quirk inestable', { type: 'manual_resolution', message: 'El quirk se activa de forma inestable. El Master determina el efecto.' });
+
+  // Transformation Magnitudes
+  effect('transformation', 'body', 'Corporal', { type: 'transformation', magnitude: { type: 'body', value: 1 } }, 'body', 1);
+  effect('transformation', '2m', '2 metros', { type: 'transformation', magnitude: { type: '2m', value: 2 } }, '2m', 2);
+  effect('transformation', '5m', '5 metros', { type: 'transformation', magnitude: { type: '5m', value: 3 } }, '5m', 3);
+  effect('transformation', '10m', '10 metros', { type: 'transformation', magnitude: { type: '10m', value: 4 } }, '10m', 4);
+  effect('transformation', '20m', '20 metros', { type: 'transformation', magnitude: { type: '20m', value: 6 } }, '20m', 6);
 
   // Target
   option('target', 'self', 'Uno mismo', { kind: 'target', self: true, allies: false, enemies: false }, 'self');

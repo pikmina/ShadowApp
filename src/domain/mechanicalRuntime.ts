@@ -12,6 +12,7 @@ import type {
   OutcomeType,
   DifferentiatedOutcome,
 } from "./mechanicalBehavior";
+import { resolveEffectiveTemporality } from "./mechanicalBehavior";
 
 // ============================================================================
 // 1. EVENTOS MECÁNICOS Y PROVENIENCIA
@@ -233,11 +234,13 @@ export function advanceTurn(
 
     // Decrement or expire active timed effects
     participant.activeTimedEffects = participant.activeTimedEffects.filter((effect) => {
+      if (effect.remainingTurns !== undefined) {
+        effect.remainingTurns -= 1;
+      }
       if (effect.expiresAtTurn !== undefined) {
         return effect.expiresAtTurn > next.turn;
       }
       if (effect.remainingTurns !== undefined) {
-        effect.remainingTurns -= 1;
         return effect.remainingTurns > 0;
       }
       return true;
@@ -1571,6 +1574,30 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
         break;
       }
 
+      case "transformation": {
+        const effectiveTemp = resolveEffectiveTemporality(eff, behavior);
+        const durationType = effectiveTemp?.duration?.type;
+        const turns = effectiveTemp?.duration?.turns ?? (durationType === "turns" ? 1 : undefined);
+        const expiresAtTurn = turns !== undefined ? newEncounter.turn + turns : undefined;
+
+        const targetPart = newEncounter.participants[actualTargetId] ?? participant;
+        if (!targetPart.activeTimedEffects) {
+          targetPart.activeTimedEffects = [];
+        }
+
+        targetPart.activeTimedEffects.push({
+          id: `${eff.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          sourceBehaviorId: behavior.id,
+          sourceElementId: elementId,
+          effect: eff,
+          temporality: effectiveTemp ?? { duration: { type: "turns", turns: 1 } },
+          remainingTurns: turns,
+          expiresAtTurn,
+          targetEntityId: actualTargetId,
+        });
+        break;
+      }
+
       default:
         break;
     }
@@ -2789,5 +2816,32 @@ export function executeMultiTargetBehavior(
     emittedEvents,
   };
 }
+
+/**
+ * Checks if a participant currently has an active transformation effect.
+ */
+export function hasActiveTransformation(
+  participant: ParticipantRuntimeState,
+  filter?: { sourceBehaviorId?: string; sourceElementId?: string }
+): boolean {
+  if (!participant.activeTimedEffects) return false;
+  return participant.activeTimedEffects.some(
+    (e) =>
+      e.effect.type === "transformation" &&
+      (!filter?.sourceBehaviorId || e.sourceBehaviorId === filter.sourceBehaviorId) &&
+      (!filter?.sourceElementId || e.sourceElementId === filter.sourceElementId)
+  );
+}
+
+/**
+ * Returns all active transformation timed effects currently on a participant.
+ */
+export function getActiveTransformations(
+  participant: ParticipantRuntimeState
+): ActiveTimedEffect[] {
+  if (!participant.activeTimedEffects) return [];
+  return participant.activeTimedEffects.filter((e) => e.effect.type === "transformation");
+}
+
 
 
