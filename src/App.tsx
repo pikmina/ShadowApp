@@ -21,6 +21,7 @@ import CanonCharactersAdmin from "./views/CanonCharactersAdmin";
 import EmploymentsAdmin from "./views/EmploymentsAdmin";
 import ClassesAdmin from "./views/ClassesAdmin";
 import PublicSheet from "./views/PublicSheet";
+import SuperSheet from "./views/SuperSheet";
 import ComponentShowcase from "./views/ComponentShowcase";
 import SystemManual from "./views/SystemManual";
 import AuditLogsAdmin from "./views/AuditLogsAdmin";
@@ -76,6 +77,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/sheet/:id" element={<PublicSheet />} />
+      <Route path="/supersheet/:identifier" element={<SuperSheet />} />
+      <Route path="/supersheet" element={<PublicRegistry />} />
       <Route path="/registry" element={<PublicRegistry />} />
       <Route path="/manual" element={<SystemManual />} />
 

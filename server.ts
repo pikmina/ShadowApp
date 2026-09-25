@@ -1228,15 +1228,13 @@ async function startServer() {
   
   app.get("/api/public/character/:id", async (req, res) => {
     try {
-      const { getPublicCharacterById } = await import("./src/db/characters.ts");
-      const character = await getPublicCharacterById(parseInt(req.params.id));
+      const { getPublicCharacterByIdOrName } = await import("./src/db/characters.ts");
+      const character = await getPublicCharacterByIdOrName(req.params.id);
       
       if (!character) {
         return res.status(404).json({ error: "Character not found" });
       }
       
-      // Optionally check if character is marked as canon or public if needed, 
-      // but the prompt says "Esta ficha pública, debe ser visible sin acceder, y tener su propia URL"
       res.json(character);
     } catch (error) {
       console.error("Public character error:", error);

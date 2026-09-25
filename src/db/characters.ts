@@ -121,15 +121,61 @@ export async function getPublicCharacterById(id: number) {
   if (!character) return null;
   const { getCharacterEmployments } = await import('./employments.ts');
   const { getCharacterEnrollment } = await import('./academicClasses.ts');
-  const [possessions, employments, enrollment] = await Promise.all([
+  const { getCharacterTechniquesByCharacterId } = await import('./characterTechniques.ts');
+  const [possessions, employments, enrollment, techniques] = await Promise.all([
     db.select({ possession: elementPossessions, element: systemElements })
       .from(elementPossessions)
       .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
       .where(and(eq(elementPossessions.characterId, id), eq(systemElements.status, 'published'))),
     getCharacterEmployments(id).catch(() => []),
     getCharacterEnrollment(id).catch(() => null),
+    getCharacterTechniquesByCharacterId(id).catch(() => []),
   ]);
-  return { ...character, possessions, employments, enrollment };
+  return { ...character, possessions, employments, enrollment, techniques };
+}
+
+export async function getPublicCharacterByIdOrName(identifier: string) {
+  if (!identifier) return null;
+  const decoded = decodeURIComponent(identifier).trim();
+  
+  // 1. Try numeric ID
+  const numericId = parseInt(decoded, 10);
+  if (!isNaN(numericId) && String(numericId) === decoded) {
+    const direct = await getPublicCharacterById(numericId);
+    if (direct) return direct;
+  }
+
+  // 2. Search all characters by name, canonCharacterId, or alias
+  const allCharacters = await db.select().from(characters);
+  const normalizedSearch = decoded.toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+  // Exact match
+  let matched = allCharacters.find(c => 
+    c.name.toLowerCase() === decoded.toLowerCase() || 
+    (c.canonCharacterId && c.canonCharacterId.toLowerCase() === decoded.toLowerCase())
+  );
+
+  // Normalized alphanumeric match
+  if (!matched) {
+    matched = allCharacters.find(c => {
+      const cNorm = c.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+      const canonNorm = (c.canonCharacterId || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+      const alias = (c.profileData as any)?.alias || (c.profileData as any)?.hero_name || '';
+      const aliasNorm = String(alias).toLowerCase().replace(/[^a-z0-9]+/g, '');
+      return cNorm === normalizedSearch || (canonNorm && canonNorm === normalizedSearch) || (aliasNorm && aliasNorm === normalizedSearch);
+    });
+  }
+
+  // Substring match
+  if (!matched) {
+    matched = allCharacters.find(c => 
+      c.name.toLowerCase().includes(decoded.toLowerCase()) || 
+      (c.canonCharacterId && c.canonCharacterId.toLowerCase().includes(decoded.toLowerCase()))
+    );
+  }
+
+  if (!matched) return null;
+  return getPublicCharacterById(matched.id);
 }
 
 export async function getCharactersWithPossessions() {

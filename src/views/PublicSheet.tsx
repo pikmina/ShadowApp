@@ -58,6 +58,7 @@ import { CyberFillerPanel } from '@/components/ui/cyber-filler-panel';
 import { CyberModule } from '@/components/ui/cyber-module';
 import { EntityPanel } from '@/components/ui/entity-panel';
 import { calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses } from '@/lib/characterValidation';
+import { calculateTechniqueStructuralCost } from '@/domain/systemMechanics';
 import { cn } from '@/lib/utils';
 
 const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
@@ -90,7 +91,7 @@ export default function PublicSheet() {
     const loadCharacter = async () => {
       try {
         const [response, elemResponse, rulesResponse] = await Promise.all([
-          fetch(`/api/public/character/${id}`, { signal: controller.signal }),
+          fetch(`/api/public/character/${encodeURIComponent(id || '')}`, { signal: controller.signal }),
           fetch('/api/elements', { signal: controller.signal }).catch(() => ({ ok: false, json: async () => [] })),
           fetch('/api/rules', { signal: controller.signal }).catch(() => ({ ok: false, json: async () => [] }))
         ]);
@@ -341,22 +342,82 @@ export default function PublicSheet() {
 
   // Techniques
   const techniquesList = useMemo(() => {
+    // 1. From character_techniques table
+    const fromCharacterTechniques = Array.isArray(character?.techniques)
+      ? character.techniques.map((t: any) => {
+          let costStr = '';
+          try {
+            const staminaCostsRule = Array.isArray(rules) ? rules.find((r: any) => r.key === 'stamina_execution_costs')?.value : undefined;
+            const costNum = calculateTechniqueStructuralCost(t, mechanicsList, staminaCostsRule);
+            if (costNum > 0) costStr = `${costNum} CE`;
+          } catch {
+            costStr = '';
+          }
+          if (!costStr) {
+            costStr = t.cost || (t.level ? `${t.level * 2} CE` : '2 CE');
+          }
+          return {
+            id: t.id,
+            name: t.name,
+            description: t.description,
+            cost: costStr,
+            type: t.sourceType === 'quirk' ? 'DON / QUIRK' : (t.sourceType?.toUpperCase() || 'QUIRK'),
+            target: t.activationAttributeId ? `ATR: ${t.activationAttributeId}` : 'VS EVA',
+            level: String(t.level || '1'),
+          };
+        })
+      : [];
+
+    // 2. From entitlement possessions
     const fromPossessions = possessionRows
       .filter((r: any) => r?.element?.kind === 'technique_entitlement')
       .map((r: any) => ({
         id: r.element.id,
         name: r.element.name,
         description: r.element.description,
-        cost: r.element.metadata?.cost || r.element.metadata?.ce || '3 ES',
+        cost: r.element.metadata?.cost || r.element.metadata?.ce || '3 CE',
         type: r.element.metadata?.type || 'OFENSIVA',
         target: r.element.metadata?.target || 'VS EVA',
         level: r.element.metadata?.level || '1'
       }));
-    if (fromPossessions.length > 0) return fromPossessions;
-    if (Array.isArray(profile.techniques)) return profile.techniques;
-    if (Array.isArray(profile.tecnicas)) return profile.tecnicas;
-    return [];
-  }, [possessionRows, profile]);
+
+    // 3. From profile data
+    const fromProfile = Array.isArray(profile.techniques)
+      ? profile.techniques
+      : Array.isArray(profile.tecnicas)
+      ? profile.tecnicas
+      : [];
+
+    const combined = [...fromCharacterTechniques, ...fromPossessions];
+    fromProfile.forEach((pTech: any) => {
+      if (typeof pTech === 'string') {
+        if (!combined.some(c => c.id === pTech || c.name === pTech)) {
+          const el = getElement(pTech);
+          combined.push({
+            id: pTech,
+            name: el.name || pTech,
+            description: el.description || '',
+            cost: '3 ES',
+            type: 'OFENSIVA',
+            target: 'VS EVA',
+            level: '1'
+          });
+        }
+      } else if (pTech && !combined.some(c => c.id === pTech.id || c.name === pTech.name)) {
+        combined.push({
+          id: pTech.id,
+          name: pTech.name,
+          description: pTech.description || pTech.desc || '',
+          cost: pTech.cost || '3 ES',
+          type: pTech.type || 'OFENSIVA',
+          target: pTech.target || 'VS EVA',
+          level: String(pTech.level || '1')
+        });
+      }
+    });
+
+    return combined;
+  }, [character?.techniques, possessionRows, profile, elements]);
 
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-background font-oxanium text-sm text-muted-foreground">Cargando expediente...</div>;
   if (error || !character) return <div className="flex min-h-screen items-center justify-center bg-background p-6 text-center font-oxanium text-sm text-destructive">Ficha no encontrada o no disponible (Revisa la consola).</div>;
@@ -375,7 +436,10 @@ export default function PublicSheet() {
               Expediente público de personaje
             </p>
           </div>
-          <nav className="flex shrink-0 gap-2">
+          <nav className="flex shrink-0 items-center gap-2">
+            <Link to={`/supersheet/${encodeURIComponent(character?.name || id || '')}`} className="rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300">
+              ⚡ Vista Heroica
+            </Link>
             <Link to="/character-editor" className="rounded border border-border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
               Registros
             </Link>
