@@ -1,6 +1,6 @@
 import { expect, test, describe, beforeAll, afterAll } from 'vitest';
 import { db } from '../index.ts';
-import { characters, users, canonCharacters } from '../schema.ts';
+import { characters, users, canonCharacters, characterEmployments, characterEnrollments, institutions, departments, positions, academicYears, classGroups } from '../schema.ts';
 import { eq } from 'drizzle-orm';
 import { updateCharacter, createCharacter } from '../characters.ts';
 import { 
@@ -11,6 +11,8 @@ import {
   reserveCanonCharacter, 
   releaseCanonCharacter 
 } from '../canonCharacters.ts';
+import { assignCanonEmployment, removeCharacterEmployment, createInstitution, createDepartment, createPosition, deletePosition, deleteDepartment, deleteInstitution } from '../employments.ts';
+import { enrollCanonCharacter, removeCharacterEnrollment, createAcademicYear, createClassGroup, deleteClassGroup, deleteAcademicYear } from '../academicClasses.ts';
 import { nanoid } from 'nanoid';
 
 let testUserId: number;
@@ -131,5 +133,39 @@ describe.skipIf(!dbAvailable)('Canon Characters Integration', () => {
     expect(canon).toBeUndefined();
     
     testCanonId = ''; // Prevent afterAll from failing
+  });
+
+  test('10. Rejects deletion if canon character has assigned employments', async () => {
+    const suffix = nanoid(5);
+    const newCanon = await createCanonCharacter({ name: 'Employment Guard ' + suffix });
+    const inst = await createInstitution({ name: 'Inst ' + suffix });
+    const dept = await createDepartment({ institutionId: inst.id, name: 'Dept ' + suffix });
+    const pos = await createPosition({ departmentId: dept.id, name: 'Pos ' + suffix });
+    const emp = await assignCanonEmployment(newCanon.id, pos.id);
+
+    await expect(deleteCanonCharacter(newCanon.id)).rejects.toThrow('assigned employments');
+
+    // Remove employment and then delete
+    await removeCharacterEmployment(emp.id);
+    await deleteCanonCharacter(newCanon.id);
+    await deletePosition(pos.id);
+    await deleteDepartment(dept.id);
+    await deleteInstitution(inst.id);
+  });
+
+  test('11. Rejects deletion if canon character has class enrollments', async () => {
+    const suffix = nanoid(5);
+    const newCanon = await createCanonCharacter({ name: 'Class Guard ' + suffix });
+    const year = await createAcademicYear({ name: 'Year ' + suffix });
+    const cls = await createClassGroup({ academicYearId: year.id, name: 'Class ' + suffix, capacity: 10 });
+    const enr = await enrollCanonCharacter(newCanon.id, cls.id);
+
+    await expect(deleteCanonCharacter(newCanon.id)).rejects.toThrow('enrolled in a class');
+
+    // Remove enrollment and then delete
+    await removeCharacterEnrollment(enr.id);
+    await deleteCanonCharacter(newCanon.id);
+    await deleteClassGroup(cls.id);
+    await deleteAcademicYear(year.id);
   });
 });

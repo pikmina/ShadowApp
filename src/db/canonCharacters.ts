@@ -102,13 +102,29 @@ export async function releaseCanonCharacter(id: string, actorUid?: string) {
 }
 
 export async function deleteCanonCharacter(id: string, actorUid?: string) {
-  // Check if occupied
+  // Check if occupied by a character sheet
   const occupied = await db.select().from(characters).where(eq(characters.canonCharacterId, id)).limit(1);
   if (occupied.length > 0) {
     throw new Error('Cannot delete a Canon Character that is currently occupied by a Character sheet.');
   }
 
+  // Check if assigned to any employment
+  const activeEmployments = await db.select().from(characterEmployments).where(eq(characterEmployments.canonCharacterId, id)).limit(1);
+  if (activeEmployments.length > 0) {
+    throw new Error('Cannot delete a Canon Character with assigned employments. Remove its employments first.');
+  }
+
+  // Check if enrolled in any class
+  const activeEnrollments = await db.select().from(characterEnrollments).where(eq(characterEnrollments.canonCharacterId, id)).limit(1);
+  if (activeEnrollments.length > 0) {
+    throw new Error('Cannot delete a Canon Character enrolled in a class. Remove its class enrollment first.');
+  }
+
   const [existing] = await db.select().from(canonCharacters).where(eq(canonCharacters.id, id));
+  if (!existing) {
+    throw new Error('Canon Character not found.');
+  }
+
   await db.delete(canonCharacters).where(eq(canonCharacters.id, id));
 
   if (actorUid && existing) {
