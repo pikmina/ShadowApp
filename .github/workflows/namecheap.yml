@@ -80,8 +80,8 @@ jobs:
           mkdir "$releases/.deploy-lock"
           trap 'rmdir "$releases/.deploy-lock" 2>/dev/null || true; rm -f "$HOME/shadowapp-upload-$1.tgz" 2>/dev/null || true' EXIT
 
-          # Prune old release archives and releases to free disk quota
-          rm -f "$HOME"/shadowapp-upload-*.tgz 2>/dev/null || true
+          # Prune old release archives from previous runs (except the current one) and releases to free disk quota
+          find "$HOME" -maxdepth 1 -name 'shadowapp-upload-*.tgz' ! -name "shadowapp-upload-$1.tgz" -delete 2>/dev/null || true
           current_target=""
           previous_target=""
           test -L "$app/.namecheap-current" && current_target="$(readlink -f "$app/.namecheap-current")" || true
@@ -94,7 +94,7 @@ jobs:
           done
 
           release="$releases/actions-$1"
-          mkdir "$release"
+          mkdir -p "$release"
           tar -xzf "$HOME/shadowapp-upload-$1.tgz" -C "$release"
           rm -f "$HOME/shadowapp-upload-$1.tgz"
           cd "$release"
