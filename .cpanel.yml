@@ -1,0 +1,4 @@
+---
+deployment:
+  tasks:
+    - /bin/bash -c 'source "$HOME/nodevenv/shadowapp/22/bin/activate" && cd "$HOME/repositories/ShadowApp" && node deploy/namecheap/deploy.cjs'
