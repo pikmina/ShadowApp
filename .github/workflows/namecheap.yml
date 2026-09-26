@@ -8,8 +8,8 @@ permissions:
 
 jobs:
   comprobar-conexion:
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
+runs-on: ubuntu-24.04
+timeout-minutes: 3
 
     steps:
       - name: Preparar conexión SSH
