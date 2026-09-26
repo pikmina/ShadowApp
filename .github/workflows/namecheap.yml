@@ -1,0 +1,39 @@
+name: Publicar en Namecheap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  comprobar-conexion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Preparar conexión SSH
+        env:
+          SSH_KEY: ${{ secrets.NAMECHEAP_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.NAMECHEAP_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/namecheap
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/namecheap ~/.ssh/known_hosts
+
+      - name: Comprobar acceso
+        env:
+          HOST: ${{ secrets.NAMECHEAP_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_PORT }}
+          USER: ${{ secrets.NAMECHEAP_USER }}
+        run: |
+          ssh -i ~/.ssh/namecheap \
+            -p "$PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=20 \
+            "$USER@$HOST" \
+            'test -d "$HOME/shadowapp" && echo "CONEXION CORRECTA"'
