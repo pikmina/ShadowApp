@@ -6,12 +6,49 @@ on:
 permissions:
   contents: read
 
-jobs:
-  comprobar-conexion:
-runs-on: ubuntu-24.04
-timeout-minutes: 3
+concurrency:
+  group: namecheap-production
+  cancel-in-progress: false
 
+jobs:
+  publicar:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+
+      - name: Revisar compatibilidad y aplicar ajuste de Namecheap
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          const policy = require('./deploy/namecheap/policy.json');
+          const { prepare } = require('./deploy/namecheap/deploy.cjs');
+          const changed = execFileSync('git', ['diff', '--name-only', policy.baseline, 'HEAD', '--', 'src/db/schema.ts', 'src/db/migrate.ts', 'src/db/migrations'], {encoding:'utf8'}).trim();
+          if (changed) throw new Error('Cambios de esquema: revisar compatibilidad con Neon antes de publicar. No se ejecutaron migraciones.');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          if (pkg.scripts.build !== policy.build || ['preinstall','install','postinstall','prepare','prebuild','postbuild'].some(k => pkg.scripts[k])) throw new Error('Cambió el proceso de instalación/build; requiere revisión.');
+          fs.writeFileSync('server.ts', prepare(fs.readFileSync('server.ts', 'utf8')));
+          pkg.scripts.start = 'node dist/server.cjs';
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          NODE
+
+      - name: Instalar y compilar en GitHub
+        run: |
+          npm ci --include=dev
+          npm run build
+          test -s dist/index.html
+          test -s dist/server.cjs
+          tar -czf namecheap-release.tgz dist package.json package-lock.json deploy/namecheap/start.cjs
+
       - name: Preparar conexión SSH
         env:
           SSH_KEY: ${{ secrets.NAMECHEAP_SSH_KEY }}
@@ -23,17 +60,47 @@ timeout-minutes: 3
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/namecheap ~/.ssh/known_hosts
 
-      - name: Comprobar acceso
+      - name: Enviar e instalar versión compilada
         env:
           HOST: ${{ secrets.NAMECHEAP_HOST }}
           PORT: ${{ secrets.NAMECHEAP_PORT }}
           USER: ${{ secrets.NAMECHEAP_USER }}
         run: |
-          ssh -i ~/.ssh/namecheap \
-            -p "$PORT" \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=20 \
-            "$USER@$HOST" \
-            'test -d "$HOME/shadowapp" && echo "CONEXION CORRECTA"'
+          set -euo pipefail
+          id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          scp -i ~/.ssh/namecheap -P "$PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 namecheap-release.tgz "$USER@$HOST:shadowapp-upload-$id.tgz"
+          ssh -i ~/.ssh/namecheap -p "$PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=6 "$USER@$HOST" "bash -s -- '$id' '$GITHUB_SHA'" <<'REMOTE'
+          set -eo pipefail
+          source "$HOME/nodevenv/shadowapp/22/bin/activate"
+          set -u
+          app="$HOME/shadowapp"
+          releases="$HOME/shadowapp-releases"
+          test -d "$app"
+          mkdir -p "$releases"
+          mkdir "$releases/.deploy-lock"
+          trap 'rmdir "$releases/.deploy-lock"' EXIT
+          release="$releases/actions-$1"
+          mkdir "$release"
+          tar -xzf "$HOME/shadowapp-upload-$1.tgz" -C "$release"
+          cd "$release"
+          # Only runtime dependencies are installed here. No build/start/migration.
+          export NODE_ENV=production
+          unset DATABASE_URL SQL_HOST SQL_USER SQL_PASSWORD SQL_ADMIN_USER SQL_ADMIN_PASSWORD SQL_DB_NAME PGHOST PGUSER PGPASSWORD PGDATABASE
+          npm ci --omit=dev --prefix "$release"
+          node --check dist/server.cjs
+          test -s dist/index.html
+          printf '%s\n' "$2" > NAMECHEAP_COMMIT
+          if test -L "$app/.namecheap-current"; then
+            ln -s "$(readlink -f "$app/.namecheap-current")" "$app/.namecheap-previous.next"
+            mv -Tf "$app/.namecheap-previous.next" "$app/.namecheap-previous"
+          fi
+          cp deploy/namecheap/start.cjs "$app/namecheap.cjs.next"
+          mv -f "$app/namecheap.cjs.next" "$app/namecheap.cjs"
+          ln -s "$release" "$app/.namecheap-current.next"
+          mv -Tf "$app/.namecheap-current.next" "$app/.namecheap-current"
+          mkdir -p "$app/tmp"
+          touch "$app/tmp/restart.txt"
+          echo "RELEASE PREPARED: $release"
+          echo "Primera publicación: configurar namecheap.cjs en cPanel y reiniciar."
+          echo "Después de cada publicación: comprobar /api/health y login."
+          REMOTE
