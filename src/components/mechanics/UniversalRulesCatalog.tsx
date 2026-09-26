@@ -78,12 +78,92 @@ const getLogicalTypeLabel = (type: string) => {
   }
 };
 
+export type MechanicalBehaviorGroupKey = 
+  | 'effects'
+  | 'activation'
+  | 'targeting'
+  | 'conditions'
+  | 'temporality'
+  | 'resolution'
+  | 'custom';
+
+export interface CategoryGroupDef {
+  key: MechanicalBehaviorGroupKey;
+  title: string;
+  subtitle: string;
+  icon: React.ComponentType<{ className?: string }>;
+  coreKeys: string[];
+}
+
+export const MECHANICAL_BEHAVIOR_GROUPS: CategoryGroupDef[] = [
+  {
+    key: 'effects',
+    title: 'Efectos y Magnitudes',
+    subtitle: 'Daño, curación, barreras, bonos, penalizadores, estados alterados y transformaciones',
+    icon: Swords,
+    coreKeys: ['damage', 'damage_type', 'healing', 'barrier', 'bonus', 'penalty', 'status', 'transformation', 'caps', 'health_cost', 'cost_adjustment']
+  },
+  {
+    key: 'activation',
+    title: 'Activación y Disparadores',
+    subtitle: 'Tipos de acción estándar, reacciones voluntarias, disparadores y frecuencias',
+    icon: Flame,
+    coreKeys: ['activation', 'trigger', 'frequency']
+  },
+  {
+    key: 'targeting',
+    title: 'Objetivos, Alcance y Área',
+    subtitle: 'Selección de objetivos, alcance en metros, formas de área y restricciones',
+    icon: Target,
+    coreKeys: ['target', 'target_count', 'range', 'area', 'selection_restriction']
+  },
+  {
+    key: 'conditions',
+    title: 'Condiciones y Requisitos',
+    subtitle: 'Condiciones manuales contextuales, umbrales de recursos y requisitos',
+    icon: Handshake,
+    coreKeys: ['manual_condition', 'additional_requirement', 'resource_threshold', 'die_condition']
+  },
+  {
+    key: 'temporality',
+    title: 'Duración y Limitaciones',
+    subtitle: 'Turnos de duración, tiempos de recarga (cooldown), mantenimiento y límites de uso',
+    icon: Hourglass,
+    coreKeys: ['duration', 'cooldown', 'maintenance', 'usage']
+  },
+  {
+    key: 'resolution',
+    title: 'Resolución y Tiradas',
+    subtitle: 'Dificultades (RD), tipos de tirada (ACC / RES) y resolución de efectos',
+    icon: Dices,
+    coreKeys: ['resolution', 'roll_type', 'manual_resolution']
+  },
+  {
+    key: 'custom',
+    title: 'Categorías Personalizadas',
+    subtitle: 'Categorías mecánicas adicionales configuradas a nivel de campaña',
+    icon: Settings2,
+    coreKeys: []
+  }
+];
+
+export function getCategoryGroupKey(category: Category): MechanicalBehaviorGroupKey {
+  if (!category.coreKey) return 'custom';
+  for (const group of MECHANICAL_BEHAVIOR_GROUPS) {
+    if (group.coreKeys.includes(category.coreKey)) {
+      return group.key;
+    }
+  }
+  return 'custom';
+}
+
 export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: SystemMechanicsConfig; onSave: (value: SystemMechanicsConfig) => Promise<void> }) {
   const [draft, setDraft] = useState<Category | null>(null);
   const [backupDraft, setBackupDraft] = useState<Category | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState('');
+  const [activeGroup, setActiveGroup] = useState<string>('all');
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [isNewOption, setIsNewOption] = useState<boolean>(false);
 
@@ -123,57 +203,145 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
   };
   
   if (!draft) {
+    const filteredMechanics = mechanics.filter(c => 
+      c.name.toLocaleLowerCase().includes(filter.toLocaleLowerCase()) ||
+      (c.description && c.description.toLocaleLowerCase().includes(filter.toLocaleLowerCase()))
+    );
+
+    const groupsToDisplay = MECHANICAL_BEHAVIOR_GROUPS.filter(g => {
+      if (activeGroup !== 'all' && g.key !== activeGroup) return false;
+      const groupCategories = filteredMechanics.filter(c => getCategoryGroupKey(c) === g.key);
+      return groupCategories.length > 0 || activeGroup === g.key;
+    });
+
     return <div className="space-y-6">
-      <p className="text-sm text-muted-foreground bg-primary/5 p-3 rounded-lg border border-primary/10">Categorías de reglas mecánicas. Las categorías Core están protegidas, pero sus opciones son editables. Puedes añadir categorías personalizadas adicionales.</p>
+      <p className="text-sm text-muted-foreground bg-primary/5 p-3 rounded-lg border border-primary/10">
+        Catálogo de reglas mecánicas organizado según la arquitectura de <strong>Comportamiento Mecánico</strong>. Las categorías Core están protegidas por el motor, pero sus opciones son editables.
+      </p>
       
       {error && <p role="alert" className="whitespace-pre-wrap text-destructive bg-destructive/10 p-3 rounded-lg border border-destructive/20">{error}</p>}
       
       <div className="flex flex-wrap gap-3 items-center justify-between">
-        <Input className="max-w-xs" aria-label="Buscar categoría" placeholder="Buscar categoría..." value={filter} onChange={e => setFilter(e.target.value)} />
+        <Input className="max-w-xs" aria-label="Buscar categoría" placeholder="Buscar categoría u opción..." value={filter} onChange={e => setFilter(e.target.value)} />
         <Button onClick={() => setDraft({ id: nanoid(), name: '', description: '', logicalType: 'utility', scope: { techniques: true, objects: true, actions: true }, rules: [] })}>
           <Plus className="w-4 h-4 mr-2" />
           Nueva Categoría
         </Button>
       </div>
-      
-      <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 lg:gap-3">
-        {mechanics.filter(c => c.name.toLocaleLowerCase().includes(filter.toLocaleLowerCase())).map(c => (
-          <EntityPanel 
-            key={c.id} 
-            title={c.name} 
-            icon={<CoreKeyIcon coreKey={c.coreKey} className="w-4 h-4 opacity-70" />}
-            pattern="none" 
-            className="min-w-0 flex flex-col justify-between [&>div.relative.z-10]:!p-2.5 [&>div.border-b]:!pb-2 [&_h3]:!text-sm"
-          >
-            <div className="space-y-1 h-full flex flex-col">
-              <div className="flex justify-between items-center gap-1.5">
-                <span className={`text-[10px] font-semibold uppercase tracking-wider ${getLogicalTypeColor(c.logicalType).split(' ')[0]}`}>
-                  {getLogicalTypeLabel(c.logicalType)}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {c.rules.length} {c.rules.length === 1 ? 'opción' : 'ops'}
-                </span>
-              </div>
-              
-              <div className="flex-1 text-[11px] leading-tight text-muted-foreground line-clamp-2 mt-1">
-                {c.description || "Sin descripción"}
-              </div>
-              
-              <div className="pt-2 mt-auto flex gap-1.5">
-                <Button className="flex-1 h-7 text-xs" variant="secondary" onClick={() => { setDraft(structuredClone(c)); setError(''); }}>
-                  <Edit2 className="w-3 h-3 mr-1.5" /> Editar
-                </Button>
-                {!c.coreKey && (
-                  <Button className="h-7 w-7 px-0 shrink-0" variant="ghost" onClick={() => save(mechanics.filter(item => item.id !== c.id))} disabled={saving} aria-label="Eliminar categoría">
-                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </EntityPanel>
-        ))}
+
+      {/* Group navigation tabs / filters */}
+      <div className="flex flex-wrap gap-1.5 p-1 bg-muted/40 rounded-lg border border-border/50">
+        <button
+          type="button"
+          onClick={() => setActiveGroup('all')}
+          className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
+            activeGroup === 'all'
+              ? 'bg-background text-foreground shadow-sm font-semibold'
+              : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+          }`}
+        >
+          Todas ({mechanics.length})
+        </button>
+        {MECHANICAL_BEHAVIOR_GROUPS.map(g => {
+          const count = mechanics.filter(c => getCategoryGroupKey(c) === g.key).length;
+          const GroupIcon = g.icon;
+          return (
+            <button
+              key={g.key}
+              type="button"
+              onClick={() => setActiveGroup(g.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
+                activeGroup === g.key
+                  ? 'bg-background text-foreground shadow-sm font-semibold'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+              }`}
+            >
+              <GroupIcon className="w-3.5 h-3.5 opacity-70" />
+              <span>{g.title.split(' ')[0]}</span>
+              <span className="text-[10px] opacity-70 bg-muted px-1.5 py-0.2 rounded-full">{count}</span>
+            </button>
+          );
+        })}
       </div>
-      {mechanics.length === 0 && <div className="text-center py-12 border border-dashed rounded-lg text-muted-foreground">No hay categorías configuradas.</div>}
+
+      {/* Render grouped sections */}
+      <div className="space-y-8">
+        {groupsToDisplay.map(group => {
+          const groupCategories = filteredMechanics.filter(c => getCategoryGroupKey(c) === group.key);
+          const GroupIcon = group.icon;
+
+          if (groupCategories.length === 0 && activeGroup === 'all') return null;
+
+          return (
+            <div key={group.key} className="space-y-3">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-md bg-primary/10 text-primary">
+                    <GroupIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold tracking-tight">{group.title}</h3>
+                    <p className="text-xs text-muted-foreground">{group.subtitle}</p>
+                  </div>
+                </div>
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  {groupCategories.length} {groupCategories.length === 1 ? 'categoría' : 'categorías'}
+                </span>
+              </div>
+
+              {groupCategories.length === 0 ? (
+                <div className="text-center py-6 border border-dashed rounded-lg text-xs text-muted-foreground">
+                  No hay categorías configuradas en este grupo.
+                </div>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 lg:gap-3">
+                  {groupCategories.map(c => (
+                    <EntityPanel 
+                      key={c.id} 
+                      title={c.name} 
+                      icon={<CoreKeyIcon coreKey={c.coreKey} className="w-4 h-4 opacity-70" />}
+                      pattern="none" 
+                      className="min-w-0 flex flex-col justify-between [&>div.relative.z-10]:!p-2.5 [&>div.border-b]:!pb-2 [&_h3]:!text-sm"
+                    >
+                      <div className="space-y-1 h-full flex flex-col">
+                        <div className="flex justify-between items-center gap-1.5">
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider ${getLogicalTypeColor(c.logicalType).split(' ')[0]}`}>
+                            {getLogicalTypeLabel(c.logicalType)}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {c.rules.length} {c.rules.length === 1 ? 'opción' : 'ops'}
+                          </span>
+                        </div>
+                        
+                        <div className="flex-1 text-[11px] leading-tight text-muted-foreground line-clamp-2 mt-1">
+                          {c.description || "Sin descripción"}
+                        </div>
+                        
+                        <div className="pt-2 mt-auto flex gap-1.5">
+                          <Button className="flex-1 h-7 text-xs" variant="secondary" onClick={() => { setDraft(structuredClone(c)); setError(''); }}>
+                            <Edit2 className="w-3 h-3 mr-1.5" /> Editar
+                          </Button>
+                          {!c.coreKey && (
+                            <Button className="h-7 w-7 px-0 shrink-0" variant="ghost" onClick={() => save(mechanics.filter(item => item.id !== c.id))} disabled={saving} aria-label="Eliminar categoría">
+                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </EntityPanel>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {filteredMechanics.length === 0 && (
+        <div className="text-center py-12 border border-dashed rounded-lg text-muted-foreground">
+          No se encontraron categorías que coincidan con la búsqueda.
+        </div>
+      )}
     </div>;
   }
   

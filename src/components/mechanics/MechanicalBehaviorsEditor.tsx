@@ -56,7 +56,7 @@ import {
 import { MechanicalEffectsEditor } from "./MechanicalEffectsEditor.tsx";
 import { MechanicalDescriptionPreview } from "./MechanicalDescriptionPreview.tsx";
 import type { SystemMechanicsConfig, SupportDifficultyTier } from "../../domain/systemMechanics.ts";
-import { getCategoryOptions, findHealingOption, getValidHealingOptions, getBarrierAmount } from "../../domain/coreRuleCatalog.ts";
+import { getCategoryOptions, findHealingOption, getValidHealingOptions, getBarrierAmount, createCoreCategories } from "../../domain/coreRuleCatalog.ts";
 
 interface MechanicalBehaviorsEditorProps {
   behaviors: MechanicalBehavior[];
@@ -733,6 +733,7 @@ function SingleBehaviorCard({
                 onChange={(conditions, conditionLogic) =>
                   onUpdate({ ...behavior, conditions, conditionLogic })
                 }
+                mechanics={mechanics}
               />
             </AccordionContent>
           </AccordionItem>
@@ -890,10 +891,12 @@ function ConditionsEditor({
   conditions,
   logic,
   onChange,
+  mechanics = [],
 }: {
   conditions: MechanicalCondition[];
   logic: "all" | "any";
   onChange: (conditions: MechanicalCondition[], logic: "all" | "any") => void;
+  mechanics?: SystemMechanicsConfig;
 }) {
   const addCondition = () => {
     const newCond: MechanicalCondition = {
@@ -1217,14 +1220,73 @@ function ConditionsEditor({
                   </>
                 )}
 
-                {cond.type === "manual" && (
-                  <Input
-                    value={cond.signalId}
-                    onChange={(e) => updateCond(i, { ...cond, signalId: e.target.value })}
-                    placeholder="ID o señal de condición..."
-                    className="h-7 flex-1 text-xs"
-                  />
-                )}
+                {cond.type === "manual" && (() => {
+                  const manualCondOpts = getCategoryOptions(mechanics, "manual_condition");
+                  const addReqOpts = getCategoryOptions(mechanics, "additional_requirement");
+                  const allOptions = [...manualCondOpts, ...addReqOpts].filter(
+                    (opt) =>
+                      opt.runtimeKey === "consumption" ||
+                      opt.runtimeKey === "consume_something" ||
+                      opt.id.includes("manual_condition") ||
+                      opt.id.includes("consumption") ||
+                      opt.ruleType === "component"
+                  );
+
+                  if (allOptions.length === 0) {
+                    const coreCats = createCoreCategories();
+                    allOptions.push(
+                      ...getCategoryOptions(coreCats, "manual_condition"),
+                      ...getCategoryOptions(coreCats, "additional_requirement")
+                    );
+                  }
+
+                  const isCustom = !allOptions.some(
+                    (opt) => opt.id === cond.signalId || opt.runtimeKey === cond.signalId
+                  );
+
+                  return (
+                    <div className="flex flex-1 flex-wrap gap-2 items-center">
+                      <Select
+                        value={isCustom ? "custom" : cond.signalId}
+                        onValueChange={(val) => {
+                          if (val === "custom") {
+                            updateCond(i, { ...cond, signalId: "permiso_master" });
+                          } else {
+                            updateCond(i, { ...cond, signalId: val });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 min-w-[150px] flex-1 text-xs bg-background">
+                          <SelectValue placeholder="Seleccionar condición..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allOptions.map((opt) => (
+                            <SelectItem key={opt.id || opt.runtimeKey} value={opt.id || opt.runtimeKey}>
+                              {opt.name}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="custom">Otro (Personalizado/Legado)...</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {isCustom ? (
+                        <Input
+                          value={cond.signalId}
+                          onChange={(e) => updateCond(i, { ...cond, signalId: e.target.value })}
+                          placeholder="ID o señal de condición..."
+                          className="h-7 w-48 text-xs"
+                        />
+                      ) : (
+                        <Input
+                          value={cond.description || ""}
+                          onChange={(e) => updateCond(i, { ...cond, description: e.target.value })}
+                          placeholder="Detalle opcional (ej: sangre del objetivo)..."
+                          className="h-7 w-48 text-xs"
+                        />
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Negation Switch */}
                 <div className="flex items-center gap-1.5 ml-auto">

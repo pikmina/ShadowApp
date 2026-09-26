@@ -1,6 +1,8 @@
 import {
   systemMechanicsConfigSchema,
   type SystemMechanicsConfig,
+  MECHANIC_CATEGORY_FAMILIES,
+  type MechanicCategoryFamily,
   findHealingOption,
   getValidHealingOptions,
   getBarrierAmount
@@ -8,6 +10,55 @@ import {
 import type { RuleComponent } from './ruleComponents';
 
 export { findHealingOption, getValidHealingOptions, getBarrierAmount };
+
+export function getCategoryFamily(cat: { family?: string; coreKey?: string; id?: string }): MechanicCategoryFamily {
+  if (cat.family && MECHANIC_CATEGORY_FAMILIES.includes(cat.family as any)) {
+    return cat.family as MechanicCategoryFamily;
+  }
+  const key = cat.coreKey || (cat.id?.startsWith("core.") ? cat.id.slice(5) : cat.id || "");
+  switch (key) {
+    case "activation":
+    case "trigger":
+      return "activation";
+    case "manual_condition":
+    case "resource_threshold":
+    case "additional_requirement":
+    case "die_condition":
+      return "condition";
+    case "resolution":
+    case "roll_type":
+    case "manual_resolution":
+      return "resolution";
+    case "target":
+    case "target_count":
+    case "range":
+    case "area":
+    case "selection_restriction":
+      return "target";
+    case "duration":
+    case "frequency":
+      return "temporality";
+    case "cooldown":
+    case "maintenance":
+    case "usage":
+      return "limitation";
+    case "damage":
+    case "damage_type":
+    case "healing":
+    case "barrier":
+    case "bonus":
+    case "penalty":
+    case "status":
+    case "transformation":
+      return "effect";
+    case "cost_adjustment":
+    case "health_cost":
+    case "caps":
+      return "cost";
+    default:
+      return "other";
+  }
+}
 
 export const CORE_CATEGORIES = {
   damage: 'Daño',
@@ -78,7 +129,16 @@ export function createCoreCategories(): SystemMechanicsConfig {
       default: return 'utility';
     }
   };
-  const categories = Object.entries(CORE_CATEGORIES).map(([key, name]) => ({ id: coreId(key), coreKey: key, name, description: name, logicalType: getLogicalType(key) as any, scope: { techniques: true, objects: true, actions: true }, rules: [] as any[] }));
+  const categories = Object.entries(CORE_CATEGORIES).map(([key, name]) => ({
+    id: coreId(key),
+    coreKey: key,
+    name,
+    description: name,
+    logicalType: getLogicalType(key) as any,
+    family: getCategoryFamily({ coreKey: key }),
+    scope: { techniques: true, objects: true, actions: true },
+    rules: [] as any[],
+  }));
   function option(key: CoreCategoryKey, suffix: string, name: string, component?: RuleComponent, runtimeKey?: string, cost: number = 0) {
     const cat = categories.find(c => c.coreKey === key);
     if (!cat) return;
@@ -298,6 +358,7 @@ export function createCoreCategories(): SystemMechanicsConfig {
 
   for (const [key, sense, label] of [['visual_contact', 'visual', 'Contacto visual'], ['auditory_contact', 'auditory', 'Contacto auditivo']] as const) option('manual_condition', key, label, { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'contact', sense }] });
   option('manual_condition', 'physical_contact', 'Contacto físico', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'contact', sense: 'physical' }] });
+  option('manual_condition', 'speak_directly', 'Debe hablar directamente al objetivo', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'manual', signalId: 'speak_directly' }] }, 'speak_directly', 0);
   option('manual_condition', 'conscious', 'Objetivo consciente', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'conscious' }] });
   option('manual_condition', 'emotion', 'Emoción intensa', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'manual', signalId: 'intense_emotion' }] });
 
@@ -429,11 +490,12 @@ export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig 
   parsed = parsed.filter(c => !retiredCoreKeys.includes(c.coreKey as string) && !retiredCoreKeys.some(k => c.id === `core.${k}`));
 
   parsed = parsed.map(c => {
+    const withFamily = { ...c, family: c.family || getCategoryFamily(c) };
     if (c.coreKey && !(c.coreKey in CORE_CATEGORIES)) {
-      const { coreKey, ...rest } = c;
+      const { coreKey, ...rest } = withFamily;
       return rest as any;
     }
-    return c;
+    return withFamily;
   });
 
   // Backfill missing core categories

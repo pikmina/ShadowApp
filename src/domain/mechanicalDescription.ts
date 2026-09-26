@@ -33,6 +33,10 @@ import {
   getCounterLabel,
 } from "./mechanicalLabels";
 
+import { createCoreCategories, getCategoryOptions } from "./coreRuleCatalog";
+import { deriveEffectiveBehaviorResolution } from "./characterTechnique";
+import { deriveSupportDefenseRD } from "./systemMechanics";
+
 export interface MechanicalDescriptionContext {
   staminaCost?: number;
   parentName?: string;
@@ -42,6 +46,11 @@ export interface MechanicalDescriptionContext {
 export interface DescribeBehaviorOptions {
   format?: "compact" | "detailed";
   context?: MechanicalDescriptionContext;
+  mechanics?: any[];
+  structuralCost?: number;
+  supportDifficultyTiers?: any[];
+  activationAttributeId?: string | null;
+  classification?: any;
 }
 
 export interface DescriptionSectionItem {
@@ -573,7 +582,8 @@ export interface DescribeConditionResult {
 }
 
 export function describeMechanicalCondition(
-  cond: MechanicalCondition
+  cond: MechanicalCondition,
+  options?: DescribeBehaviorOptions
 ): DescribeConditionResult {
   const warnings: string[] = [];
   let complete = true;
@@ -647,18 +657,73 @@ export function describeMechanicalCondition(
     }
 
     case "manual": {
-      if (cond.description && cond.description.trim()) {
-        const trimmedDesc = cond.description.trim();
-        const startsWithConnector = /^(solo|mientras|si|cuando|en caso|bajo|tras|al)\b/i.test(trimmedDesc);
-        if (!startsWithConnector && !trimmedDesc.toLowerCase().startsWith("condición:")) {
-          text = `Condición: ${trimmedDesc}`;
+      const allOptions = [
+        ...(options?.mechanics ? getCategoryOptions(options.mechanics, "manual_condition") : []),
+        ...(options?.mechanics ? getCategoryOptions(options.mechanics, "additional_requirement") : [])
+      ];
+
+      if (allOptions.length === 0) {
+        const coreCats = createCoreCategories();
+        allOptions.push(
+          ...getCategoryOptions(coreCats, "manual_condition"),
+          ...getCategoryOptions(coreCats, "additional_requirement")
+        );
+      }
+
+      const matchingOption = allOptions.find(
+        (o) => o.id === cond.signalId || o.runtimeKey === cond.signalId
+      );
+
+      const hasDesc = cond.description && cond.description.trim().length > 0;
+
+      if (matchingOption) {
+        const optName = matchingOption.name;
+        if (hasDesc) {
+          const detail = cond.description!.trim();
+          const detailFormatted = lowerFirstIfAppropriate(detail);
+          if (optName.toLowerCase().includes("consumir")) {
+            text = `Requiere consumir ${detailFormatted}`;
+          } else if (optName.toLowerCase().startsWith("contacto ")) {
+            text = `Requiere ${lowerFirstIfAppropriate(optName)} (${detail})`;
+          } else {
+            text = `${optName} (${detail})`;
+          }
         } else {
-          text = trimmedDesc;
+          if (optName.toLowerCase().startsWith("contacto ")) {
+            text = `Requiere ${lowerFirstIfAppropriate(optName)}`;
+          } else if (optName.toLowerCase().startsWith("debe ")) {
+            text = `Requiere ${lowerFirstIfAppropriate(optName.slice(5))}`;
+          } else if (optName.toLowerCase() === "consumir algo") {
+            text = "Requiere consumir algo";
+          } else if (optName.toLowerCase() === "objetivo consciente") {
+            text = "Requiere objetivo consciente";
+          } else {
+            text = `Requiere ${lowerFirstIfAppropriate(optName)}`;
+          }
         }
       } else {
-        text = `Condición manual (${cond.signalId})`;
-        complete = false;
-        warnings.push(`Manual condition (${cond.signalId}) lacks explicit description`);
+        if (hasDesc) {
+          const detail = cond.description!.trim();
+          const startsWithConnector = /^(solo|mientras|si|cuando|en caso|bajo|tras|al)\b/i.test(detail);
+          if (!startsWithConnector && !detail.toLowerCase().startsWith("condición:")) {
+            text = `Condición: ${detail}`;
+          } else {
+            text = detail;
+          }
+        } else if (cond.signalId && cond.signalId.trim().length > 0) {
+          const sig = cond.signalId.trim();
+          if (sig === "permiso_master") {
+            text = "Permiso del Master";
+          } else {
+            text = `Condición manual (${sig})`;
+            complete = false;
+            warnings.push(`Manual condition (${sig}) lacks explicit description`);
+          }
+        } else {
+          text = `Condición manual`;
+          complete = false;
+          warnings.push(`Manual condition lacks explicit description`);
+        }
       }
       break;
     }
@@ -672,8 +737,30 @@ export function describeMechanicalCondition(
     }
   }
 
-  if (cond.negated && text) {
-    text = `No (${text})`;
+  if (cond.negated === true && text) {
+    if (text.startsWith("Requiere ")) {
+      text = `No requiere ${text.slice(9)}`;
+    } else if (text.startsWith("requiere ")) {
+      text = `no requiere ${text.slice(9)}`;
+    } else if (text.startsWith("Si ")) {
+      text = `Si no ${text.slice(3)}`;
+    } else if (text.startsWith("si ")) {
+      text = `si no ${text.slice(3)}`;
+    } else if (text.startsWith("Cuando ")) {
+      text = `Cuando no ${text.slice(7)}`;
+    } else if (text.startsWith("cuando ")) {
+      text = `cuando no ${text.slice(7)}`;
+    } else if (text.startsWith("Mientras esté ")) {
+      text = `Mientras no esté ${text.slice(14)}`;
+    } else if (text.startsWith("mientras esté ")) {
+      text = `mientras no esté ${text.slice(14)}`;
+    } else if (text.startsWith("Permiso del Master")) {
+      text = "Sin permiso del Master";
+    } else if (text.startsWith("Condición: ")) {
+      text = `No cumplir condición: ${text.slice(11)}`;
+    } else {
+      text = `No ${lowerFirstIfAppropriate(text)}`;
+    }
   }
 
   return { text, complete, warnings };
@@ -1060,7 +1147,7 @@ export function describeMechanicalBehavior(
 
   // 3. Conditions
   for (const cond of behavior.conditions ?? []) {
-    const cRes = describeMechanicalCondition(cond);
+    const cRes = describeMechanicalCondition(cond, options);
     if (cRes.text) sections.conditions.push(cRes.text);
     if (!cRes.complete) isComplete = false;
     warnings.push(...cRes.warnings);
@@ -1092,7 +1179,23 @@ export function describeMechanicalBehavior(
 
   // 6b. Resolution
   if (behavior.resolution) {
-    const rRes = describeMechanicalResolution(behavior.resolution);
+    let effectiveRes = behavior.resolution;
+    if (
+      effectiveRes.type === "rd" &&
+      !effectiveRes.difficulty &&
+      (options.classification === "support" || options.classification === "defensive") &&
+      typeof options.structuralCost === "number"
+    ) {
+      const derivedRd = deriveSupportDefenseRD(
+        options.structuralCost,
+        options.supportDifficultyTiers
+      );
+      effectiveRes = {
+        ...effectiveRes,
+        difficulty: derivedRd,
+      };
+    }
+    const rRes = describeMechanicalResolution(effectiveRes);
     if (rRes.text) sections.resolution.push(rRes.text);
     if (!rRes.complete) isComplete = false;
     warnings.push(...rRes.warnings);

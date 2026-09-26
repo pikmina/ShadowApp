@@ -570,6 +570,18 @@ export const MECHANICAL_LABELS = {
     defensive: "Defensiva",
     control: "Control",
   },
+  // 19. MECHANIC CATEGORY FAMILIES
+  mechanicCategoryFamilies: {
+    activation: "Activación",
+    condition: "Condiciones",
+    resolution: "Resolución",
+    target: "Objetivo",
+    temporality: "Duración",
+    limitation: "Limitaciones",
+    effect: "Efectos",
+    cost: "Costes y recursos",
+    other: "Otros",
+  },
 } as const;
 
 export type MechanicalLabelCategory = keyof typeof MECHANICAL_LABELS;
@@ -652,6 +664,15 @@ export function getTechniqueClassificationLabel(classification: string | undefin
   if (!classification) return "";
   const dict = MECHANICAL_LABELS.techniqueClassifications as Record<string, string>;
   return dict[classification] ?? humanizeFallback(classification);
+}
+
+/**
+ * Specialized helper to get the Spanish name of a mechanic category family
+ */
+export function getMechanicCategoryFamilyLabel(family: string | undefined | null): string {
+  if (!family) return "Otros";
+  const dict = MECHANICAL_LABELS.mechanicCategoryFamilies as Record<string, string>;
+  return dict[family] ?? humanizeFallback(family);
 }
 
 /**

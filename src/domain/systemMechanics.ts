@@ -1325,12 +1325,29 @@ const mechanicRuleSchema = z
     }
   });
 
+export const MECHANIC_CATEGORY_FAMILIES = [
+  "activation",
+  "condition",
+  "resolution",
+  "target",
+  "temporality",
+  "limitation",
+  "effect",
+  "cost",
+  "other",
+] as const;
+
+export type MechanicCategoryFamily = (typeof MECHANIC_CATEGORY_FAMILIES)[number];
+
+export const mechanicCategoryFamilySchema = z.enum(MECHANIC_CATEGORY_FAMILIES);
+
 const mechanicCategorySchema = z
   .object({
     id: z.string().min(1),
     name: z.string().min(1),
     description: z.string(),
     coreKey: z.string().min(1).optional(),
+    family: mechanicCategoryFamilySchema.optional(),
     logicalType: z.enum([
       "offensive",
       "defensive",
