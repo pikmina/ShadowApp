@@ -152,9 +152,9 @@ describe("System mechanics configuration", () => {
     expect(calculateExecutionStaminaCost(references, mechanics, policy, "action")).toBe(1);
   });
 
-  test("rejects Stamina costs on passive mechanics", () => {
-    const parsed = systemMechanicsConfigSchema.safeParse([{ ...mechanics[0], rules: [{ id: "passive", name: "Siempre activo", cost: 1, ruleType: "effect", effect: { type: "barrier", amount: 2, timing: "passive" } }] }]);
-    expect(parsed.success).toBe(false);
+  test("allows Stamina costs on effect rules in system mechanics", () => {
+    const parsed = systemMechanicsConfigSchema.safeParse([{ ...mechanics[0], rules: [{ id: "evasion_plus", name: "+1 Evasión", cost: 2, ruleType: "effect", effect: { type: "derived_stat_modifier", statId: "EVA", amount: 1, timing: "on_activation" } }] }]);
+    expect(parsed.success).toBe(true);
   });
 
   test("applies a referenced passive trait permanently without charging Stamina", () => {

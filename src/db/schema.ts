@@ -13,6 +13,7 @@ export const elementStatusEnum = pgEnum('element_status', ['draft', 'published',
 export const offerStatusEnum = pgEnum('offer_status', ['draft', 'scheduled', 'available', 'paused', 'ended', 'archived']);
 export const techniqueSourceTypeEnum = pgEnum('technique_source_type', ['quirk', 'physical', 'weapon']);
 export const techniqueClassificationEnum = pgEnum('technique_classification', ['offensive', 'support', 'defensive', 'control']);
+export const playerStatusEnum = pgEnum('player_status', ['active', 'absent', 'inactive']);
 
 // Users Table (Auth + Roles)
 export const users = pgTable('users', {
@@ -45,14 +46,27 @@ export const canonCharacters = pgTable('canon_characters', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// Players Table (Manual player profiles without or with auth)
+export const players = pgTable('players', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  status: playerStatusEnum('status').default('active').notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // Characters Table
 export const characters = pgTable('characters', {
   id: serial('id').primaryKey(),
-  userId: integer('user_id').references(() => users.id).notNull(),
+  userId: integer('user_id').references(() => users.id),
+  playerId: integer('player_id').references(() => players.id, { onDelete: 'set null' }),
   canonCharacterId: text('canon_character_id').references(() => canonCharacters.id, { onDelete: 'restrict' }).unique(),
   name: text('name').notNull(),
   exp: integer('exp').default(0).notNull(),
   yen: integer('yen').default(0).notNull(),
+  active: boolean('active').default(true).notNull(),
   profileData: jsonb('profile_data').default({}),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -94,6 +108,7 @@ export const elementPossessions = pgTable('element_possessions', {
   characterId: integer('character_id').references(() => characters.id).notNull(),
   elementId: text('element_id').references(() => systemElements.id, { onDelete: 'cascade' }).notNull(),
   quantity: integer('quantity').default(1).notNull(),
+  equipped: boolean('equipped').default(false).notNull(),
   selectedChoices: jsonb('selected_choices').default({}), // Record<string, ElementChoiceValue>
   notes: text('notes'),
   acquiredAt: timestamp('acquired_at').defaultNow(),
@@ -159,12 +174,19 @@ export const canonCharactersRelations = relations(canonCharacters, ({ one }) => 
   character: one(characters, { fields: [canonCharacters.id], references: [characters.canonCharacterId] })
 }));
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
+  characters: many(characters),
+  player: one(players, { fields: [users.id], references: [players.userId] }),
+}));
+
+export const playersRelations = relations(players, ({ one, many }) => ({
+  user: one(users, { fields: [players.userId], references: [users.id] }),
   characters: many(characters),
 }));
 
 export const charactersRelations = relations(characters, ({ one, many }) => ({
   user: one(users, { fields: [characters.userId], references: [users.id] }),
+  player: one(players, { fields: [characters.playerId], references: [players.id] }),
   possessions: many(elementPossessions),
   techniques: many(characterTechniques),
   canonCharacter: one(canonCharacters, { fields: [characters.canonCharacterId], references: [canonCharacters.id] }),

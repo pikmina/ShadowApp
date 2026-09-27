@@ -43,6 +43,7 @@ import {
   getMechanicalLabel,
   getAlteredStatusLabel,
   getAttributeLabel,
+  getDerivedStatLabel,
   getResourceLabel,
   getTagLabel,
   getCounterLabel,
@@ -975,6 +976,8 @@ function ConditionsEditor({
                     updateCond(i, { type: "die", dieSelection: "both", comparison: "=", value: 10, negated: cond.negated });
                   } else if (val === "manual") {
                     updateCond(i, { type: "manual", signalId: "permiso_master", description: "", negated: cond.negated });
+                  } else if (val === "equipped") {
+                    updateCond(i, { type: "equipped", negated: cond.negated });
                   } else {
                     updateCond(i, { type: "resource", resourceId: "ES", comparison: "<=", value: 0, negated: cond.negated });
                   }
@@ -984,6 +987,7 @@ function ConditionsEditor({
                   <SelectValue>{getMechanicalLabel("conditionTypes", cond.type)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="equipped">Equipado</SelectItem>
                   <SelectItem value="resource">Recurso (Valor)</SelectItem>
                   <SelectItem value="percentage">Recurso (Porcentaje)</SelectItem>
                   <SelectItem value="status">Estado Alterado</SelectItem>
@@ -996,6 +1000,11 @@ function ConditionsEditor({
 
               {/* Dynamic inputs based on condition type */}
               <div className="flex-1 flex flex-wrap items-center gap-2 w-full">
+                {cond.type === "equipped" && (
+                  <span className="text-xs text-muted-foreground italic py-0.5">
+                    Requiere que el objeto esté equipado.
+                  </span>
+                )}
                 {cond.type === "resource" && (
                   <>
                     <Select
@@ -1847,6 +1856,7 @@ function EffectsListEditor({
                       <SelectItem value="healing">💚 {MECHANICAL_LABELS.effectTypes.healing}</SelectItem>
                       <SelectItem value="barrier">🛡️ {MECHANICAL_LABELS.effectTypes.barrier}</SelectItem>
                       <SelectItem value="attribute_modifier">📊 {MECHANICAL_LABELS.effectTypes.attribute_modifier}</SelectItem>
+                      <SelectItem value="derived_stat_modifier">📈 {MECHANICAL_LABELS.effectTypes.derived_stat_modifier}</SelectItem>
                       <SelectItem value="cost_modifier">⚡ {MECHANICAL_LABELS.effectTypes.cost_modifier}</SelectItem>
                       <SelectItem value="incoming_damage_modifier">🔥 {MECHANICAL_LABELS.effectTypes.incoming_damage_modifier}</SelectItem>
                       <SelectItem value="outgoing_damage_modifier">⚔️ {MECHANICAL_LABELS.effectTypes.outgoing_damage_modifier}</SelectItem>
@@ -2153,6 +2163,72 @@ function EffectsListEditor({
                     </div>
                   </>
                 )}
+
+                {eff.type === "derived_stat_modifier" && (() => {
+                  const normalizedStat = (eff.statId || "SAL").toUpperCase();
+                  const validStats = [
+                    { id: "SAL", label: "Salud Máxima (SA)" },
+                    { id: "EST", label: "Estamina Máxima (ES)" },
+                    { id: "INI", label: "Iniciativa (INI)" },
+                    { id: "RD", label: "Reducción de Daño (RD)" },
+                    { id: "EVA", label: "Evasión (EVA)" },
+                    { id: "COR", label: "Coraje (COR)" },
+                  ];
+                  return (
+                    <>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Estadística Derivada</Label>
+                        <Select
+                          value={eff.statId || "SAL"}
+                          onValueChange={(val) => updateEffect(i, { ...eff, statId: val })}
+                        >
+                          <SelectTrigger className="h-7 w-48 text-xs font-medium">
+                            <SelectValue>{getDerivedStatLabel(eff.statId || "SAL")}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {validStats.map((st) => (
+                              <SelectItem key={st.id} value={st.id}>
+                                {st.label}
+                              </SelectItem>
+                            ))}
+                            {!validStats.some((st) => st.id === normalizedStat || st.id === eff.statId) && eff.statId && (
+                              <SelectItem value={eff.statId}>
+                                {getDerivedStatLabel(eff.statId)}
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Cantidad</Label>
+                        <Input
+                          type="number"
+                          value={eff.amount}
+                          onChange={(e) => updateEffect(i, { ...eff, amount: parseInt(e.target.value, 10) || 0 })}
+                          className="h-7 w-20 font-mono text-xs"
+                        />
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Operación</Label>
+                        <Select
+                          value={eff.operation || "add"}
+                          onValueChange={(val: any) => updateEffect(i, { ...eff, operation: val })}
+                        >
+                          <SelectTrigger className="h-7 w-28 text-xs">
+                            <SelectValue>{getMechanicalLabel("modifierOperations", eff.operation || "add")}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="add">Sumar (+)</SelectItem>
+                            <SelectItem value="subtract">Restar (-)</SelectItem>
+                            <SelectItem value="multiply">Multiplicar (×)</SelectItem>
+                            <SelectItem value="divide">Dividir (/)</SelectItem>
+                            <SelectItem value="set">Establecer (=)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {eff.type === "cost_modifier" && (
                   <>

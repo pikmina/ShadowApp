@@ -50,7 +50,7 @@ export async function runMigration() {
       'element_possessions', 'audit_logs', 'canon_characters', 'institutions',
       'departments', 'positions', 'character_employments', 'employment_payments',
       'academic_years', 'class_groups', 'character_enrollments', 'character_sheet_fields',
-      'character_techniques'
+      'character_techniques', 'players'
     ];
 
     const legacyBaseTables = ['users', 'characters', 'system_rules', 'system_elements'];
@@ -127,6 +127,10 @@ export async function runMigration() {
 
           IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'technique_classification') THEN
             CREATE TYPE "technique_classification" AS ENUM('offensive', 'support', 'defensive', 'control');
+          END IF;
+
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'player_status') THEN
+            CREATE TYPE "player_status" AS ENUM('active', 'absent', 'inactive');
           END IF;
         END $$;
       `);
@@ -354,6 +358,21 @@ export async function runMigration() {
           ALTER TABLE "shop_offers" ADD COLUMN IF NOT EXISTS "requirements" jsonb DEFAULT '{"operator":"all","requirements":[]}'::jsonb NOT NULL;
           ALTER TABLE "character_techniques" ADD COLUMN IF NOT EXISTS "activation_attribute_id" text;
           ALTER TABLE "character_techniques" ADD COLUMN IF NOT EXISTS "classification" "technique_classification";
+
+          CREATE TABLE IF NOT EXISTS "players" (
+            "id" serial PRIMARY KEY NOT NULL,
+            "name" text NOT NULL,
+            "status" "player_status" DEFAULT 'active' NOT NULL,
+            "user_id" integer,
+            "notes" text,
+            "created_at" timestamp DEFAULT now(),
+            "updated_at" timestamp DEFAULT now()
+          );
+
+          ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "player_id" integer;
+          ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;
+          ALTER TABLE "characters" ALTER COLUMN "user_id" DROP NOT NULL;
+          ALTER TABLE "element_possessions" ADD COLUMN IF NOT EXISTS "equipped" boolean DEFAULT false NOT NULL;
         `);
 
         // Preserve canon-owned relations
@@ -427,6 +446,14 @@ export async function runMigration() {
 
             IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'character_techniques_level_check') THEN
               ALTER TABLE "character_techniques" ADD CONSTRAINT "character_techniques_level_check" CHECK ("level" >= 1 AND "level" <= 5);
+            END IF;
+
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'players_user_id_users_id_fk') THEN
+              ALTER TABLE "players" ADD CONSTRAINT "players_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+            END IF;
+
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'characters_player_id_players_id_fk') THEN
+              ALTER TABLE "characters" ADD CONSTRAINT "characters_player_id_players_id_fk" FOREIGN KEY ("player_id") REFERENCES "public"."players"("id") ON DELETE set null ON UPDATE no action;
             END IF;
           END $$;
         `);

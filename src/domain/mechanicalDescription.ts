@@ -656,6 +656,11 @@ export function describeMechanicalCondition(
       break;
     }
 
+    case "equipped": {
+      text = "Mientras esté equipado";
+      break;
+    }
+
     case "manual": {
       const allOptions = [
         ...(options?.mechanics ? getCategoryOptions(options.mechanics, "manual_condition") : []),
@@ -1273,7 +1278,13 @@ export function describeMechanicalBehavior(
         }
       }
     } else {
-      if (mainActionClause) {
+      // Check if continuous with "Mientras esté equipado" condition
+      const equippedIdx = sections.conditions.indexOf("Mientras esté equipado");
+      if (behavior.mode === "continuous" && equippedIdx !== -1 && mainActionClause) {
+        sections.conditions.splice(equippedIdx, 1);
+        const effectLower = lowerFirstIfAppropriate(mainActionClause);
+        clauses.push(`Mientras esté equipado, ${effectLower}`);
+      } else if (mainActionClause) {
         clauses.push(mainActionClause);
       }
       // Append remaining effects if any

@@ -1320,9 +1320,6 @@ const mechanicRuleSchema = z
     if (rule.ruleType === "cost_modifier" && rule.effect) {
       ctx.addIssue({ code: "custom", path: ["effect"], message: "a cost modifier cannot define executable behavior" });
     }
-    if (rule.ruleType === "effect" && rule.effect?.timing === "passive" && rule.cost !== 0) {
-      ctx.addIssue({ code: "custom", path: ["cost"], message: "passive mechanics cannot consume Stamina" });
-    }
   });
 
 export const MECHANIC_CATEGORY_FAMILIES = [

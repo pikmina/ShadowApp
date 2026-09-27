@@ -1,5 +1,5 @@
 import { db } from './index.ts';
-import { characters } from './schema.ts';
+import { characters, players } from './schema.ts';
 import { eq } from 'drizzle-orm';
 
 export async function getCharacterByUserId(userId: number) {
@@ -13,18 +13,20 @@ export async function getCharacterById(id: number) {
   return character || null;
 }
 
-export async function createCharacter(userId: number, name: string, profileData: any, canonCharacterId?: string | null) {
+export async function createCharacter(userId: number | null, name: string, profileData: any, canonCharacterId?: string | null, playerId?: number | null, active: boolean = true) {
   const [created] = await db.insert(characters)
-    .values({ userId, name, profileData, canonCharacterId: canonCharacterId || null })
+    .values({ userId, name, profileData, canonCharacterId: canonCharacterId || null, playerId: playerId || null, active })
     .returning();
   return created;
 }
 
-export async function updateCharacter(characterId: number, data: { name?: string, profileData?: any, expectedUpdatedAt?: Date | string, canonCharacterId?: string | null }) {
+export async function updateCharacter(characterId: number, data: { name?: string, profileData?: any, expectedUpdatedAt?: Date | string, canonCharacterId?: string | null, playerId?: number | null, active?: boolean }) {
   const updatePayload: any = { updatedAt: new Date() };
   if (data.name !== undefined) updatePayload.name = data.name;
   if (data.profileData !== undefined) updatePayload.profileData = data.profileData;
   if (data.canonCharacterId !== undefined) updatePayload.canonCharacterId = data.canonCharacterId;
+  if (data.playerId !== undefined) updatePayload.playerId = data.playerId;
+  if (data.active !== undefined) updatePayload.active = data.active;
 
   if (!data.expectedUpdatedAt) {
     const [updated] = await db.update(characters).set(updatePayload).where(eq(characters.id, characterId)).returning();
@@ -179,19 +181,34 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
 }
 
 export async function getCharactersWithPossessions() {
-  const allCharacters = await db.select().from(characters);
+  const allCharacters = await db
+    .select({
+      character: characters,
+      player: {
+        id: players.id,
+        name: players.name,
+        status: players.status,
+      }
+    })
+    .from(characters)
+    .leftJoin(players, eq(players.id, characters.playerId));
+
   const allPossessions = await db.select({ possession: elementPossessions, element: systemElements })
     .from(elementPossessions)
     .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId));
-  return allCharacters.map(character => ({
+
+  return allCharacters.map(({ character, player }) => ({
     ...character,
+    player: player?.id ? player : null,
     possessions: allPossessions.filter(row => row.possession.characterId === character.id),
   }));
 }
 
 export async function saveCharacterWithElementSelections(data: {
   characterId?: number | null;
-  userId: number;
+  userId?: number | null;
+  playerId?: number | null;
+  active?: boolean;
   name: string;
   profileData: Record<string, any>;
   expectedUpdatedAt?: Date | string;
@@ -199,7 +216,7 @@ export async function saveCharacterWithElementSelections(data: {
   elementIds?: string[];
   exp?: number;
   yen?: number;
-  inventoryPossessions?: Array<{ elementId: string; quantity: number }>;
+  inventoryPossessions?: Array<{ elementId: string; quantity: number; equipped?: boolean; notes?: string | null }>;
   credentialPossessions?: Array<{ elementId: string; quantity?: number }>;
   skillPossessions?: Array<{ elementId: string; quantity: number }>;
   actorUid: string;
@@ -245,12 +262,17 @@ export async function saveCharacterWithElementSelections(data: {
     }
 
     // 3. Process inventory items (equipment, weapons, consumables, resources, etc.)
-    let validInventory: Array<{ elementId: string; quantity: number }> | undefined = undefined;
+    let validInventory: Array<{ elementId: string; quantity: number; equipped?: boolean; notes?: string | null }> | undefined = undefined;
     if (data.inventoryPossessions !== undefined) {
-      const invMap = new Map<string, number>();
+      const invMap = new Map<string, { quantity: number; equipped: boolean; notes?: string | null }>();
       for (const item of data.inventoryPossessions) {
         if (item.elementId && item.quantity > 0) {
-          invMap.set(item.elementId, (invMap.get(item.elementId) || 0) + item.quantity);
+          const existing = invMap.get(item.elementId);
+          invMap.set(item.elementId, {
+            quantity: (existing?.quantity || 0) + item.quantity,
+            equipped: item.equipped !== undefined ? item.equipped : (existing?.equipped || false),
+            notes: item.notes !== undefined ? item.notes : existing?.notes,
+          });
         }
       }
       const invIds = Array.from(invMap.keys());
@@ -262,7 +284,12 @@ export async function saveCharacterWithElementSelections(data: {
           throw Object.assign(new Error('Inventory items cannot be traits, weaknesses, credentials, or skills'), { status: 400 });
         }
       }
-      validInventory = Array.from(invMap.entries()).map(([elementId, quantity]) => ({ elementId, quantity }));
+      validInventory = Array.from(invMap.entries()).map(([elementId, invData]) => ({
+        elementId,
+        quantity: invData.quantity,
+        equipped: invData.equipped,
+        notes: invData.notes,
+      }));
     }
 
     // 4. Process skills (skill)
@@ -286,7 +313,7 @@ export async function saveCharacterWithElementSelections(data: {
       validSkills = Array.from(skillMap.entries()).map(([elementId, quantity]) => ({ elementId, quantity }));
     }
 
-    const { traits: _legacyTraits, weaknesses: _legacyWeaknesses, ...cleanProfileData } = data.profileData;
+    const { traits: _legacyTraits, weaknesses: _legacyWeaknesses, ...cleanProfileData } = data.profileData || {};
     const now = new Date();
     let character: typeof characters.$inferSelect;
 
@@ -296,6 +323,9 @@ export async function saveCharacterWithElementSelections(data: {
       canonCharacterId: data.canonCharacterId ?? null,
       updatedAt: now,
     };
+    if (data.playerId !== undefined) charValues.playerId = data.playerId;
+    if (data.active !== undefined) charValues.active = data.active;
+    if (data.userId !== undefined) charValues.userId = data.userId;
     if (data.exp !== undefined && data.exp >= 0) charValues.exp = data.exp;
     if (data.yen !== undefined && data.yen >= 0) charValues.yen = data.yen;
 
@@ -312,7 +342,9 @@ export async function saveCharacterWithElementSelections(data: {
       character = updated;
     } else {
       [character] = await tx.insert(characters).values({
-        userId: data.userId,
+        userId: data.userId ?? null,
+        playerId: data.playerId ?? null,
+        active: data.active ?? true,
         name: data.name,
         profileData: cleanProfileData,
         canonCharacterId: data.canonCharacterId ?? null,
@@ -360,7 +392,14 @@ export async function saveCharacterWithElementSelections(data: {
         await tx.delete(elementPossessions).where(inArray(elementPossessions.id, currentInvPossessions.map(item => item.id)));
       }
       for (const inv of validInventory) {
-        await tx.insert(elementPossessions).values({ id: nanoid(10), characterId: character.id, elementId: inv.elementId, quantity: inv.quantity }).onConflictDoNothing();
+        await tx.insert(elementPossessions).values({
+          id: nanoid(10),
+          characterId: character.id,
+          elementId: inv.elementId,
+          quantity: inv.quantity,
+          equipped: inv.equipped ?? false,
+          notes: inv.notes ?? null,
+        }).onConflictDoNothing();
       }
     }
 
@@ -531,3 +570,36 @@ export async function updatePossession(moderatorUid: string, characterId: number
     return { success: true, finalQuantity: finalQty };
   });
 }
+
+export async function toggleCharacterPossessionEquip(characterId: number, elementId: string, equipped?: boolean, actorUid?: string) {
+  return db.transaction(async (tx) => {
+    const [pos] = await tx.select()
+      .from(elementPossessions)
+      .where(and(eq(elementPossessions.characterId, characterId), eq(elementPossessions.elementId, elementId)));
+    if (!pos) {
+      const err = new Error("Possession not found");
+      (err as any).status = 404;
+      throw err;
+    }
+    const nextEquipped = equipped !== undefined ? equipped : !pos.equipped;
+    const [updated] = await tx.update(elementPossessions)
+      .set({ equipped: nextEquipped })
+      .where(eq(elementPossessions.id, pos.id))
+      .returning();
+
+    if (actorUid) {
+      await tx.insert(auditLogs).values({
+        actorUid,
+        actionType: nextEquipped ? 'item_equipped' : 'item_unequipped',
+        targetId: characterId.toString(),
+        details: {
+          elementId,
+          equipped: nextEquipped,
+        }
+      });
+    }
+
+    return updated;
+  });
+}
+

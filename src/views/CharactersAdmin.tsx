@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { AlertCircle, AlertTriangle, CheckCircle, Award, Check, Copy, Edit2, Eye, Plus, Search, Trash2, User, Users } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle, Award, Check, Copy, Edit2, Eye, Plus, Search, Trash2, User, Users, Archive, ArchiveRestore } from 'lucide-react';
 import useSWR from 'swr';
 import { toast } from 'sonner';
 import AdminRewardsDialog from '@/components/character/AdminRewardsDialog';
@@ -66,7 +66,7 @@ export default function CharactersAdmin() {
   const [rewardingCharId, setRewardingCharId] = useState<number | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'canon'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'canon' | 'archived'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState(initialGroup);
   const [selectedDon, setSelectedDon] = useState('all');
@@ -119,7 +119,12 @@ export default function CharactersAdmin() {
     return charactersList
       .filter((character: any) => {
         const profile = character.profileData || {};
-        if (activeTab === 'canon' && !isCanonCharacter(character)) return false;
+        if (activeTab === 'archived') {
+          if (character.active !== false) return false;
+        } else {
+          if (character.active === false) return false;
+          if (activeTab === 'canon' && !isCanonCharacter(character)) return false;
+        }
         
         const group = String(readProfile(profile, ['faction_group', 'group', 'grupo', 'faccion', 'facción']) || '');
         if (selectedGroup !== 'all' && group !== selectedGroup) return false;
@@ -134,6 +139,7 @@ export default function CharactersAdmin() {
         const searchable = [
           character.id,
           character.name,
+          character.player?.name,
           readProfile(profile, ['basic_name', 'name', 'nombre']),
           readProfile(profile, ['alias', 'hero_name', 'nombre_heroe']),
           readProfile(profile, ['quirk_name', 'quirkName', 'don_name', 'don'])
@@ -153,6 +159,21 @@ export default function CharactersAdmin() {
   const displayCharacter = selectedCharacterId
     ? charactersList.find((character: any) => character.id === selectedCharacterId)
     : null;
+
+  const handleToggleStatus = async (id: number, currentActive: boolean) => {
+    try {
+      const response = await apiFetch(`/api/admin/characters/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !currentActive }),
+      });
+      if (!response.ok) throw new Error('Error al actualizar estado');
+      toast.success(currentActive ? 'Personaje archivado' : 'Personaje reactivado');
+      mutateAll();
+    } catch (error: any) {
+      toast.error(error.message || 'Error al cambiar estado del personaje');
+    }
+  };
 
   const handleDelete = async (id: number) => {
     try {
@@ -215,14 +236,18 @@ export default function CharactersAdmin() {
       <EntityPanel variant="character">
         <div className="p-4 sm:p-5">
           <div className="flex w-full max-w-sm rounded-md border border-border bg-muted/30 p-1">
-            {(['all', 'canon'] as const).map(tab => (
+            {([
+              { key: 'all', label: 'Activos' },
+              { key: 'canon', label: 'Cánones' },
+              { key: 'archived', label: 'Archivados' },
+            ] as const).map(tab => (
               <button
-                key={tab}
+                key={tab.key}
                 type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 rounded px-3 py-1.5 font-oxanium text-[11px] font-bold uppercase tracking-wider transition-colors ${activeTab === tab ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex-1 rounded px-3 py-1.5 font-oxanium text-[11px] font-bold uppercase tracking-wider transition-colors ${activeTab === tab.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
               >
-                {tab === 'all' ? 'Todos los personajes' : 'Personajes canon'}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -338,6 +363,17 @@ export default function CharactersAdmin() {
                     <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Yenes disponibles">
                       ¥ {character.yen ?? 0}
                     </span>
+                    {character.player && (
+                      <span className={`px-1.5 py-0.5 rounded font-oxanium text-[10px] border ${character.player.status === 'absent' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                        Jugador: {character.player.name}
+                        {character.player.status === 'absent' && ' (Ausente)'}
+                      </span>
+                    )}
+                    {character.active === false && (
+                      <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 font-oxanium text-[10px] font-bold">
+                        ARCHIVADO
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -347,6 +383,16 @@ export default function CharactersAdmin() {
                     <Button variant="outline" size="icon" className="size-8 rounded bg-background/50 border-border/50 text-muted-foreground hover:text-foreground" onClick={() => window.open(`/sheet/${character.id}`, '_blank')} title="Ver ficha pública" aria-label="Ver ficha pública"><Eye className="size-3.5" /></Button>
                     <Button variant="outline" size="icon" className="size-8 rounded bg-background/50 border-border/50 text-muted-foreground hover:text-foreground" onClick={() => { setSelectedCharacterId(character.id); setEditing(true); }} title="Editar ficha" aria-label="Editar ficha"><Edit2 className="size-3.5" /></Button>
                     <Button variant="outline" size="icon" className="size-8 rounded bg-background/50 border-border/50 text-muted-foreground hover:text-foreground" onClick={() => setRewardingCharId(character.id)} title="Administrar recompensas" aria-label="Administrar recompensas"><Award className="size-3.5" /></Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className={`size-8 rounded bg-background/50 border-border/50 ${character.active === false ? 'text-green-400 hover:text-green-300' : 'text-amber-400 hover:text-amber-300'}`}
+                      onClick={() => handleToggleStatus(character.id, character.active !== false)}
+                      title={character.active === false ? "Reactivar personaje" : "Archivar personaje"}
+                      aria-label={character.active === false ? "Reactivar personaje" : "Archivar personaje"}
+                    >
+                      {character.active === false ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
+                    </Button>
                     {dbUser?.role === 'superadmin' && (
                       <>
                         <span className="mx-0.5 h-4 w-px bg-border/50" />

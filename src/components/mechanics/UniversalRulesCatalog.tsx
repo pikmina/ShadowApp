@@ -456,7 +456,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                 {editingRule.effect && (
                   <div className="pt-2">
                     <Label className="text-xs font-semibold mb-2 block">Definición de Efecto Mecánico</Label>
-                    <MechanicalEffectDefinitionEditor value={editingRule.effect} independentDuration onChange={effect => patchRule(editingIndex, { effect, ...(effect.timing === 'passive' ? { cost: 0 } : {}) })} />
+                    <MechanicalEffectDefinitionEditor value={editingRule.effect} independentDuration onChange={effect => patchRule(editingIndex, { effect })} />
                   </div>
                 )}
 

@@ -89,6 +89,7 @@ export const MECHANICAL_LABELS = {
     counter: "Contador de combate",
     attribute: "Atributo",
     manual: "Condición manual / Narrativa",
+    equipped: "Equipado",
   },
 
   conditionLogic: {
@@ -468,10 +469,28 @@ export const MECHANICAL_LABELS = {
   derivedStats: {
     ini: "Iniciativa",
     iniciativa: "Iniciativa",
+    INI: "Iniciativa",
     eva: "Evasión",
     evasion: "Evasión",
+    EVA: "Evasión",
     cor: "Coraje",
     coraje: "Coraje",
+    COR: "Coraje",
+    sal: "Salud Máxima",
+    salud: "Salud Máxima",
+    SAL: "Salud Máxima",
+    sa: "Salud Máxima",
+    SA: "Salud Máxima",
+    est: "Estamina Máxima",
+    estamina: "Estamina Máxima",
+    EST: "Estamina Máxima",
+    es: "Estamina Máxima",
+    ES: "Estamina Máxima",
+    rd: "Reducción de Daño",
+    RD: "Reducción de Daño",
+    red: "Reducción de Daño",
+    RED: "Reducción de Daño",
+    reduccion_dano: "Reducción de Daño",
   },
 
   // 11. CANONICAL RESOURCES & ATTRIBUTES
@@ -639,6 +658,20 @@ export function getTransformationMagnitudeLabel(magType: string | undefined | nu
 export function getAttributeLabel(attrId: string | undefined | null): string {
   if (!attrId) return "";
   return MECHANICAL_LABELS.attributes[attrId as keyof typeof MECHANICAL_LABELS.attributes] ?? humanizeFallback(attrId);
+}
+
+/**
+ * Specialized helper to get the Spanish name of a derived stat (Salud, Estamina, Iniciativa, Reducción de Daño, etc.)
+ */
+export function getDerivedStatLabel(statId: string | undefined | null): string {
+  if (!statId) return "";
+  const dict = MECHANICAL_LABELS.derivedStats as Record<string, string>;
+  if (dict[statId]) return dict[statId];
+  const lower = statId.toLowerCase();
+  if (dict[lower]) return dict[lower];
+  const upper = statId.toUpperCase();
+  if (dict[upper]) return dict[upper];
+  return getStatOrSkillLabel(statId);
 }
 
 /**

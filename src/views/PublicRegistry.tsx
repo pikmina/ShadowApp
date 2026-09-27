@@ -5,11 +5,11 @@ import { Link } from 'react-router-dom';
 import { EntityPanel } from '@/components/ui/entity-panel';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Library, Shield } from 'lucide-react';
+import { Search, Library, Shield, Users, Clock, UserCheck } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function PublicRegistry() {
-  const [activeTab, setActiveTab] = useState<'canon' | 'employments' | 'classes'>('canon');
+  const [activeTab, setActiveTab] = useState<'canon' | 'employments' | 'classes' | 'players'>('canon');
   const { data: canonCharacters, error } = useSWR('/api/public/canon-characters', fetcher);
   const { data: fields } = useSWR('/api/sheet-fields', fetcher);
   const [searchTerm, setSearchTerm] = useState('');
@@ -79,8 +79,9 @@ export default function PublicRegistry() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4">
-      <div className="flex justify-center gap-4 mb-6">
+      <div className="flex justify-center gap-4 mb-6 flex-wrap">
         <button onClick={() => setActiveTab('canon')} className={`px-4 py-2 font-oxanium text-sm uppercase tracking-wider ${activeTab === 'canon' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Personajes Canon</button>
+        <button onClick={() => setActiveTab('players')} className={`px-4 py-2 font-oxanium text-sm uppercase tracking-wider ${activeTab === 'players' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Jugadores</button>
         <button onClick={() => setActiveTab('employments')} className={`px-4 py-2 font-oxanium text-sm uppercase tracking-wider ${activeTab === 'employments' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Empleos</button>
         <button onClick={() => setActiveTab('classes')} className={`px-4 py-2 font-oxanium text-sm uppercase tracking-wider ${activeTab === 'classes' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Clases</button>
       </div>
@@ -229,8 +230,134 @@ export default function PublicRegistry() {
           </div>
         </>
       )}
+      {activeTab === 'players' && <PublicPlayers />}
       {activeTab === 'employments' && <PublicEmployments />}
       {activeTab === 'classes' && <PublicClasses />}
+    </div>
+  );
+}
+
+function PublicPlayers() {
+  const { data, error, isLoading } = useSWR<any[]>('/api/public/players', fetcher);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'absent'>('all');
+
+  if (isLoading) return <div className="text-center p-8 text-muted-foreground font-oxanium">Cargando jugadores...</div>;
+  if (error) return <div className="text-center p-8 text-red-500 font-oxanium">Error al cargar jugadores: {error?.message || String(error)}</div>;
+
+  const filtered = (data || []).filter((player: any) => {
+    const activeChars = (player.characters || []).filter((c: any) => c.active !== false);
+    if (activeChars.length === 0) return false;
+
+    if (statusFilter !== 'all' && player.status !== statusFilter) return false;
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      const matchName = player.name?.toLowerCase().includes(q);
+      const matchChar = activeChars.some((c: any) => c.name?.toLowerCase().includes(q));
+      if (!matchName && !matchChar) return false;
+    }
+
+    return true;
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar jugador o personaje..."
+            className="pl-9 bg-background/50 border-border/50 focus:border-primary/50"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(val: any) => setStatusFilter(val)}>
+          <SelectTrigger className="w-full sm:w-[180px] h-9 text-[11px] uppercase tracking-wider font-oxanium bg-black/40 border-border/50">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="active">Activo</SelectItem>
+            <SelectItem value="absent">Ausente</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="py-12 text-center text-muted-foreground text-sm font-oxanium border border-border/40 rounded-lg bg-card/20">
+          No se encontraron jugadores activos con los filtros seleccionados.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((player: any) => {
+            const activeChars = (player.characters || []).filter((c: any) => c.active !== false);
+            const isAbsent = player.status === 'absent';
+            return (
+              <EntityPanel key={player.id} pattern="dots" className="p-4 bg-black/40 h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2 mb-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Users className="size-4 text-primary shrink-0" />
+                      <h3 className="font-oxanium font-bold text-base text-foreground truncate">{player.name}</h3>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-oxanium uppercase tracking-wider shrink-0 ${
+                        isAbsent
+                          ? 'border-amber-500/50 bg-amber-500/10 text-amber-400'
+                          : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400'
+                      }`}
+                    >
+                      {isAbsent ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="size-3" /> Ausente
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <UserCheck className="size-3" /> Activo
+                        </span>
+                      )}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-2 mt-2">
+                    <p className="text-[11px] font-oxanium text-muted-foreground uppercase tracking-wider">
+                      Personajes ({activeChars.length}):
+                    </p>
+                    <div className="space-y-1.5">
+                      {activeChars.map((char: any) => (
+                        <div
+                          key={char.id}
+                          className="flex items-center justify-between text-sm bg-muted/20 p-2 rounded hover:bg-muted/30 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary/70 shrink-0"></span>
+                            <Link
+                              to={`/sheet/${char.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-foreground hover:text-primary transition-colors font-medium truncate"
+                            >
+                              {char.name}
+                            </Link>
+                          </div>
+                          {char.canonCharacterId && (
+                            <Badge variant="secondary" className="text-[9px] shrink-0 font-oxanium uppercase ml-2">
+                              Canon
+                            </Badge>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </EntityPanel>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

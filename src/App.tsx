@@ -65,6 +65,7 @@ function IndexRedirector() {
 
 import DevVariablesShowcase from "./views/DevVariablesShowcase";
 import PublicRegistry from "./views/PublicRegistry";
+import PlayersAdmin from "./views/PlayersAdmin";
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -99,6 +100,7 @@ function AppRoutes() {
         <Route path="sheet-builder" element={<SheetBuilderAdmin />} />
         <Route path="character-editor" element={<CharactersAdmin />} />
         <Route path="characters" element={<CharactersAdmin />} />
+        <Route path="players" element={<PlayersAdmin />} />
         <Route path="canon" element={<CanonCharactersAdmin />} />
         <Route path="employments" element={<EmploymentsAdmin />} />
         <Route path="classes" element={<ClassesAdmin />} />

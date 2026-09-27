@@ -179,4 +179,64 @@ describe.skipIf(!dbAvailable)('Disposable Element Lifecycle with Character Assig
     expect(deletedDuplicate).toBeUndefined();
     duplicateElementId = '';
   });
+
+  it('persists item equipment state (equipped: true) across save, reload, and toggle', async () => {
+    const { saveCharacterWithElementSelections, toggleCharacterPossessionEquip, getCharacterPossessions } = await import('../characters.ts');
+
+    // 1. Create a published equipment element
+    const testItem = await upsertElement({
+      name: 'TEMP Botas Reforzadas Test',
+      kind: 'equipment',
+      status: 'published',
+      description: 'Botas de prueba con +1 Evasión.',
+      mechanicalBehaviors: [
+        {
+          id: 'beh_test_boots',
+          name: 'Agilidad',
+          mode: 'continuous',
+          conditions: [{ type: 'equipped' }],
+          effects: [{ id: 'eff_eva_1', type: 'derived_stat_modifier', statId: 'EVA', amount: 1 }]
+        }
+      ]
+    });
+    testElementId = testItem.id;
+
+    // 2. Save character with equipped item
+    await saveCharacterWithElementSelections({
+      characterId: testCharacterId,
+      name: 'Personaje Test Equip',
+      inventoryPossessions: [
+        {
+          elementId: testItem.id,
+          quantity: 1,
+          equipped: true,
+          notes: 'Botas equipadas'
+        }
+      ],
+      actorUid: 'test_lifecycle_actor'
+    });
+
+    // 3. Reload character possessions and verify equipped === true
+    let possessions = await getCharacterPossessions(testCharacterId);
+    let itemPossession = possessions.find(p => p.possession.elementId === testItem.id);
+    expect(itemPossession).toBeDefined();
+    expect(itemPossession?.possession.equipped).toBe(true);
+
+    // 4. Toggle unequip
+    await toggleCharacterPossessionEquip(testCharacterId, testItem.id, false, 'test_lifecycle_actor');
+    possessions = await getCharacterPossessions(testCharacterId);
+    itemPossession = possessions.find(p => p.possession.elementId === testItem.id);
+    expect(itemPossession?.possession.equipped).toBe(false);
+
+    // 5. Toggle equip again
+    await toggleCharacterPossessionEquip(testCharacterId, testItem.id, true, 'test_lifecycle_actor');
+    possessions = await getCharacterPossessions(testCharacterId);
+    itemPossession = possessions.find(p => p.possession.elementId === testItem.id);
+    expect(itemPossession?.possession.equipped).toBe(true);
+
+    // Cleanup possession & element
+    await db.delete(elementPossessions).where(eq(elementPossessions.characterId, testCharacterId));
+    await deleteElement(testItem.id);
+    testElementId = '';
+  });
 });

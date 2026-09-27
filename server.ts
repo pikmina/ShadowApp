@@ -397,7 +397,9 @@ async function startServer() {
       
       const CharSchema = z.object({
         characterId: z.number().optional().nullable(),
-        userId: z.number().optional(),
+        userId: z.number().optional().nullable(),
+        playerId: z.number().optional().nullable(),
+        active: z.boolean().optional(),
         name: z.string().optional(),
         profileData: z.record(z.string(), z.any()).optional(),
         expectedUpdatedAt: z.string().optional(),
@@ -407,7 +409,9 @@ async function startServer() {
         yen: z.number().int().min(0).optional(),
         inventoryPossessions: z.array(z.object({
           elementId: z.string().min(1),
-          quantity: z.number().int().min(1)
+          quantity: z.number().int().min(1).optional(),
+          equipped: z.boolean().optional(),
+          notes: z.string().nullable().optional(),
         })).optional(),
         credentialPossessions: z.array(z.object({
           elementId: z.string().min(1),
@@ -420,8 +424,8 @@ async function startServer() {
       });
       const parsed = CharSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
-      const { characterId, name, profileData, expectedUpdatedAt, userId, canonCharacterId, elementIds, exp, yen, inventoryPossessions, credentialPossessions, skillPossessions } = parsed.data;
-      console.log("POST /api/character request:", { characterId, name, expectedUpdatedAt, userId, canonCharacterId, exp, yen });
+      const { characterId, name, profileData, expectedUpdatedAt, userId, playerId, active, canonCharacterId, elementIds, exp, yen, inventoryPossessions, credentialPossessions, skillPossessions } = parsed.data;
+      console.log("POST /api/character request:", { characterId, name, expectedUpdatedAt, userId, playerId, active, canonCharacterId, exp, yen });
       
       if (canonCharacterId) {
         const { db } = await import("./src/db/index.ts");
@@ -441,10 +445,12 @@ async function startServer() {
       
       const { updateCharacter, createCharacter, saveCharacterWithElementSelections } = await import("./src/db/characters.ts");
       let character;
-      if (elementIds !== undefined || inventoryPossessions !== undefined || credentialPossessions !== undefined || skillPossessions !== undefined || exp !== undefined || yen !== undefined) {
+      if (elementIds !== undefined || inventoryPossessions !== undefined || credentialPossessions !== undefined || skillPossessions !== undefined || exp !== undefined || yen !== undefined || playerId !== undefined || active !== undefined) {
         character = await saveCharacterWithElementSelections({
           characterId,
-          userId: userId || req.dbUser.id,
+          userId: userId !== undefined ? userId : req.dbUser.id,
+          playerId,
+          active,
           name: name || "Unnamed",
           profileData: profileData || {},
           expectedUpdatedAt,
@@ -458,10 +464,10 @@ async function startServer() {
           actorUid: req.dbUser.uid,
         });
       } else if (characterId) {
-        character = await updateCharacter(characterId, { name, profileData, expectedUpdatedAt, canonCharacterId });
+        character = await updateCharacter(characterId, { name, profileData, expectedUpdatedAt, canonCharacterId, playerId, active });
       } else {
-        const targetUserId = userId || req.dbUser.id;
-        character = await createCharacter(targetUserId, name || "Unnamed", profileData || {}, canonCharacterId || null);
+        const targetUserId = userId !== undefined ? userId : req.dbUser.id;
+        character = await createCharacter(targetUserId, name || "Unnamed", profileData || {}, canonCharacterId || null, playerId || null, active ?? true);
       }
       res.json(character);
     } catch (error: any) {
@@ -470,6 +476,147 @@ async function startServer() {
       }
       console.error(error);
       res.status(500).json({ error: "Failed to save character" });
+    }
+  });
+
+  // --- Character Status Toggle API ---
+  app.patch("/api/admin/characters/:id/status", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const charId = parseInt(req.params.id, 10);
+      if (isNaN(charId)) return res.status(400).json({ error: "Invalid character ID" });
+      const parsed = z.object({ active: z.boolean() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+
+      const { updateCharacter } = await import("./src/db/characters.ts");
+      const updated = await updateCharacter(charId, { active: parsed.data.active });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || "Failed to update character status" });
+    }
+  });
+
+  // --- Character Possession Equip Toggle API ---
+  app.post("/api/characters/:id/possessions/:elementId/equip", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const charId = parseInt(req.params.id, 10);
+      if (isNaN(charId)) return res.status(400).json({ error: "Invalid character ID" });
+      const elementId = req.params.elementId;
+      if (!elementId) return res.status(400).json({ error: "Invalid element ID" });
+
+      const { getCharacterById, toggleCharacterPossessionEquip } = await import("./src/db/characters.ts");
+      const character = await getCharacterById(charId);
+      if (!character) return res.status(404).json({ error: "Character not found" });
+
+      const isOwner = req.dbUser && character.userId === req.dbUser.id;
+      const isAdmin = req.dbUser && ['superadmin', 'moderator'].includes(req.dbUser.role);
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const schema = z.object({
+        equipped: z.boolean().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      const equipped = parsed.success ? parsed.data.equipped : undefined;
+
+      const updated = await toggleCharacterPossessionEquip(charId, elementId, equipped, req.dbUser?.uid);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || "Failed to toggle possession equipment" });
+    }
+  });
+
+  // --- Players Admin API ---
+  app.get("/api/admin/players", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { getPlayers } = await import("./src/db/players.ts");
+      const playersList = await getPlayers({ includeInactive: true });
+      res.json(playersList);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch players" });
+    }
+  });
+
+  app.post("/api/admin/players", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const schema = z.object({
+        name: z.string().min(1, "El nombre del jugador es obligatorio"),
+        status: z.enum(["active", "absent", "inactive"]).optional(),
+        notes: z.string().optional().nullable(),
+        userId: z.number().int().positive().optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+
+      const { createPlayer } = await import("./src/db/players.ts");
+      const created = await createPlayer(parsed.data, req.dbUser?.uid);
+      res.json(created);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to create player" });
+    }
+  });
+
+  app.put("/api/admin/players/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const playerId = parseInt(req.params.id, 10);
+      if (isNaN(playerId)) return res.status(400).json({ error: "Invalid player ID" });
+      const schema = z.object({
+        name: z.string().min(1).optional(),
+        status: z.enum(["active", "absent", "inactive"]).optional(),
+        notes: z.string().optional().nullable(),
+        userId: z.number().int().positive().optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+
+      const { updatePlayer } = await import("./src/db/players.ts");
+      const updated = await updatePlayer(playerId, parsed.data, req.dbUser?.uid);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || "Failed to update player" });
+    }
+  });
+
+  app.delete("/api/admin/players/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const playerId = parseInt(req.params.id, 10);
+      if (isNaN(playerId)) return res.status(400).json({ error: "Invalid player ID" });
+
+      const { deletePlayer } = await import("./src/db/players.ts");
+      await deletePlayer(playerId, req.dbUser?.uid);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || "Failed to delete player" });
+    }
+  });
+
+  app.patch("/api/admin/players/:id/status", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const playerId = parseInt(req.params.id, 10);
+      if (isNaN(playerId)) return res.status(400).json({ error: "Invalid player ID" });
+      const schema = z.object({
+        status: z.enum(["active", "absent", "inactive"]),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+
+      const { updatePlayer } = await import("./src/db/players.ts");
+      const updated = await updatePlayer(playerId, { status: parsed.data.status }, req.dbUser?.uid);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || "Failed to update player status" });
+    }
+  });
+
+  // --- Public Players API (only players with active characters, only active characters listed) ---
+  app.get("/api/public/players", async (req, res) => {
+    try {
+      const { getPublicPlayers } = await import("./src/db/players.ts");
+      const publicList = await getPublicPlayers();
+      res.json(publicList);
+    } catch (error: any) {
+      console.error("public players error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch public players" });
     }
   });
 

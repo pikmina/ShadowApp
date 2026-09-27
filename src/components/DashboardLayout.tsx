@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, BookOpen, Database, ChevronRight, FileText, LayoutTemplate, Library, LogOut, Menu, Settings, ShieldCheck, ShoppingCart, Swords, UserRound, Component, History, UserCog } from "lucide-react";
+import { LayoutDashboard, BookOpen, Database, ChevronRight, FileText, LayoutTemplate, Library, LogOut, Menu, Settings, ShieldCheck, ShoppingCart, Swords, UserRound, Component, History, UserCog, Users } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "./ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
@@ -32,6 +32,7 @@ const navigation = [
   ] },
   { label: "Gestión", roles: ["superadmin", "moderator"], items: [
     { to: "/character-editor", label: "Personajes", icon: UserRound },
+    { to: "/players", label: "Jugadores", icon: Users },
     { to: "/canon", label: "Catálogo Canon", icon: Library },
     { to: "/employments", label: "Empleos", icon: FileText },
     { to: "/classes", label: "Clases", icon: FileText },

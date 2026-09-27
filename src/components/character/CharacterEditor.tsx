@@ -10,10 +10,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus, FileText } from "lucide-react";
+import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, ShieldCheck, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus, FileText, User } from "lucide-react";
 import { toast } from "sonner";
-import { validateCharacter, calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses } from "@/lib/characterValidation";
+import { validateCharacter, calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses, calculateEquipmentBonuses } from "@/lib/characterValidation";
+import { ModifierBadgeGroup, ModifierNotesLegend } from "@/components/character/ModifierBadge";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { CharacterEmployments, CharacterEnrollments } from "./CharacterRelations";
 import { CharacterTechniquesEditor } from "./CharacterTechniquesEditor";
 import { profileValue, type CoreProfileKey } from "@/domain/coreProfileFields";
@@ -36,19 +38,22 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const [activeTab, setActiveTab] = useState('');
   const [formData, setFormData] = useState<Record<string, any>>(() => profileWithRelationalElements(character));
   const [canonId, setCanonId] = useState<string | null>(character?.canonCharacterId || initialCanonId || null);
+  const [playerId, setPlayerId] = useState<number | null>(character?.playerId ?? null);
+  const [isActive, setIsActive] = useState<boolean>(character?.active !== false);
 
   // Experience and Yen progression state
   const [exp, setExp] = useState<number>(() => Number(character?.exp ?? 0));
   const [yen, setYen] = useState<number>(() => Number(character?.yen ?? 0));
 
   // Inventory items state
-  const [inventoryItems, setInventoryItems] = useState<Array<{ elementId: string; quantity: number; notes?: string | null; element?: any }>>(() => {
+  const [inventoryItems, setInventoryItems] = useState<Array<{ elementId: string; quantity: number; notes?: string | null; equipped?: boolean; element?: any }>>(() => {
     const rows = Array.isArray(character?.possessions) ? character.possessions : [];
     return rows
       .filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness', 'skill'].includes(row?.element?.kind || row?.kind))
       .map((row: any) => ({
-        elementId: row?.element?.id || row?.possession?.elementId,
-        quantity: row?.possession?.quantity || 1,
+        elementId: row?.element?.id || row?.possession?.elementId || row?.elementId || row?.id,
+        quantity: row?.possession?.quantity || row?.quantity || 1,
+        equipped: row?.possession?.equipped ?? row?.equipped ?? false,
         notes: row?.possession?.notes ?? row?.notes ?? null,
         element: row?.element
       }));
@@ -98,6 +103,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const stagesList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_stages')?.value || [] : [];
   const mechanicsList = Array.isArray(rules) ? rules.find((r: any) => r.key === 'system_mechanics')?.value || [] : [];
   const { data: canonList } = useSWR('/api/public/canon-characters', fetcher);
+  const { data: playersList } = useSWR<any[]>(isAdmin ? "/api/admin/players" : null, fetcher);
   const { data: rawElements } = useSWR(user ? "/api/elements" : null, fetcher);
   const elements = useMemo(() => Array.isArray(rawElements) ? rawElements.filter(el => el.status === 'published') : [], [rawElements]);
   
@@ -198,6 +204,9 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   useEffect(() => {
     if (!fields || isDirty) return;
     if (character) {
+      setCanonId(character.canonCharacterId || null);
+      setPlayerId(character.playerId ?? null);
+      setIsActive(character.active !== false);
       const profile = profileWithRelationalElements(character);
       for (const field of fields) if (field.coreKey && profile[field.id] === undefined) {
         const value = profileValue(profile, field.coreKey as CoreProfileKey);
@@ -211,8 +220,9 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         rows
           .filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness', 'skill'].includes(row?.element?.kind || row?.kind))
           .map((row: any) => ({
-            elementId: row?.element?.id || row?.possession?.elementId,
-            quantity: row?.possession?.quantity || 1,
+            elementId: row?.element?.id || row?.possession?.elementId || row?.elementId || row?.id,
+            quantity: row?.possession?.quantity || row?.quantity || 1,
+            equipped: row?.possession?.equipped ?? row?.equipped ?? false,
             notes: row?.possession?.notes ?? row?.notes ?? null,
             element: row?.element
           }))
@@ -305,6 +315,18 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
       if (item.elementId === elementId) {
         const newQty = isAbsolute ? Math.max(1, deltaOrValue) : Math.max(1, item.quantity + deltaOrValue);
         return { ...item, quantity: newQty };
+      }
+      return item;
+    }));
+    setIsDirty(true);
+  };
+
+  const handleToggleInventoryEquipped = (elementId: string) => {
+    setInventoryItems(prev => prev.map(item => {
+      if (item.elementId === elementId) {
+        const next = !item.equipped;
+        toast.info(next ? "Objeto equipado" : "Objeto desequipado");
+        return { ...item, equipped: next };
       }
       return item;
     }));
@@ -456,6 +478,8 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         },
         body: JSON.stringify({
           characterId: character?.id,
+          playerId: playerId,
+          active: isActive,
           name: (() => {
             return finalProfileData['basic_name'] || finalProfileData['nombre'] || character?.name || "Unnamed";
           })(),
@@ -470,7 +494,9 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
           ],
           inventoryPossessions: inventoryItems.map(item => ({
             elementId: item.elementId,
-            quantity: Number(item.quantity) || 1
+            quantity: Number(item.quantity) || 1,
+            equipped: item.equipped === true,
+            notes: item.notes ?? null,
           })),
           credentialPossessions: credentialItems.map(item => ({
             elementId: item.elementId,
@@ -1080,13 +1106,14 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         })()}
 
         {activeTab === 'Atributos' && (() => {
-          const purchasedBonus = calculatePurchasedAttributeBonuses(character?.possessions || [], elements);
+          const purchasedBonus = calculatePurchasedAttributeBonuses(inventoryItems, elements);
           const purchasedAttrPoints = purchasedBonus.total;
 
           const traitBonus = calculateTraitAttributeBonus(formData, elements, mechanicsList);
           const traitAttrPoints = traitBonus.total;
+          const equipmentBonus = calculateEquipmentBonuses(inventoryItems, elements, mechanicsList);
           const validation = validateCharacter(formData, stagesList, purchasedAttrPoints, 5, traitAttrPoints);
-          const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList, character?.possessions || []);
+          const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList, inventoryItems);
           const stage = stagesList.find((s: any) => s.name.toLowerCase() === String(formData['basic_stage'] || formData['stage'] || formData['etapa'] || '').toLowerCase());
           
           return (
@@ -1196,8 +1223,14 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                       const baseVal = Number(formData[attr.id]) || 0;
                       const purchasedVal = purchasedBonus.byAttr[attr.id] || 0;
                       const traitVal = traitBonus.byAttr[attr.id] || 0;
-                      const effectiveVal = baseVal + purchasedVal + traitVal;
-                      const hasModifiers = purchasedVal !== 0 || traitVal !== 0;
+                      const equipmentVal = equipmentBonus.byAttr[attr.id] || 0;
+                      const effectiveVal = baseVal + purchasedVal + traitVal + equipmentVal;
+                      const hasModifiers = purchasedVal !== 0 || traitVal !== 0 || equipmentVal !== 0;
+                      const sources = [
+                        ...(purchasedBonus.sourcesByAttr[attr.id] || []),
+                        ...(traitBonus.sourcesByAttr[attr.id] || []),
+                        ...(equipmentBonus.sourcesByAttr[attr.id] || [])
+                      ];
 
                       return (
                         <div key={attr.id} className="relative border border-border bg-bg2/40 p-3 rounded-md space-y-2">
@@ -1220,16 +1253,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                           />
                           <div className="flex flex-wrap items-center gap-1 text-[10px] font-mono text-muted-foreground">
                             <span>Base: {baseVal}</span>
-                            {purchasedVal > 0 && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
-                                Mejora: +{purchasedVal}
-                              </Badge>
-                            )}
-                            {traitVal !== 0 && (
-                              <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 ${traitVal > 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border-rose-500/30'}`}>
-                                Rasgo: {traitVal > 0 ? `+${traitVal}` : traitVal}
-                              </Badge>
-                            )}
+                            <ModifierBadgeGroup sources={sources} />
                           </div>
                         </div>
                       );
@@ -1241,27 +1265,45 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                   <Label className="text-sm font-bold uppercase tracking-widest text-foreground">Estadísticas Derivadas (Auto-calculadas)</Label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
-                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Salud</span>
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Salud</span>
+                        <ModifierBadgeGroup sources={derived.derivedSources?.salud || equipmentBonus.sourcesByDerived.salud || []} />
+                      </div>
                       <strong className="text-xl font-mono text-primary">{derived.salud}</strong>
                     </div>
                     <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
-                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Estamina</span>
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Estamina</span>
+                        <ModifierBadgeGroup sources={derived.derivedSources?.estamina || equipmentBonus.sourcesByDerived.estamina || []} />
+                      </div>
                       <strong className="text-xl font-mono text-indigo-400">{derived.estamina}</strong>
                     </div>
                     <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
-                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Evasión</span>
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Evasión</span>
+                        <ModifierBadgeGroup sources={derived.derivedSources?.evasion || equipmentBonus.sourcesByDerived.evasion || []} />
+                      </div>
                       <strong className="text-xl font-mono text-foreground">{derived.evasion}</strong>
                     </div>
                     <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
-                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Coraje</span>
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Coraje</span>
+                        <ModifierBadgeGroup sources={derived.derivedSources?.coraje || equipmentBonus.sourcesByDerived.coraje || []} />
+                      </div>
                       <strong className="text-xl font-mono text-foreground">{derived.coraje}</strong>
                     </div>
                     <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
-                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Iniciativa</span>
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">Iniciativa</span>
+                        <ModifierBadgeGroup sources={derived.derivedSources?.iniciativa || equipmentBonus.sourcesByDerived.iniciativa || []} />
+                      </div>
                       <strong className="text-xl font-mono text-foreground">{derived.iniciativa > 0 ? `+${derived.iniciativa}` : derived.iniciativa}</strong>
                     </div>
                     <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
-                      <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">RED</span>
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">RED</span>
+                        <ModifierBadgeGroup sources={derived.derivedSources?.reduccionDano || equipmentBonus.sourcesByDerived.reduccionDano || []} />
+                      </div>
                       <strong className="text-xl font-mono text-foreground">{derived.reduccionDano}</strong>
                     </div>
                     <div className="border border-border bg-muted/20 p-3 rounded-md text-center">
@@ -1281,6 +1323,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                       <strong className="text-xl font-mono text-blue-400">{derived.dañoRango}</strong>
                     </div>
                   </div>
+                  <ModifierNotesLegend className="mt-2" />
                 </div>
 
                 <div className="pt-4 border-t border-border">
@@ -1452,9 +1495,16 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                       >
                         <div className="space-y-1.5">
                           <div className="flex items-start justify-between gap-2">
-                            <span className="font-semibold text-sm text-foreground font-oxanium leading-snug">
-                              {el.name}
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <span className="font-semibold text-sm text-foreground font-oxanium leading-snug">
+                                {el.name}
+                              </span>
+                              {item.equipped && (
+                                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[9px] px-1.5 py-0 h-4.5 font-bold uppercase tracking-wider font-mono">
+                                  EQUIPADO
+                                </Badge>
+                              )}
+                            </div>
                             <Badge variant="secondary" className="font-mono text-[10px] uppercase shrink-0">
                               {elementKindMap[el.kind] || el.kind}
                             </Badge>
@@ -1474,7 +1524,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                        <div className="flex items-center justify-between pt-2 border-t border-border/40 gap-2 flex-wrap">
                           <div className="flex items-center gap-1.5">
                             <Button 
                               type="button" 
@@ -1502,15 +1552,39 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                               <Plus className="size-3" />
                             </Button>
                           </div>
-                          <Button 
-                            type="button" 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive px-2"
-                            onClick={() => handleRemoveInventoryItem(item.elementId)}
-                          >
-                            <Trash2 className="size-3.5 mr-1" /> Quitar
-                          </Button>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              type="button"
+                              variant={item.equipped ? "secondary" : "outline"}
+                              size="sm"
+                              className={cn(
+                                "h-7 text-xs font-semibold px-2.5 transition-colors",
+                                item.equipped
+                                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
+                                  : "text-muted-foreground hover:text-foreground"
+                              )}
+                              onClick={() => handleToggleInventoryEquipped(item.elementId)}
+                            >
+                              {item.equipped ? (
+                                <>
+                                  <ShieldCheck className="size-3.5 mr-1 text-emerald-400" /> Desequipar
+                                </>
+                              ) : (
+                                <>
+                                  <Shield className="size-3.5 mr-1" /> Equipar
+                                </>
+                              )}
+                            </Button>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive px-2"
+                              onClick={() => handleRemoveInventoryItem(item.elementId)}
+                            >
+                              <Trash2 className="size-3.5 mr-1" /> Quitar
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1660,29 +1734,64 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             <div>
 
             {isAdmin && activeTab === 'Datos' && (
-              <div className="md:col-span-2 mb-6 p-4 border border-primary/20 bg-primary/5 rounded-md space-y-2">
-                <Label className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-                  <Shield className="size-4" /> Vínculo con Catálogo Canon (Admin)
-                </Label>
-                <Select value={canonId || 'none'} onValueChange={(val) => setCanonId(val === 'none' ? null : val)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Personaje Original (Sin vínculo)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Ninguno / Personaje Original</SelectItem>
-                    {(canonList || []).map((c: any) => {
-                      const isOccupied = c.status === 'occupied' && c.id !== canonId;
-                      const isReserved = c.status === 'reserved' && c.id !== canonId;
-                      const isDisabled = isOccupied || isReserved;
-                      return (
-                        <SelectItem key={c.id} value={c.id} disabled={isDisabled}>
-                          {c.name} {isOccupied ? '(Ocupado)' : isReserved ? '(Reservado)' : '(Disponible)'}
+              <div className="md:col-span-2 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border border-primary/20 bg-primary/5 rounded-md">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
+                    <Shield className="size-3.5" /> Vínculo Canon
+                  </Label>
+                  <Select value={canonId || 'none'} onValueChange={(val) => setCanonId(val === 'none' ? null : val)}>
+                    <SelectTrigger className="w-full text-xs">
+                      <SelectValue placeholder="Personaje Original" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ninguno / Personaje Original</SelectItem>
+                      {(canonList || []).map((c: any) => {
+                        const isOccupied = c.status === 'occupied' && c.id !== canonId;
+                        const isReserved = c.status === 'reserved' && c.id !== canonId;
+                        const isDisabled = isOccupied || isReserved;
+                        return (
+                          <SelectItem key={c.id} value={c.id} disabled={isDisabled}>
+                            {c.name} {isOccupied ? '(Ocupado)' : isReserved ? '(Reservado)' : '(Disponible)'}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">Enlace con catálogo canon público.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
+                    <User className="size-3.5" /> Jugador Asignado
+                  </Label>
+                  <Select value={playerId ? String(playerId) : 'none'} onValueChange={(val) => setPlayerId(val === 'none' ? null : parseInt(val, 10))}>
+                    <SelectTrigger className="w-full text-xs">
+                      <SelectValue placeholder="Sin jugador (Independiente/NPC)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin jugador asignado (NPC/Independiente)</SelectItem>
+                      {(playersList || []).map((p: any) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.name} {p.status === 'absent' ? '· [Ausente]' : ''}
                         </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">Selecciona un personaje canon para enlazar esta ficha con el catálogo público. Los personajes ocupados o reservados no pueden seleccionarse.</p>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">Asigna este personaje a un jugador.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
+                    <Activity className="size-3.5" /> Estado del Personaje
+                  </Label>
+                  <div className="flex items-center justify-between p-2 rounded-md border border-border bg-background/50 h-9">
+                    <span className={`text-xs font-oxanium uppercase font-bold ${isActive ? 'text-green-400' : 'text-amber-400'}`}>
+                      {isActive ? 'Activo' : 'Archivado (Inactivo)'}
+                    </span>
+                    <Switch checked={isActive} onCheckedChange={setIsActive} />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Inactivos: ocultos en registros públicos.</p>
+                </div>
               </div>
             )}
 

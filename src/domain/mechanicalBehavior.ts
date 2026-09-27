@@ -183,6 +183,11 @@ export const conditionItemSchema = z.discriminatedUnion("type", [
     description: z.string().optional(),
     negated: z.boolean().optional(),
   }),
+  z.object({
+    id: z.string().optional(),
+    type: z.literal("equipped"),
+    negated: z.boolean().optional(),
+  }),
 ]);
 export type MechanicalCondition = z.infer<typeof conditionItemSchema>;
 
@@ -898,6 +903,10 @@ export function createDefaultMechanicalEffect(
       return { ...base, type: "barrier", amount: 5 };
     case "attribute_modifier":
       return { ...base, type: "attribute_modifier", attributeId: "fue", amount: 1, operation: "add" };
+    case "derived_stat_modifier":
+      return { ...base, type: "derived_stat_modifier", statId: "SAL", amount: 1, operation: "add" };
+    case "skill_modifier":
+      return { ...base, type: "skill_modifier", skillId: "acrobacias", amount: 1, operation: "add" };
     case "cost_modifier":
       return { ...base, type: "cost_modifier", scopeId: "quirk", amount: 2, operation: "multiply" };
     case "incoming_damage_modifier":

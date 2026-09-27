@@ -15,6 +15,7 @@ export type RuleEntityState = {
   modifiers: Array<{ sourceId: string; statId: string; amount: number; expiresAt?: number; cap?: { min: number; max: number } }>;
   statuses: Array<{ sourceId: string; statusElementId: string; expiresAt?: number }>;
   inventory: Record<string, number>;
+  equippedItems?: Record<string, boolean> | string[];
 };
 export type RuleWorld = Record<string, RuleEntityState>;
 

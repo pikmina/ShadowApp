@@ -19,7 +19,7 @@ export const effectTypeLabels: Record<MechanicalEffectType, string> = {
 };
 
 export function createEffectDefinition(type: MechanicalEffectType, previous?: MechanicalEffectDefinition): MechanicalEffectDefinition {
-  const defaultTiming = (type === "attribute_modifier" || type === "derived_stat_modifier") ? "passive" : "on_activation";
+  const defaultTiming = "on_activation";
   const base = { timing: previous?.timing ?? defaultTiming, duration: previous?.duration };
   switch (type) {
     case "cost_adjustment": return { ...base, type, scopeId: "quirk", amount: 1 };

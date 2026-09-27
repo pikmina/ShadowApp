@@ -57,7 +57,8 @@ import {
 import { CyberFillerPanel } from '@/components/ui/cyber-filler-panel';
 import { CyberModule } from '@/components/ui/cyber-module';
 import { EntityPanel } from '@/components/ui/entity-panel';
-import { calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses } from '@/lib/characterValidation';
+import { calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses, calculateEquipmentBonuses } from '@/lib/characterValidation';
+import { ModifierBadgeGroup, ModifierNotesLegend } from '@/components/character/ModifierBadge';
 import { calculateTechniqueStructuralCost } from '@/domain/systemMechanics';
 import { describeMechanicalBehavior, generateAutoDescription } from '@/domain/mechanicalDescription';
 import { cn } from '@/lib/utils';
@@ -166,6 +167,10 @@ export default function PublicSheet() {
     return calculateTraitAttributeBonus(profile, combinedElements, mechanicsList);
   }, [profile, combinedElements, mechanicsList]);
 
+  const equipmentBonusData = useMemo(() => {
+    return calculateEquipmentBonuses(character?.possessions || [], combinedElements, mechanicsList);
+  }, [character?.possessions, combinedElements, mechanicsList]);
+
   const maxHealth = derived ? derived.salud : Number(readValue(profile, ['maxHealth', 'max_health', 'salud_maxima']) || 20);
   const maxStamina = derived ? derived.estamina : Number(readValue(profile, ['maxStamina', 'max_stamina', 'estamina_maxima']) || 20);
   const currentHealth = maxHealth;
@@ -226,8 +231,14 @@ export default function PublicSheet() {
     const baseVal = Number(rawVal || 0);
     const purchasedBonus = purchasedBonusData.byAttr[attr.key] || 0;
     const traitBonus = traitBonusData.byAttr[attr.key] || 0;
-    const totalBonus = purchasedBonus + traitBonus;
+    const equipmentBonus = equipmentBonusData.byAttr[attr.key] || 0;
+    const totalBonus = purchasedBonus + traitBonus + equipmentBonus;
     const finalVal = baseVal + totalBonus;
+    const sources = [
+      ...(purchasedBonusData.sourcesByAttr[attr.key] || []),
+      ...(traitBonusData.sourcesByAttr[attr.key] || []),
+      ...(equipmentBonusData.sourcesByAttr[attr.key] || [])
+    ];
     return {
       label: attr.label,
       key: attr.key,
@@ -235,21 +246,41 @@ export default function PublicSheet() {
       base: baseVal,
       purchasedBonus,
       traitBonus,
+      equipmentBonus,
       bonus: totalBonus,
       hasBonus: totalBonus !== 0,
       value: hasValue(rawVal) ? finalVal : undefined,
+      sources,
     };
   });
 
   const defenseList = [
-    { label: 'EVASIÓN', value: derived?.evasion ?? readValue(profile, ['evasion', 'evasión', 'eva']), icon: SportShoe },
-    { label: 'CORAJE', value: derived?.coraje ?? readValue(profile, ['coraje', 'cor', 'courage']), icon: UserShield }
+    {
+      label: 'EVASIÓN',
+      value: derived?.evasion ?? readValue(profile, ['evasion', 'evasión', 'eva']),
+      icon: SportShoe,
+      equipmentBonus: equipmentBonusData.byDerived.evasion || 0,
+      sources: derived?.derivedSources?.evasion || equipmentBonusData.sourcesByDerived.evasion || [],
+    },
+    {
+      label: 'CORAJE',
+      value: derived?.coraje ?? readValue(profile, ['coraje', 'cor', 'courage']),
+      icon: UserShield,
+      equipmentBonus: equipmentBonusData.byDerived.coraje || 0,
+      sources: derived?.derivedSources?.coraje || equipmentBonusData.sourcesByDerived.coraje || [],
+    }
   ];
 
   const derivedGrid = [
-    { label: 'DAÑO FÍSICO', value: derived?.dañoFisico ?? readValue(profile, ['daño_fisico', 'dano_fisico', 'daño_base', 'dano_base', 'baseDamage', 'base_damage']), icon: Swords },
-    { label: 'DAÑO DE RANGO', value: derived?.dañoRango ?? readValue(profile, ['daño_rango', 'dano_rango', 'rangeDamage', 'range_damage']), icon: Target },
-    { label: 'REDUCCIÓN DAÑO', value: derived?.reduccionDano ?? readValue(profile, ['reduccion_dano', 'reduccionDano', 'dr', 'damageReduction', 'damage_reduction']) ?? 0, icon: ShieldUser },
+    { label: 'DAÑO FÍSICO', value: derived?.dañoFisico ?? readValue(profile, ['daño_fisico', 'dano_fisico', 'daño_base', 'dano_base', 'baseDamage', 'base_damage']), icon: Swords, sources: [] },
+    { label: 'DAÑO DE RANGO', value: derived?.dañoRango ?? readValue(profile, ['daño_rango', 'dano_rango', 'rangeDamage', 'range_damage']), icon: Target, sources: [] },
+    {
+      label: 'REDUCCIÓN DAÑO',
+      value: derived?.reduccionDano ?? readValue(profile, ['reduccion_dano', 'reduccionDano', 'dr', 'damageReduction', 'damage_reduction']) ?? 0,
+      icon: ShieldUser,
+      equipmentBonus: equipmentBonusData.byDerived.reduccionDano || 0,
+      sources: derived?.derivedSources?.reduccionDano || equipmentBonusData.sourcesByDerived.reduccionDano || [],
+    },
     {
       label: 'INICIATIVA',
       value: (() => {
@@ -258,7 +289,9 @@ export default function PublicSheet() {
         const num = Number(val);
         return !isNaN(num) && num > 0 ? `+${num}` : String(val);
       })(),
-      icon: Feather
+      icon: Feather,
+      equipmentBonus: equipmentBonusData.byDerived.iniciativa || 0,
+      sources: derived?.derivedSources?.iniciativa || equipmentBonusData.sourcesByDerived.iniciativa || [],
     },
     {
       label: 'MOD FUE',
@@ -268,7 +301,8 @@ export default function PublicSheet() {
         const num = Number(val);
         return !isNaN(num) && num > 0 ? `+${num}` : String(val);
       })(),
-      icon: Diff
+      icon: Diff,
+      sources: []
     },
     {
       label: 'MOD DES',
@@ -278,7 +312,8 @@ export default function PublicSheet() {
         const num = Number(val);
         return !isNaN(num) && num > 0 ? `+${num}` : String(val);
       })(),
-      icon: Diff
+      icon: Diff,
+      sources: []
     }
   ];
 
@@ -322,11 +357,12 @@ export default function PublicSheet() {
   // Inventory items
   const inventoryItems = useMemo(() => {
     const fromPossessions = possessionRows
-      .filter((r: any) => ['equipment', 'weapon', 'consumable', 'ammunition', 'crafting_material', 'ingredient'].includes(r?.element?.kind))
+      .filter((r: any) => ['equipment', 'weapon', 'consumable', 'ammunition', 'crafting_material', 'ingredient', 'item'].includes(r?.element?.kind || r?.kind))
       .map((r: any) => ({
-        id: r.element.id,
-        name: r.element.name,
-        subtext: r.element.description || (r.element.kind === 'equipment' ? 'Equipamiento' : 'Objeto')
+        id: r.element?.id || r.elementId,
+        name: r.element?.name || r.name,
+        subtext: r.element?.description || (r.element?.kind === 'equipment' ? 'Equipamiento' : 'Objeto'),
+        equipped: r.possession?.equipped ?? r.equipped ?? false,
       }));
     if (fromPossessions.length > 0) return fromPossessions;
     if (Array.isArray(profile.inventory)) return profile.inventory;
@@ -640,7 +676,7 @@ export default function PublicSheet() {
                     <HeartPulse className="size-3.5 text-accent2" /> Atributos Base
                   </h2>
                   <div className="grid grid-cols-2 gap-2 flex-1 content-start">
-                    {baseAttributes.map(({ label, base, purchasedBonus, traitBonus, hasBonus, value, icon: Icon }) => (
+                    {baseAttributes.map(({ label, base, purchasedBonus, traitBonus, equipmentBonus, hasBonus, value, sources, icon: Icon }) => (
                       <div key={label} className="flex items-center justify-between rounded border border-bg4/50 bg-bg1/90 px-3 py-2 text-right">
                         <div className="text-text2/50 shrink-0 flex items-center justify-center">
                           <Icon className="size-5" strokeWidth={1.5} />
@@ -648,23 +684,14 @@ export default function PublicSheet() {
                         <div className="text-right min-w-0">
                           <div className="flex items-center justify-end gap-1 flex-wrap">
                             <span className="block font-oxanium text-[9.5px] font-bold uppercase tracking-wider text-primary">{label}</span>
-                            {purchasedBonus > 0 && (
-                              <span className="text-[9px] font-mono font-bold px-1 py-0.5 rounded leading-none bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-                                Mejora: +{purchasedBonus}
-                              </span>
-                            )}
-                            {traitBonus !== 0 && (
-                              <span className={`text-[9px] font-mono font-bold px-1 py-0.5 rounded leading-none ${traitBonus > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
-                                Rasgo: {traitBonus > 0 ? `+${traitBonus}` : traitBonus}
-                              </span>
-                            )}
+                            <ModifierBadgeGroup sources={sources} />
                           </div>
                           <div className="mt-0.5 flex items-baseline justify-end gap-1.5">
                             <strong className="block font-oxanium text-base sm:text-lg font-bold leading-tight text-text1">
                               {displayValue(value, '—')}
                             </strong>
                             {hasBonus && hasValue(value) && (
-                              <span className="text-[10px] text-text2/60 font-oxanium" title={`Base: ${base}${purchasedBonus ? `, Mejora: +${purchasedBonus}` : ''}${traitBonus ? `, Rasgo: ${traitBonus > 0 ? `+${traitBonus}` : traitBonus}` : ''}`}>
+                              <span className="text-[10px] text-text2/60 font-oxanium" title={`Base: ${base}${purchasedBonus ? `, Mejora: +${purchasedBonus}` : ''}${traitBonus ? `, Rasgo: ${traitBonus > 0 ? `+${traitBonus}` : traitBonus}` : ''}${equipmentBonus ? `, Equipamiento: ${equipmentBonus > 0 ? `+${equipmentBonus}` : equipmentBonus}` : ''}`}>
                                 (Base: {base})
                               </span>
                             )}
@@ -707,9 +734,12 @@ export default function PublicSheet() {
                         <Icon className="size-5.5 sm:size-6" strokeWidth={1.5} />
                       </div>
                       <div className="text-center min-w-0">
-                        <span className="block font-oxanium text-[10.5px] sm:text-xs font-bold uppercase tracking-wider text-primary">
-                          {item.label}
-                        </span>
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <span className="block font-oxanium text-[10.5px] sm:text-xs font-bold uppercase tracking-wider text-primary">
+                            {item.label}
+                          </span>
+                          <ModifierBadgeGroup sources={item.sources} />
+                        </div>
                         <div className="mt-0.5 flex items-baseline justify-center">
                           <strong className="block font-oxanium text-lg sm:text-xl font-bold leading-tight text-text1">
                             {displayValue(item.value, '0')}
@@ -740,9 +770,12 @@ export default function PublicSheet() {
                         <Icon className="size-5" strokeWidth={1.5} />
                       </div>
                       <div className="text-right min-w-0">
-                        <span className="block font-oxanium text-[9.5px] font-bold uppercase tracking-wider text-primary">
-                          {item.label}
-                        </span>
+                        <div className="flex items-center justify-end gap-1 flex-wrap">
+                          <span className="block font-oxanium text-[9.5px] font-bold uppercase tracking-wider text-primary">
+                            {item.label}
+                          </span>
+                          <ModifierBadgeGroup sources={item.sources} />
+                        </div>
                         <div className="mt-0.5 flex items-baseline justify-end">
                           <strong className="block font-oxanium text-base sm:text-lg font-bold leading-tight text-text1">
                             {displayValue(item.value, '0')}
@@ -770,6 +803,9 @@ export default function PublicSheet() {
             </div>
           </div>
         </section>
+
+        {/* Modifier Notes Legend */}
+        <ModifierNotesLegend className="px-1" />
 
         {/* Quirk & Ocupación Row */}
         <section className="grid grid-cols-1 gap-3 sm:gap-3.5 lg:grid-cols-12">
@@ -1169,8 +1205,13 @@ export default function PublicSheet() {
                 >
                   {slot.item ? (
                     <>
-                      <div className="text-primary mb-0.5">
+                      <div className="text-primary mb-0.5 flex items-center justify-center gap-1">
                         <Package className="size-4 sm:size-5" />
+                        {slot.item.equipped && (
+                          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[7px] px-1 py-0 h-3.5 font-bold uppercase tracking-wider font-mono">
+                            EQUIPADO
+                          </Badge>
+                        )}
                       </div>
                       <span className="block text-[9px] font-bold text-text1 truncate max-w-full leading-tight">
                         {slot.item.name}

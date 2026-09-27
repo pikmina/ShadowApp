@@ -101,8 +101,15 @@ export function calculateTraitAttributeBonus(
   profile: Record<string, any>,
   elements: any[] = [],
   mechanics: SystemMechanicsConfig = []
-): { total: number; byAttr: Record<string, number> } {
+): {
+  total: number;
+  byAttr: Record<string, number>;
+  sourcesByAttr: Record<string, Array<{ name: string; amount: number; kind: string }>>;
+} {
   const byAttr: Record<string, number> = { FUE: 0, DES: 0, RES: 0, INT: 0, VOL: 0, VEL: 0 };
+  const sourcesByAttr: Record<string, Array<{ name: string; amount: number; kind: string }>> = {
+    FUE: [], DES: [], RES: [], INT: [], VOL: [], VEL: []
+  };
   let total = 0;
 
   const traitIds = Array.isArray(profile.traits) ? profile.traits : [];
@@ -174,27 +181,42 @@ export function calculateTraitAttributeBonus(
       const amount = Number(eff.amount ?? eff.value ?? 0);
 
       if ((eff.type === 'attribute_modifier' || eff.type === 'modify_attribute' || eff.type === 'stat_modifier')) {
-        if (['FUE', 'FUERZA'].includes(rawAttr)) { byAttr.FUE += amount; total += amount; }
-        if (['DES', 'DESTREZA'].includes(rawAttr)) { byAttr.DES += amount; total += amount; }
-        if (['RES', 'RESISTENCIA'].includes(rawAttr)) { byAttr.RES += amount; total += amount; }
-        if (['INT', 'INTELIGENCIA'].includes(rawAttr)) { byAttr.INT += amount; total += amount; }
-        if (['VOL', 'VOLUNTAD'].includes(rawAttr)) { byAttr.VOL += amount; total += amount; }
-        if (['VEL', 'VELOCIDAD'].includes(rawAttr)) { byAttr.VEL += amount; total += amount; }
+        const sourceName = el.name || id;
+        const sourceKind = el.kind || (weaknessIds.includes(id) ? 'weakness' : 'trait');
+        const addAttrSource = (attrKey: 'FUE' | 'DES' | 'RES' | 'INT' | 'VOL' | 'VEL') => {
+          byAttr[attrKey] += amount;
+          total += amount;
+          sourcesByAttr[attrKey].push({ name: sourceName, amount, kind: sourceKind });
+        };
+
+        if (['FUE', 'FUERZA'].includes(rawAttr)) addAttrSource('FUE');
+        if (['DES', 'DESTREZA'].includes(rawAttr)) addAttrSource('DES');
+        if (['RES', 'RESISTENCIA'].includes(rawAttr)) addAttrSource('RES');
+        if (['INT', 'INTELIGENCIA'].includes(rawAttr)) addAttrSource('INT');
+        if (['VOL', 'VOLUNTAD'].includes(rawAttr)) addAttrSource('VOL');
+        if (['VEL', 'VELOCIDAD'].includes(rawAttr)) addAttrSource('VEL');
       }
     });
   });
 
-  return { total, byAttr };
+  return { total, byAttr, sourcesByAttr };
 }
 
 export function calculatePurchasedAttributeBonuses(
   possessions: any[] = [],
   elements: any[] = []
-): { total: number; byAttr: Record<string, number> } {
+): {
+  total: number;
+  byAttr: Record<string, number>;
+  sourcesByAttr: Record<string, Array<{ name: string; amount: number; kind: string }>>;
+} {
   const byAttr: Record<string, number> = { FUE: 0, DES: 0, RES: 0, INT: 0, VOL: 0, VEL: 0 };
+  const sourcesByAttr: Record<string, Array<{ name: string; amount: number; kind: string }>> = {
+    FUE: [], DES: [], RES: [], INT: [], VOL: [], VEL: []
+  };
   let total = 0;
 
-  if (!Array.isArray(possessions)) return { total, byAttr };
+  if (!Array.isArray(possessions)) return { total, byAttr, sourcesByAttr };
 
   possessions.forEach((p: any) => {
     const el = p.element || elements.find((e: any) => e.id === p.elementId || e.id === p.id);
@@ -203,17 +225,190 @@ export function calculatePurchasedAttributeBonuses(
       const metadata = el?.metadata || p.metadata || {};
       const rawAttr = String(metadata.attributeId || 'FUE').trim().toUpperCase();
       const qty = Number(p.possession?.quantity ?? p.quantity ?? 1) || 0;
+      const sourceName = el?.name || `Mejora de ${rawAttr}`;
 
-      if (['FUE', 'FUERZA'].includes(rawAttr)) { byAttr.FUE += qty; total += qty; }
-      else if (['DES', 'DESTREZA'].includes(rawAttr)) { byAttr.DES += qty; total += qty; }
-      else if (['RES', 'RESISTENCIA'].includes(rawAttr)) { byAttr.RES += qty; total += qty; }
-      else if (['INT', 'INTELIGENCIA'].includes(rawAttr)) { byAttr.INT += qty; total += qty; }
-      else if (['VOL', 'VOLUNTAD'].includes(rawAttr)) { byAttr.VOL += qty; total += qty; }
-      else if (['VEL', 'VELOCIDAD'].includes(rawAttr)) { byAttr.VEL += qty; total += qty; }
+      const addUpgradeSource = (attrKey: 'FUE' | 'DES' | 'RES' | 'INT' | 'VOL' | 'VEL') => {
+        byAttr[attrKey] += qty;
+        total += qty;
+        sourcesByAttr[attrKey].push({ name: sourceName, amount: qty, kind: 'upgrade' });
+      };
+
+      if (['FUE', 'FUERZA'].includes(rawAttr)) addUpgradeSource('FUE');
+      else if (['DES', 'DESTREZA'].includes(rawAttr)) addUpgradeSource('DES');
+      else if (['RES', 'RESISTENCIA'].includes(rawAttr)) addUpgradeSource('RES');
+      else if (['INT', 'INTELIGENCIA'].includes(rawAttr)) addUpgradeSource('INT');
+      else if (['VOL', 'VOLUNTAD'].includes(rawAttr)) addUpgradeSource('VOL');
+      else if (['VEL', 'VELOCIDAD'].includes(rawAttr)) addUpgradeSource('VEL');
     }
   });
 
-  return { total, byAttr };
+  return { total, byAttr, sourcesByAttr };
+}
+
+export function calculateEquipmentBonuses(
+  possessions: any[] = [],
+  elements: any[] = [],
+  mechanics: SystemMechanicsConfig = []
+): {
+  totalAttr: number;
+  byAttr: Record<string, number>;
+  byDerived: {
+    salud: number;
+    estamina: number;
+    evasion: number;
+    coraje: number;
+    iniciativa: number;
+    reduccionDano: number;
+  };
+  sourcesByAttr: Record<string, Array<{ name: string; amount: number; kind: string }>>;
+  sourcesByDerived: {
+    salud: Array<{ name: string; amount: number; kind: string }>;
+    estamina: Array<{ name: string; amount: number; kind: string }>;
+    evasion: Array<{ name: string; amount: number; kind: string }>;
+    coraje: Array<{ name: string; amount: number; kind: string }>;
+    iniciativa: Array<{ name: string; amount: number; kind: string }>;
+    reduccionDano: Array<{ name: string; amount: number; kind: string }>;
+  };
+} {
+  const byAttr: Record<string, number> = { FUE: 0, DES: 0, RES: 0, INT: 0, VOL: 0, VEL: 0 };
+  const sourcesByAttr: Record<string, Array<{ name: string; amount: number; kind: string }>> = {
+    FUE: [], DES: [], RES: [], INT: [], VOL: [], VEL: []
+  };
+  const byDerived = {
+    salud: 0,
+    estamina: 0,
+    evasion: 0,
+    coraje: 0,
+    iniciativa: 0,
+    reduccionDano: 0,
+  };
+  const sourcesByDerived: {
+    salud: Array<{ name: string; amount: number; kind: string }>;
+    estamina: Array<{ name: string; amount: number; kind: string }>;
+    evasion: Array<{ name: string; amount: number; kind: string }>;
+    coraje: Array<{ name: string; amount: number; kind: string }>;
+    iniciativa: Array<{ name: string; amount: number; kind: string }>;
+    reduccionDano: Array<{ name: string; amount: number; kind: string }>;
+  } = {
+    salud: [],
+    estamina: [],
+    evasion: [],
+    coraje: [],
+    iniciativa: [],
+    reduccionDano: []
+  };
+  let totalAttr = 0;
+
+  if (!Array.isArray(possessions)) return { totalAttr, byAttr, byDerived, sourcesByAttr, sourcesByDerived };
+
+  possessions.forEach((p: any) => {
+    // Only process equipped possessions
+    const isEquipped = p.possession ? (p.possession.equipped === true) : (p.equipped === true);
+    if (!isEquipped) return;
+
+    const el = p.element || elements.find((e: any) => e.id === (p.elementId || p.possession?.elementId || p.id));
+    if (!el) return;
+
+    // Do not process traits/weaknesses/skills/credentials here
+    if (['trait', 'weakness', 'license', 'permission', 'certification', 'skill', 'attribute_upgrade'].includes(el.kind)) {
+      return;
+    }
+
+    const behaviorEffects: any[] = [];
+    if (Array.isArray(el.mechanicalBehaviors)) {
+      for (const b of el.mechanicalBehaviors) {
+        if (b && b.mode === 'continuous' && Array.isArray(b.effects)) {
+          const conditions = b.conditions || [];
+          const passes = conditions.every((c: any) => {
+            if (c.type === 'equipped') return isEquipped;
+            return true;
+          });
+          if (passes) {
+            behaviorEffects.push(...b.effects);
+          }
+        }
+      }
+    }
+
+    const references = Array.isArray(el.effects) ? el.effects.flatMap((effect: unknown) => {
+      const parsed = appliedMechanicReferenceSchema.safeParse(effect);
+      return parsed.success ? [parsed.data] : [];
+    }) : [];
+
+    let referencedEffects: any[] = [];
+    if (references.length > 0) {
+      const resolution = resolveAppliedMechanics(references, mechanics);
+      referencedEffects = [...resolution.effects];
+    }
+
+    const directEffects = Array.isArray(el.effects)
+      ? el.effects.filter((effect: unknown) => !appliedMechanicReferenceSchema.safeParse(effect).success)
+      : [];
+
+    const activeDirectEffects = behaviorEffects.length > 0 ? [] : directEffects;
+
+    [...behaviorEffects, ...activeDirectEffects, ...referencedEffects].forEach((eff: any) => {
+      const rawAttr = String(eff.attributeId || eff.statId || eff.target || '').trim().toUpperCase();
+      const amount = Number(eff.amount ?? eff.value ?? 0);
+      const sourceName = el.name || 'Equipo';
+      const sourceKind = el.kind || 'equipment';
+
+      if (eff.type === 'attribute_modifier' || eff.type === 'modify_attribute' || eff.type === 'stat_modifier') {
+        const addEquipAttrSource = (attrKey: 'FUE' | 'DES' | 'RES' | 'INT' | 'VOL' | 'VEL') => {
+          byAttr[attrKey] += amount;
+          totalAttr += amount;
+          sourcesByAttr[attrKey].push({ name: sourceName, amount, kind: sourceKind });
+        };
+        if (['FUE', 'FUERZA'].includes(rawAttr)) addEquipAttrSource('FUE');
+        else if (['DES', 'DESTREZA'].includes(rawAttr)) addEquipAttrSource('DES');
+        else if (['RES', 'RESISTENCIA'].includes(rawAttr)) addEquipAttrSource('RES');
+        else if (['INT', 'INTELIGENCIA'].includes(rawAttr)) addEquipAttrSource('INT');
+        else if (['VOL', 'VOLUNTAD'].includes(rawAttr)) addEquipAttrSource('VOL');
+        else if (['VEL', 'VELOCIDAD'].includes(rawAttr)) addEquipAttrSource('VEL');
+      }
+
+      if (eff.type === 'derived_stat_modifier' || eff.type === 'derived_modifier' || eff.type === 'modify_derived') {
+        if (['INI', 'INICIATIVA', 'INITIATIVE'].includes(rawAttr)) {
+          byDerived.iniciativa += amount;
+          sourcesByDerived.iniciativa.push({ name: sourceName, amount, kind: sourceKind });
+        } else if (['EVA', 'EVASION', 'EVASIÓN'].includes(rawAttr)) {
+          byDerived.evasion += amount;
+          sourcesByDerived.evasion.push({ name: sourceName, amount, kind: sourceKind });
+        } else if (['COR', 'CORAJE', 'COURAGE'].includes(rawAttr)) {
+          byDerived.coraje += amount;
+          sourcesByDerived.coraje.push({ name: sourceName, amount, kind: sourceKind });
+        } else if (['SAL', 'SALUD', 'HEALTH', 'HP'].includes(rawAttr)) {
+          byDerived.salud += amount;
+          sourcesByDerived.salud.push({ name: sourceName, amount, kind: sourceKind });
+        } else if (['EST', 'ESTAMINA', 'STAMINA', 'ES'].includes(rawAttr)) {
+          byDerived.estamina += amount;
+          sourcesByDerived.estamina.push({ name: sourceName, amount, kind: sourceKind });
+        } else if (['RED', 'REDUCCION_DANO', 'REDUCCIÓN_DAÑO', 'DAMAGE_REDUCTION', 'REDUCCION'].includes(rawAttr)) {
+          byDerived.reduccionDano += amount;
+          sourcesByDerived.reduccionDano.push({ name: sourceName, amount, kind: sourceKind });
+        }
+      }
+
+      if (eff.type === 'rd_modifier') {
+        byDerived.reduccionDano += amount;
+        sourcesByDerived.reduccionDano.push({ name: sourceName, amount, kind: sourceKind });
+      }
+
+      if (eff.type === 'resource_modifier') {
+        const resId = String(eff.resourceId || rawAttr).trim().toUpperCase();
+        if (['SA', 'SALUD', 'HEALTH', 'HP'].includes(resId)) {
+          byDerived.salud += amount;
+          sourcesByDerived.salud.push({ name: sourceName, amount, kind: sourceKind });
+        }
+        if (['ES', 'ESTAMINA', 'STAMINA'].includes(resId)) {
+          byDerived.estamina += amount;
+          sourcesByDerived.estamina.push({ name: sourceName, amount, kind: sourceKind });
+        }
+      }
+    });
+  });
+
+  return { totalAttr, byAttr, byDerived, sourcesByAttr, sourcesByDerived };
 }
 
 export function calculateDerivedStats(
@@ -228,10 +423,11 @@ export function calculateDerivedStats(
 
   const activePossessions = (possessions && possessions.length > 0)
     ? possessions
-    : (Array.isArray(profile.possessions) ? profile.possessions : []);
+    : (Array.isArray(profile.possessions) ? profile.possessions : (Array.isArray(profile.inventory) ? profile.inventory : []));
 
   const purchasedBonuses = calculatePurchasedAttributeBonuses(activePossessions, elements);
   const traitBonuses = calculateTraitAttributeBonus(profile, elements, mechanics);
+  const equipmentBonuses = calculateEquipmentBonuses(activePossessions, elements, mechanics);
 
   const baseFue = Number(profile['FUE'] || profile['fue'] || profile['fuerza']) || 0;
   const baseDes = Number(profile['DES'] || profile['des'] || profile['destreza']) || 0;
@@ -240,19 +436,44 @@ export function calculateDerivedStats(
   const baseVol = Number(profile['VOL'] || profile['vol'] || profile['voluntad']) || 0;
   const baseVel = Number(profile['VEL'] || profile['vel'] || profile['velocidad']) || 0;
 
-  let fue = baseFue + (purchasedBonuses.byAttr.FUE || 0) + (traitBonuses.byAttr.FUE || 0);
-  let des = baseDes + (purchasedBonuses.byAttr.DES || 0) + (traitBonuses.byAttr.DES || 0);
-  let res = baseRes + (purchasedBonuses.byAttr.RES || 0) + (traitBonuses.byAttr.RES || 0);
-  let int = baseInt + (purchasedBonuses.byAttr.INT || 0) + (traitBonuses.byAttr.INT || 0);
-  let vol = baseVol + (purchasedBonuses.byAttr.VOL || 0) + (traitBonuses.byAttr.VOL || 0);
-  let vel = baseVel + (purchasedBonuses.byAttr.VEL || 0) + (traitBonuses.byAttr.VEL || 0);
+  let fue = baseFue + (purchasedBonuses.byAttr.FUE || 0) + (traitBonuses.byAttr.FUE || 0) + (equipmentBonuses.byAttr.FUE || 0);
+  let des = baseDes + (purchasedBonuses.byAttr.DES || 0) + (traitBonuses.byAttr.DES || 0) + (equipmentBonuses.byAttr.DES || 0);
+  let res = baseRes + (purchasedBonuses.byAttr.RES || 0) + (traitBonuses.byAttr.RES || 0) + (equipmentBonuses.byAttr.RES || 0);
+  let int = baseInt + (purchasedBonuses.byAttr.INT || 0) + (traitBonuses.byAttr.INT || 0) + (equipmentBonuses.byAttr.INT || 0);
+  let vol = baseVol + (purchasedBonuses.byAttr.VOL || 0) + (traitBonuses.byAttr.VOL || 0) + (equipmentBonuses.byAttr.VOL || 0);
+  let vel = baseVel + (purchasedBonuses.byAttr.VEL || 0) + (traitBonuses.byAttr.VEL || 0) + (equipmentBonuses.byAttr.VEL || 0);
 
-  let extraIni = 0;
-  let extraEvasion = 0;
-  let extraCoraje = 0;
-  let extraSalud = 0;
-  let extraEstamina = 0;
-  let extraRed = 0;
+  let extraIni = equipmentBonuses.byDerived.iniciativa || 0;
+  let extraEvasion = equipmentBonuses.byDerived.evasion || 0;
+  let extraCoraje = equipmentBonuses.byDerived.coraje || 0;
+  let extraSalud = equipmentBonuses.byDerived.salud || 0;
+  let extraEstamina = equipmentBonuses.byDerived.estamina || 0;
+  let extraRed = equipmentBonuses.byDerived.reduccionDano || 0;
+
+  const derivedSources: {
+    salud: Array<{ name: string; amount: number; kind: string }>;
+    estamina: Array<{ name: string; amount: number; kind: string }>;
+    evasion: Array<{ name: string; amount: number; kind: string }>;
+    coraje: Array<{ name: string; amount: number; kind: string }>;
+    iniciativa: Array<{ name: string; amount: number; kind: string }>;
+    reduccionDano: Array<{ name: string; amount: number; kind: string }>;
+  } = {
+    salud: [...equipmentBonuses.sourcesByDerived.salud],
+    estamina: [...equipmentBonuses.sourcesByDerived.estamina],
+    evasion: [...equipmentBonuses.sourcesByDerived.evasion],
+    coraje: [...equipmentBonuses.sourcesByDerived.coraje],
+    iniciativa: [...equipmentBonuses.sourcesByDerived.iniciativa],
+    reduccionDano: [...equipmentBonuses.sourcesByDerived.reduccionDano]
+  };
+
+  const attributeSources: Record<string, Array<{ name: string; amount: number; kind: string }>> = {
+    FUE: [...purchasedBonuses.sourcesByAttr.FUE, ...traitBonuses.sourcesByAttr.FUE, ...equipmentBonuses.sourcesByAttr.FUE],
+    DES: [...purchasedBonuses.sourcesByAttr.DES, ...traitBonuses.sourcesByAttr.DES, ...equipmentBonuses.sourcesByAttr.DES],
+    RES: [...purchasedBonuses.sourcesByAttr.RES, ...traitBonuses.sourcesByAttr.RES, ...equipmentBonuses.sourcesByAttr.RES],
+    INT: [...purchasedBonuses.sourcesByAttr.INT, ...traitBonuses.sourcesByAttr.INT, ...equipmentBonuses.sourcesByAttr.INT],
+    VOL: [...purchasedBonuses.sourcesByAttr.VOL, ...traitBonuses.sourcesByAttr.VOL, ...equipmentBonuses.sourcesByAttr.VOL],
+    VEL: [...purchasedBonuses.sourcesByAttr.VEL, ...traitBonuses.sourcesByAttr.VEL, ...equipmentBonuses.sourcesByAttr.VEL],
+  };
 
   // Process derived stat modifiers from elements
   const traitIds = Array.isArray(profile.traits) ? profile.traits : [];
@@ -307,14 +528,50 @@ export function calculateDerivedStats(
     [...behaviorEffects, ...activeDirectEffects, ...referencedEffects].forEach((eff: any) => {
       const attrId = String(eff.attributeId || eff.statId || eff.target || '').trim().toUpperCase();
       const amount = Number(eff.amount ?? eff.value ?? 0);
+      const sourceName = el.name || id;
+      const sourceKind = el.kind || (weaknessIds.includes(id) ? 'weakness' : 'trait');
 
       if (eff.type === 'derived_stat_modifier' || eff.type === 'derived_modifier' || eff.type === 'modify_derived') {
-        if (['INI', 'INICIATIVA', 'INITIATIVE'].includes(attrId)) extraIni += amount;
-        if (['EVA', 'EVASION', 'EVASIÓN'].includes(attrId)) extraEvasion += amount;
-        if (['COR', 'CORAJE', 'COURAGE'].includes(attrId)) extraCoraje += amount;
-        if (['SAL', 'SALUD', 'HEALTH', 'HP'].includes(attrId)) extraSalud += amount;
-        if (['EST', 'ESTAMINA', 'STAMINA', 'ES'].includes(attrId)) extraEstamina += amount;
-        if (['RED', 'REDUCCION_DANO', 'REDUCCIÓN_DAÑO', 'DAMAGE_REDUCTION', 'REDUCCION'].includes(attrId)) extraRed += amount;
+        if (['INI', 'INICIATIVA', 'INITIATIVE'].includes(attrId)) {
+          extraIni += amount;
+          derivedSources.iniciativa.push({ name: sourceName, amount, kind: sourceKind });
+        }
+        if (['EVA', 'EVASION', 'EVASIÓN'].includes(attrId)) {
+          extraEvasion += amount;
+          derivedSources.evasion.push({ name: sourceName, amount, kind: sourceKind });
+        }
+        if (['COR', 'CORAJE', 'COURAGE'].includes(attrId)) {
+          extraCoraje += amount;
+          derivedSources.coraje.push({ name: sourceName, amount, kind: sourceKind });
+        }
+        if (['SAL', 'SALUD', 'HEALTH', 'HP'].includes(attrId)) {
+          extraSalud += amount;
+          derivedSources.salud.push({ name: sourceName, amount, kind: sourceKind });
+        }
+        if (['EST', 'ESTAMINA', 'STAMINA', 'ES'].includes(attrId)) {
+          extraEstamina += amount;
+          derivedSources.estamina.push({ name: sourceName, amount, kind: sourceKind });
+        }
+        if (['RED', 'REDUCCION_DANO', 'REDUCCIÓN_DAÑO', 'DAMAGE_REDUCTION', 'REDUCCION'].includes(attrId)) {
+          extraRed += amount;
+          derivedSources.reduccionDano.push({ name: sourceName, amount, kind: sourceKind });
+        }
+      }
+
+      if (eff.type === 'rd_modifier') {
+        extraRed += amount;
+        derivedSources.reduccionDano.push({ name: sourceName, amount, kind: sourceKind });
+      }
+
+      if (eff.type === 'resource_modifier') {
+        const resId = String(eff.resourceId || attrId).trim().toUpperCase();
+        if (['SA', 'SALUD', 'HEALTH', 'HP'].includes(resId)) {
+          extraSalud += amount;
+          derivedSources.salud.push({ name: sourceName, amount, kind: sourceKind });
+        } else if (['ES', 'ESTAMINA', 'STAMINA'].includes(resId)) {
+          extraEstamina += amount;
+          derivedSources.estamina.push({ name: sourceName, amount, kind: sourceKind });
+        }
       }
     });
   });
@@ -370,13 +627,17 @@ export function calculateDerivedStats(
     },
     purchasedBonuses: purchasedBonuses.byAttr,
     traitBonuses: traitBonuses.byAttr,
+    equipmentBonuses: equipmentBonuses.byAttr,
+    equipmentDerivedBonuses: equipmentBonuses.byDerived,
+    attributeSources,
+    derivedSources,
     attributeBonuses: {
-      FUE: (purchasedBonuses.byAttr.FUE || 0) + (traitBonuses.byAttr.FUE || 0),
-      DES: (purchasedBonuses.byAttr.DES || 0) + (traitBonuses.byAttr.DES || 0),
-      RES: (purchasedBonuses.byAttr.RES || 0) + (traitBonuses.byAttr.RES || 0),
-      INT: (purchasedBonuses.byAttr.INT || 0) + (traitBonuses.byAttr.INT || 0),
-      VOL: (purchasedBonuses.byAttr.VOL || 0) + (traitBonuses.byAttr.VOL || 0),
-      VEL: (purchasedBonuses.byAttr.VEL || 0) + (traitBonuses.byAttr.VEL || 0)
+      FUE: (purchasedBonuses.byAttr.FUE || 0) + (traitBonuses.byAttr.FUE || 0) + (equipmentBonuses.byAttr.FUE || 0),
+      DES: (purchasedBonuses.byAttr.DES || 0) + (traitBonuses.byAttr.DES || 0) + (equipmentBonuses.byAttr.DES || 0),
+      RES: (purchasedBonuses.byAttr.RES || 0) + (traitBonuses.byAttr.RES || 0) + (equipmentBonuses.byAttr.RES || 0),
+      INT: (purchasedBonuses.byAttr.INT || 0) + (traitBonuses.byAttr.INT || 0) + (equipmentBonuses.byAttr.INT || 0),
+      VOL: (purchasedBonuses.byAttr.VOL || 0) + (traitBonuses.byAttr.VOL || 0) + (equipmentBonuses.byAttr.VOL || 0),
+      VEL: (purchasedBonuses.byAttr.VEL || 0) + (traitBonuses.byAttr.VEL || 0) + (equipmentBonuses.byAttr.VEL || 0)
     }
   };
 }

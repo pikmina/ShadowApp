@@ -463,6 +463,23 @@ export function evaluateSingleCondition(
       break;
     }
 
+    case "equipped": {
+      const sourceElementId = ctx.elementId;
+      if (!sourceElementId) {
+        result = false;
+        break;
+      }
+      const equipped = ctx.entity.equippedItems;
+      if (Array.isArray(equipped)) {
+        result = equipped.includes(sourceElementId);
+      } else if (equipped && typeof equipped === "object") {
+        result = Boolean(equipped[sourceElementId]);
+      } else {
+        result = false;
+      }
+      break;
+    }
+
     default:
       result = false;
   }
@@ -1989,12 +2006,17 @@ export function buildCharacterRuleEntityState(
   const esMax = Number(profile.estamina_maxima ?? profile.ES?.max ?? esCurrent);
 
   const inventory: Record<string, number> = {};
+  const equippedItems: Record<string, boolean> = {};
   if (Array.isArray(character.possessions)) {
     for (const p of character.possessions) {
-      const elemId = p.element?.id || p.possession?.elementId;
-      const qty = p.possession?.quantity ?? 1;
+      const elemId = p.element?.id || p.possession?.elementId || p.elementId || p.id;
+      const qty = p.possession?.quantity ?? p.quantity ?? 1;
+      const isEquipped = p.possession?.equipped ?? p.equipped ?? false;
       if (elemId) {
         inventory[elemId] = (inventory[elemId] || 0) + qty;
+        if (isEquipped) {
+          equippedItems[elemId] = true;
+        }
       }
     }
   }
@@ -2009,6 +2031,7 @@ export function buildCharacterRuleEntityState(
     modifiers: [],
     statuses: [],
     inventory,
+    equippedItems,
   };
 
   if (initialOverrides) {
@@ -2026,6 +2049,10 @@ export function buildCharacterRuleEntityState(
       inventory: {
         ...baseState.inventory,
         ...(initialOverrides.inventory || {}),
+      },
+      equippedItems: {
+        ...baseState.equippedItems,
+        ...(initialOverrides.equippedItems || {}),
       },
     };
   }

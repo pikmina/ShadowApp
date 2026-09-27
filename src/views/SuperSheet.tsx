@@ -63,7 +63,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses } from '@/lib/characterValidation';
+import { calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses, calculateEquipmentBonuses } from '@/lib/characterValidation';
+import { ModifierBadgeGroup, ModifierNotesLegend, ModifierSource } from '@/components/character/ModifierBadge';
 import { calculateTechniqueStructuralCost } from '@/domain/systemMechanics';
 import { describeMechanicalBehavior, generateAutoDescription } from '@/domain/mechanicalDescription';
 import { cn } from '@/lib/utils';
@@ -105,6 +106,7 @@ interface HexStat {
   hasBonus: boolean;
   icon: any;
   angle: number; // in degrees
+  sources?: ModifierSource[];
 }
 
 function HexagonRadarChart({ stats }: { stats: HexStat[] }) {
@@ -331,11 +333,15 @@ function HexagonRadarChart({ stats }: { stats: HexStat[] }) {
                 <span className="text-base font-black font-oxanium text-white">{stat.value}</span>
               </div>
               <span className="text-[10px] text-zinc-400 truncate w-full font-oxanium font-bold uppercase">{stat.label}</span>
-              {stat.hasBonus && (
+              {stat.sources && stat.sources.length > 0 ? (
+                <div className="mt-1 flex items-center justify-center gap-1 flex-wrap">
+                  <ModifierBadgeGroup sources={stat.sources} />
+                </div>
+              ) : stat.hasBonus ? (
                 <span className="text-[9px] text-cyan-400/90 font-mono mt-0.5">
                   ({stat.base}+{stat.bonus})
                 </span>
-              )}
+              ) : null}
             </div>
           );
         })}
@@ -432,6 +438,10 @@ export default function SuperSheet() {
     return calculateTraitAttributeBonus(profile, combinedElements, mechanicsList);
   }, [profile, combinedElements, mechanicsList]);
 
+  const equipmentBonusData = useMemo(() => {
+    return calculateEquipmentBonuses(character?.possessions || [], combinedElements, mechanicsList);
+  }, [character?.possessions, combinedElements, mechanicsList]);
+
   const maxHealth = derived ? derived.salud : Number(readValue(profile, ['maxHealth', 'max_health', 'salud_maxima']) || 20);
   const maxStamina = derived ? derived.estamina : Number(readValue(profile, ['maxStamina', 'max_stamina', 'estamina_maxima']) || 20);
   const currentHealth = maxHealth;
@@ -495,26 +505,52 @@ export default function SuperSheet() {
     const baseVal = Number(rawVal || 0);
     const purchasedBonus = purchasedBonusData.byAttr[attr.key] || 0;
     const traitBonus = traitBonusData.byAttr[attr.key] || 0;
-    const totalBonus = purchasedBonus + traitBonus;
+    const equipmentBonus = equipmentBonusData.byAttr[attr.key] || 0;
+    const totalBonus = purchasedBonus + traitBonus + equipmentBonus;
     const finalVal = baseVal + totalBonus;
+    const sources = [
+      ...(purchasedBonusData.sourcesByAttr[attr.key] || []),
+      ...(traitBonusData.sourcesByAttr[attr.key] || []),
+      ...(equipmentBonusData.sourcesByAttr[attr.key] || [])
+    ];
     return {
       ...attr,
       base: baseVal,
       bonus: totalBonus,
       hasBonus: totalBonus !== 0,
       value: hasValue(rawVal) ? finalVal : 0,
+      sources,
     };
   });
 
   const defenseList = [
-    { label: 'EVASIÓN', value: derived?.evasion ?? readValue(profile, ['evasion', 'evasión', 'eva']), icon: SportShoe },
-    { label: 'CORAJE', value: derived?.coraje ?? readValue(profile, ['coraje', 'cor', 'courage']), icon: UserShield }
+    {
+      label: 'EVASIÓN',
+      value: derived?.evasion ?? readValue(profile, ['evasion', 'evasión', 'eva']),
+      icon: SportShoe,
+      equipmentBonus: equipmentBonusData.byDerived.evasion || 0,
+      sources: derived?.derivedSources?.evasion || equipmentBonusData.sourcesByDerived.evasion || [],
+    },
+    {
+      label: 'CORAJE',
+      value: derived?.coraje ?? readValue(profile, ['coraje', 'cor', 'courage']),
+      icon: UserShield,
+      equipmentBonus: equipmentBonusData.byDerived.coraje || 0,
+      sources: derived?.derivedSources?.coraje || equipmentBonusData.sourcesByDerived.coraje || [],
+    }
   ];
 
   const combatStatusList = [
-    { label: 'DAÑO FÍSICO', value: derived?.dañoFisico ?? readValue(profile, ['daño_fisico', 'dano_fisico', 'daño_base', 'baseDamage']), icon: Swords, sub: 'CQC / Melee' },
-    { label: 'DAÑO RANGO', value: derived?.dañoRango ?? readValue(profile, ['daño_rango', 'dano_rango', 'rangeDamage']), icon: Target, sub: 'Distancia' },
-    { label: 'REDUCCIÓN DAÑO', value: derived?.reduccionDano ?? readValue(profile, ['reduccion_dano', 'dr']) ?? 0, icon: ShieldUser, sub: 'Armadura / RD' },
+    { label: 'DAÑO FÍSICO', value: derived?.dañoFisico ?? readValue(profile, ['daño_fisico', 'dano_fisico', 'daño_base', 'baseDamage']), icon: Swords, sub: 'CQC / Melee', sources: [] },
+    { label: 'DAÑO RANGO', value: derived?.dañoRango ?? readValue(profile, ['daño_rango', 'dano_rango', 'rangeDamage']), icon: Target, sub: 'Distancia', sources: [] },
+    {
+      label: 'REDUCCIÓN DAÑO',
+      value: derived?.reduccionDano ?? readValue(profile, ['reduccion_dano', 'dr']) ?? 0,
+      icon: ShieldUser,
+      sub: 'Armadura / RD',
+      equipmentBonus: equipmentBonusData.byDerived.reduccionDano || 0,
+      sources: derived?.derivedSources?.reduccionDano || equipmentBonusData.sourcesByDerived.reduccionDano || [],
+    },
     {
       label: 'INICIATIVA',
       value: (() => {
@@ -524,7 +560,9 @@ export default function SuperSheet() {
         return !isNaN(num) && num > 0 ? `+${num}` : String(val);
       })(),
       icon: Feather,
-      sub: 'Turn Order'
+      sub: 'Turn Order',
+      equipmentBonus: equipmentBonusData.byDerived.iniciativa || 0,
+      sources: derived?.derivedSources?.iniciativa || equipmentBonusData.sourcesByDerived.iniciativa || [],
     },
     {
       label: 'MOD FUE',
@@ -535,7 +573,8 @@ export default function SuperSheet() {
         return !isNaN(num) && num > 0 ? `+${num}` : String(val);
       })(),
       icon: Diff,
-      sub: 'Bono Fuerza'
+      sub: 'Bono Fuerza',
+      sources: []
     },
     {
       label: 'MOD DES',
@@ -546,7 +585,8 @@ export default function SuperSheet() {
         return !isNaN(num) && num > 0 ? `+${num}` : String(val);
       })(),
       icon: Diff,
-      sub: 'Bono Destreza'
+      sub: 'Bono Destreza',
+      sources: []
     }
   ];
 
@@ -1048,11 +1088,12 @@ export default function SuperSheet() {
                   const Icon = def.icon;
                   return (
                     <div key={def.label} className="p-3 rounded-lg bg-zinc-950/90 border border-zinc-800 flex items-center justify-between hover:border-cyan-500/40 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <Icon className="size-4 text-cyan-400" />
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <Icon className="size-4 text-cyan-400 shrink-0" />
                         <span className="text-xs font-oxanium font-bold text-zinc-300">{def.label}</span>
+                        <ModifierBadgeGroup sources={def.sources} />
                       </div>
-                      <span className="text-base font-black font-oxanium text-white">{displayValue(def.value, '0')}</span>
+                      <span className="text-base font-black font-oxanium text-white shrink-0 ml-2">{displayValue(def.value, '0')}</span>
                     </div>
                   );
                 })}
@@ -1064,8 +1105,11 @@ export default function SuperSheet() {
                   const Icon = item.icon;
                   return (
                     <div key={item.label} className="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/80 space-y-1 hover:border-zinc-700 transition-colors">
-                      <div className="flex items-center justify-between text-[11px] font-oxanium">
-                        <span className="text-zinc-400 font-semibold truncate">{item.label}</span>
+                      <div className="flex items-center justify-between text-[11px] font-oxanium gap-1 flex-wrap">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <span className="text-zinc-400 font-semibold truncate">{item.label}</span>
+                          <ModifierBadgeGroup sources={item.sources} />
+                        </div>
                         <Icon className="size-3 text-cyan-400 shrink-0" />
                       </div>
                       <div className="flex items-baseline justify-between">
@@ -1076,6 +1120,9 @@ export default function SuperSheet() {
                   );
                 })}
               </div>
+
+              {/* Modifier Notes Legend */}
+              <ModifierNotesLegend className="mt-2 border-zinc-800 bg-zinc-950/40 text-zinc-400" />
             </div>
 
             {/* Personal Dossier / Data Grid */}
