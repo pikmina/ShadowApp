@@ -80,14 +80,14 @@ jobs:
           mkdir "$releases/.deploy-lock"
           trap 'rmdir "$releases/.deploy-lock" 2>/dev/null || true; rm -f "$HOME/shadowapp-upload-$1.tgz" 2>/dev/null || true' EXIT
 
-          # Prune old release archives from previous runs (except the current one) and releases to free disk quota
+          # Prune old release archives from previous runs and release folders to free disk and inode quota
           find "$HOME" -maxdepth 1 -name 'shadowapp-upload-*.tgz' ! -name "shadowapp-upload-$1.tgz" -delete 2>/dev/null || true
+          rm -rf "$HOME/.npm" "$HOME/.node-gyp" 2>/dev/null || true
+
           current_target=""
-          previous_target=""
           test -L "$app/.namecheap-current" && current_target="$(readlink -f "$app/.namecheap-current")" || true
-          test -L "$app/.namecheap-previous" && previous_target="$(readlink -f "$app/.namecheap-previous")" || true
           for dir in "$releases"/actions-* "$releases"/release-*; do
-            if [ -d "$dir" ] && [ "$dir" != "$current_target" ] && [ "$dir" != "$previous_target" ]; then
+            if [ -d "$dir" ] && [ "$dir" != "$current_target" ]; then
               echo "Liberando espacio: eliminando release antigua $dir"
               rm -rf "$dir"
             fi
@@ -103,7 +103,7 @@ jobs:
           export NODE_ENV=production
           unset DATABASE_URL SQL_HOST SQL_USER SQL_PASSWORD SQL_ADMIN_USER SQL_ADMIN_PASSWORD SQL_DB_NAME PGHOST PGUSER PGPASSWORD PGDATABASE
           npm ci --omit=dev --no-audit --no-fund --prefix "$release"
-          npm cache clean --force 2>/dev/null || true
+          rm -rf "$HOME/.npm" 2>/dev/null || true
           node --check dist/server.cjs
           test -s dist/index.html
           printf '%s\n' "$2" > NAMECHEAP_COMMIT
