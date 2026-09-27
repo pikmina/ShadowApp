@@ -394,7 +394,7 @@ export default function SuperSheet() {
   const possessionRows = Array.isArray(character?.possessions) ? character.possessions : [];
   const relationalTraits = possessionRows.filter((row: any) => row?.element?.kind === 'trait').map((row: any) => row.element.id);
   const relationalWeaknesses = possessionRows.filter((row: any) => row?.element?.kind === 'weakness').map((row: any) => row.element.id);
-  const credentials = possessionRows.filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind));
+  const credentials = possessionRows.filter((row: any) => ['license', 'permission', 'certification', 'character_resource', 'background', 'clandestine_asset'].includes(row?.element?.kind));
 
   // Merge traits and weaknesses
   const combinedTraits = Array.from(new Set([
@@ -654,7 +654,7 @@ export default function SuperSheet() {
   // Inventory items
   const inventoryItems = useMemo(() => {
     const fromPossessions = possessionRows
-      .filter((r: any) => ['equipment', 'weapon', 'consumable', 'ammunition', 'crafting_material', 'ingredient'].includes(r?.element?.kind))
+      .filter((r: any) => ['equipment', 'weapon', 'consumable', 'ammunition', 'crafting_material', 'ingredient', 'vehicle', 'real_estate'].includes(r?.element?.kind))
       .map((r: any) => ({
         id: r.element.id,
         name: r.element.name,
@@ -1357,15 +1357,29 @@ export default function SuperSheet() {
               <div className="space-y-2.5">
                 {credentials.map((cred: any, idx: number) => {
                   const el = cred.element;
+                  const kindLabels: Record<string, { label: string; color: string; border: string; bg: string }> = {
+                    license: { label: 'Licencia', color: 'text-amber-400', border: 'border-amber-500/30', bg: 'bg-amber-950/40' },
+                    permission: { label: 'Permiso', color: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-950/40' },
+                    certification: { label: 'Certificación', color: 'text-cyan-400', border: 'border-cyan-500/30', bg: 'bg-cyan-950/40' },
+                    character_resource: { label: 'Recurso', color: 'text-purple-400', border: 'border-purple-500/30', bg: 'bg-purple-950/40' },
+                    background: { label: 'Trasfondo', color: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-950/40' },
+                    clandestine_asset: { label: 'Activo Clandestino', color: 'text-rose-400', border: 'border-rose-500/30', bg: 'bg-rose-950/40' },
+                  };
+                  const meta = kindLabels[el?.kind] ?? { label: 'Credencial', color: 'text-amber-400', border: 'border-amber-500/30', bg: 'bg-amber-950/40' };
                   return (
                     <div key={idx} className="p-3 rounded-lg bg-gradient-to-r from-amber-950/30 via-zinc-950 to-zinc-950 border border-amber-500/30 flex items-start gap-3 hover:border-amber-400/50 transition-colors">
                       <ShieldCheck className="size-5 text-amber-400 shrink-0 mt-0.5" />
-                      <div className="space-y-0.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-oxanium font-bold text-amber-300 uppercase tracking-wide block">
+                      <div className="space-y-0.5 flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-xs font-oxanium font-bold text-amber-300 uppercase tracking-wide">
                             {el?.name || 'Credencial Oficial'}
                           </span>
-                          <span className="text-[9px] font-mono text-zinc-500 uppercase">#AUTH-{idx + 1}</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold font-mono uppercase ${meta.bg} ${meta.border} ${meta.color} border`}>
+                              {meta.label}
+                            </span>
+                            <span className="text-[9px] font-mono text-zinc-500 uppercase">#AUTH-{idx + 1}</span>
+                          </div>
                         </div>
                         <p className="text-[11px] text-zinc-400">
                           {el?.description || 'Acreditación válida para el ejercicio heroico.'}

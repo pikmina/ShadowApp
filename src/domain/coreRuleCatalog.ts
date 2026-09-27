@@ -8,6 +8,7 @@ import {
   getBarrierAmount
 } from './systemMechanics';
 import type { RuleComponent } from './ruleComponents';
+import { getDerivedStatLabel, getAttributeLabel } from './mechanicalLabels';
 
 export { findHealingOption, getValidHealingOptions, getBarrierAmount };
 
@@ -67,6 +68,8 @@ export const CORE_CATEGORIES = {
   barrier: 'Barrera',
   bonus: 'Bono',
   penalty: 'Pena',
+  derived_stat: 'Estadística derivada',
+  attribute: 'Atributo',
   status: 'Estado alterado',
   cost_adjustment: 'Modificar coste',
   manual_resolution: 'Resolución manual',
@@ -115,6 +118,7 @@ export interface CategoryOptionView {
   ruleType?: string;
   formula?: string;
   amount?: number;
+  isAvailable: boolean;
 }
 
 /** Only CREATE / versioned migration uses these defaults. LOAD never calls this. */
@@ -217,9 +221,26 @@ export function createCoreCategories(): SystemMechanicsConfig {
 
   // Bonus & Penalty Magnitudes (Generic, attribute-independent)
   for (const n of [1, 2, 3, 4, 5]) {
-    option('bonus', String(n), `+${n}`, undefined, String(n), 0);
+    const bonusCost = n === 3 ? 2 : (n === 2 ? 1 : (n > 3 ? n - 1 : 0));
+    option('bonus', String(n), `+${n}`, undefined, String(n), bonusCost);
     option('penalty', String(n), `−${n}`, undefined, String(n), 0);
   }
+
+  // Derived Stats (Core Category)
+  effect('derived_stat', 'eva', `${getDerivedStatLabel('EVA')} (EVA)`, { type: 'derived_stat_modifier', statId: 'EVA', amount: 0 }, 'EVA', 2);
+  effect('derived_stat', 'sal', `${getDerivedStatLabel('SAL')} (SA)`, { type: 'derived_stat_modifier', statId: 'SAL', amount: 0 }, 'SAL', 0);
+  effect('derived_stat', 'est', `${getDerivedStatLabel('EST')} (ES)`, { type: 'derived_stat_modifier', statId: 'EST', amount: 0 }, 'EST', 0);
+  effect('derived_stat', 'ini', `${getDerivedStatLabel('INI')} (INI)`, { type: 'derived_stat_modifier', statId: 'INI', amount: 0 }, 'INI', 0);
+  effect('derived_stat', 'rd', `${getDerivedStatLabel('RD')} (RD)`, { type: 'derived_stat_modifier', statId: 'RD', amount: 0 }, 'RD', 0);
+  effect('derived_stat', 'cor', `${getDerivedStatLabel('COR')} (COR)`, { type: 'derived_stat_modifier', statId: 'COR', amount: 0 }, 'COR', 0);
+
+  // Attributes (Core Category)
+  effect('attribute', 'fue', getAttributeLabel('FUE'), { type: 'attribute_modifier', attributeId: 'FUE', amount: 0 }, 'FUE', 0);
+  effect('attribute', 'res', getAttributeLabel('RES'), { type: 'attribute_modifier', attributeId: 'RES', amount: 0 }, 'RES', 0);
+  effect('attribute', 'des', getAttributeLabel('DES'), { type: 'attribute_modifier', attributeId: 'DES', amount: 0 }, 'DES', 0);
+  effect('attribute', 'int', getAttributeLabel('INT'), { type: 'attribute_modifier', attributeId: 'INT', amount: 0 }, 'INT', 0);
+  effect('attribute', 'vel', getAttributeLabel('VEL'), { type: 'attribute_modifier', attributeId: 'VEL', amount: 0 }, 'VEL', 0);
+  effect('attribute', 'vol', getAttributeLabel('VOL'), { type: 'attribute_modifier', attributeId: 'VOL', amount: 0 }, 'VOL', 0);
 
   // Health Cost (Sacrificio de HP)
   for (const n of [1, 2, 3, 4, 5]) {
@@ -281,10 +302,11 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('selection_restriction', 'exclude', 'Excluir específico', undefined, 'exclude');
 
   // Duration
-  option('duration', 'instant', 'Instantánea', { kind: 'duration', duration: { mode: 'instant' } }, 'instant');
-  option('duration', 'turns', 'Por turnos', { kind: 'duration', duration: { mode: 'turns', turns: 1 } }, 'turns');
+  option('duration', 'instant', 'Instantánea', { kind: 'duration', duration: { mode: 'instant' } }, 'instant', 0);
+  option('duration', 'turns', 'Por turnos', { kind: 'duration', duration: { mode: 'turns', turns: 1 } }, 'turns', 0);
   for (const n of [1, 2, 3, 4, 5]) {
-    option('duration', String(n), `${n} turnos`, { kind: 'duration', duration: { mode: 'turns', turns: n } }, String(n));
+    const durCost = n === 1 ? 0 : (n === 2 ? 1 : n - 1);
+    option('duration', String(n), `${n} turnos`, { kind: 'duration', duration: { mode: 'turns', turns: n } }, String(n), durCost);
   }
   option('duration', 'until_turn_end', 'Hasta el final del turno', { kind: 'duration', duration: { mode: 'until_turn_end' } }, 'until_turn_end');
   option('duration', 'until_next_turn', 'Hasta el siguiente turno', { kind: 'duration', duration: { mode: 'until_next_turn' } }, 'until_next_turn');
@@ -336,10 +358,10 @@ export function createCoreCategories(): SystemMechanicsConfig {
 
   // Limitations: Usage & Cooldown
   for (const period of ['turn', 'combat', 'mission', 'day'] as const) {
-    option('usage', period, `1 por ${{ turn: 'turno', combat: 'combate', mission: 'misión', day: 'día' }[period]}`, { kind: 'usage', period, max: 1 }, period);
+    option('usage', period, `1 por ${{ turn: 'turno', combat: 'combate', mission: 'misión', day: 'día' }[period]}`, { kind: 'usage', period, max: 1 }, period, 0);
   }
   for (const n of [1, 2, 3, 4, 5]) {
-    option('cooldown', String(n), `${n} ${n === 1 ? 'turno' : 'turnos'}`, { kind: 'cooldown', turns: n }, String(n));
+    option('cooldown', String(n), `${n} ${n === 1 ? 'turno' : 'turnos'}`, { kind: 'cooldown', turns: n }, String(n), -n);
   }
 
   // Roll Types
@@ -392,6 +414,7 @@ export function getCategoryOptions(
     const formula = rawFormula || (/^\d+[dD]\d+$/.test(r.runtimeKey) ? r.runtimeKey : (/^\d+[dD]\d+$/.test(r.name) ? r.name : undefined));
     const amount = typeof r.effect?.amount === 'number' ? r.effect.amount : (typeof r.effect?.magnitude?.amount === 'number' ? r.effect.magnitude.amount : (typeof r.component?.amount === 'number' ? r.component.amount : undefined));
     const runtimeKey = r.runtimeKey || formula || (r.id ? r.id.split('.').pop() : '') || r.id;
+    const isAvailable = r.isAvailable !== false;
 
     return {
       id: r.id,
@@ -402,6 +425,7 @@ export function getCategoryOptions(
       ruleType: r.ruleType,
       formula: formula || undefined,
       amount,
+      isAvailable,
     };
   };
 
@@ -415,6 +439,29 @@ export function getCategoryOptions(
   }
 
   return cat.rules.map(extractRuleProps);
+}
+
+export function getVisibleOptions<T extends { runtimeKey?: string; id?: string; isAvailable?: boolean; name?: string }>(
+  options: T[],
+  currentValue?: string | number | null
+): T[] {
+  const currentStr = currentValue !== undefined && currentValue !== null ? String(currentValue) : undefined;
+
+  return options.filter((opt) => {
+    if (opt.isAvailable !== false) return true;
+    if (!currentStr) return false;
+    return (
+      opt.runtimeKey === currentStr ||
+      opt.id === currentStr ||
+      (opt as any).key === currentStr ||
+      (opt as any).ruleId === currentStr ||
+      (opt as any).value === currentStr ||
+      (opt as any).amount === currentValue ||
+      (opt as any).dice === currentStr ||
+      (opt as any).formula === currentStr ||
+      (opt as any).kind === currentStr
+    );
+  });
 }
 
 export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig {
@@ -521,7 +568,7 @@ export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig 
     const legacyFue2 = bonusCat.rules.find(r => r.id === 'core.bonus.fue2');
     if (legacyFue2) {
       const opt2 = bonusCat.rules.find(r => r.id === 'core.bonus.2' || (r as any).runtimeKey === '2');
-      if (opt2 && typeof legacyFue2.cost === 'number' && legacyFue2.cost !== 0 && opt2.cost === 0) {
+      if (opt2 && typeof legacyFue2.cost === 'number' && legacyFue2.cost !== 0 && opt2.cost <= 1) {
         opt2.cost = legacyFue2.cost;
       }
     }
@@ -532,7 +579,7 @@ export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig 
     const legacyInt2 = penaltyCat.rules.find(r => r.id === 'core.penalty.int2');
     if (legacyInt2) {
       const opt2 = penaltyCat.rules.find(r => r.id === 'core.penalty.2' || (r as any).runtimeKey === '2');
-      if (opt2 && typeof legacyInt2.cost === 'number' && legacyInt2.cost !== 0 && opt2.cost === 0) {
+      if (opt2 && typeof legacyInt2.cost === 'number' && legacyInt2.cost !== 0 && opt2.cost <= 1) {
         opt2.cost = legacyInt2.cost;
       }
     }

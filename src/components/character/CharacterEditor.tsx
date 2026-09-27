@@ -49,7 +49,10 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const [inventoryItems, setInventoryItems] = useState<Array<{ elementId: string; quantity: number; notes?: string | null; equipped?: boolean; element?: any }>>(() => {
     const rows = Array.isArray(character?.possessions) ? character.possessions : [];
     return rows
-      .filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness', 'skill'].includes(row?.element?.kind || row?.kind))
+      .filter((row: any) => [
+        'equipment', 'weapon', 'consumable', 'ammunition', 
+        'crafting_material', 'ingredient', 'vehicle', 'real_estate'
+      ].includes(row?.element?.kind || row?.kind))
       .map((row: any) => ({
         elementId: row?.element?.id || row?.possession?.elementId || row?.elementId || row?.id,
         quantity: row?.possession?.quantity || row?.quantity || 1,
@@ -63,7 +66,10 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const [credentialItems, setCredentialItems] = useState<Array<{ elementId: string; element?: any }>>(() => {
     const rows = Array.isArray(character?.possessions) ? character.possessions : [];
     return rows
-      .filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind || row?.kind))
+      .filter((row: any) => [
+        'license', 'permission', 'certification', 
+        'character_resource', 'background', 'clandestine_asset'
+      ].includes(row?.element?.kind || row?.kind))
       .map((row: any) => ({
         elementId: row?.element?.id || row?.possession?.elementId,
         element: row?.element
@@ -107,22 +113,35 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const { data: rawElements } = useSWR(user ? "/api/elements" : null, fetcher);
   const elements = useMemo(() => Array.isArray(rawElements) ? rawElements.filter(el => el.status === 'published') : [], [rawElements]);
   
-  const credentialKindLabel = (kind: string) => ({ license: 'Licencia', permission: 'Permiso', certification: 'Certificación' } as Record<string, string>)[kind] ?? kind;
+  const credentialKindLabel = (kind: string) => ({
+    license: 'Licencia',
+    permission: 'Permiso',
+    certification: 'Certificación',
+    character_resource: 'Recurso de Personaje',
+    background: 'Trasfondo',
+    clandestine_asset: 'Activo Clandestino'
+  } as Record<string, string>)[kind] ?? kind;
   const elementKindMap: Record<string, string> = {
     license: 'Licencia', permission: 'Permiso', certification: 'Certificación', trait: 'Rasgo', weakness: 'Debilidad',
     skill: 'Habilidad', equipment: 'Equipamiento', weapon: 'Arma', ammunition: 'Munición', consumable: 'Consumible',
-    character_resource: 'Recurso', attribute_upgrade: 'Mejora', technique_entitlement: 'Técnica',
-    altered_status: 'Estado Alterado', plus_ultra_effect: 'Plus Ultra', crafting_material: 'Material',
+    character_resource: 'Recurso de Personaje', attribute_upgrade: 'Mejora', technique_entitlement: 'Técnica',
+    altered_status: 'Estado Alterado', plus_ultra_effect: 'Plus Ultra', crafting_material: 'Material de Fabricación',
     ingredient: 'Ingrediente', background: 'Trasfondo', vehicle: 'Vehículo', real_estate: 'Inmueble',
     clandestine_asset: 'Activo Clandestino'
   };
 
   const publishedInventoryElements = useMemo(() => {
-    return elements.filter(el => !['trait', 'weakness', 'license', 'permission', 'certification', 'skill'].includes(el.kind));
+    return elements.filter(el => [
+      'equipment', 'weapon', 'consumable', 'ammunition', 
+      'crafting_material', 'ingredient', 'vehicle', 'real_estate'
+    ].includes(el.kind));
   }, [elements]);
 
   const publishedCredentialElements = useMemo(() => {
-    return elements.filter(el => ['license', 'permission', 'certification'].includes(el.kind));
+    return elements.filter(el => [
+      'license', 'permission', 'certification', 
+      'character_resource', 'background', 'clandestine_asset'
+    ].includes(el.kind));
   }, [elements]);
 
   const publishedSkillElements = useMemo(() => {
@@ -218,7 +237,10 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
       const rows = Array.isArray(character.possessions) ? character.possessions : [];
       setInventoryItems(
         rows
-          .filter((row: any) => !['license', 'permission', 'certification', 'trait', 'weakness', 'skill'].includes(row?.element?.kind || row?.kind))
+          .filter((row: any) => [
+            'equipment', 'weapon', 'consumable', 'ammunition', 
+            'crafting_material', 'ingredient', 'vehicle', 'real_estate'
+          ].includes(row?.element?.kind || row?.kind))
           .map((row: any) => ({
             elementId: row?.element?.id || row?.possession?.elementId || row?.elementId || row?.id,
             quantity: row?.possession?.quantity || row?.quantity || 1,
@@ -229,7 +251,10 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
       );
       setCredentialItems(
         rows
-          .filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind || row?.kind))
+          .filter((row: any) => [
+            'license', 'permission', 'certification', 
+            'character_resource', 'background', 'clandestine_asset'
+          ].includes(row?.element?.kind || row?.kind))
           .map((row: any) => ({
             elementId: row?.element?.id || row?.possession?.elementId,
             element: row?.element
@@ -1600,21 +1625,21 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             <CardHeader className="border-b bg-muted/30 pb-3 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-base uppercase tracking-wider text-amber-400 flex items-center gap-2">
-                  <Shield className="size-5" /> Licencias, Permisos y Certificaciones
+                  <Shield className="size-5" /> Licencias, Permisos, Certificaciones y Recursos
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Habilitaciones oficiales, permisos especiales y títulos acreditados otorgados al personaje.
+                  Habilitaciones oficiales, permisos especiales, certificaciones, recursos de personaje, trasfondos y activos clandestinos.
                 </CardDescription>
               </div>
               <Badge variant="outline" className="font-mono text-xs border-amber-500/30 text-amber-400">
-                {credentialItems.length} {credentialItems.length === 1 ? 'credencial' : 'credenciales'}
+                {credentialItems.length} {credentialItems.length === 1 ? 'registro' : 'registros'}
               </Badge>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
               {/* Añadir credencial */}
               <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-3">
                 <Label className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
-                  <Plus className="size-4" /> Añadir Licencia, Permiso o Certificación
+                  <Plus className="size-4" /> Añadir Licencia, Permiso, Certificación, Recurso o Trasfondo
                 </Label>
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                   <div className="sm:col-span-9">
@@ -1623,7 +1648,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                       onValueChange={setSelectedCredElementId}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Seleccionar credencial del catálogo..." />
+                        <SelectValue placeholder="Seleccionar credencial, recurso o trasfondo del catálogo..." />
                       </SelectTrigger>
                       <SelectContent className="max-h-72">
                         {publishedCredentialElements.map(el => (
@@ -1663,9 +1688,9 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
               {credentialItems.length === 0 ? (
                 <div className="text-center py-12 border border-dashed border-border/80 rounded-lg bg-muted/10">
                   <Shield className="size-10 text-muted-foreground/40 mx-auto mb-3" />
-                  <h4 className="text-sm font-semibold text-foreground">Sin credenciales asignadas</h4>
+                  <h4 className="text-sm font-semibold text-foreground">Sin registros asignados</h4>
                   <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
-                    Usa el selector superior para asignar licencias provisionales, permisos especiales o certificaciones oficiales.
+                    Usa el selector superior para asignar licencias, permisos especiales, certificaciones oficiales, recursos, trasfondos o activos clandestinos.
                   </p>
                 </div>
               ) : (
@@ -1676,6 +1701,9 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                       license: { label: 'Licencia', border: 'border-amber-500/30', bg: 'bg-amber-500/10', text: 'text-amber-400' },
                       permission: { label: 'Permiso', border: 'border-emerald-500/30', bg: 'bg-emerald-500/10', text: 'text-emerald-400' },
                       certification: { label: 'Certificación', border: 'border-cyan-500/30', bg: 'bg-cyan-500/10', text: 'text-cyan-400' },
+                      character_resource: { label: 'Recurso', border: 'border-purple-500/30', bg: 'bg-purple-500/10', text: 'text-purple-400' },
+                      background: { label: 'Trasfondo', border: 'border-blue-500/30', bg: 'bg-blue-500/10', text: 'text-blue-400' },
+                      clandestine_asset: { label: 'Activo Clandestino', border: 'border-rose-500/30', bg: 'bg-rose-500/10', text: 'text-rose-400' },
                     };
                     const meta = kindMeta[el.kind] || { label: el.kind, border: 'border-border', bg: 'bg-muted/20', text: 'text-foreground' };
 

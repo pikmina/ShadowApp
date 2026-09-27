@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Switch } from '../ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -166,6 +167,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
   const [activeGroup, setActiveGroup] = useState<string>('all');
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [isNewOption, setIsNewOption] = useState<boolean>(false);
+  const [ruleFilter, setRuleFilter] = useState<'all' | 'available' | 'unavailable'>('all');
 
   const save = async (next: SystemMechanicsConfig) => {
     const parsed = systemMechanicsConfigSchema.safeParse(next);
@@ -386,14 +388,39 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
     </div>
     
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Opciones de la Categoría</h3>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h3 className="text-lg font-semibold">Opciones de la Categoría</h3>
+          <div className="flex items-center rounded-md border bg-muted/30 p-0.5 text-xs">
+            <button
+              type="button"
+              className={`px-2.5 py-1 rounded-sm font-medium transition-colors ${ruleFilter === 'all' ? 'bg-background shadow-xs text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={() => setRuleFilter('all')}
+            >
+              Todas ({draft.rules.length})
+            </button>
+            <button
+              type="button"
+              className={`px-2.5 py-1 rounded-sm font-medium transition-colors ${ruleFilter === 'available' ? 'bg-background shadow-xs text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={() => setRuleFilter('available')}
+            >
+              Disponibles ({draft.rules.filter(r => r.isAvailable !== false).length})
+            </button>
+            <button
+              type="button"
+              className={`px-2.5 py-1 rounded-sm font-medium transition-colors ${ruleFilter === 'unavailable' ? 'bg-background shadow-xs text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={() => setRuleFilter('unavailable')}
+            >
+              No disponibles ({draft.rules.filter(r => r.isAvailable === false).length})
+            </button>
+          </div>
+        </div>
         <Button variant="outline" size="sm" disabled={saving} onClick={() => {
           const newId = nanoid();
           setBackupDraft(structuredClone(draft));
           const newRule = draft.rules[0] 
-            ? { ...structuredClone(draft.rules[0]), id: newId, name: 'Nueva opción', cost: 0 } 
-            : { id: newId, name: 'Nueva opción', cost: 0, ruleType: 'component' as const, component: structuredClone(componentTemplates.duration) };
+            ? { ...structuredClone(draft.rules[0]), id: newId, name: 'Nueva opción', cost: 0, isAvailable: true } 
+            : { id: newId, name: 'Nueva opción', cost: 0, ruleType: 'component' as const, isAvailable: true, component: structuredClone(componentTemplates.duration) };
           const newDraft = { ...draft, rules: [...draft.rules, newRule] } as Category;
           setDraft(newDraft);
           setEditingRuleId(newId);
@@ -419,7 +446,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                   </span>
                 </div>
                 <DialogDescription className="text-xs text-muted-foreground">
-                  Configura el comportamiento mecánico, coste de estamina (CE) y parámetros ejecutables.
+                  Configura el efecto mecánico, su coste de estamina (CE) y sus parámetros.
                 </DialogDescription>
               </DialogHeader>
 
@@ -450,6 +477,26 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                         <SelectItem value="cost_modifier">Ajuste CE</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border bg-muted/20 p-3.5 space-y-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <Label className="text-xs font-semibold">Disponible en el constructor</Label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Determina si esta opción puede seleccionarse al crear nuevas mecánicas. Desactivarla no afecta elementos existentes ni su funcionamiento.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs font-mono font-medium text-muted-foreground">
+                        {editingRule.isAvailable !== false ? "ON" : "OFF"}
+                      </span>
+                      <Switch
+                        checked={editingRule.isAvailable !== false}
+                        onCheckedChange={(checked) => patchRule(editingIndex, { isAvailable: checked })}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -513,47 +560,72 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
       </Dialog>
 
       <div className="space-y-3">
-        {draft.rules.map((r, i) => {
-          return (
-            <div key={r.id} className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:border-primary/50">
-              <div className="flex flex-col gap-1.5 min-w-0 pr-4">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="font-semibold text-sm">{r.name || "Sin nombre"}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${r.cost > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
-                    {r.cost > 0 ? `+${r.cost}` : r.cost} CE
-                  </span>
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground border px-1.5 py-0.5 rounded-sm bg-black/20">
-                    {{ effect: "Efecto", component: "Aplicación", cost_modifier: "Ajuste CE" }[r.ruleType] || r.ruleType}
-                  </span>
+        {draft.rules
+          .filter(r => {
+            if (ruleFilter === 'available') return r.isAvailable !== false;
+            if (ruleFilter === 'unavailable') return r.isAvailable === false;
+            return true;
+          })
+          .map((r) => {
+            return (
+              <div key={r.id} className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:border-primary/50">
+                <div className="flex flex-col gap-1.5 min-w-0 pr-4">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="font-semibold text-sm">{r.name || "Sin nombre"}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${r.cost > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
+                      {r.cost > 0 ? `+${r.cost}` : r.cost} CE
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground border px-1.5 py-0.5 rounded-sm bg-black/20">
+                      {{ effect: "Efecto", component: "Aplicación", cost_modifier: "Ajuste CE" }[r.ruleType] || r.ruleType}
+                    </span>
+                    {r.isAvailable === false ? (
+                      <span className="text-[10px] uppercase tracking-wider font-semibold border px-1.5 py-0.5 rounded-sm bg-rose-500/10 text-rose-400 border-rose-500/30">
+                        No disponible
+                      </span>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-wider font-semibold border px-1.5 py-0.5 rounded-sm bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                        Disponible
+                      </span>
+                    )}
+                  </div>
+                  {r.effect && <span className="text-xs text-muted-foreground line-clamp-1">{describeEffect(r.effect, { selection: 'direct', relationship: 'any', minTargets: 1, maxTargets: 1, allowedEntityKinds: ['character'] })}</span>}
                 </div>
-                {r.effect && <span className="text-xs text-muted-foreground line-clamp-1">{describeEffect(r.effect, { selection: 'direct', relationship: 'any', minTargets: 1, maxTargets: 1, allowedEntityKinds: ['character'] })}</span>}
+                <div className="flex gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => {
+                     setBackupDraft(structuredClone(draft));
+                     setEditingRuleId(r.id);
+                     setIsNewOption(false);
+                     setError('');
+                  }}>
+                    <Edit2 className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+                    Editar
+                  </Button>
+                  <Button variant="ghost" size="icon" disabled={saving} onClick={async () => {
+                     const originalDraft = draft;
+                     const newDraft = { ...draft, rules: draft.rules.filter((rule) => rule.id !== r.id) } as Category;
+                     setDraft(newDraft);
+                     const ok = await saveWithoutClosing(newDraft);
+                     if (!ok) {
+                       setDraft(originalDraft);
+                     }
+                  }}>
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2 shrink-0">
-                <Button variant="outline" size="sm" onClick={() => {
-                   setBackupDraft(structuredClone(draft));
-                   setEditingRuleId(r.id);
-                   setIsNewOption(false);
-                   setError('');
-                }}>
-                  <Edit2 className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-                  Editar
-                </Button>
-                <Button variant="ghost" size="icon" disabled={saving} onClick={async () => {
-                   const originalDraft = draft;
-                   const newDraft = { ...draft, rules: draft.rules.filter((_, j) => i !== j) } as Category;
-                   setDraft(newDraft);
-                   const ok = await saveWithoutClosing(newDraft);
-                   if (!ok) {
-                     setDraft(originalDraft);
-                   }
-                }}>
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </Button>
-              </div>
-            </div>
-          );
-        })}
-        {draft.rules.length === 0 && <p className="text-sm text-muted-foreground text-center py-6 border rounded-lg border-dashed">No hay opciones configuradas.</p>}
+            );
+          })}
+        {draft.rules.filter(r => {
+          if (ruleFilter === 'available') return r.isAvailable !== false;
+          if (ruleFilter === 'unavailable') return r.isAvailable === false;
+          return true;
+        }).length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-6 border rounded-lg border-dashed">
+            {draft.rules.length === 0 
+              ? "No hay opciones configuradas."
+              : `No hay opciones ${ruleFilter === 'available' ? 'disponibles' : 'no disponibles'} en esta categoría.`}
+          </p>
+        )}
       </div>
     </div>
   </div>;

@@ -57,7 +57,7 @@ import {
 import { MechanicalEffectsEditor } from "./MechanicalEffectsEditor.tsx";
 import { MechanicalDescriptionPreview } from "./MechanicalDescriptionPreview.tsx";
 import type { SystemMechanicsConfig, SupportDifficultyTier } from "../../domain/systemMechanics.ts";
-import { getCategoryOptions, findHealingOption, getValidHealingOptions, getBarrierAmount, createCoreCategories } from "../../domain/coreRuleCatalog.ts";
+import { getCategoryOptions, findHealingOption, getValidHealingOptions, getBarrierAmount, createCoreCategories, getVisibleOptions } from "../../domain/coreRuleCatalog.ts";
 
 interface MechanicalBehaviorsEditorProps {
   behaviors: MechanicalBehavior[];
@@ -503,10 +503,11 @@ function SingleBehaviorCard({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {activationOptions.map((opt) => (
+                        {getVisibleOptions(activationOptions, behavior.activation?.actionType).map((opt) => (
                           <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                             {opt.name || getMechanicalLabel("actionTypes", opt.runtimeKey)}
                             {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                            {opt.isAvailable === false ? " · No disponible" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -628,10 +629,11 @@ function SingleBehaviorCard({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {triggerOptions.map((opt) => (
+                        {getVisibleOptions(triggerOptions, behavior.trigger?.kind).map((opt) => (
                           <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                             {opt.name || getMechanicalLabel("triggers", opt.runtimeKey)}
                             {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                            {opt.isAvailable === false ? " · No disponible" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1445,10 +1447,11 @@ function ResolutionEditor({
               <SelectValue>{getMechanicalLabel("resolutions", activeType)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {resolutionOptions.map((opt) => (
+              {getVisibleOptions(resolutionOptions, activeType).map((opt) => (
                 <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                   {opt.name || getMechanicalLabel("resolutions", opt.runtimeKey)}
                   {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                  {opt.isAvailable === false ? " · No disponible" : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1921,10 +1924,11 @@ function EffectsListEditor({
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {damageOptions.map((opt) => (
+                          {getVisibleOptions(damageOptions, (eff as any).ruleId || (eff as any).runtimeKey || eff.dice).map((opt) => (
                             <SelectItem key={opt.id || opt.runtimeKey} value={opt.id || opt.runtimeKey}>
                               {opt.name || opt.formula || opt.runtimeKey}
                               {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                              {opt.isAvailable === false ? " · No disponible" : ""}
                             </SelectItem>
                           ))}
                           {!damageOptions.some((opt) => opt.id === eff.dice || opt.runtimeKey === eff.dice || opt.formula === eff.dice || opt.name === eff.dice) && eff.dice && (
@@ -1955,10 +1959,11 @@ function EffectsListEditor({
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {damageTypeOptions.map((opt) => (
+                          {getVisibleOptions(damageTypeOptions, eff.damageType || "fisico").map((opt) => (
                             <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                               {opt.name || getMechanicalLabel("damageTypes", opt.runtimeKey)}
                               {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                              {opt.isAvailable === false ? " · No disponible" : ""}
                             </SelectItem>
                           ))}
                           {!damageTypeOptions.some((opt) => opt.runtimeKey === (eff.damageType || "fisico")) && eff.damageType && (
@@ -2043,9 +2048,10 @@ function EffectsListEditor({
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            {validOptions.map((opt) => (
+                            {getVisibleOptions(validOptions, currentSelectedKey).map((opt) => (
                               <SelectItem key={opt.ruleId} value={opt.ruleId}>
                                 {opt.name ? `${opt.name} (${opt.cost > 0 ? `+${opt.cost} CE` : `${opt.cost} CE`})` : opt.label}
+                                {opt.isAvailable === false ? " · No disponible" : ""}
                               </SelectItem>
                             ))}
                             {isInvalid && (
@@ -2068,15 +2074,17 @@ function EffectsListEditor({
 
                 {eff.type === "barrier" && (() => {
                   const barrierOptions = getCategoryOptions(mechanics, "barrier");
-                  const barrierList = barrierOptions
+                  const rawBarrierList = barrierOptions
                     .map((opt) => ({
                       id: opt.id,
                       runtimeKey: opt.runtimeKey,
                       name: opt.name,
                       cost: opt.cost,
                       amount: getBarrierAmount(opt),
+                      isAvailable: opt.isAvailable,
                     }))
-                    .filter((b) => b.amount > 0)
+                    .filter((b) => b.amount > 0);
+                  const barrierList = getVisibleOptions(rawBarrierList, eff.amount)
                     .sort((a, b) => a.amount - b.amount);
 
                   return (
@@ -2105,6 +2113,7 @@ function EffectsListEditor({
                             <SelectItem key={opt.id} value={String(opt.amount)}>
                               {opt.name || `${opt.amount} Puntos`}
                               {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                              {opt.isAvailable === false ? " · No disponible" : ""}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -2113,67 +2122,92 @@ function EffectsListEditor({
                   );
                 })()}
 
-                {eff.type === "attribute_modifier" && (
-                  <>
-                    <div className="grid gap-1">
-                      <Label className="text-[11px]">Atributo</Label>
-                      <Select
-                        value={eff.attributeId}
-                        onValueChange={(val) => updateEffect(i, { ...eff, attributeId: val })}
-                      >
-                        <SelectTrigger className="h-7 w-36 text-xs font-medium">
-                          <SelectValue>{getAttributeLabel(eff.attributeId)}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="FUE">Fuerza (FUE)</SelectItem>
-                          <SelectItem value="RES">Resistencia (RES)</SelectItem>
-                          <SelectItem value="DES">Destreza (DES)</SelectItem>
-                          <SelectItem value="INT">Inteligencia (INT)</SelectItem>
-                          <SelectItem value="VEL">Velocidad (VEL)</SelectItem>
-                          <SelectItem value="VOL">Voluntad (VOL)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-1">
-                      <Label className="text-[11px]">Cantidad</Label>
-                      <Input
-                        type="number"
-                        value={eff.amount}
-                        onChange={(e) => updateEffect(i, { ...eff, amount: parseInt(e.target.value, 10) || 0 })}
-                        className="h-7 w-20 font-mono text-xs"
-                      />
-                    </div>
-                    <div className="grid gap-1">
-                      <Label className="text-[11px]">Operación</Label>
-                      <Select
-                        value={eff.operation || "add"}
-                        onValueChange={(val: any) => updateEffect(i, { ...eff, operation: val })}
-                      >
-                        <SelectTrigger className="h-7 w-28 text-xs">
-                          <SelectValue>{getMechanicalLabel("modifierOperations", eff.operation || "add")}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="add">Sumar (+)</SelectItem>
-                          <SelectItem value="subtract">Restar (-)</SelectItem>
-                          <SelectItem value="multiply">Multiplicar (×)</SelectItem>
-                          <SelectItem value="divide">Dividir (/)</SelectItem>
-                          <SelectItem value="set">Establecer (=)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                )}
+                {eff.type === "attribute_modifier" && (() => {
+                  const rawAttrOpts = getCategoryOptions(mechanics, "attribute");
+                  const visibleAttrOpts = getVisibleOptions(rawAttrOpts, eff.attributeId);
+                  const rawAmountOpts = getCategoryOptions(mechanics, (eff.amount ?? 0) < 0 ? "penalty" : "bonus");
+                  const visibleAmountOpts = getVisibleOptions(rawAmountOpts, Math.abs(eff.amount ?? 0));
+                  const currentAttrOpt = rawAttrOpts.find(o => o.runtimeKey === eff.attributeId || o.id === eff.attributeId);
+                  const currentAmountOpt = rawAmountOpts.find(o => o.amount === Math.abs(eff.amount ?? 0) || o.runtimeKey === String(Math.abs(eff.amount ?? 0)));
+
+                  return (
+                    <>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Atributo</Label>
+                        <Select
+                          value={eff.attributeId || "FUE"}
+                          onValueChange={(val) => updateEffect(i, { ...eff, attributeId: val })}
+                        >
+                          <SelectTrigger className="h-7 w-40 text-xs font-medium">
+                            <SelectValue>{currentAttrOpt ? `${currentAttrOpt.name}${currentAttrOpt.cost ? ` (+${currentAttrOpt.cost} CE)` : ''}` : `${getAttributeLabel(eff.attributeId)} · Valor histórico sin regla de CE`}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {visibleAttrOpts.map((opt) => (
+                              <SelectItem key={opt.id} value={opt.runtimeKey}>
+                                {opt.name}{opt.cost ? ` (+${opt.cost} CE)` : ''}{!opt.isAvailable ? ' · No disponible' : ''}
+                              </SelectItem>
+                            ))}
+                            {!currentAttrOpt && eff.attributeId && (
+                              <SelectItem value={eff.attributeId}>
+                                {getAttributeLabel(eff.attributeId)} · Valor histórico sin regla de CE
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Magnitud / Bono</Label>
+                        <Select
+                          value={String(eff.amount ?? 1)}
+                          onValueChange={(val) => updateEffect(i, { ...eff, amount: parseInt(val, 10) || 0 })}
+                        >
+                          <SelectTrigger className="h-7 w-32 text-xs font-mono font-medium">
+                            <SelectValue>{currentAmountOpt ? `${currentAmountOpt.name}${currentAmountOpt.cost ? ` (+${currentAmountOpt.cost} CE)` : ''}` : `${(eff.amount ?? 0) >= 0 ? '+' : ''}${eff.amount} · Valor histórico sin regla de CE`}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {visibleAmountOpts.map((opt) => (
+                              <SelectItem key={opt.id} value={String(opt.amount ?? opt.runtimeKey)}>
+                                {opt.name}{opt.cost ? ` (+${opt.cost} CE)` : ''}{!opt.isAvailable ? ' · No disponible' : ''}
+                              </SelectItem>
+                            ))}
+                            {!currentAmountOpt && eff.amount !== undefined && eff.amount !== null && (
+                              <SelectItem value={String(eff.amount)}>
+                                {eff.amount >= 0 ? `+${eff.amount}` : eff.amount} · Valor histórico sin regla de CE
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Operación</Label>
+                        <Select
+                          value={eff.operation || "add"}
+                          onValueChange={(val: any) => updateEffect(i, { ...eff, operation: val })}
+                        >
+                          <SelectTrigger className="h-7 w-28 text-xs">
+                            <SelectValue>{getMechanicalLabel("modifierOperations", eff.operation || "add")}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="add">Sumar (+)</SelectItem>
+                            <SelectItem value="subtract">Restar (-)</SelectItem>
+                            <SelectItem value="multiply">Multiplicar (×)</SelectItem>
+                            <SelectItem value="divide">Dividir (/)</SelectItem>
+                            <SelectItem value="set">Establecer (=)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {eff.type === "derived_stat_modifier" && (() => {
-                  const normalizedStat = (eff.statId || "SAL").toUpperCase();
-                  const validStats = [
-                    { id: "SAL", label: "Salud Máxima (SA)" },
-                    { id: "EST", label: "Estamina Máxima (ES)" },
-                    { id: "INI", label: "Iniciativa (INI)" },
-                    { id: "RD", label: "Reducción de Daño (RD)" },
-                    { id: "EVA", label: "Evasión (EVA)" },
-                    { id: "COR", label: "Coraje (COR)" },
-                  ];
+                  const rawStatOpts = getCategoryOptions(mechanics, "derived_stat");
+                  const visibleStatOpts = getVisibleOptions(rawStatOpts, eff.statId);
+                  const rawAmountOpts = getCategoryOptions(mechanics, (eff.amount ?? 0) < 0 ? "penalty" : "bonus");
+                  const visibleAmountOpts = getVisibleOptions(rawAmountOpts, Math.abs(eff.amount ?? 0));
+                  const currentStatOpt = rawStatOpts.find(o => o.runtimeKey === eff.statId || o.id === eff.statId);
+                  const currentAmountOpt = rawAmountOpts.find(o => o.amount === Math.abs(eff.amount ?? 0) || o.runtimeKey === String(Math.abs(eff.amount ?? 0)));
+
                   return (
                     <>
                       <div className="grid gap-1">
@@ -2183,30 +2217,44 @@ function EffectsListEditor({
                           onValueChange={(val) => updateEffect(i, { ...eff, statId: val })}
                         >
                           <SelectTrigger className="h-7 w-48 text-xs font-medium">
-                            <SelectValue>{getDerivedStatLabel(eff.statId || "SAL")}</SelectValue>
+                            <SelectValue>{currentStatOpt ? `${currentStatOpt.name}${currentStatOpt.cost ? ` (+${currentStatOpt.cost} CE)` : ''}` : `${getDerivedStatLabel(eff.statId || "SAL")} · Valor histórico sin regla de CE`}</SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            {validStats.map((st) => (
-                              <SelectItem key={st.id} value={st.id}>
-                                {st.label}
+                            {visibleStatOpts.map((opt) => (
+                              <SelectItem key={opt.id} value={opt.runtimeKey}>
+                                {opt.name}{opt.cost ? ` (+${opt.cost} CE)` : ''}{!opt.isAvailable ? ' · No disponible' : ''}
                               </SelectItem>
                             ))}
-                            {!validStats.some((st) => st.id === normalizedStat || st.id === eff.statId) && eff.statId && (
+                            {!currentStatOpt && eff.statId && (
                               <SelectItem value={eff.statId}>
-                                {getDerivedStatLabel(eff.statId)}
+                                {getDerivedStatLabel(eff.statId)} · Valor histórico sin regla de CE
                               </SelectItem>
                             )}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="grid gap-1">
-                        <Label className="text-[11px]">Cantidad</Label>
-                        <Input
-                          type="number"
-                          value={eff.amount}
-                          onChange={(e) => updateEffect(i, { ...eff, amount: parseInt(e.target.value, 10) || 0 })}
-                          className="h-7 w-20 font-mono text-xs"
-                        />
+                        <Label className="text-[11px]">Magnitud / Bono</Label>
+                        <Select
+                          value={String(eff.amount ?? 1)}
+                          onValueChange={(val) => updateEffect(i, { ...eff, amount: parseInt(val, 10) || 0 })}
+                        >
+                          <SelectTrigger className="h-7 w-32 text-xs font-mono font-medium">
+                            <SelectValue>{currentAmountOpt ? `${currentAmountOpt.name}${currentAmountOpt.cost ? ` (+${currentAmountOpt.cost} CE)` : ''}` : `${(eff.amount ?? 0) >= 0 ? '+' : ''}${eff.amount} · Valor histórico sin regla de CE`}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {visibleAmountOpts.map((opt) => (
+                              <SelectItem key={opt.id} value={String(opt.amount ?? opt.runtimeKey)}>
+                                {opt.name}{opt.cost ? ` (+${opt.cost} CE)` : ''}{!opt.isAvailable ? ' · No disponible' : ''}
+                              </SelectItem>
+                            ))}
+                            {!currentAmountOpt && eff.amount !== undefined && eff.amount !== null && (
+                              <SelectItem value={String(eff.amount)}>
+                                {eff.amount >= 0 ? `+${eff.amount}` : eff.amount} · Valor histórico sin regla de CE
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid gap-1">
                         <Label className="text-[11px]">Operación</Label>
@@ -2405,10 +2453,11 @@ function EffectsListEditor({
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            {statusOptions.map((s) => (
+                            {getVisibleOptions(statusOptions, eff.statusElementId).map((s) => (
                               <SelectItem key={s.id} value={s.id}>
                                 {s.name}
                                 {s.cost > 0 ? ` (+${s.cost} CE)` : s.cost < 0 ? ` (${s.cost} CE)` : ""}
+                                {s.isAvailable === false ? " · No disponible" : ""}
                               </SelectItem>
                             ))}
                             {!statusOptions.some((s) => s.id === eff.statusElementId || s.runtimeKey === eff.statusElementId) &&
@@ -2759,10 +2808,11 @@ function TargetEditor({
             <SelectValue>{getMechanicalLabel("targets", target.type || "self")}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {targetOptions.map((opt) => (
+            {getVisibleOptions(targetOptions, target.type || "self").map((opt) => (
               <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                 {opt.name || getMechanicalLabel("targets", opt.runtimeKey)}
                 {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                {opt.isAvailable === false ? " · No disponible" : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -2784,10 +2834,11 @@ function TargetEditor({
             <SelectValue>{getMechanicalLabel("ranges", target.range?.type || "contact")}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {rangeOptions.map((opt) => (
+            {getVisibleOptions(rangeOptions, target.range?.type || "contact").map((opt) => (
               <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                 {opt.name || getMechanicalLabel("ranges", opt.runtimeKey)}
                 {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                {opt.isAvailable === false ? " · No disponible" : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -2832,10 +2883,11 @@ function TargetEditor({
                 <SelectValue>{getMechanicalLabel("areaShapes", target.area?.shape || "radius")}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {areaOptions.map((opt) => (
+                {getVisibleOptions(areaOptions, target.area?.shape || "radius").map((opt) => (
                   <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                     {opt.name || getMechanicalLabel("areaShapes", opt.runtimeKey)}
                     {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                    {opt.isAvailable === false ? " · No disponible" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -2876,10 +2928,11 @@ function TargetEditor({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">{MECHANICAL_LABELS.selectionRestrictions.none}</SelectItem>
-            {selectionOptions.map((opt) => (
+            {getVisibleOptions(selectionOptions, target.selectionRestriction || "none").map((opt) => (
               <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                 {opt.name || getMechanicalLabel("selectionRestrictions", opt.runtimeKey)}
                 {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                {opt.isAvailable === false ? " · No disponible" : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -2945,10 +2998,16 @@ function TemporalityEditor({
               <SelectValue>{getMechanicalLabel("durations", temporality.duration?.type || "instant")}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {durationOptions.map((opt) => (
+              {getVisibleOptions(
+                durationOptions,
+                temporality.duration?.type === "turns" && temporality.duration?.turns
+                  ? String(temporality.duration.turns)
+                  : temporality.duration?.type || "instant"
+              ).map((opt) => (
                 <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                   {opt.name || getMechanicalLabel("durations", opt.runtimeKey)}
                   {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                  {opt.isAvailable === false ? " · No disponible" : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -2991,10 +3050,11 @@ function TemporalityEditor({
               <SelectValue>{getMechanicalLabel("frequencies", temporality.frequency?.type || "once")}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {frequencyOptions.map((opt) => (
+              {getVisibleOptions(frequencyOptions, temporality.frequency?.type || "once").map((opt) => (
                 <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                   {opt.name || getMechanicalLabel("frequencies", opt.runtimeKey)}
                   {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                  {opt.isAvailable === false ? " · No disponible" : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -3158,10 +3218,11 @@ function LimitationsEditor({
                         <SelectValue>{matchedOption ? matchedOption.name : `${lim.turns} turnos`}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {cooldownOptions.map((opt) => (
+                        {getVisibleOptions(cooldownOptions, String(lim.turns)).map((opt) => (
                           <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                             {opt.name}
                             {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                            {opt.isAvailable === false ? " · No disponible" : ""}
                           </SelectItem>
                         ))}
                         {!cooldownOptions.some((opt) => opt.runtimeKey === String(lim.turns)) && (
@@ -3201,10 +3262,11 @@ function LimitationsEditor({
                       <SelectValue>{getMechanicalLabel("periods", lim.period)}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {usageOptions.map((opt) => (
+                      {getVisibleOptions(usageOptions, lim.period).map((opt) => (
                         <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                           {opt.name || getMechanicalLabel("periods", opt.runtimeKey)}
                           {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                          {opt.isAvailable === false ? " · No disponible" : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>

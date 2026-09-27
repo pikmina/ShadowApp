@@ -4,6 +4,7 @@ import {
   calculateExecutionStaminaCost,
   canonicalMechanicalEffectsSchema,
   effectTargetingSchema,
+  mechanicalEffectDefinitionSchema,
   systemMechanicsConfigSchema,
   resolveAppliedMechanics,
   validatePersistedMechanicalEffects,
@@ -12,6 +13,9 @@ import {
   type SystemMechanicsConfig,
 } from "../systemMechanics";
 import { calculateDerivedStats } from "../../lib/characterValidation";
+import { createEffectDefinition } from "../../components/mechanics/MechanicalEffectDefinitionEditor";
+import { describeMechanicalBehavior } from "../mechanicalDescription";
+import type { MechanicalBehavior } from "../mechanicalBehavior";
 
 const selfTarget: EffectTargeting = {
   allowedEntityKinds: ["character"],
@@ -223,5 +227,125 @@ describe("System mechanics configuration", () => {
     expect(result.valid).toBe(false);
     expect(result.total).toBeNull();
     expect(result.issues[0]?.code).toBe("duplicate_cost_reference");
+  });
+});
+
+describe("Mechanical Option independence from 'Cuándo se aplica'", () => {
+  test("+1 Evasión option does not require 'Cuándo se aplica' (timing) and validates cleanly", () => {
+    // Definition strictly without timing: only QUÉ (statId: EVA), CUÁNTO (amount: 1)
+    const evasionEffect = {
+      type: "derived_stat_modifier" as const,
+      statId: "EVA",
+      amount: 1,
+    };
+
+    const parsedDef = mechanicalEffectDefinitionSchema.safeParse(evasionEffect);
+    expect(parsedDef.success).toBe(true);
+    if (parsedDef.success) {
+      expect(parsedDef.data.type).toBe("derived_stat_modifier");
+      expect((parsedDef.data as any).timing).toBeUndefined();
+    }
+
+    // Config with option without timing
+    const parsedConfig = systemMechanicsConfigSchema.safeParse([
+      {
+        ...mechanics[0],
+        rules: [
+          {
+            id: "opt_eva_1",
+            name: "+1 Evasión",
+            cost: 0,
+            ruleType: "effect",
+            effect: evasionEffect,
+          },
+        ],
+      },
+    ]);
+    expect(parsedConfig.success).toBe(true);
+  });
+
+  test("createEffectDefinition creates agnostic effect definitions without default timing", () => {
+    const newDef = createEffectDefinition("derived_stat_modifier");
+    expect(newDef.type).toBe("derived_stat_modifier");
+    expect((newDef as any).timing).toBeUndefined();
+
+    const damageDef = createEffectDefinition("damage");
+    expect(damageDef.type).toBe("damage");
+    expect((damageDef as any).timing).toBeUndefined();
+  });
+
+  test("can be used in MechanicalBehavior with continuous mode and equipped condition", () => {
+    const behavior: MechanicalBehavior = {
+      id: "beh_boots_eva",
+      name: "Botas de Agilidad",
+      mode: "continuous",
+      conditions: [{ type: "equipped" }],
+      conditionLogic: "all",
+      limitations: [],
+      effects: [
+        {
+          id: "eff_eva_1",
+          type: "derived_stat_modifier",
+          statId: "EVA",
+          amount: 1,
+          operation: "add",
+        },
+      ],
+    };
+
+    // Automatic description comes from behavior, not from option's timing
+    const description = describeMechanicalBehavior(behavior, { format: "compact" });
+    expect(description.text).toBe("Mientras esté equipado, otorga +1 a Evasión.");
+
+    // Execution in character stats:
+    const dummyStages = [{ id: "novato", name: "Novato", statCap: 10, maxAttributes: 30 }];
+    const bootsElement = {
+      id: "item_boots_eva",
+      name: "Botas de Agilidad",
+      kind: "equipment",
+      status: "published",
+      mechanicalBehaviors: [behavior],
+    };
+
+    const profile = {
+      stage: "Novato",
+      FUE: 3, DES: 3, RES: 3, INT: 3, VOL: 3, VEL: 3,
+    };
+
+    // When unequipped: bonus = 0
+    const unequippedStats = calculateDerivedStats(profile, dummyStages, [bootsElement], [], [
+      { elementId: "item_boots_eva", quantity: 1, equipped: false },
+    ]);
+    expect(unequippedStats.equipmentDerivedBonuses.evasion).toBe(0);
+
+    // When equipped: bonus = 1
+    const equippedStats = calculateDerivedStats(profile, dummyStages, [bootsElement], [], [
+      { elementId: "item_boots_eva", quantity: 1, equipped: true },
+    ]);
+    expect(equippedStats.equipmentDerivedBonuses.evasion).toBe(1);
+  });
+
+  test("preserves backwards compatibility with legacy rules containing timing", () => {
+    const legacyPassiveEffect = {
+      type: "derived_stat_modifier" as const,
+      statId: "EVA",
+      amount: 1,
+      timing: "passive" as const,
+    };
+
+    const parsedDef = mechanicalEffectDefinitionSchema.safeParse(legacyPassiveEffect);
+    expect(parsedDef.success).toBe(true);
+    if (parsedDef.success) {
+      expect((parsedDef.data as any).timing).toBe("passive");
+    }
+
+    const legacyActivationEffect = {
+      type: "damage" as const,
+      dice: "2D6",
+      timing: "on_activation" as const,
+    };
+
+    const parsedActivation = mechanicalEffectDefinitionSchema.safeParse(legacyActivationEffect);
+    expect(parsedActivation.success).toBe(true);
   });
 });

@@ -81,7 +81,8 @@ export function evaluateRuleGroup(group: ResolvedRuleGroup, context: RuleContext
   };
   const emitEffects = (moment: CanonicalMechanicalEffect['timing'] = 'on_activation') => {
     for (const original of group.effects) {
-      if (original.timing !== moment && !(moment === 'each_turn' && original.timing === 'turn_start')) continue;
+      const timing = original.timing ?? 'on_activation';
+      if (timing !== moment && !(moment === 'each_turn' && timing === 'turn_start')) continue;
       const effect = structuredClone(original);
       for (const c of components) if (c.kind === 'cap' && c.subject !== 'attribute_modifier' && c.subject === effect.type && 'amount' in effect) effect.amount = Math.max(c.min, Math.min(c.max, effect.amount));
       if (effect.type === 'manual_resolution') operations.push({ kind: 'manual', message: effect.message });

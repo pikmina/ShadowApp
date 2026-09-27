@@ -257,6 +257,8 @@ describe('Equipment System End-to-End Tests', () => {
           type: 'equipped'
         }
       ],
+      conditionLogic: 'all',
+      limitations: [],
       effects: [
         {
           id: 'eff_1',

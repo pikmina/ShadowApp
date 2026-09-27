@@ -2009,9 +2009,10 @@ export function buildCharacterRuleEntityState(
   const equippedItems: Record<string, boolean> = {};
   if (Array.isArray(character.possessions)) {
     for (const p of character.possessions) {
-      const elemId = p.element?.id || p.possession?.elementId || p.elementId || p.id;
-      const qty = p.possession?.quantity ?? p.quantity ?? 1;
-      const isEquipped = p.possession?.equipped ?? p.equipped ?? false;
+      const rawP = p as any;
+      const elemId = String(rawP.element?.id || rawP.possession?.elementId || rawP.elementId || rawP.id || '');
+      const qty = rawP.possession?.quantity ?? rawP.quantity ?? 1;
+      const isEquipped = rawP.possession?.equipped ?? rawP.equipped ?? false;
       if (elemId) {
         inventory[elemId] = (inventory[elemId] || 0) + qty;
         if (isEquipped) {

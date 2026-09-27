@@ -409,7 +409,7 @@ async function startServer() {
         yen: z.number().int().min(0).optional(),
         inventoryPossessions: z.array(z.object({
           elementId: z.string().min(1),
-          quantity: z.number().int().min(1).optional(),
+          quantity: z.number().int().min(1).default(1),
           equipped: z.boolean().optional(),
           notes: z.string().nullable().optional(),
         })).optional(),

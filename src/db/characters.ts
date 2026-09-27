@@ -240,7 +240,7 @@ export async function saveCharacterWithElementSelections(data: {
       }
     }
 
-    // 2. Process credentials (license, permission, certification)
+    // 2. Process credentials (license, permission, certification, character_resource, background, clandestine_asset)
     let validCredentials: Array<{ elementId: string; quantity: number }> | undefined = undefined;
     if (data.credentialPossessions !== undefined) {
       const credMap = new Map<string, number>();
@@ -254,14 +254,14 @@ export async function saveCharacterWithElementSelections(data: {
         const selectedCreds = await tx.select().from(systemElements).where(inArray(systemElements.id, credIds));
         if (selectedCreds.length !== credIds.length) throw Object.assign(new Error('One or more selected credentials do not exist'), { status: 400 });
         if (selectedCreds.some(element => element.status !== 'published')) throw Object.assign(new Error('Only published credentials can be assigned'), { status: 409 });
-        if (selectedCreds.some(element => !['license', 'permission', 'certification'].includes(element.kind))) {
-          throw Object.assign(new Error('Credential selections must be licenses, permissions, or certifications'), { status: 400 });
+        if (selectedCreds.some(element => !['license', 'permission', 'certification', 'character_resource', 'background', 'clandestine_asset'].includes(element.kind))) {
+          throw Object.assign(new Error('Credential selections must be licenses, permissions, certifications, character resources, backgrounds, or clandestine assets'), { status: 400 });
         }
       }
       validCredentials = credIds.map(elementId => ({ elementId, quantity: 1 }));
     }
 
-    // 3. Process inventory items (equipment, weapons, consumables, resources, etc.)
+    // 3. Process inventory items (equipment, weapon, consumable, ammunition, crafting_material, ingredient, vehicle, real_estate)
     let validInventory: Array<{ elementId: string; quantity: number; equipped?: boolean; notes?: string | null }> | undefined = undefined;
     if (data.inventoryPossessions !== undefined) {
       const invMap = new Map<string, { quantity: number; equipped: boolean; notes?: string | null }>();
@@ -280,8 +280,8 @@ export async function saveCharacterWithElementSelections(data: {
         const selectedInv = await tx.select().from(systemElements).where(inArray(systemElements.id, invIds));
         if (selectedInv.length !== invIds.length) throw Object.assign(new Error('One or more selected inventory items do not exist'), { status: 400 });
         if (selectedInv.some(element => element.status !== 'published')) throw Object.assign(new Error('Only published inventory items can be assigned'), { status: 409 });
-        if (selectedInv.some(element => ['trait', 'weakness', 'license', 'permission', 'certification', 'skill'].includes(element.kind))) {
-          throw Object.assign(new Error('Inventory items cannot be traits, weaknesses, credentials, or skills'), { status: 400 });
+        if (selectedInv.some(element => ['trait', 'weakness', 'license', 'permission', 'certification', 'character_resource', 'background', 'clandestine_asset', 'skill'].includes(element.kind))) {
+          throw Object.assign(new Error('Inventory items cannot be traits, weaknesses, credentials, resources, backgrounds, clandestine assets, or skills'), { status: 400 });
         }
       }
       validInventory = Array.from(invMap.entries()).map(([elementId, invData]) => ({

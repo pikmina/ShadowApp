@@ -26,7 +26,7 @@ describe('TAREA 34.2 & 34.2.2 — Saneamiento y Consolidación de Categorías Me
   test('1. Validates sanitized canonical core categories list (29 active)', () => {
     expect(validateCoreCategories(categories)).toBe(true);
     expect(categories).toHaveLength(Object.keys(CORE_CATEGORIES).length);
-    expect(categories).toHaveLength(30);
+    expect(categories).toHaveLength(32);
 
     // Verify retired categories are not present in active CORE_CATEGORIES
     for (const retiredKey of RETIRED_CORE_CATEGORIES) {

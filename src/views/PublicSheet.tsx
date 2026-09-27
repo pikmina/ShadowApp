@@ -121,7 +121,7 @@ export default function PublicSheet() {
   const possessionRows = Array.isArray(character?.possessions) ? character.possessions : [];
   const relationalTraits = possessionRows.filter((row: any) => row?.element?.kind === 'trait').map((row: any) => row.element.id);
   const relationalWeaknesses = possessionRows.filter((row: any) => row?.element?.kind === 'weakness').map((row: any) => row.element.id);
-  const credentials = possessionRows.filter((row: any) => ['license', 'permission', 'certification'].includes(row?.element?.kind));
+  const credentials = possessionRows.filter((row: any) => ['license', 'permission', 'certification', 'character_resource', 'background', 'clandestine_asset'].includes(row?.element?.kind));
 
   // Merge traits and weaknesses from both profile and relational possessions so none are lost
   const combinedTraits = Array.from(new Set([
@@ -357,7 +357,7 @@ export default function PublicSheet() {
   // Inventory items
   const inventoryItems = useMemo(() => {
     const fromPossessions = possessionRows
-      .filter((r: any) => ['equipment', 'weapon', 'consumable', 'ammunition', 'crafting_material', 'ingredient', 'item'].includes(r?.element?.kind || r?.kind))
+      .filter((r: any) => ['equipment', 'weapon', 'consumable', 'ammunition', 'crafting_material', 'ingredient', 'vehicle', 'real_estate', 'item'].includes(r?.element?.kind || r?.kind))
       .map((r: any) => ({
         id: r.element?.id || r.elementId,
         name: r.element?.name || r.name,
@@ -975,6 +975,9 @@ export default function PublicSheet() {
                       license: { label: 'Licencia', color: 'text-amber-400', border: 'border-amber-500/30', bg: 'bg-amber-500/10' },
                       permission: { label: 'Permiso', color: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-500/10' },
                       certification: { label: 'Certificación', color: 'text-cyan-400', border: 'border-cyan-500/30', bg: 'bg-cyan-500/10' },
+                      character_resource: { label: 'Recurso', color: 'text-purple-400', border: 'border-purple-500/30', bg: 'bg-purple-500/10' },
+                      background: { label: 'Trasfondo', color: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-500/10' },
+                      clandestine_asset: { label: 'Activo Clandestino', color: 'text-rose-400', border: 'border-rose-500/30', bg: 'bg-rose-500/10' },
                     };
                     const meta = kindLabels[row.element.kind] ?? { label: row.element.kind, color: 'text-text1', border: 'border-border/40', bg: 'bg-bg3/30' };
                     return (

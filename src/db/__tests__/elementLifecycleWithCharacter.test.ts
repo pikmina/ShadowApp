@@ -205,6 +205,7 @@ describe.skipIf(!dbAvailable)('Disposable Element Lifecycle with Character Assig
     await saveCharacterWithElementSelections({
       characterId: testCharacterId,
       name: 'Personaje Test Equip',
+      profileData: {},
       inventoryPossessions: [
         {
           elementId: testItem.id,

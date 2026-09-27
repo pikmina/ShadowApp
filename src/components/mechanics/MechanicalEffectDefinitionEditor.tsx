@@ -19,8 +19,10 @@ export const effectTypeLabels: Record<MechanicalEffectType, string> = {
 };
 
 export function createEffectDefinition(type: MechanicalEffectType, previous?: MechanicalEffectDefinition): MechanicalEffectDefinition {
-  const defaultTiming = "on_activation";
-  const base = { timing: previous?.timing ?? defaultTiming, duration: previous?.duration };
+  const base: { duration?: any; timing?: any } = { duration: previous?.duration };
+  if (previous?.timing) {
+    base.timing = previous.timing;
+  }
   switch (type) {
     case "cost_adjustment": return { ...base, type, scopeId: "quirk", amount: 1 };
     case "manual_resolution": return { ...base, type, message: "El Master determina el efecto." };
@@ -68,9 +70,12 @@ export function MechanicalEffectDefinitionEditor({ value, onChange, independentD
   const patch = (changes: Record<string, unknown>) => onChange({ ...value, ...changes } as MechanicalEffectDefinition);
 
   return <div className="space-y-4 rounded-md border bg-black/15 p-4">
-    <div className="grid gap-4 md:grid-cols-2">
-      <div className="space-y-2"><Label>Comportamiento</Label><Select value={value.type} onValueChange={type => onChange(createEffectDefinition(type as MechanicalEffectType, value))}><SelectTrigger><SelectValue>{effectTypeLabels[value.type]}</SelectValue></SelectTrigger><SelectContent>{Object.entries(effectTypeLabels).map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectContent></Select></div>
-      <div className="space-y-2"><Label>Cuándo se aplica</Label><Select value={value.timing} onValueChange={timing => patch({ timing })}><SelectTrigger><SelectValue>{{"passive":"Pasivo","on_activation":"Al activar","on_hit":"Al impactar","on_critical":"En crítico","after_effect":"Después del efecto","turn_start":"Inicio del turno","each_turn":"Cada turno","on_fumble":"En pifia"}[value.timing] || value.timing}</SelectValue></SelectTrigger><SelectContent><SelectItem value="passive">Pasivo</SelectItem><SelectItem value="on_activation">Al activar</SelectItem><SelectItem value="on_hit">Al impactar</SelectItem><SelectItem value="on_critical">En crítico</SelectItem><SelectItem value="after_effect">Después del efecto</SelectItem><SelectItem value="turn_start">Inicio del turno</SelectItem><SelectItem value="each_turn">Cada turno</SelectItem><SelectItem value="on_fumble">En pifia</SelectItem></SelectContent></Select></div>
+    <div className="space-y-2">
+      <Label>Tipo de efecto</Label>
+      <Select value={value.type} onValueChange={type => onChange(createEffectDefinition(type as MechanicalEffectType, value))}>
+        <SelectTrigger><SelectValue>{effectTypeLabels[value.type]}</SelectValue></SelectTrigger>
+        <SelectContent>{Object.entries(effectTypeLabels).map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectContent>
+      </Select>
     </div>
     <ValueFields value={value} patch={patch} />
     {(!independentDuration || value.duration) && <div className="grid gap-4 md:grid-cols-2">

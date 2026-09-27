@@ -310,7 +310,7 @@ export function calculateEquipmentBonuses(
     if (!el) return;
 
     // Do not process traits/weaknesses/skills/credentials here
-    if (['trait', 'weakness', 'license', 'permission', 'certification', 'skill', 'attribute_upgrade'].includes(el.kind)) {
+    if (['trait', 'weakness', 'license', 'permission', 'certification', 'skill', 'attribute_upgrade', 'character_resource', 'background', 'clandestine_asset'].includes(el.kind)) {
       return;
     }
 
