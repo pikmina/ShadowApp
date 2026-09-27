@@ -542,6 +542,8 @@ async function startServer() {
       const schema = z.object({
         name: z.string().min(1, "El nombre del jugador es obligatorio"),
         status: z.enum(["active", "absent", "inactive"]).optional(),
+        identity: z.string().optional().nullable(),
+        discord: z.string().optional().nullable(),
         notes: z.string().optional().nullable(),
         userId: z.number().int().positive().optional().nullable(),
       });
@@ -563,6 +565,8 @@ async function startServer() {
       const schema = z.object({
         name: z.string().min(1).optional(),
         status: z.enum(["active", "absent", "inactive"]).optional(),
+        identity: z.string().optional().nullable(),
+        discord: z.string().optional().nullable(),
         notes: z.string().optional().nullable(),
         userId: z.number().int().positive().optional().nullable(),
       });

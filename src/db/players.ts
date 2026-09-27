@@ -7,6 +7,8 @@ export interface PlayerWithCharacters {
   name: string;
   status: 'active' | 'absent' | 'inactive';
   userId: number | null;
+  identity: string | null;
+  discord: string | null;
   notes: string | null;
   createdAt: Date | null;
   updatedAt: Date | null;
@@ -110,6 +112,8 @@ export async function createPlayer(data: {
   name: string;
   status?: 'active' | 'absent' | 'inactive';
   userId?: number | null;
+  identity?: string | null;
+  discord?: string | null;
   notes?: string | null;
 }, actorUid?: string) {
   const [created] = await db
@@ -118,7 +122,9 @@ export async function createPlayer(data: {
       name: data.name.trim(),
       status: data.status || 'active',
       userId: data.userId || null,
-      notes: data.notes || null,
+      identity: data.identity ? data.identity.trim() : null,
+      discord: data.discord ? data.discord.trim() : null,
+      notes: data.notes ? data.notes.trim() : null,
     })
     .returning();
 
@@ -141,6 +147,8 @@ export async function updatePlayer(id: number, data: {
   name?: string;
   status?: 'active' | 'absent' | 'inactive';
   userId?: number | null;
+  identity?: string | null;
+  discord?: string | null;
   notes?: string | null;
 }, actorUid?: string) {
   const updatePayload: Record<string, any> = {
@@ -149,7 +157,9 @@ export async function updatePlayer(id: number, data: {
   if (data.name !== undefined) updatePayload.name = data.name.trim();
   if (data.status !== undefined) updatePayload.status = data.status;
   if (data.userId !== undefined) updatePayload.userId = data.userId;
-  if (data.notes !== undefined) updatePayload.notes = data.notes;
+  if (data.identity !== undefined) updatePayload.identity = data.identity ? data.identity.trim() : null;
+  if (data.discord !== undefined) updatePayload.discord = data.discord ? data.discord.trim() : null;
+  if (data.notes !== undefined) updatePayload.notes = data.notes ? data.notes.trim() : null;
 
   const [updated] = await db
     .update(players)

@@ -52,6 +52,8 @@ export const players = pgTable('players', {
   name: text('name').notNull(),
   status: playerStatusEnum('status').default('active').notNull(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  identity: text('identity'),
+  discord: text('discord'),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

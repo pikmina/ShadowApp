@@ -364,10 +364,15 @@ export async function runMigration() {
             "name" text NOT NULL,
             "status" "player_status" DEFAULT 'active' NOT NULL,
             "user_id" integer,
+            "identity" text,
+            "discord" text,
             "notes" text,
             "created_at" timestamp DEFAULT now(),
             "updated_at" timestamp DEFAULT now()
           );
+
+          ALTER TABLE "players" ADD COLUMN IF NOT EXISTS "identity" text;
+          ALTER TABLE "players" ADD COLUMN IF NOT EXISTS "discord" text;
 
           ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "player_id" integer;
           ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;
