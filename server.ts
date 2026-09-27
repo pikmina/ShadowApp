@@ -1,4 +1,4 @@
-import { validateCoreCategories } from "./src/domain/coreRuleCatalog.ts";
+import { validateCoreCategories, migrateCoreCategories } from "./src/domain/coreRuleCatalog.ts";
 import express from "express";
 import { z } from "zod";
 import path from "path";
@@ -96,6 +96,12 @@ async function startServer() {
       if (key === "system_mechanics") {
         if (type !== "json") {
           return res.status(400).json({ error: "system_mechanics must use the json rule type" });
+        }
+
+        try {
+          value = migrateCoreCategories(value);
+        } catch (e: any) {
+          return res.status(400).json({ error: "Error migrando categorías core: " + e.message });
         }
 
         const mechanics = systemMechanicsConfigSchema.safeParse(value);

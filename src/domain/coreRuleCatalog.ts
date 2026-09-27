@@ -551,7 +551,7 @@ export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig 
     const existingCat = parsed.find(c => c.id === defaultCat.id || c.coreKey === defaultCat.coreKey);
     if (!existingCat) {
       parsed.push(defaultCat);
-    } else if (existingCat.rules.length > 0) {
+    } else {
       // Backfill missing core options into existing categories without overwriting existing or custom rules
       for (const defaultRule of defaultCat.rules) {
         const hasRule = existingCat.rules.some(r => r.id === defaultRule.id || ((r as any).runtimeKey && (r as any).runtimeKey === (defaultRule as any).runtimeKey));
