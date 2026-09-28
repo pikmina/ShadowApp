@@ -2125,10 +2125,10 @@ function EffectsListEditor({
                 {eff.type === "attribute_modifier" && (() => {
                   const rawAttrOpts = getCategoryOptions(mechanics, "attribute");
                   const visibleAttrOpts = getVisibleOptions(rawAttrOpts, eff.attributeId);
-                  const rawAmountOpts = getCategoryOptions(mechanics, (eff.amount ?? 0) < 0 ? "penalty" : "bonus");
-                  const visibleAmountOpts = getVisibleOptions(rawAmountOpts, Math.abs(eff.amount ?? 0));
+                  const rawAmountOpts = getCategoryOptions(mechanics, "numeric_modifier");
+                  const visibleAmountOpts = getVisibleOptions(rawAmountOpts, eff.amount ?? 0);
                   const currentAttrOpt = rawAttrOpts.find(o => o.runtimeKey === eff.attributeId || o.id === eff.attributeId);
-                  const currentAmountOpt = rawAmountOpts.find(o => o.amount === Math.abs(eff.amount ?? 0) || o.runtimeKey === String(Math.abs(eff.amount ?? 0)));
+                  const currentAmountOpt = rawAmountOpts.find(o => o.runtimeKey === String(eff.amount ?? 0) || o.id === String(eff.amount ?? 0));
 
                   return (
                     <>
@@ -2203,10 +2203,10 @@ function EffectsListEditor({
                 {eff.type === "derived_stat_modifier" && (() => {
                   const rawStatOpts = getCategoryOptions(mechanics, "derived_stat");
                   const visibleStatOpts = getVisibleOptions(rawStatOpts, eff.statId);
-                  const rawAmountOpts = getCategoryOptions(mechanics, (eff.amount ?? 0) < 0 ? "penalty" : "bonus");
-                  const visibleAmountOpts = getVisibleOptions(rawAmountOpts, Math.abs(eff.amount ?? 0));
+                  const rawAmountOpts = getCategoryOptions(mechanics, "numeric_modifier");
+                  const visibleAmountOpts = getVisibleOptions(rawAmountOpts, eff.amount ?? 0);
                   const currentStatOpt = rawStatOpts.find(o => o.runtimeKey === eff.statId || o.id === eff.statId);
-                  const currentAmountOpt = rawAmountOpts.find(o => o.amount === Math.abs(eff.amount ?? 0) || o.runtimeKey === String(Math.abs(eff.amount ?? 0)));
+                  const currentAmountOpt = rawAmountOpts.find(o => o.runtimeKey === String(eff.amount ?? 0) || o.id === String(eff.amount ?? 0));
 
                   return (
                     <>
@@ -2791,13 +2791,48 @@ function TargetEditor({
   onChange: (target: any) => void;
   mechanics?: SystemMechanicsConfig;
 }) {
-  const targetOptions = getCategoryOptions(mechanics, "target");
+  const allTargetOptions = getCategoryOptions(mechanics, "target");
+  // For new configurations, filter out area, allies, enemies
+  const targetOptions = allTargetOptions.filter((opt) => {
+    if (opt.runtimeKey === target.type) return true;
+    return !["area", "allies", "enemies"].includes(opt.runtimeKey);
+  });
+  const currentTargetOpt = allTargetOptions.find((o) => o.runtimeKey === (target.type || "self"));
+
+  const targetCountOptions = getCategoryOptions(mechanics, "target_count");
+  const currentCountKey = target.quantity?.mode === "all"
+    ? "all"
+    : (target.quantity?.count ? String(target.quantity.count) : (target.type === "enemies" || target.type === "allies" ? "all" : "1"));
+  const currentCountOpt = targetCountOptions.find((o) => o.runtimeKey === currentCountKey);
+
   const rangeOptions = getCategoryOptions(mechanics, "range");
+  const rangeTypeOptions = rangeOptions.filter((o) => ["self", "contact", "distance", "unlimited", "manual"].includes(o.runtimeKey));
+  const currentRangeTypeOpt = rangeTypeOptions.find((o) => o.runtimeKey === (target.range?.type || "contact"));
+
+  const discreteRangeDistances = rangeOptions.filter((o) => !["self", "contact", "distance", "unlimited", "manual"].includes(o.runtimeKey));
+  const distanceOptions = discreteRangeDistances.length > 0
+    ? discreteRangeDistances
+    : [0, 5, 10, 20, 50].map((m) => ({ runtimeKey: String(m), name: `${m} m`, cost: 0, isAvailable: true }));
+  const currentDistanceKey = String(target.range?.distanceMeters ?? (target.range?.distance ?? 10));
+  const currentDistanceOpt = distanceOptions.find((o) => o.runtimeKey === currentDistanceKey);
+
   const areaOptions = getCategoryOptions(mechanics, "area");
+  const areaShapeOptions = areaOptions.filter((o) => ["radius", "cone", "line", "zone"].includes(o.runtimeKey));
+  const discreteAreaSizes = areaOptions.filter((o) => !["radius", "cone", "line", "zone"].includes(o.runtimeKey));
+  const sizeOptions = discreteAreaSizes.length > 0
+    ? discreteAreaSizes
+    : [5, 10, 15, 20, 50].map((m) => ({ runtimeKey: String(m), name: `${m} m`, cost: 0, isAvailable: true }));
+  const currentAreaShape = target.area?.shape;
+  const currentSizeKey = String(target.area?.sizeMeters ?? (target.area?.radius ?? 5));
+  const currentSizeOpt = sizeOptions.find((o) => o.runtimeKey === currentSizeKey);
+
   const selectionOptions = getCategoryOptions(mechanics, "selection_restriction");
+  const currentSelMode = target.selectionMode || (target.selectionRestriction ? (target.selectionRestriction === "random" ? "random" : target.selectionRestriction === "manual" ? "manual" : "standard_priority") : "standard_priority");
+  const currentSelOpt = selectionOptions.find((o) => o.runtimeKey === currentSelMode);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+      {/* 1. Tipo de Objetivo */}
       <div className="grid gap-1.5">
         <Label className="text-xs">Tipo de Objetivo</Label>
         <Select
@@ -2805,7 +2840,11 @@ function TargetEditor({
           onValueChange={(val) => onChange({ ...target, type: val })}
         >
           <SelectTrigger className="h-8 text-xs bg-background">
-            <SelectValue>{getMechanicalLabel("targets", target.type || "self")}</SelectValue>
+            <SelectValue>
+              {currentTargetOpt
+                ? `${currentTargetOpt.name || getMechanicalLabel("targets", currentTargetOpt.runtimeKey)}${currentTargetOpt.cost ? ` (+${currentTargetOpt.cost} CE)` : ""}`
+                : `${getMechanicalLabel("targets", target.type) || target.type} · Valor histórico sin regla de CE`}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {getVisibleOptions(targetOptions, target.type || "self").map((opt) => (
@@ -2815,10 +2854,53 @@ function TargetEditor({
                 {opt.isAvailable === false ? " · No disponible" : ""}
               </SelectItem>
             ))}
+            {!currentTargetOpt && target.type && (
+              <SelectItem value={target.type} disabled>
+                {getMechanicalLabel("targets", target.type) || target.type} · Valor histórico sin regla de CE
+              </SelectItem>
+            )}
           </SelectContent>
         </Select>
       </div>
 
+      {/* 2. Cantidad de Objetivos (target_count) */}
+      <div className="grid gap-1.5">
+        <Label className="text-xs">Cantidad de Objetivos</Label>
+        <Select
+          value={currentCountKey}
+          onValueChange={(val) => {
+            if (val === "all") {
+              onChange({ ...target, quantity: { mode: "all" } });
+            } else {
+              onChange({ ...target, quantity: { mode: "up_to", count: parseInt(val, 10) || 1 } });
+            }
+          }}
+        >
+          <SelectTrigger className="h-8 text-xs bg-background">
+            <SelectValue>
+              {currentCountOpt
+                ? `${currentCountOpt.name}${currentCountOpt.cost ? ` (+${currentCountOpt.cost} CE)` : ""}`
+                : `${currentCountKey === "all" ? "Todos" : `Hasta ${currentCountKey}`} · Valor histórico sin regla de CE`}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {getVisibleOptions(targetCountOptions, currentCountKey).map((opt) => (
+              <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                {opt.name}
+                {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                {opt.isAvailable === false ? " · No disponible" : ""}
+              </SelectItem>
+            ))}
+            {!currentCountOpt && currentCountKey && (
+              <SelectItem value={currentCountKey} disabled>
+                {currentCountKey === "all" ? "Todos los objetivos" : `Hasta ${currentCountKey}`} · Valor histórico sin regla de CE
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* 3. Rango */}
       <div className="grid gap-1.5">
         <Label className="text-xs">Rango</Label>
         <Select
@@ -2831,12 +2913,101 @@ function TargetEditor({
           }
         >
           <SelectTrigger className="h-8 text-xs bg-background">
-            <SelectValue>{getMechanicalLabel("ranges", target.range?.type || "contact")}</SelectValue>
+            <SelectValue>
+              {currentRangeTypeOpt
+                ? `${currentRangeTypeOpt.name || getMechanicalLabel("ranges", currentRangeTypeOpt.runtimeKey)}${currentRangeTypeOpt.cost ? ` (+${currentRangeTypeOpt.cost} CE)` : ""}`
+                : `${getMechanicalLabel("ranges", target.range?.type) || target.range?.type} · Valor histórico sin regla de CE`}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {getVisibleOptions(rangeOptions, target.range?.type || "contact").map((opt) => (
+            {getVisibleOptions(rangeTypeOptions, target.range?.type || "contact").map((opt) => (
               <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                 {opt.name || getMechanicalLabel("ranges", opt.runtimeKey)}
+                {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                {opt.isAvailable === false ? " · No disponible" : ""}
+              </SelectItem>
+            ))}
+            {!currentRangeTypeOpt && target.range?.type && (
+              <SelectItem value={target.range.type} disabled>
+                {getMechanicalLabel("ranges", target.range.type) || target.range.type} · Valor histórico sin regla de CE
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* 4. Distancia Discreta (Metros) */}
+      {target.range?.type === "distance" && (
+        <div className="grid gap-1.5">
+          <Label className="text-xs">Distancia de Rango</Label>
+          <Select
+            value={currentDistanceKey}
+            onValueChange={(val) =>
+              onChange({
+                ...target,
+                range: {
+                  ...(target.range || { type: "distance" }),
+                  distanceMeters: parseInt(val, 10) || 0,
+                },
+              })
+            }
+          >
+            <SelectTrigger className="h-8 text-xs bg-background">
+              <SelectValue>
+                {currentDistanceOpt
+                  ? `${currentDistanceOpt.name}${currentDistanceOpt.cost ? ` (+${currentDistanceOpt.cost} CE)` : ""}`
+                  : `${currentDistanceKey} m · Valor histórico sin regla de CE`}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {getVisibleOptions(distanceOptions, currentDistanceKey).map((opt) => (
+                <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                  {opt.name}
+                  {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                  {opt.isAvailable === false ? " · No disponible" : ""}
+                </SelectItem>
+              ))}
+              {!currentDistanceOpt && (
+                <SelectItem value={currentDistanceKey} disabled>
+                  {currentDistanceKey} m · Valor histórico sin regla de CE
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* 5. Área de Efecto (Independiente del tipo de objetivo) */}
+      <div className="grid gap-1.5">
+        <Label className="text-xs">Área de Efecto</Label>
+        <Select
+          value={currentAreaShape || "none"}
+          onValueChange={(val) => {
+            if (val === "none") {
+              onChange({ ...target, area: undefined });
+            } else {
+              onChange({
+                ...target,
+                area: {
+                  shape: val,
+                  sizeMeters: target.area?.sizeMeters ?? 5,
+                },
+              });
+            }
+          }}
+        >
+          <SelectTrigger className="h-8 text-xs bg-background">
+            <SelectValue>
+              {currentAreaShape
+                ? getMechanicalLabel("areaShapes", currentAreaShape)
+                : "Sin área (Objetivos directos)"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Sin área (Objetivos directos)</SelectItem>
+            {getVisibleOptions(areaShapeOptions, currentAreaShape).map((opt) => (
+              <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                {opt.name || getMechanicalLabel("areaShapes", opt.runtimeKey)}
                 {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
                 {opt.isAvailable === false ? " · No disponible" : ""}
               </SelectItem>
@@ -2845,96 +3016,76 @@ function TargetEditor({
         </Select>
       </div>
 
-      {target.range?.type === "distance" && (
+      {/* 6. Tamaño Discreto de Área (Metros) */}
+      {currentAreaShape && (
         <div className="grid gap-1.5">
-          <Label className="text-xs">Distancia (Metros)</Label>
-          <Input
-            type="number"
-            min={1}
-            value={target.range?.distanceMeters ?? 10}
-            onChange={(e) =>
+          <Label className="text-xs">Tamaño de Área</Label>
+          <Select
+            value={currentSizeKey}
+            onValueChange={(val) =>
               onChange({
                 ...target,
-                range: {
-                  ...(target.range || { type: "distance" }),
-                  distanceMeters: parseInt(e.target.value, 10) || 0,
+                area: {
+                  ...(target.area || { shape: "radius" }),
+                  sizeMeters: parseInt(val, 10) || 0,
                 },
               })
             }
-            className="h-8 text-xs bg-background"
-          />
+          >
+            <SelectTrigger className="h-8 text-xs bg-background">
+              <SelectValue>
+                {currentSizeOpt
+                  ? `${currentSizeOpt.name}${currentSizeOpt.cost ? ` (+${currentSizeOpt.cost} CE)` : ""}`
+                  : `${currentSizeKey} m · Valor histórico sin regla de CE`}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {getVisibleOptions(sizeOptions, currentSizeKey).map((opt) => (
+                <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                  {opt.name}
+                  {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                  {opt.isAvailable === false ? " · No disponible" : ""}
+                </SelectItem>
+              ))}
+              {!currentSizeOpt && (
+                <SelectItem value={currentSizeKey} disabled>
+                  {currentSizeKey} m · Valor histórico sin regla de CE
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
-      {target.type === "area" && (
-        <>
-          <div className="grid gap-1.5">
-            <Label className="text-xs">Forma de Área</Label>
-            <Select
-              value={target.area?.shape || "radius"}
-              onValueChange={(val) =>
-                onChange({
-                  ...target,
-                  area: { ...(target.area || {}), shape: val },
-                })
-              }
-            >
-              <SelectTrigger className="h-8 text-xs bg-background">
-                <SelectValue>{getMechanicalLabel("areaShapes", target.area?.shape || "radius")}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {getVisibleOptions(areaOptions, target.area?.shape || "radius").map((opt) => (
-                  <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
-                    {opt.name || getMechanicalLabel("areaShapes", opt.runtimeKey)}
-                    {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
-                    {opt.isAvailable === false ? " · No disponible" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-1.5">
-            <Label className="text-xs">Tamaño de Área (Metros)</Label>
-            <Input
-              type="number"
-              min={1}
-              value={target.area?.sizeMeters ?? 5}
-              onChange={(e) =>
-                onChange({
-                  ...target,
-                  area: {
-                    ...(target.area || { shape: "radius" }),
-                    sizeMeters: parseInt(e.target.value, 10) || 0,
-                  },
-                })
-              }
-              className="h-8 text-xs bg-background"
-            />
-          </div>
-        </>
-      )}
-
+      {/* 7. Modo de Selección */}
       <div className="grid gap-1.5">
-        <Label className="text-xs">Restricción de Selección</Label>
+        <Label className="text-xs">Modo de Selección</Label>
         <Select
-          value={target.selectionRestriction || "none"}
+          value={currentSelMode}
           onValueChange={(val) =>
-            onChange({ ...target, selectionRestriction: val === "none" ? undefined : val })
+            onChange({ ...target, selectionMode: val, selectionRestriction: undefined })
           }
         >
           <SelectTrigger className="h-8 text-xs bg-background">
-            <SelectValue>{getMechanicalLabel("selectionRestrictions", target.selectionRestriction || "none")}</SelectValue>
+            <SelectValue>
+              {currentSelOpt
+                ? `${currentSelOpt.name || getMechanicalLabel("selectionModes", currentSelOpt.runtimeKey)}${currentSelOpt.cost ? ` (+${currentSelOpt.cost} CE)` : ""}`
+                : `${getMechanicalLabel("selectionModes", currentSelMode) || currentSelMode} · Valor histórico sin regla de CE`}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">{MECHANICAL_LABELS.selectionRestrictions.none}</SelectItem>
-            {getVisibleOptions(selectionOptions, target.selectionRestriction || "none").map((opt) => (
+            {getVisibleOptions(selectionOptions, currentSelMode).map((opt) => (
               <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
-                {opt.name || getMechanicalLabel("selectionRestrictions", opt.runtimeKey)}
+                {opt.name || getMechanicalLabel("selectionModes", opt.runtimeKey) || getMechanicalLabel("selectionRestrictions", opt.runtimeKey)}
                 {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
                 {opt.isAvailable === false ? " · No disponible" : ""}
               </SelectItem>
             ))}
+            {!currentSelOpt && currentSelMode && (
+              <SelectItem value={currentSelMode} disabled>
+                {getMechanicalLabel("selectionModes", currentSelMode) || currentSelMode} · Valor histórico sin regla de CE
+              </SelectItem>
+            )}
           </SelectContent>
         </Select>
       </div>

@@ -198,14 +198,14 @@ describe('FASE CE-2: Composición determinista de CE para Modificadores', () => 
       JSON.stringify(coreCategories)
     );
     const bonusCat = customCategories.find(
-      (c) => c.id === 'core.bonus' || c.coreKey === 'bonus'
+      (c) => c.id === 'core.numeric_modifier' || c.coreKey === 'numeric_modifier'
     );
-    const rule3 = bonusCat?.rules.find((r) => r.id === 'core.bonus.3');
+    const rule3 = bonusCat?.rules.find((r) => r.id === 'core.numeric_modifier.3');
     if (rule3) {
       rule3.isAvailable = false;
     }
 
-    const bonusOpts = getCategoryOptions(customCategories, 'bonus');
+    const bonusOpts = getCategoryOptions(customCategories, 'numeric_modifier');
 
     // Para nueva selección (sin valor actual), 3 no está visible
     const newOptions = getVisibleOptions(bonusOpts, null);

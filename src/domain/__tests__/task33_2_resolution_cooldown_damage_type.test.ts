@@ -484,9 +484,9 @@ describe('Tarea 33.2 — Resolución de Técnicas, Cooldown, Tipo de Daño y Des
       const desc = describeMechanicalBehavior(behavior);
       expect(desc.text).toContain('2D6');
       expect(desc.text).toContain('Físico');
-      expect(desc.text).toContain('Enemigos');
+      expect(desc.text).toContain('enemigos');
       expect(desc.text).not.toContain(generatedRuleId);
-      expect(desc.text).toBe('Enemigos: Inflige 2D6 de daño de tipo Físico.');
+      expect(desc.text).toBe('Inflige 2D6 de daño de tipo Físico a todos los enemigos.');
     });
 
     // Test obligatorio 12: Runtime de daño ejecuta la fórmula 2D6

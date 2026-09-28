@@ -23,10 +23,9 @@ import type { MechanicalBehavior } from '../mechanicalBehavior';
 describe('TAREA 34.2 & 34.2.2 — Saneamiento y Consolidación de Categorías Mecánicas', () => {
   const categories = createCoreCategories();
 
-  test('1. Validates sanitized canonical core categories list (29 active)', () => {
+  test('1. Validates sanitized canonical core categories list', () => {
     expect(validateCoreCategories(categories)).toBe(true);
     expect(categories).toHaveLength(Object.keys(CORE_CATEGORIES).length);
-    expect(categories).toHaveLength(32);
 
     // Verify retired categories are not present in active CORE_CATEGORIES
     for (const retiredKey of RETIRED_CORE_CATEGORIES) {
@@ -36,22 +35,21 @@ describe('TAREA 34.2 & 34.2.2 — Saneamiento y Consolidación de Categorías Me
 
     // Verify active categories including health_cost
     expect('health_cost' in CORE_CATEGORIES).toBe(true);
-    expect('bonus' in CORE_CATEGORIES).toBe(true);
-    expect('penalty' in CORE_CATEGORIES).toBe(true);
+    expect('numeric_modifier' in CORE_CATEGORIES).toBe(true);
     expect('maintenance' in CORE_CATEGORIES).toBe(true);
     expect('target_count' in CORE_CATEGORIES).toBe(true);
     expect('healing' in CORE_CATEGORIES).toBe(true);
     expect('damage' in CORE_CATEGORIES).toBe(true);
   });
 
-  test('2. BONUS — attribute independence and exact validation', () => {
-    // Both +2 FUE and +2 DES resolve the same generic rule core.bonus.2
+  test('2. BONUS — attribute independence and exact validation via numeric_modifier', () => {
+    // Both +2 FUE and +2 DES resolve the same generic rule core.numeric_modifier.2
     const bonusOptFUE = findBonusOption(categories, 2);
     const bonusOptDES = findBonusOption(categories, 2);
     expect(bonusOptFUE).toBeDefined();
     expect(bonusOptDES).toBeDefined();
-    expect(bonusOptFUE?.ruleId).toBe('core.bonus.2');
-    expect(bonusOptDES?.ruleId).toBe('core.bonus.2');
+    expect(bonusOptFUE?.ruleId).toBe('core.numeric_modifier.2');
+    expect(bonusOptDES?.ruleId).toBe('core.numeric_modifier.2');
 
     // Validation accepts configured +1..+5, rejects unconfigured +6
     const bValid: MechanicalBehavior = {
@@ -84,14 +82,14 @@ describe('TAREA 34.2 & 34.2.2 — Saneamiento y Consolidación de Categorías Me
     expect(invalidRes.errors[0]).toContain('+6');
   });
 
-  test('3. PENALTY — attribute independence and exact validation', () => {
-    // Both -2 INT and -2 VEL resolve the same generic rule core.penalty.2
+  test('3. PENALTY — attribute independence and exact validation via numeric_modifier', () => {
+    // Both -2 INT and -2 VEL resolve the same generic rule core.numeric_modifier.-2
     const penaltyOptINT = findPenaltyOption(categories, -2);
     const penaltyOptVEL = findPenaltyOption(categories, -2);
     expect(penaltyOptINT).toBeDefined();
     expect(penaltyOptVEL).toBeDefined();
-    expect(penaltyOptINT?.ruleId).toBe('core.penalty.2');
-    expect(penaltyOptVEL?.ruleId).toBe('core.penalty.2');
+    expect(penaltyOptINT?.ruleId).toBe('core.numeric_modifier.-2');
+    expect(penaltyOptVEL?.ruleId).toBe('core.numeric_modifier.-2');
 
     // Validation accepts configured -1..-5, rejects unconfigured -8
     const bValid: MechanicalBehavior = {
@@ -193,10 +191,10 @@ describe('TAREA 34.2 & 34.2.2 — Saneamiento y Consolidación de Categorías Me
 
   test('6. Independence of mechanical value and stamina cost (amount != staminaCost)', () => {
     const customCats = structuredClone(categories);
-    const bonusCat = customCats.find(c => c.coreKey === 'bonus')!;
-    const bonus3 = bonusCat.rules.find(r => r.id === 'core.bonus.3')!;
+    const numModOptionCat = customCats.find(c => c.coreKey === 'numeric_modifier')!;
+    const numMod3 = numModOptionCat.rules.find(r => r.id === 'core.numeric_modifier.3')!;
     // Configure bonus +3 to cost +7 CE (NOT 3 CE)
-    bonus3.cost = 7;
+    numMod3.cost = 7;
 
     const behavior: MechanicalBehavior = {
       id: 'b_val_cost',
@@ -215,18 +213,29 @@ describe('TAREA 34.2 & 34.2.2 — Saneamiento y Consolidación de Categorías Me
 
   test('7. migrateCoreCategories preserves legacy customized bonus/penalty costs', () => {
     const legacyCats = structuredClone(categories);
-    const bonusCat = legacyCats.find(c => c.coreKey === 'bonus')!;
-    bonusCat.rules.push({
-      id: 'core.bonus.fue2',
-      name: '+2 FUE',
-      cost: 9, // customized cost
-      ruleType: 'cost_modifier',
-      runtimeKey: 'fue2'
-    } as any);
+    // Add legacy bonus category
+    legacyCats.push({
+      id: 'core.bonus',
+      coreKey: 'bonus',
+      name: 'Bono',
+      description: 'Bono',
+      logicalType: 'support',
+      family: 'effect',
+      scope: { techniques: true, objects: true, actions: true },
+      rules: [
+        {
+          id: 'core.bonus.fue2',
+          name: '+2 FUE',
+          cost: 9, // customized cost
+          ruleType: 'cost_modifier',
+          runtimeKey: 'fue2'
+        } as any
+      ]
+    });
 
     const migrated = migrateCoreCategories(legacyCats);
-    const migratedBonus = migrated.find(c => c.coreKey === 'bonus')!;
-    const opt2 = migratedBonus.rules.find(r => r.id === 'core.bonus.2')!;
+    const migratedNumMod = migrated.find(c => c.coreKey === 'numeric_modifier')!;
+    const opt2 = migratedNumMod.rules.find(r => r.id === 'core.numeric_modifier.2')!;
     expect(opt2.cost).toBe(9);
   });
 });

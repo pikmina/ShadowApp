@@ -64,19 +64,26 @@ export function describeEffect(effect: MechanicalEffectDefinition, targeting?: E
   return `${behavior} · ${quantity} ${target}${quantity === "1" ? "" : "s"}`;
 }
 
-type Props = { independentDuration?: boolean; value: MechanicalEffectDefinition; onChange: (value: MechanicalEffectDefinition) => void };
+type Props = { 
+  independentDuration?: boolean; 
+  value: MechanicalEffectDefinition; 
+  onChange: (value: MechanicalEffectDefinition) => void;
+  hideTypeSelector?: boolean;
+};
 
-export function MechanicalEffectDefinitionEditor({ value, onChange, independentDuration }: Props) {
+export function MechanicalEffectDefinitionEditor({ value, onChange, independentDuration, hideTypeSelector }: Props) {
   const patch = (changes: Record<string, unknown>) => onChange({ ...value, ...changes } as MechanicalEffectDefinition);
 
   return <div className="space-y-4 rounded-md border bg-black/15 p-4">
-    <div className="space-y-2">
-      <Label>Tipo de efecto</Label>
-      <Select value={value.type} onValueChange={type => onChange(createEffectDefinition(type as MechanicalEffectType, value))}>
-        <SelectTrigger><SelectValue>{effectTypeLabels[value.type]}</SelectValue></SelectTrigger>
-        <SelectContent>{Object.entries(effectTypeLabels).map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectContent>
-      </Select>
-    </div>
+    {!hideTypeSelector && (
+      <div className="space-y-2">
+        <Label>Tipo de efecto</Label>
+        <Select value={value.type} onValueChange={type => onChange(createEffectDefinition(type as MechanicalEffectType, value))}>
+          <SelectTrigger><SelectValue>{effectTypeLabels[value.type]}</SelectValue></SelectTrigger>
+          <SelectContent>{Object.entries(effectTypeLabels).map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+    )}
     <ValueFields value={value} patch={patch} />
     {(!independentDuration || value.duration) && <div className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2"><Label>Duración (opcional)</Label><Input type="number" min={1} value={value.duration?.value ?? ""} onChange={e => patch({ duration: e.target.value ? { value: Number(e.target.value), unit: value.duration?.unit ?? "turn" } : undefined })} /></div>

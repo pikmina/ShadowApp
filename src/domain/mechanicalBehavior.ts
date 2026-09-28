@@ -274,14 +274,53 @@ export const selectionRestrictionSchema = z.union([
 ]);
 export type SelectionRestriction = z.infer<typeof selectionRestrictionSchema>;
 
-export const mechanicalTargetSchema = z.object({
+export const selectionModeSchema = z.enum([
+  "standard_priority",
+  "manual",
+  "random",
+]).default("standard_priority");
+export type SelectionMode = z.infer<typeof selectionModeSchema>;
+
+export const mechanicalTargetSchema = z.preprocess((val) => {
+  if (val && typeof val === "object") {
+    const raw = { ...(val as Record<string, any>) };
+
+    // Legacy normalization: allies / enemies -> ally / enemy + quantity all (if quantity not set)
+    if (raw.type === "enemies") {
+      raw.type = "enemy";
+      if (!raw.quantity) {
+        raw.quantity = { mode: "all" };
+      }
+    } else if (raw.type === "allies") {
+      raw.type = "ally";
+      if (!raw.quantity) {
+        raw.quantity = { mode: "all" };
+      }
+    }
+
+    // Legacy selectionRestriction -> selectionMode
+    if (!raw.selectionMode && raw.selectionRestriction) {
+      if (raw.selectionRestriction === "random") {
+        raw.selectionMode = "random";
+      } else if (raw.selectionRestriction === "manual") {
+        raw.selectionMode = "manual";
+      } else {
+        raw.selectionMode = "standard_priority";
+      }
+    }
+
+    return raw;
+  }
+  return val;
+}, z.object({
   type: targetTypeSchema.default("self"),
   quantity: targetQuantitySchema.optional(),
   range: targetRangeSchema.optional(),
   area: targetAreaSchema.optional(),
+  selectionMode: selectionModeSchema.optional(),
   selectionRestriction: selectionRestrictionSchema.optional(),
   description: z.string().optional(),
-});
+}));
 export type MechanicalTarget = z.infer<typeof mechanicalTargetSchema>;
 
 // ==========================================

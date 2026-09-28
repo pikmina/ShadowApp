@@ -73,7 +73,7 @@ describe("Traits & Weaknesses Admin UI Mechanical Description Integration (Task 
     };
 
     let preview = describeMechanicalBehavior(behavior, { format: "compact" });
-    expect(preview.text).toBe("1 enemigo: Inflige 2D8 de daño.");
+    expect(preview.text).toBe("Inflige 2D8 de daño a un enemigo.");
 
     // Admin updates target: 1 enemy -> up to 3 allies
     const updatedBehavior: MechanicalBehavior = {

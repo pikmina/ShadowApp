@@ -263,7 +263,13 @@ export function describeMechanicalTarget(
       break;
   }
 
-  if (target.selectionRestriction && target.selectionRestriction !== "none") {
+  if (target.selectionMode && target.selectionMode !== "standard_priority") {
+    if (target.selectionMode === "manual") {
+      text += " (Elección manual)";
+    } else if (target.selectionMode === "random") {
+      text += " (Aleatoria)";
+    }
+  } else if (target.selectionRestriction && target.selectionRestriction !== "none") {
     const resLabel = getMechanicalLabel("selectionRestrictions", target.selectionRestriction);
     text += ` (${resLabel || target.selectionRestriction})`;
   }
@@ -1239,22 +1245,85 @@ export function describeMechanicalBehavior(
     const hasTarget = sections.target.length > 0;
     const hasEffects = sections.effects.length > 0;
 
+    // Build natural spatial & selection descriptor phrases
+    let spatialPhrase = "";
+    if (behavior.target?.area?.shape && behavior.target?.area?.sizeMeters) {
+      const shape = behavior.target.area.shape;
+      const size = behavior.target.area.sizeMeters;
+      if (shape === "radius") spatialPhrase += ` en un radio de ${size} m`;
+      else if (shape === "cone") spatialPhrase += ` en un cono de ${size} m`;
+      else if (shape === "line") spatialPhrase += ` en una línea de ${size} m`;
+      else spatialPhrase += ` en un área de ${size} m`;
+    }
+    if (behavior.target?.range?.type === "distance" && behavior.target?.range?.distanceMeters) {
+      spatialPhrase += ` a un máximo de ${behavior.target.range.distanceMeters} m`;
+    } else if (behavior.target?.range?.type === "contact" && behavior.target?.type !== "self") {
+      spatialPhrase += ` al contacto`;
+    }
+    if (behavior.target?.selectionMode === "manual") {
+      spatialPhrase += " (Elección manual)";
+    } else if (behavior.target?.selectionMode === "random") {
+      spatialPhrase += " (Selección aleatoria)";
+    }
+
+    const getPrepositionalTarget = (t: any): string => {
+      const type = t?.type ?? "self";
+      const q = t?.quantity;
+      const count = q?.count ?? 1;
+      const mode = q?.mode ?? (type === "allies" || type === "enemies" ? "all" : (q?.count ? "up_to" : undefined));
+
+      if (type === "enemy" || type === "enemies") {
+        if (mode === "all") return "a todos los enemigos";
+        if (mode === "up_to") return count === 1 ? "a un enemigo" : `a hasta ${count} enemigos`;
+        return count === 1 ? "a un enemigo" : `a ${count} enemigos`;
+      }
+      if (type === "ally" || type === "allies") {
+        if (mode === "all") return "a todos los aliados";
+        if (mode === "up_to") return count === 1 ? "a un aliado" : `a hasta ${count} aliados`;
+        return count === 1 ? "a un aliado" : `a ${count} aliados`;
+      }
+      if (type === "character" || type === "any") {
+        if (mode === "all") return "a todos los personajes";
+        if (mode === "up_to") return count === 1 ? "a un personaje" : `a hasta ${count} personajes`;
+        return count === 1 ? "a un personaje" : `a ${count} personajes`;
+      }
+      if (type === "object") {
+        if (mode === "all") return "a todos los objetos";
+        if (mode === "up_to") return count === 1 ? "a un objeto" : `a hasta ${count} objetos`;
+        return count === 1 ? "a un objeto" : `a ${count} objetos`;
+      }
+      return "";
+    };
+
     let mainActionClause = "";
     if (hasTarget && hasEffects) {
       const targetStr = sections.target[0];
       const effectStr = sections.effects[0];
 
       if (targetStr !== "Uno mismo" && effectStr.startsWith("recuperan")) {
-        mainActionClause = `${targetStr} ${effectStr}`;
+        mainActionClause = `${targetStr} ${effectStr}${spatialPhrase}`;
+      } else if (
+        targetStr !== "Uno mismo" &&
+        (effectStr.startsWith("Inflige") ||
+          effectStr.startsWith("Recupera") ||
+          effectStr.startsWith("Otorga") ||
+          effectStr.startsWith("Aplica"))
+      ) {
+        const prep = getPrepositionalTarget(behavior.target);
+        if (prep) {
+          mainActionClause = `${effectStr} ${prep}${spatialPhrase}`.trim();
+        } else {
+          mainActionClause = `${targetStr}: ${effectStr}${spatialPhrase}`;
+        }
       } else if (targetStr !== "Uno mismo") {
-        mainActionClause = `${targetStr}: ${effectStr}`;
+        mainActionClause = `${targetStr}: ${effectStr}${spatialPhrase}`;
       } else {
-        mainActionClause = effectStr;
+        mainActionClause = `${effectStr}${spatialPhrase}`.trim();
       }
     } else if (hasEffects) {
-      mainActionClause = sections.effects[0];
+      mainActionClause = `${sections.effects[0]}${spatialPhrase}`.trim();
     } else if (hasTarget) {
-      mainActionClause = sections.target.join(", ");
+      mainActionClause = `${sections.target.join(", ")}${spatialPhrase}`.trim();
     }
 
     // Handle Trigger + Action merge if reactive (or trigger present)

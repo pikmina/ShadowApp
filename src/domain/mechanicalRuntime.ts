@@ -1137,7 +1137,7 @@ export interface ExecuteBehaviorOptions {
   encounter: EncounterRuntimeState;
   event?: MechanicalEvent;
   rollResult?: number;
-  dice?: number[];
+  dice?: number | number[];
   signals?: string[];
   attackTags?: string[];
   useException?: boolean;
@@ -1211,7 +1211,7 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
     world: newWorld,
     event,
     rollResult,
-    dice,
+    dice: Array.isArray(dice) ? dice : (typeof dice === "number" ? [dice] : undefined),
     signals,
     attackTags,
   };
@@ -1487,7 +1487,9 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
             const formula = (eff as any).magnitude?.formula ?? (eff as any).formula ?? (eff as any).dice;
             if (rollResult !== undefined) {
               baseHealing = rollResult;
-            } else if (dice && dice.length > 0) {
+            } else if (typeof dice === "number") {
+              baseHealing = dice;
+            } else if (Array.isArray(dice) && dice.length > 0) {
               baseHealing = dice.reduce((s, d) => s + d, 0);
             } else if (event?.payload?.rolls && eff.id && event.payload.rolls[eff.id]) {
               const r = event.payload.rolls[eff.id];
@@ -2196,16 +2198,28 @@ export function resolveEntityRelationship(
   return "unknown";
 }
 
+export interface TargetCandidateInfo {
+  id: string;
+  initiativeRoll?: number;
+  initiativeStat?: number;
+  int?: number;
+  vel?: number;
+}
+
 export interface ExecuteMultiTargetBehaviorOptions {
   behavior: MechanicalBehavior;
   elementId?: string;
   sourceEntityId: string;
-  targetEntityIds: string[];
+  targetEntityIds?: string[];
+  candidateEntityIds?: string[];
+  candidateInfo?: Record<string, Partial<TargetCandidateInfo>> | ((id: string) => Partial<TargetCandidateInfo>);
+  manualSelectedIds?: string[];
+  rng?: () => number;
   world: RuleWorld;
   encounter: EncounterRuntimeState;
   event?: MechanicalEvent;
   rollResult?: number;
-  dice?: number[];
+  dice?: number | number[];
   signals?: string[];
   attackTags?: string[];
   useException?: boolean;
@@ -2236,6 +2250,177 @@ export interface ExecuteMultiTargetBehaviorResult {
 }
 
 /**
+ * Resolves candidate entities down to the selected targets according to the 7-step pipeline:
+ * 1. Filter out entities that do not exist or do not meet target relationship
+ * 2. Determine capacity from target.quantity (mode "all" -> all, mode "up_to" -> count, default 1)
+ * 3. If valid candidates <= capacity -> all valid candidates selected
+ * 4. If valid candidates > capacity:
+ *    - manual: validate manualSelectedIds (must be subset of valid candidates, no duplicates, count <= capacity)
+ *    - random: pick capacity unique candidates using rng
+ *    - standard_priority: sort ASC by (1) INI roll, (2) INI stat, (3) INT, (4) VEL, (5) stable ID ASC. Pick first N.
+ */
+export function resolveTargetCandidates(options: {
+  candidateIds: string[];
+  sourceEntityId: string;
+  targetDef?: MechanicalTarget;
+  world: RuleWorld;
+  encounter?: EncounterRuntimeState;
+  candidateInfo?: Record<string, Partial<TargetCandidateInfo>> | ((id: string) => Partial<TargetCandidateInfo>);
+  manualSelectedIds?: string[];
+  rng?: () => number;
+}): { success: boolean; selectedIds: string[]; reasons?: string[] } {
+  const {
+    candidateIds,
+    sourceEntityId,
+    targetDef,
+    world,
+    encounter,
+    candidateInfo,
+    manualSelectedIds,
+    rng = Math.random,
+  } = options;
+
+  // 1. Filter valid candidates by relationship
+  const targetType = targetDef?.type ?? "ally";
+  const validCandidates: string[] = [];
+  const dedupedCandidates = Array.from(new Set(candidateIds));
+
+  for (const tid of dedupedCandidates) {
+    const entity = world[tid];
+    if (!entity) continue;
+    const rel = resolveEntityRelationship(sourceEntityId, tid, world);
+
+    if (targetType === "ally") {
+      if (tid !== sourceEntityId && rel === "ally") {
+        validCandidates.push(tid);
+      }
+    } else if (targetType === "enemy") {
+      if (tid !== sourceEntityId && rel === "enemy") {
+        validCandidates.push(tid);
+      }
+    } else if (targetType === "self") {
+      if (tid === sourceEntityId || rel === "self") {
+        validCandidates.push(tid);
+      }
+    } else {
+      // character, any, object, etc.
+      validCandidates.push(tid);
+    }
+  }
+
+  // 2. Capacity
+  const quantityDef = targetDef?.quantity;
+  const isAll = quantityDef?.mode === "all" || targetDef?.type === "allies" || targetDef?.type === "enemies";
+  if (isAll) {
+    return { success: true, selectedIds: validCandidates };
+  }
+
+  const capacity = quantityDef?.count ?? 1;
+
+  // 3. Apply selectionMode
+  const selectionMode = targetDef?.selectionMode ?? "standard_priority";
+
+  if (selectionMode === "manual") {
+    if (!manualSelectedIds) {
+      return {
+        success: false,
+        selectedIds: [],
+        reasons: ["Selección manual requerida pero no se proporcionaron objetivos seleccionados."],
+      };
+    }
+    const dedupedManual = Array.from(new Set(manualSelectedIds));
+    if (dedupedManual.length > capacity) {
+      return {
+        success: false,
+        selectedIds: [],
+        reasons: [`La selección manual de ${dedupedManual.length} objetivos supera la capacidad máxima de ${capacity}.`],
+      };
+    }
+    for (const id of dedupedManual) {
+      if (!validCandidates.includes(id)) {
+        return {
+          success: false,
+          selectedIds: [],
+          reasons: [`El objetivo seleccionado '${id}' no pertenece al conjunto de candidatos válidos.`],
+        };
+      }
+    }
+    return { success: true, selectedIds: dedupedManual };
+  }
+
+  // If validCandidates <= capacity, return all
+  if (validCandidates.length <= capacity) {
+    return { success: true, selectedIds: validCandidates };
+  }
+
+  if (selectionMode === "random") {
+    const pool = [...validCandidates];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return { success: true, selectedIds: pool.slice(0, capacity) };
+  }
+
+  // standard_priority:
+  // Sort ASC by:
+  // 1. Resultado de INI actual más bajo
+  // 2. Estadística derivada INI más baja
+  // 3. INT más baja
+  // 4. VEL más baja
+  // 5. Stable ID ASC (localeCompare)
+  const getCandidateData = (id: string): TargetCandidateInfo => {
+    const extra = typeof candidateInfo === "function" ? candidateInfo(id) : candidateInfo?.[id];
+    const entity = world[id];
+    const participant = encounter?.participants[id];
+
+    const iniRoll = extra?.initiativeRoll ?? (participant as any)?.initiativeRoll ?? (participant as any)?.currentInitiative ?? (entity as any)?.initiativeRoll ?? (entity as any)?.currentInitiative ?? 0;
+    
+    const int = extra?.int ?? entity?.attributes?.INT ?? entity?.attributes?.int ?? 0;
+    const vel = extra?.vel ?? entity?.attributes?.VEL ?? entity?.attributes?.vel ?? 0;
+
+    const baseIni = calculateBaseInitiative(int, vel);
+    const iniStat = extra?.initiativeStat ?? (entity as any)?.stats?.INI ?? (entity as any)?.stats?.ini ?? (entity as any)?.derivedStats?.INI ?? baseIni;
+
+    return {
+      id,
+      initiativeRoll: iniRoll,
+      initiativeStat: iniStat,
+      int,
+      vel,
+    };
+  };
+
+  const candidateDataList = validCandidates.map((id) => getCandidateData(id));
+
+  candidateDataList.sort((a, b) => {
+    // 1. INI roll ASC
+    if ((a.initiativeRoll ?? 0) !== (b.initiativeRoll ?? 0)) {
+      return (a.initiativeRoll ?? 0) - (b.initiativeRoll ?? 0);
+    }
+    // 2. INI stat ASC
+    if ((a.initiativeStat ?? 0) !== (b.initiativeStat ?? 0)) {
+      return (a.initiativeStat ?? 0) - (b.initiativeStat ?? 0);
+    }
+    // 3. INT ASC
+    if ((a.int ?? 0) !== (b.int ?? 0)) {
+      return (a.int ?? 0) - (b.int ?? 0);
+    }
+    // 4. VEL ASC
+    if ((a.vel ?? 0) !== (b.vel ?? 0)) {
+      return (a.vel ?? 0) - (b.vel ?? 0);
+    }
+    // 5. Stable ID ASC
+    return a.id.localeCompare(b.id);
+  });
+
+  return {
+    success: true,
+    selectedIds: candidateDataList.slice(0, capacity).map((c) => c.id),
+  };
+}
+
+/**
  * Executes a mechanical behavior across multiple targets as a single action.
  * Evaluates conditions and usage limitations once at the action level.
  * Validates target quantity and relationship constraints atomically before applying effects.
@@ -2249,6 +2434,10 @@ export function executeMultiTargetBehavior(
     elementId,
     sourceEntityId,
     targetEntityIds,
+    candidateEntityIds,
+    candidateInfo,
+    manualSelectedIds,
+    rng,
     world,
     encounter,
     event,
@@ -2281,11 +2470,53 @@ export function executeMultiTargetBehavior(
 
   const participant = getOrCreateParticipantState(newEncounter, sourceEntityId);
 
-  // 1. Normalize target IDs (deduplicate while preserving order)
-  const rawTargets = targetEntityIds ?? [];
-  const normalizedTargetIds = Array.from(new Set(rawTargets));
+  // 1. Resolve candidates or normalize target IDs
+  let normalizedTargetIds: string[];
+  if (candidateEntityIds !== undefined) {
+    const candidateResolution = resolveTargetCandidates({
+      candidateIds: candidateEntityIds,
+      sourceEntityId,
+      targetDef: behavior.target,
+      world: newWorld,
+      encounter: newEncounter,
+      candidateInfo,
+      manualSelectedIds,
+      rng,
+    });
+    if (!candidateResolution.success) {
+      return {
+        success: false,
+        reasons: candidateResolution.reasons ?? ["Failed to resolve candidates"],
+        normalizedTargetIds: [],
+        targetResults: {},
+        usageConsumed: false,
+        newWorld,
+        newEncounter,
+        appliedEffects: [],
+        emittedEvents: [],
+      };
+    }
+    normalizedTargetIds = candidateResolution.selectedIds;
+  } else {
+    const rawTargets = targetEntityIds ?? [];
+    normalizedTargetIds = Array.from(new Set(rawTargets));
+  }
 
   if (normalizedTargetIds.length === 0) {
+    if (candidateEntityIds !== undefined) {
+      // Valid candidates were 0: affects 0 successfully without consuming invalid usage or failing
+      return {
+        success: true,
+        reasons: [],
+        normalizedTargetIds: [],
+        targetResults: {},
+        usageConsumed: true,
+        newWorld,
+        newEncounter,
+        appliedEffects: [],
+        emittedEvents: [],
+      };
+    }
     return {
       success: false,
       reasons: ["No targets provided"],
@@ -2450,7 +2681,7 @@ export function executeMultiTargetBehavior(
     world: newWorld,
     event,
     rollResult,
-    dice,
+    dice: Array.isArray(dice) ? dice : (typeof dice === "number" ? [dice] : undefined),
     signals,
     attackTags,
   };
@@ -2697,7 +2928,9 @@ export function executeMultiTargetBehavior(
             const formula = (eff as any).magnitude?.formula ?? (eff as any).formula ?? (eff as any).dice;
             if (rollResult !== undefined) {
               baseHealing = rollResult;
-            } else if (dice && dice.length > 0) {
+            } else if (typeof dice === "number") {
+              baseHealing = dice;
+            } else if (Array.isArray(dice) && dice.length > 0) {
               baseHealing = dice.reduce((s, d) => s + d, 0);
             } else if (event?.payload?.rolls && eff.id && event.payload.rolls[eff.id]) {
               const r = event.payload.rolls[eff.id];

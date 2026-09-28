@@ -344,7 +344,7 @@ describe("Mechanical Description Renderer (Task 23)", () => {
 
     expect(compactRes.complete).toBe(true);
     expect(detailedRes.complete).toBe(true);
-    expect(compactRes.text).toContain("1 enemigo: Inflige 4D6 de daño. Tiempo de recarga: 2 turnos.");
+    expect(compactRes.text).toContain("Inflige 4D6 de daño a un enemigo. Tiempo de recarga: 2 turnos.");
     expect(detailedRes.text).toContain("Objetivo: 1 enemigo.");
     expect(detailedRes.text).toContain("Efectos: Inflige 4D6 de daño.");
     expect(detailedRes.text).toContain("Limitaciones: Tiempo de recarga: 2 turnos.");

@@ -5,7 +5,8 @@ import {
   type MechanicCategoryFamily,
   findHealingOption,
   getValidHealingOptions,
-  getBarrierAmount
+  getBarrierAmount,
+  type MechanicalEffectType
 } from './systemMechanics';
 import type { RuleComponent } from './ruleComponents';
 import { getDerivedStatLabel, getAttributeLabel } from './mechanicalLabels';
@@ -66,8 +67,7 @@ export const CORE_CATEGORIES = {
   damage_type: 'Tipo de daño',
   healing: 'Curación',
   barrier: 'Barrera',
-  bonus: 'Bono',
-  penalty: 'Pena',
+  numeric_modifier: 'Modificador numérico',
   derived_stat: 'Estadística derivada',
   attribute: 'Atributo',
   status: 'Estado alterado',
@@ -77,7 +77,7 @@ export const CORE_CATEGORIES = {
   target_count: 'Cantidad',
   range: 'Rango',
   area: 'Área',
-  selection_restriction: 'Restricción de selección',
+  selection_restriction: 'Modo de selección',
   duration: 'Duración',
   frequency: 'Frecuencia de ejecución',
   activation: 'Activación',
@@ -105,9 +105,165 @@ export const RETIRED_CORE_CATEGORIES = [
   'consequence_status',
   'end_effect',
   'per_turn_effect',
+  'bonus',
+  'penalty',
 ] as const;
 
 export const coreId = (key: string) => `core.${key}`;
+
+export type CoreCategoryContractKind = 'effect' | 'ce_adjustment' | 'component';
+
+export interface CoreCategoryContract {
+  coreKey: CoreCategoryKey;
+  kind: CoreCategoryContractKind;
+  ruleClass: 'effect' | 'cost_modifier' | 'component';
+  ruleClassLabel: string;
+  effectType?: MechanicalEffectType;
+  editorMode: 'effect' | 'parameter' | 'numeric_modifier' | 'component';
+}
+
+export const CORE_CATEGORY_CONTRACTS: Record<CoreCategoryKey, CoreCategoryContract> = {
+  // B. Ajustes de CE / Parámetros
+  attribute: {
+    coreKey: 'attribute',
+    kind: 'ce_adjustment',
+    ruleClass: 'cost_modifier',
+    ruleClassLabel: 'Ajuste de CE',
+    editorMode: 'parameter',
+  },
+  derived_stat: {
+    coreKey: 'derived_stat',
+    kind: 'ce_adjustment',
+    ruleClass: 'cost_modifier',
+    ruleClassLabel: 'Ajuste de CE',
+    editorMode: 'parameter',
+  },
+  numeric_modifier: {
+    coreKey: 'numeric_modifier',
+    kind: 'ce_adjustment',
+    ruleClass: 'cost_modifier',
+    ruleClassLabel: 'Ajuste de CE',
+    editorMode: 'numeric_modifier',
+  },
+  damage_type: {
+    coreKey: 'damage_type',
+    kind: 'ce_adjustment',
+    ruleClass: 'cost_modifier',
+    ruleClassLabel: 'Ajuste de CE',
+    editorMode: 'parameter',
+  },
+
+  // A. Efectos
+  damage: {
+    coreKey: 'damage',
+    kind: 'effect',
+    ruleClass: 'effect',
+    ruleClassLabel: 'Efecto',
+    effectType: 'damage',
+    editorMode: 'effect',
+  },
+  healing: {
+    coreKey: 'healing',
+    kind: 'effect',
+    ruleClass: 'effect',
+    ruleClassLabel: 'Efecto',
+    effectType: 'healing',
+    editorMode: 'effect',
+  },
+  barrier: {
+    coreKey: 'barrier',
+    kind: 'effect',
+    ruleClass: 'effect',
+    ruleClassLabel: 'Efecto',
+    effectType: 'barrier',
+    editorMode: 'effect',
+  },
+  status: {
+    coreKey: 'status',
+    kind: 'effect',
+    ruleClass: 'effect',
+    ruleClassLabel: 'Efecto',
+    effectType: 'status',
+    editorMode: 'effect',
+  },
+  transformation: {
+    coreKey: 'transformation',
+    kind: 'effect',
+    ruleClass: 'effect',
+    ruleClassLabel: 'Efecto',
+    effectType: 'transformation',
+    editorMode: 'effect',
+  },
+  cost_adjustment: {
+    coreKey: 'cost_adjustment',
+    kind: 'effect',
+    ruleClass: 'effect',
+    ruleClassLabel: 'Efecto',
+    effectType: 'cost_adjustment',
+    editorMode: 'effect',
+  },
+  manual_resolution: {
+    coreKey: 'manual_resolution',
+    kind: 'effect',
+    ruleClass: 'effect',
+    ruleClassLabel: 'Efecto',
+    effectType: 'manual_resolution',
+    editorMode: 'effect',
+  },
+
+  // C. Componentes / Reglas / Limitaciones / Activaciones
+  target: { coreKey: 'target', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  target_count: { coreKey: 'target_count', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  range: { coreKey: 'range', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  area: { coreKey: 'area', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  selection_restriction: { coreKey: 'selection_restriction', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  duration: { coreKey: 'duration', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  frequency: { coreKey: 'frequency', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  activation: { coreKey: 'activation', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  trigger: { coreKey: 'trigger', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  resolution: { coreKey: 'resolution', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  roll_type: { coreKey: 'roll_type', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  cooldown: { coreKey: 'cooldown', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  maintenance: { coreKey: 'maintenance', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  usage: { coreKey: 'usage', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  resource_threshold: { coreKey: 'resource_threshold', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  manual_condition: { coreKey: 'manual_condition', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  additional_requirement: { coreKey: 'additional_requirement', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  die_condition: { coreKey: 'die_condition', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  health_cost: { coreKey: 'health_cost', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  caps: { coreKey: 'caps', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+};
+
+export function getCoreCategoryContract(category: { coreKey?: string; id?: string } | null | undefined): CoreCategoryContract | undefined {
+  if (!category) return undefined;
+  if (category.coreKey && category.coreKey in CORE_CATEGORY_CONTRACTS) {
+    return CORE_CATEGORY_CONTRACTS[category.coreKey as CoreCategoryKey];
+  }
+  return undefined;
+}
+
+export function validateCoreCategoryInvariants(categories: SystemMechanicsConfig): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  for (const cat of categories) {
+    const contract = getCoreCategoryContract(cat);
+    if (!contract) continue;
+
+    for (const rule of cat.rules) {
+      if (contract.kind === 'ce_adjustment') {
+        if (rule.ruleType === 'effect' || rule.effect) {
+          errors.push(`Regla "${rule.name}" (${rule.id}) en categoría core "${cat.name}": es un ajuste de CE y no puede definir un efecto mecánico.`);
+        }
+      } else if (contract.kind === 'effect') {
+        if (rule.ruleType !== 'effect') {
+          errors.push(`Regla "${rule.name}" (${rule.id}) en categoría core "${cat.name}": debe ser de clase 'effect'.`);
+        } else if (contract.effectType && rule.effect && rule.effect.type !== contract.effectType) {
+          errors.push(`Regla "${rule.name}" (${rule.id}) en categoría core "${cat.name}": tipo de efecto contradictorio '${rule.effect.type}' (se requiere '${contract.effectType}').`);
+        }
+      }
+    }
+  }
+  return { valid: errors.length === 0, errors };
+}
 
 export interface CategoryOptionView {
   id: string;
@@ -126,7 +282,7 @@ export function createCoreCategories(): SystemMechanicsConfig {
   const getLogicalType = (key: string) => {
     switch(key) {
       case 'damage': case 'damage_type': case 'penalty': return 'offensive';
-      case 'healing': case 'bonus': return 'support';
+      case 'healing': case 'bonus': case 'numeric_modifier': return 'support';
       case 'barrier': return 'defensive';
       case 'status': return 'control';
       case 'activation': case 'cooldown': case 'maintenance': case 'usage': case 'frequency': case 'health_cost': return 'limitation';
@@ -219,28 +375,28 @@ export function createCoreCategories(): SystemMechanicsConfig {
   effect('barrier', '40', 'Barrera 40', { type: 'barrier', amount: 40 }, '40', 4);
   effect('barrier', '50', 'Barrera 50', { type: 'barrier', amount: 50 }, '50', 5);
 
-  // Bonus & Penalty Magnitudes (Generic, attribute-independent)
+  // Numeric Modifiers (Generic magnitudes with sign)
   for (const n of [1, 2, 3, 4, 5]) {
     const bonusCost = n === 3 ? 2 : (n === 2 ? 1 : (n > 3 ? n - 1 : 0));
-    option('bonus', String(n), `+${n}`, undefined, String(n), bonusCost);
-    option('penalty', String(n), `−${n}`, undefined, String(n), 0);
+    option('numeric_modifier', String(n), `+${n}`, undefined, String(n), bonusCost);
+    option('numeric_modifier', `-${n}`, `−${n}`, undefined, `-${n}`, 0);
   }
 
   // Derived Stats (Core Category)
-  effect('derived_stat', 'eva', `${getDerivedStatLabel('EVA')} (EVA)`, { type: 'derived_stat_modifier', statId: 'EVA', amount: 0 }, 'EVA', 2);
-  effect('derived_stat', 'sal', `${getDerivedStatLabel('SAL')} (SA)`, { type: 'derived_stat_modifier', statId: 'SAL', amount: 0 }, 'SAL', 0);
-  effect('derived_stat', 'est', `${getDerivedStatLabel('EST')} (ES)`, { type: 'derived_stat_modifier', statId: 'EST', amount: 0 }, 'EST', 0);
-  effect('derived_stat', 'ini', `${getDerivedStatLabel('INI')} (INI)`, { type: 'derived_stat_modifier', statId: 'INI', amount: 0 }, 'INI', 0);
-  effect('derived_stat', 'rd', `${getDerivedStatLabel('RD')} (RD)`, { type: 'derived_stat_modifier', statId: 'RD', amount: 0 }, 'RD', 0);
-  effect('derived_stat', 'cor', `${getDerivedStatLabel('COR')} (COR)`, { type: 'derived_stat_modifier', statId: 'COR', amount: 0 }, 'COR', 0);
+  option('derived_stat', 'eva', `${getDerivedStatLabel('EVA')} (EVA)`, undefined, 'EVA', 2);
+  option('derived_stat', 'sal', `${getDerivedStatLabel('SAL')} (SA)`, undefined, 'SAL', 0);
+  option('derived_stat', 'est', `${getDerivedStatLabel('EST')} (ES)`, undefined, 'EST', 0);
+  option('derived_stat', 'ini', `${getDerivedStatLabel('INI')} (INI)`, undefined, 'INI', 0);
+  option('derived_stat', 'rd', `${getDerivedStatLabel('RD')} (RD)`, undefined, 'RD', 0);
+  option('derived_stat', 'cor', `${getDerivedStatLabel('COR')} (COR)`, undefined, 'COR', 0);
 
   // Attributes (Core Category)
-  effect('attribute', 'fue', getAttributeLabel('FUE'), { type: 'attribute_modifier', attributeId: 'FUE', amount: 0 }, 'FUE', 0);
-  effect('attribute', 'res', getAttributeLabel('RES'), { type: 'attribute_modifier', attributeId: 'RES', amount: 0 }, 'RES', 0);
-  effect('attribute', 'des', getAttributeLabel('DES'), { type: 'attribute_modifier', attributeId: 'DES', amount: 0 }, 'DES', 0);
-  effect('attribute', 'int', getAttributeLabel('INT'), { type: 'attribute_modifier', attributeId: 'INT', amount: 0 }, 'INT', 0);
-  effect('attribute', 'vel', getAttributeLabel('VEL'), { type: 'attribute_modifier', attributeId: 'VEL', amount: 0 }, 'VEL', 0);
-  effect('attribute', 'vol', getAttributeLabel('VOL'), { type: 'attribute_modifier', attributeId: 'VOL', amount: 0 }, 'VOL', 0);
+  option('attribute', 'fue', getAttributeLabel('FUE'), undefined, 'FUE', 0);
+  option('attribute', 'res', getAttributeLabel('RES'), undefined, 'RES', 0);
+  option('attribute', 'des', getAttributeLabel('DES'), undefined, 'DES', 0);
+  option('attribute', 'int', getAttributeLabel('INT'), undefined, 'INT', 0);
+  option('attribute', 'vel', getAttributeLabel('VEL'), undefined, 'VEL', 0);
+  option('attribute', 'vol', getAttributeLabel('VOL'), undefined, 'VOL', 0);
 
   // Health Cost (Sacrificio de HP)
   for (const n of [1, 2, 3, 4, 5]) {
@@ -292,12 +448,14 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('area', 'cone', 'Cono', undefined, 'cone');
   option('area', 'line', 'Línea recta', undefined, 'line');
   option('area', 'zone', 'Zona delimitada', undefined, 'zone');
-  option('area', '50', 'Radio 50 m', { kind: 'area', radius: 50 }, '50');
+  for (const meters of [5, 10, 15, 20, 50]) option('area', String(meters), `${meters} m`, { kind: 'area', radius: meters }, String(meters));
 
-  // Selection Restriction
+  // Selection Mode (Core Category core.selection_restriction)
+  option('selection_restriction', 'standard_priority', 'Prioridad estándar', undefined, 'standard_priority', 0);
+  option('selection_restriction', 'manual', 'Elección manual', undefined, 'manual', 0);
+  option('selection_restriction', 'random', 'Aleatoria', undefined, 'random', 0);
   option('selection_restriction', 'none', 'Sin restricción', undefined, 'none');
   option('selection_restriction', 'nearest', 'Más cercano', undefined, 'nearest');
-  option('selection_restriction', 'random', 'Aleatorio', undefined, 'random');
   option('selection_restriction', 'specific', 'Específico', undefined, 'specific');
   option('selection_restriction', 'exclude', 'Excluir específico', undefined, 'exclude');
 
@@ -532,6 +690,66 @@ export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig 
     }
   });
 
+  // Find or create numeric_modifier category
+  let numModCat = parsed.find(c => c.id === 'core.numeric_modifier' || c.coreKey === 'numeric_modifier');
+  if (!numModCat) {
+    numModCat = {
+      id: "core.numeric_modifier",
+      coreKey: "numeric_modifier",
+      name: "Modificador numérico",
+      description: "Modificador numérico",
+      logicalType: "support",
+      family: "effect",
+      scope: { techniques: true, objects: true, actions: true },
+      rules: []
+    } as any;
+    parsed.push(numModCat);
+  }
+
+  // Migrate legacy bonus and penalty rules
+  const legacyBonusCat = parsed.find(c => c.id === 'core.bonus' || c.coreKey === 'bonus');
+  if (legacyBonusCat && legacyBonusCat.rules) {
+    legacyBonusCat.rules.forEach(r => {
+      const amt = (r as any).amount || parseInt((r as any).runtimeKey || r.name, 10);
+      if (!isNaN(amt)) {
+        const signStr = amt > 0 ? `+${amt}` : String(amt);
+        const newId = `core.numeric_modifier.${amt}`;
+        if (!numModCat!.rules.some(nr => nr.id === newId || nr.runtimeKey === String(amt))) {
+          numModCat!.rules.push({
+            id: newId,
+            name: signStr,
+            cost: typeof r.cost === 'number' ? r.cost : 0,
+            runtimeKey: String(amt),
+            ruleType: 'cost_modifier',
+            isAvailable: r.isAvailable !== false
+          });
+        }
+      }
+    });
+  }
+
+  const legacyPenaltyCat = parsed.find(c => c.id === 'core.penalty' || c.coreKey === 'penalty');
+  if (legacyPenaltyCat && legacyPenaltyCat.rules) {
+    legacyPenaltyCat.rules.forEach(r => {
+      let amt = (r as any).amount || parseInt((r as any).runtimeKey || r.name, 10);
+      if (!isNaN(amt)) {
+        if (amt > 0) amt = -amt; // force negative for penalty
+        const signStr = String(amt);
+        const newId = `core.numeric_modifier.${amt}`;
+        if (!numModCat!.rules.some(nr => nr.id === newId || nr.runtimeKey === String(amt))) {
+          numModCat!.rules.push({
+            id: newId,
+            name: signStr,
+            cost: typeof r.cost === 'number' ? r.cost : 0,
+            runtimeKey: String(amt),
+            ruleType: 'cost_modifier',
+            isAvailable: r.isAvailable !== false
+          });
+        }
+      }
+    });
+  }
+
   // Remove retired obsolete core categories so they don't persist or reappear
   const retiredCoreKeys = RETIRED_CORE_CATEGORIES as readonly string[];
   parsed = parsed.filter(c => !retiredCoreKeys.includes(c.coreKey as string) && !retiredCoreKeys.some(k => c.id === `core.${k}`));
@@ -563,24 +781,47 @@ export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig 
   }
 
   // Migrate legacy attribute-bound bonus/penalty costs to generic magnitude rules when customized
-  const bonusCat = parsed.find(m => m.id === 'core.bonus' || m.coreKey === 'bonus');
-  if (bonusCat) {
-    const legacyFue2 = bonusCat.rules.find(r => r.id === 'core.bonus.fue2');
+  const numModOptionCat = parsed.find(m => m.id === 'core.numeric_modifier' || m.coreKey === 'numeric_modifier');
+  if (numModOptionCat) {
+    // legacy bonus fue2 -> numeric_modifier 2
+    const legacyFue2 = legacyBonusCat?.rules?.find(r => r.id === 'core.bonus.fue2');
     if (legacyFue2) {
-      const opt2 = bonusCat.rules.find(r => r.id === 'core.bonus.2' || (r as any).runtimeKey === '2');
+      const opt2 = numModOptionCat.rules.find(r => r.id === 'core.numeric_modifier.2' || (r as any).runtimeKey === '2');
       if (opt2 && typeof legacyFue2.cost === 'number' && legacyFue2.cost !== 0 && opt2.cost <= 1) {
         opt2.cost = legacyFue2.cost;
       }
     }
+    // legacy penalty int2 -> numeric_modifier -2
+    const legacyInt2 = legacyPenaltyCat?.rules?.find(r => r.id === 'core.penalty.int2');
+    if (legacyInt2) {
+      const optMinus2 = numModOptionCat.rules.find(r => r.id === 'core.numeric_modifier.-2' || (r as any).runtimeKey === '-2');
+      if (optMinus2 && typeof legacyInt2.cost === 'number' && legacyInt2.cost !== 0 && optMinus2.cost <= 1) {
+        optMinus2.cost = legacyInt2.cost;
+      }
+    }
   }
 
-  const penaltyCat = parsed.find(m => m.id === 'core.penalty' || m.coreKey === 'penalty');
-  if (penaltyCat) {
-    const legacyInt2 = penaltyCat.rules.find(r => r.id === 'core.penalty.int2');
-    if (legacyInt2) {
-      const opt2 = penaltyCat.rules.find(r => r.id === 'core.penalty.2' || (r as any).runtimeKey === '2');
-      if (opt2 && typeof legacyInt2.cost === 'number' && legacyInt2.cost !== 0 && opt2.cost <= 1) {
-        opt2.cost = legacyInt2.cost;
+  // Normalize existing core categories rules according to their contract
+  for (const cat of parsed) {
+    const contract = getCoreCategoryContract(cat);
+    if (!contract) continue;
+
+    if (contract.kind === 'ce_adjustment') {
+      for (const rule of cat.rules) {
+        if (rule.ruleType === 'effect' || rule.effect) {
+          rule.ruleType = 'cost_modifier';
+          if (!rule.runtimeKey) {
+            rule.runtimeKey = (rule.effect as any)?.attributeId || (rule.effect as any)?.statId || rule.id.split('.').pop();
+          }
+          delete rule.effect;
+        }
+      }
+    } else if (contract.kind === 'effect' && contract.effectType) {
+      for (const rule of cat.rules) {
+        rule.ruleType = 'effect';
+        if (rule.effect && rule.effect.type !== contract.effectType) {
+          rule.effect.type = contract.effectType;
+        }
       }
     }
   }

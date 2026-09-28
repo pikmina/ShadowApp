@@ -267,12 +267,19 @@ export const MECHANICAL_LABELS = {
   },
 
   selectionRestrictions: {
+    standard_priority: "Prioridad estándar",
     none: "Sin restricción",
     nearest: "Más cercano",
     random: "Aleatorio",
     specific: "Objetivo específico",
     exclude: "Excluir objetivo",
     manual: "Manual",
+  },
+
+  selectionModes: {
+    standard_priority: "Prioridad estándar",
+    manual: "Elección manual",
+    random: "Aleatoria",
   },
 
   ranges: {

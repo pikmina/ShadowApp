@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { systemMechanicsConfigSchema, type SystemMechanicsConfig } from '../../domain/systemMechanics';
+import { getCoreCategoryContract } from '../../domain/coreRuleCatalog';
 import { createEffectDefinition, describeEffect, MechanicalEffectDefinitionEditor } from './MechanicalEffectDefinitionEditor';
 import { RuleComponentEditor, componentTemplates } from './RuleComponentEditor';
 import { Edit2, Plus, Trash2, Swords, Shield, HeartHandshake, Brain, Lock, Wrench, Package, HandFist, HeartPulse, BrickWall, UserRoundPlus, UserRoundMinus, BugOff, MessageSquareDiff, Handshake, Target, Hash, FoldHorizontal, LandPlot, Hourglass, Star, Clock, ArrowUpCircle, Ban, HandGrab, Eye, Ear, UserStar, Parentheses, KeyRound, CookingPot, Dices, BatteryCharging, BatteryPlus, BoneFracture, ClockArrowDown, Flame, LineDotRightHorizontal, ClockArrowRight, RefreshCw, Settings2, Sparkles, AlertCircle } from 'lucide-react';
@@ -27,6 +28,7 @@ const CoreKeyIcon = ({ coreKey, className }: { coreKey?: string, className?: str
     case 'damage_type': return <Swords className={className} />;
     case 'healing': return <HeartPulse className={className} />;
     case 'barrier': return <BrickWall className={className} />;
+    case 'numeric_modifier': return <Hash className={className} />;
     case 'bonus': return <UserRoundPlus className={className} />;
     case 'penalty': return <UserRoundMinus className={className} />;
     case 'status': return <BugOff className={className} />;
@@ -100,9 +102,9 @@ export const MECHANICAL_BEHAVIOR_GROUPS: CategoryGroupDef[] = [
   {
     key: 'effects',
     title: 'Efectos y Magnitudes',
-    subtitle: 'Daño, curación, barreras, bonos, penalizadores, estados alterados y transformaciones',
+    subtitle: 'Daño, curación, barreras, modificadores numéricos, estados alterados y transformaciones',
     icon: Swords,
-    coreKeys: ['damage', 'damage_type', 'healing', 'barrier', 'bonus', 'penalty', 'status', 'transformation', 'caps', 'health_cost', 'cost_adjustment']
+    coreKeys: ['damage', 'damage_type', 'healing', 'barrier', 'numeric_modifier', 'status', 'transformation', 'caps', 'health_cost', 'cost_adjustment']
   },
   {
     key: 'activation',
@@ -418,9 +420,43 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
         <Button variant="outline" size="sm" disabled={saving} onClick={() => {
           const newId = nanoid();
           setBackupDraft(structuredClone(draft));
-          const newRule = draft.rules[0] 
-            ? { ...structuredClone(draft.rules[0]), id: newId, name: 'Nueva opción', cost: 0, isAvailable: true } 
-            : { id: newId, name: 'Nueva opción', cost: 0, ruleType: 'component' as const, isAvailable: true, component: structuredClone(componentTemplates.duration) };
+          const contract = getCoreCategoryContract(draft);
+          let newRule: any;
+          if (contract) {
+            if (contract.kind === 'ce_adjustment') {
+              newRule = {
+                id: newId,
+                name: contract.editorMode === 'numeric_modifier' ? '+1' : 'Nueva opción',
+                cost: 0,
+                ruleType: 'cost_modifier',
+                runtimeKey: contract.editorMode === 'numeric_modifier' ? '1' : undefined,
+                isAvailable: true,
+              };
+            } else if (contract.kind === 'effect') {
+              newRule = {
+                id: newId,
+                name: 'Nueva opción',
+                cost: 0,
+                ruleType: 'effect',
+                isAvailable: true,
+                effect: createEffectDefinition(contract.effectType || 'damage'),
+              };
+            } else {
+              const template = (componentTemplates as any)[draft.coreKey || ''] || componentTemplates.duration;
+              newRule = {
+                id: newId,
+                name: 'Nueva opción',
+                cost: 0,
+                ruleType: 'component',
+                isAvailable: true,
+                component: structuredClone(template),
+              };
+            }
+          } else {
+            newRule = draft.rules[0] 
+              ? { ...structuredClone(draft.rules[0]), id: newId, name: 'Nueva opción', cost: 0, isAvailable: true } 
+              : { id: newId, name: 'Nueva opción', cost: 0, ruleType: 'component' as const, isAvailable: true, component: structuredClone(componentTemplates.duration) };
+          }
           const newDraft = { ...draft, rules: [...draft.rules, newRule] } as Category;
           setDraft(newDraft);
           setEditingRuleId(newId);
@@ -434,86 +470,180 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
       {/* OPTION EDIT MODAL */}
       <Dialog open={editingRuleId !== null} onOpenChange={(open) => { if (!open) handleCancelOption(); }}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden border border-primary/30 shadow-2xl bg-card">
-          {editingRule && (
-            <>
-              <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0 bg-muted/20">
-                <div className="flex items-center gap-2">
-                  <DialogTitle className="text-lg font-bold text-foreground">
-                    {isNewOption ? "Nueva Opción Mecánica" : `Editar Opción: ${editingRule.name || "Sin nombre"}`}
-                  </DialogTitle>
-                  <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-medium ml-auto">
-                    {draft.name || "Categoría"}
-                  </span>
-                </div>
-                <DialogDescription className="text-xs text-muted-foreground">
-                  Configura el efecto mecánico, su coste de estamina (CE) y sus parámetros.
-                </DialogDescription>
-              </DialogHeader>
+          {editingRule && (() => {
+            const contract = getCoreCategoryContract(draft);
+            return (
+              <>
+                <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0 bg-muted/20">
+                  <div className="flex items-center gap-2">
+                    <DialogTitle className="text-lg font-bold text-foreground">
+                      {isNewOption ? "Nueva Opción Mecánica" : `Editar Opción: ${editingRule.name || "Sin nombre"}`}
+                    </DialogTitle>
+                    <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-medium ml-auto">
+                      {contract ? contract.ruleClassLabel : (draft.name || "Categoría")}
+                    </span>
+                  </div>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    Configura el efecto mecánico, su coste de estamina (CE) y sus parámetros.
+                  </DialogDescription>
+                </DialogHeader>
 
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-                {error && (
-                  <div role="alert" className="p-3 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md whitespace-pre-wrap flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold">Nombre de Opción</Label>
-                    <Input value={editingRule.name} onChange={e => patchRule(editingIndex, { name: e.target.value })} placeholder="Ej. Daño Severo" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold">CE adicional (Coste de Estamina)</Label>
-                    <Input type="number" value={editingRule.cost} onChange={e => patchRule(editingIndex, { cost: Number(e.target.value) })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold">Clase de Regla</Label>
-                    <Select value={editingRule.ruleType} onValueChange={ruleType => setDraft({ ...draft, rules: draft.rules.map((old, j) => editingIndex !== j ? old : { id: old.id, name: old.name, cost: old.cost, mechDesc: old.mechDesc, ruleType: ruleType as typeof old.ruleType, ...(ruleType === 'effect' ? { effect: createEffectDefinition('damage') } : ruleType === 'component' ? { component: structuredClone(componentTemplates.duration) } : {}) }) })}>
-                      <SelectTrigger><SelectValue>{{ effect: "Efecto", component: "Aplicación / regla", cost_modifier: "Ajuste CE" }[editingRule.ruleType]}</SelectValue></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="effect">Efecto</SelectItem>
-                        <SelectItem value="component">Aplicación / regla</SelectItem>
-                        <SelectItem value="cost_modifier">Ajuste CE</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border bg-muted/20 p-3.5 space-y-2">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <Label className="text-xs font-semibold">Disponible en el constructor</Label>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Determina si esta opción puede seleccionarse al crear nuevas mecánicas. Desactivarla no afecta elementos existentes ni su funcionamiento.
-                      </p>
+                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                  {error && (
+                    <div role="alert" className="p-3 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md whitespace-pre-wrap flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{error}</span>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs font-mono font-medium text-muted-foreground">
-                        {editingRule.isAvailable !== false ? "ON" : "OFF"}
-                      </span>
-                      <Switch
-                        checked={editingRule.isAvailable !== false}
-                        onCheckedChange={(checked) => patchRule(editingIndex, { isAvailable: checked })}
+                  )}
+
+                  {(() => {
+                    if (contract?.editorMode === 'numeric_modifier') {
+                      return (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label className="text-xs font-semibold">Modificador numérico</Label>
+                            <Input 
+                              value={editingRule.name} 
+                              onChange={e => {
+                                const val = e.target.value;
+                                const derivedKey = val.replace(/[+−]/g, '').replace('−', '-').trim();
+                                patchRule(editingIndex, { 
+                                  name: val,
+                                  runtimeKey: derivedKey,
+                                  ruleType: 'cost_modifier',
+                                  effect: undefined,
+                                  component: undefined,
+                                });
+                              }} 
+                              placeholder="Ej. +3 o -2" 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-semibold">CE adicional (Coste de Estamina)</Label>
+                            <Input type="number" value={editingRule.cost} onChange={e => patchRule(editingIndex, { cost: Number(e.target.value) })} />
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (contract?.editorMode === 'parameter') {
+                      return (
+                        <div className="grid gap-4 sm:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label className="text-xs font-semibold">Nombre</Label>
+                            <Input 
+                              value={editingRule.name} 
+                              onChange={e => patchRule(editingIndex, { name: e.target.value, ruleType: 'cost_modifier', effect: undefined, component: undefined })} 
+                              placeholder="Ej. Fuerza" 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-semibold">CE adicional</Label>
+                            <Input type="number" value={editingRule.cost} onChange={e => patchRule(editingIndex, { cost: Number(e.target.value) })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-semibold">Identificador</Label>
+                            <div className="h-9 px-3 py-2 rounded-md border bg-muted/40 text-xs font-mono font-semibold text-muted-foreground flex items-center">
+                              {editingRule.runtimeKey || editingRule.id.split('.').pop()}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Core Effect, Core Component, or Custom Category
+                    return (
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="space-y-2 sm:col-span-1">
+                          <Label className="text-xs font-semibold">Nombre de Opción</Label>
+                          <Input 
+                            value={editingRule.name} 
+                            onChange={e => patchRule(editingIndex, { name: e.target.value })} 
+                            placeholder="Ej. Daño Severo" 
+                          />
+                        </div>
+                        <div className="space-y-2 sm:col-span-1">
+                          <Label className="text-xs font-semibold">CE adicional (Coste de Estamina)</Label>
+                          <Input type="number" value={editingRule.cost} onChange={e => patchRule(editingIndex, { cost: Number(e.target.value) })} />
+                        </div>
+                        <div className="space-y-2 sm:col-span-1">
+                          <Label className="text-xs font-semibold">Clase de Regla</Label>
+                          {contract ? (
+                            <div className="h-9 px-3 py-2 rounded-md border bg-muted/40 text-xs font-medium text-foreground flex items-center">
+                              {contract.ruleClassLabel}
+                            </div>
+                          ) : (
+                            <Select 
+                              value={editingRule.ruleType} 
+                              onValueChange={ruleType => setDraft({ 
+                                ...draft, 
+                                rules: draft.rules.map((old, j) => editingIndex !== j ? old : { 
+                                  id: old.id, 
+                                  name: old.name, 
+                                  cost: old.cost, 
+                                  mechDesc: old.mechDesc, 
+                                  ruleType: ruleType as typeof old.ruleType, 
+                                  ...(ruleType === 'effect' ? { effect: createEffectDefinition('damage') } : ruleType === 'component' ? { component: structuredClone(componentTemplates.duration) } : { effect: undefined, component: undefined }) 
+                                }) 
+                              })}
+                            >
+                              <SelectTrigger><SelectValue>{{ effect: "Efecto", component: "Aplicación / regla", cost_modifier: "Ajuste CE", ce_adjustment: "Ajuste CE" }[editingRule.ruleType]}</SelectValue></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="effect">Efecto</SelectItem>
+                                <SelectItem value="component">Aplicación / regla</SelectItem>
+                                <SelectItem value="cost_modifier">Ajuste CE</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="rounded-lg border bg-muted/20 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <Label className="text-xs font-semibold">Disponible en el constructor</Label>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Determina si esta opción puede seleccionarse al crear nuevas mecánicas. Desactivarla no afecta elementos existentes ni su funcionamiento.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs font-mono font-medium text-muted-foreground">
+                          {editingRule.isAvailable !== false ? "ON" : "OFF"}
+                        </span>
+                        <Switch
+                          checked={editingRule.isAvailable !== false}
+                          onCheckedChange={(checked) => patchRule(editingIndex, { isAvailable: checked })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {editingRule.effect && contract?.kind !== 'ce_adjustment' && (
+                    <div className="pt-2">
+                      <Label className="text-xs font-semibold mb-2 block">Definición de Efecto Mecánico</Label>
+                      <MechanicalEffectDefinitionEditor 
+                        value={editingRule.effect} 
+                        hideTypeSelector={Boolean(contract && contract.kind === 'effect')} 
+                        independentDuration 
+                        onChange={effect => {
+                          if (contract?.effectType && effect.type !== contract.effectType) {
+                            effect.type = contract.effectType;
+                          }
+                          patchRule(editingIndex, { effect });
+                        }} 
                       />
                     </div>
-                  </div>
+                  )}
+
+                  {editingRule.component && contract?.kind !== 'ce_adjustment' && (
+                    <div className="pt-2">
+                      <Label className="text-xs font-semibold mb-2 block">Parámetros de la Regla / Componente</Label>
+                      <RuleComponentEditor value={editingRule.component} onChange={component => patchRule(editingIndex, { component })} />
+                    </div>
+                  )}
                 </div>
-
-                {editingRule.effect && (
-                  <div className="pt-2">
-                    <Label className="text-xs font-semibold mb-2 block">Definición de Efecto Mecánico</Label>
-                    <MechanicalEffectDefinitionEditor value={editingRule.effect} independentDuration onChange={effect => patchRule(editingIndex, { effect })} />
-                  </div>
-                )}
-
-                {editingRule.component && (
-                  <div className="pt-2">
-                    <Label className="text-xs font-semibold mb-2 block">Parámetros de la Regla / Componente</Label>
-                    <RuleComponentEditor value={editingRule.component} onChange={component => patchRule(editingIndex, { component })} />
-                  </div>
-                )}
-              </div>
 
               <DialogFooter className="px-6 py-4 border-t bg-muted/30 shrink-0 flex items-center justify-between sm:justify-between">
                 <Button 
@@ -555,9 +685,10 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                 </div>
               </DialogFooter>
             </>
-          )}
-        </DialogContent>
-      </Dialog>
+          );
+        })()}
+      </DialogContent>
+    </Dialog>
 
       <div className="space-y-3">
         {draft.rules
@@ -576,7 +707,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                       {r.cost > 0 ? `+${r.cost}` : r.cost} CE
                     </span>
                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground border px-1.5 py-0.5 rounded-sm bg-black/20">
-                      {{ effect: "Efecto", component: "Aplicación", cost_modifier: "Ajuste CE" }[r.ruleType] || r.ruleType}
+                      {{ effect: "Efecto", component: "Aplicación", cost_modifier: "Ajuste CE", ce_adjustment: "Ajuste CE" }[r.ruleType] || r.ruleType}
                     </span>
                     {r.isAvailable === false ? (
                       <span className="text-[10px] uppercase tracking-wider font-semibold border px-1.5 py-0.5 rounded-sm bg-rose-500/10 text-rose-400 border-rose-500/30">
@@ -588,7 +719,11 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                       </span>
                     )}
                   </div>
-                  {r.effect && <span className="text-xs text-muted-foreground line-clamp-1">{describeEffect(r.effect, { selection: 'direct', relationship: 'any', minTargets: 1, maxTargets: 1, allowedEntityKinds: ['character'] })}</span>}
+                  {r.effect ? (
+                    <span className="text-xs text-muted-foreground line-clamp-1">{describeEffect(r.effect, { selection: 'direct', relationship: 'any', minTargets: 1, maxTargets: 1, allowedEntityKinds: ['character'] })}</span>
+                  ) : r.runtimeKey && !r.component ? (
+                    <span className="text-xs text-muted-foreground font-mono">ID: {r.runtimeKey}</span>
+                  ) : null}
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <Button variant="outline" size="sm" onClick={() => {

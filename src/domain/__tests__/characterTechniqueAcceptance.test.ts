@@ -221,7 +221,8 @@ describe('Task 29 — CharacterTechnique Acceptance Cases & Combat Gap Audit', (
     it('D. All three fixtures survive JSON serialization, hydration, and re-parsing', () => {
       const fixtures = [createQuirkFixture(), createPhysicalFixture(), createWeaponFixture()];
 
-      for (const original of fixtures) {
+      for (const rawFixture of fixtures) {
+        const original = characterTechniqueSchema.parse(rawFixture);
         // 1. Simulate DB JSONB serialization
         const jsonbString = JSON.stringify(original);
         const hydratedJson = JSON.parse(jsonbString);
@@ -380,7 +381,7 @@ describe('Task 29 — CharacterTechnique Acceptance Cases & Combat Gap Audit', (
     });
 
     it('L. Edit increments revision and preserves all unedited mechanics', () => {
-      const original = createPhysicalFixture();
+      const original = characterTechniqueSchema.parse(createPhysicalFixture());
       const updatePayload = updateCharacterTechniqueSchema.parse({
         level: 2,
       });

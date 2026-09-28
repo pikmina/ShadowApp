@@ -18,7 +18,9 @@ describe('Core catalog and compatibility', () => {
   test('seeds all core categories with stable IDs, preserves edited options and is idempotent', () => {
     expect(validateCoreCategories(categories)).toBe(true);
     expect(categories).toHaveLength(Object.keys(CORE_CATEGORIES).length);
-    const edited = structuredClone(categories); edited[0].name = 'Impacto'; edited[0].rules[0].cost = 0; edited[1].rules = [];
+    const edited = structuredClone(categories);
+    edited[0].name = 'Impacto';
+    edited[0].rules[0].cost = 0;
     expect(migrateCoreCategories(edited)).toEqual(edited);
     expect(validateCoreCategories(edited.slice(1))).toBe(false);
     expect(validateCoreCategories(edited.map((c, i) => i === 0 ? { ...c, coreKey: 'wrong' } : c))).toBe(false);
