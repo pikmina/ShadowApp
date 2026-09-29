@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, ShieldCheck, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus, FileText, User } from "lucide-react";
+import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, ShieldCheck, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus, FileText, User, Eye, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { validateCharacter, calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses, calculateEquipmentBonuses } from "@/lib/characterValidation";
 import { ModifierBadgeGroup, ModifierNotesLegend } from "@/components/character/ModifierBadge";
@@ -32,6 +34,7 @@ const profileWithRelationalElements = (character?: any) => {
 };
 
 export default function CharacterEditor({ character, initialCanonId, onSaved, onCancel }: { character?: any, initialCanonId?: string | null, onSaved: () => void, onCancel?: () => void }) {
+  const navigate = useNavigate();
   const { user, dbUser } = useAuth();
   const isAdmin = dbUser?.role === 'superadmin' || dbUser?.role === 'moderator';
   const [isSaving, setIsSaving] = useState(false);
@@ -695,7 +698,18 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         </div>
         <div className="flex items-center gap-2">
           {onCancel && (
-            <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+            <Button variant="ghost" onClick={onCancel} disabled={isSaving}>
+              <ArrowLeft className="w-4 h-4 mr-1.5" />
+              Volver
+            </Button>
+          )}
+          {character?.id && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/sheet/${character.id}`)}
+              disabled={isSaving}
+            >
+              <Eye className="w-4 h-4 mr-1.5" />
               Ver Ficha
             </Button>
           )}
@@ -823,45 +837,46 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
       </div>
 
       <Card className="border-border shadow-sm bg-card overflow-hidden">
-        <div className="flex bg-muted/20 border-b border-border/50 overflow-x-auto custom-scrollbar p-1.5 gap-1 items-center">
-        {(() => {
-          const allCats = Object.keys(groupedFields).sort((a, b) => {
-            const minA = Math.min(...groupedFields[a].map((f: any) => f.order));
-            const minB = Math.min(...groupedFields[b].map((f: any) => f.order));
-            return minA - minB;
-          });
-          
-          // Reordenar las pestañas estándar y personalizadas ('Datos', 'Quirk', 'Atributos', 'Rasgos y Debilidades', 'Habilidades', 'Técnicas', 'Inventario', 'Licencias y Permisos'...)
-          const customTabs = ['Atributos', 'Rasgos y Debilidades', 'Habilidades', 'Técnicas', 'Inventario', 'Licencias y Permisos'];
-          let sortedCats = [...new Set([...allCats, ...customTabs])].sort((a, b) => {
-            const getOrder = (cat: string) => {
-              if (cat === 'Datos') return 1;
-              if (cat.toLowerCase().includes('quirk')) return 2;
-              if (cat === 'Atributos') return 3;
-              if (cat === 'Rasgos y Debilidades' || cat === 'Rasgos' || cat.toLowerCase().includes('rasgo')) return 4;
-              if (cat === 'Habilidades' || cat.toLowerCase().includes('habilidad')) return 5;
-              if (cat === 'Técnicas' || cat === 'Tecnicas' || cat.toLowerCase().includes('técnica') || cat.toLowerCase().includes('tecnica')) return 6;
-              if (cat === 'Inventario') return 7;
-              if (cat === 'Licencias y Permisos' || cat.toLowerCase().includes('licencia')) return 8;
-              const minOrder = groupedFields[cat] ? Math.min(...groupedFields[cat].map((f: any) => f.order)) : 999;
-              return 100 + minOrder;
-            };
-            return getOrder(a) - getOrder(b);
-          });
-          
-          return sortedCats.map(category => (
-            <Button
-              key={category}
-              variant="ghost"
-              size="sm"
-              className={`whitespace-nowrap shrink-0 transition-colors rounded-md font-medium h-9 px-4 ${activeTab === category ? 'bg-background text-primary border border-border/50 shadow-sm hover:bg-background/80 hover:text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
-              onClick={() => setActiveTab(category)}
-            >
-              {category}
-            </Button>
-          ));
-        })()}
-      </div>
+        <div className="bg-muted/20 border-b border-border/50 p-2 overflow-x-auto no-scrollbar">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto">
+              {(() => {
+                const allCats = Object.keys(groupedFields).sort((a, b) => {
+                  const minA = Math.min(...groupedFields[a].map((f: any) => f.order));
+                  const minB = Math.min(...groupedFields[b].map((f: any) => f.order));
+                  return minA - minB;
+                });
+                
+                // Reordenar las pestañas estándar y personalizadas ('Datos', 'Quirk', 'Atributos', 'Rasgos y Debilidades', 'Habilidades', 'Técnicas', 'Inventario', 'Licencias y Permisos'...)
+                const customTabs = ['Atributos', 'Rasgos y Debilidades', 'Habilidades', 'Técnicas', 'Inventario', 'Licencias y Permisos'];
+                let sortedCats = [...new Set([...allCats, ...customTabs])].sort((a, b) => {
+                  const getOrder = (cat: string) => {
+                    if (cat === 'Datos') return 1;
+                    if (cat.toLowerCase().includes('quirk')) return 2;
+                    if (cat === 'Atributos') return 3;
+                    if (cat === 'Rasgos y Debilidades' || cat === 'Rasgos' || cat.toLowerCase().includes('rasgo')) return 4;
+                    if (cat === 'Habilidades' || cat.toLowerCase().includes('habilidad')) return 5;
+                    if (cat === 'Técnicas' || cat === 'Tecnicas' || cat.toLowerCase().includes('técnica') || cat.toLowerCase().includes('tecnica')) return 6;
+                    if (cat === 'Inventario') return 7;
+                    if (cat === 'Licencias y Permisos' || cat.toLowerCase().includes('licencia')) return 8;
+                    const minOrder = groupedFields[cat] ? Math.min(...groupedFields[cat].map((f: any) => f.order)) : 999;
+                    return 100 + minOrder;
+                  };
+                  return getOrder(a) - getOrder(b);
+                });
+                
+                return sortedCats.map(category => (
+                  <TabsTrigger
+                    key={category}
+                    value={category}
+                  >
+                    {category}
+                  </TabsTrigger>
+                ));
+              })()}
+            </TabsList>
+          </Tabs>
+        </div>
 
         <div className="p-6">
           <div className="space-y-6">
@@ -1846,7 +1861,18 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
           
           <div className="mt-8 pt-6 border-t border-border flex items-center justify-end gap-2">
             {onCancel && (
-              <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+              <Button variant="ghost" onClick={onCancel} disabled={isSaving}>
+                <ArrowLeft className="w-4 h-4 mr-1.5" />
+                Volver
+              </Button>
+            )}
+            {character?.id && (
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/sheet/${character.id}`)}
+                disabled={isSaving}
+              >
+                <Eye className="w-4 h-4 mr-1.5" />
                 Ver Ficha
               </Button>
             )}

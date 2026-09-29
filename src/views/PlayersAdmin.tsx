@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { SectionHeader } from '@/components/common/SectionHeader';
 import { EntityPanel } from '@/components/ui/entity-panel';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -201,30 +202,23 @@ export default function PlayersAdmin() {
       />
 
       <EntityPanel variant="default">
-        <div className="p-4 sm:p-5">
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Buscar por nombre, identidad, discord o personaje..."
-                className="h-9 bg-background/70 pl-8 text-xs"
-              />
-            </div>
+        <div className="p-4 sm:p-5 space-y-4">
+          <Tabs value={statusFilter} onValueChange={(val: any) => setStatusFilter(val)}>
+            <TabsList>
+              <TabsTrigger value="all">Todos</TabsTrigger>
+              <TabsTrigger value="active">Presentes</TabsTrigger>
+              <TabsTrigger value="absent">Ausentes</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-            <div className="flex gap-1.5 w-full sm:w-auto">
-              {(['all', 'active', 'absent'] as const).map(tab => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setStatusFilter(tab)}
-                  className={`px-3 py-1.5 font-oxanium text-xs font-bold uppercase tracking-wider rounded transition-colors ${statusFilter === tab ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-muted/30 text-muted-foreground hover:text-foreground'}`}
-                >
-                  {tab === 'all' ? 'Todos' : tab === 'active' ? 'Presentes' : 'Ausentes'}
-                </button>
-              ))}
-            </div>
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nombre, identidad, discord o personaje..."
+              className="h-9 bg-background/70 pl-9 text-xs w-full"
+            />
           </div>
         </div>
       </EntityPanel>

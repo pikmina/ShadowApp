@@ -27,7 +27,7 @@ export default function ComponentShowcase() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="mb-6 bg-card/50 border border-border">
+        <TabsList className="mb-6">
           <TabsTrigger value="typography">Tipografía & Colores</TabsTrigger>
           <TabsTrigger value="cyber">Cyber Componentes</TabsTrigger>
           <TabsTrigger value="forms">Formularios & Inputs</TabsTrigger>

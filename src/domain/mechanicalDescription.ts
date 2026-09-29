@@ -263,15 +263,17 @@ export function describeMechanicalTarget(
       break;
   }
 
-  if (target.selectionMode && target.selectionMode !== "standard_priority") {
-    if (target.selectionMode === "manual") {
-      text += " (Elección manual)";
-    } else if (target.selectionMode === "random") {
-      text += " (Aleatoria)";
+  if (target.type !== "self") {
+    if (target.selectionMode && target.selectionMode !== "standard_priority") {
+      if (target.selectionMode === "manual") {
+        text += " (Elección manual)";
+      } else if (target.selectionMode === "random") {
+        text += " (Aleatoria)";
+      }
+    } else if (target.selectionRestriction && target.selectionRestriction !== "none") {
+      const resLabel = getMechanicalLabel("selectionRestrictions", target.selectionRestriction);
+      text += ` (${resLabel || target.selectionRestriction})`;
     }
-  } else if (target.selectionRestriction && target.selectionRestriction !== "none") {
-    const resLabel = getMechanicalLabel("selectionRestrictions", target.selectionRestriction);
-    text += ` (${resLabel || target.selectionRestriction})`;
   }
 
   return { text, complete, warnings };
@@ -616,8 +618,22 @@ export function describeMechanicalCondition(
     }
 
     case "die": {
-      const selLabel = getMechanicalLabel("dieSelections", cond.dieSelection) || "dado";
-      text = `Si ${selLabel} ${cond.comparison} ${cond.value}`;
+      if (cond.dieSelection === "pair" && cond.pair && cond.pair.length === 2) {
+        text = `Si obtiene la pareja de dados [${cond.pair[0]}, ${cond.pair[1]}]`;
+      } else if (cond.dieSelection === "double") {
+        if (cond.value !== undefined && cond.value > 0) {
+          text = `Si obtiene dados dobles de ${cond.value}`;
+        } else {
+          text = `Si obtiene dados dobles`;
+        }
+      } else if (cond.min !== undefined || cond.max !== undefined) {
+        const min = cond.min ?? 1;
+        const max = cond.max ?? 10;
+        text = `Si algún dado está entre ${min} y ${max}`;
+      } else {
+        const selLabel = getMechanicalLabel("dieSelections", cond.dieSelection) || "dado";
+        text = `Si ${selLabel} ${cond.comparison} ${cond.value ?? 0}`;
+      }
       break;
     }
 
@@ -664,6 +680,28 @@ export function describeMechanicalCondition(
 
     case "equipped": {
       text = "Mientras esté equipado";
+      break;
+    }
+
+    case "active_behavior": {
+      text = cond.present !== false
+        ? `Mientras esté activa la técnica (${cond.behaviorId || cond.elementId || "otra técnica"})`
+        : `Mientras no esté activa la técnica (${cond.behaviorId || cond.elementId || "otra técnica"})`;
+      break;
+    }
+
+    case "conscious": {
+      text = cond.conscious !== false ? "Objetivo consciente" : "Objetivo inconsciente";
+      break;
+    }
+
+    case "group": {
+      const subTexts: string[] = [];
+      for (const sub of (cond.conditions ?? [])) {
+        const res = describeMechanicalCondition(sub, options);
+        if (res.text) subTexts.push(res.text);
+      }
+      text = subTexts.join(cond.logic === "any" ? " o " : " y ");
       break;
     }
 
@@ -915,6 +953,10 @@ export function describeMechanicalTrigger(
     let lowerLabel = kindLabel.toLowerCase();
     lowerLabel = lowerLabel.replace(/\bquirk\b/g, "Quirk");
     text = `Al ${lowerLabel}`;
+    if (trigger.filters?.sourceEntityType && trigger.filters.sourceEntityType.length > 0) {
+      const types = trigger.filters.sourceEntityType.map((t) => t === "character" ? "personaje" : t === "npc" ? "PNJ" : t);
+      text += ` provocado por ${types.join(" o ")}`;
+    }
     if (trigger.tag) {
       text += ` (${getTagLabel(trigger.tag)})`;
     }
@@ -944,75 +986,77 @@ export function describeMechanicalTemporality(
   const warnings: string[] = [];
   let complete = true;
 
-  // Duration
-  if (temporality.duration) {
-    const dur = temporality.duration;
-    switch (dur.type) {
-      case "instant":
-        break;
-      case "turns":
-        if (dur.turns) {
-          clauses.push(`Durante ${pluralize(dur.turns, "turno", "turnos")}`);
-        }
-        break;
-      case "until_turn_end":
-        clauses.push("Hasta el final del turno");
-        break;
-      case "until_next_turn":
-        clauses.push("Hasta el siguiente turno");
-        break;
-      case "until_next_roll":
-        clauses.push("Hasta la siguiente tirada");
-        break;
-      case "until_next_use":
-        clauses.push("Hasta el siguiente uso");
-        break;
-      case "while_condition":
-        clauses.push(dur.conditionDescription || "Mientras se cumpla la condición");
-        break;
-      case "while_element_active":
-        clauses.push("Mientras el elemento esté activo");
-        break;
-      case "while_owned":
-        clauses.push("Mientras se posea el elemento");
-        break;
-      case "until_deactivated":
-        clauses.push("Hasta desactivarlo voluntariamente");
-        break;
-      case "permanent":
-        clauses.push("De forma permanente");
-        break;
-      case "manual":
-        if (dur.conditionDescription) {
-          clauses.push(dur.conditionDescription);
-        } else {
-          complete = false;
-          warnings.push("Manual duration lacks explicit conditionDescription");
-        }
-        break;
-    }
-  }
+  const isPeriodic =
+    temporality.periodicity?.mode === "each_turn" ||
+    temporality.frequency?.type === "each_turn" ||
+    temporality.frequency?.type === "turn_start" ||
+    temporality.frequency?.type === "turn_end";
 
-  // Frequency
-  if (temporality.frequency) {
-    const freq = temporality.frequency;
-    switch (freq.type) {
-      case "once":
-        break;
-      case "each_turn":
-        clauses.push("Cada turno");
-        break;
-      case "turn_start":
-        clauses.push("Al inicio de cada turno");
-        break;
-      case "turn_end":
-        clauses.push("Al final de cada turno");
-        break;
-      case "every_n_turns":
-        if (freq.nTurns) {
-          clauses.push(`Cada ${freq.nTurns} turnos`);
-        }
-        break;
+  const periodicTiming =
+    temporality.periodicity?.timing ??
+    (temporality.frequency?.type === "turn_end" ? "turn_end" : "turn_start");
+
+  const timingStr =
+    periodicTiming === "turn_end" ? "Al final de cada turno" : "Al inicio de cada turno";
+  const durTurns =
+    temporality.duration?.type === "turns"
+      ? (temporality.duration.turns ?? (temporality.duration as any).value)
+      : undefined;
+
+  if (isPeriodic) {
+    if (durTurns) {
+      clauses.push(`${timingStr} durante ${pluralize(durTurns, "turno", "turnos")}`);
+    } else {
+      clauses.push(timingStr);
+    }
+  } else {
+    // Non-periodic duration
+    if (temporality.duration) {
+      const dur = temporality.duration;
+      switch (dur.type) {
+        case "instant":
+          break;
+        case "turns":
+          if (durTurns) {
+            clauses.push(`Durante ${pluralize(durTurns, "turno", "turnos")}`);
+          }
+          break;
+        case "until_turn_end":
+          clauses.push("Hasta el final del turno");
+          break;
+        case "until_next_turn":
+          clauses.push("Hasta el siguiente turno");
+          break;
+        case "until_next_roll":
+          clauses.push("Hasta la siguiente tirada");
+          break;
+        case "until_next_use":
+          clauses.push("Hasta el siguiente uso");
+          break;
+        case "while_condition":
+          clauses.push(dur.conditionDescription || "Mientras se cumpla la condición");
+          break;
+        case "while_element_active":
+          clauses.push("Mientras el elemento esté activo");
+          break;
+        case "while_owned":
+          clauses.push("Mientras se posea el elemento");
+          break;
+        case "until_deactivated":
+          clauses.push("Hasta desactivarlo voluntariamente");
+          break;
+        case "permanent":
+          clauses.push("De forma permanente");
+          break;
+        case "manual":
+          if (dur.conditionDescription) {
+            clauses.push(dur.conditionDescription);
+          } else {
+            complete = false;
+            warnings.push("Manual duration lacks explicit conditionDescription");
+          }
+          break;
+      }
     }
   }
 
@@ -1041,6 +1085,14 @@ export function describeMechanicalActivation(
 
   if (activation.description && activation.description.trim()) {
     return { text: activation.description.trim(), complete: true, warnings: [] };
+  }
+
+  if (activation.timing === "turns" && activation.turns) {
+    return {
+      text: `Tarda ${pluralize(activation.turns, "turno", "turnos")} en activarse`,
+      complete: true,
+      warnings: [],
+    };
   }
 
   const typeLabel = getMechanicalLabel("actionTypes", activation.actionType) || activation.actionType;
@@ -1128,18 +1180,20 @@ export function describeMechanicalBehavior(
     if (!tRes.complete) isComplete = false;
     warnings.push(...tRes.warnings);
 
-    if (behavior.target.range) {
-      const rRes = describeTargetRange(behavior.target.range);
-      if (rRes.text) sections.range.push(rRes.text);
-      if (!rRes.complete) isComplete = false;
-      warnings.push(...rRes.warnings);
-    }
+    if (behavior.target.type !== "self") {
+      if (behavior.target.range) {
+        const rRes = describeTargetRange(behavior.target.range);
+        if (rRes.text) sections.range.push(rRes.text);
+        if (!rRes.complete) isComplete = false;
+        warnings.push(...rRes.warnings);
+      }
 
-    if (behavior.target.area) {
-      const aRes = describeTargetArea(behavior.target.area);
-      if (aRes.text) sections.area.push(aRes.text);
-      if (!aRes.complete) isComplete = false;
-      warnings.push(...aRes.warnings);
+      if (behavior.target.area) {
+        const aRes = describeTargetArea(behavior.target.area);
+        if (aRes.text) sections.area.push(aRes.text);
+        if (!aRes.complete) isComplete = false;
+        warnings.push(...aRes.warnings);
+      }
     }
   }
 
@@ -1247,23 +1301,25 @@ export function describeMechanicalBehavior(
 
     // Build natural spatial & selection descriptor phrases
     let spatialPhrase = "";
-    if (behavior.target?.area?.shape && behavior.target?.area?.sizeMeters) {
-      const shape = behavior.target.area.shape;
-      const size = behavior.target.area.sizeMeters;
-      if (shape === "radius") spatialPhrase += ` en un radio de ${size} m`;
-      else if (shape === "cone") spatialPhrase += ` en un cono de ${size} m`;
-      else if (shape === "line") spatialPhrase += ` en una línea de ${size} m`;
-      else spatialPhrase += ` en un área de ${size} m`;
-    }
-    if (behavior.target?.range?.type === "distance" && behavior.target?.range?.distanceMeters) {
-      spatialPhrase += ` a un máximo de ${behavior.target.range.distanceMeters} m`;
-    } else if (behavior.target?.range?.type === "contact" && behavior.target?.type !== "self") {
-      spatialPhrase += ` al contacto`;
-    }
-    if (behavior.target?.selectionMode === "manual") {
-      spatialPhrase += " (Elección manual)";
-    } else if (behavior.target?.selectionMode === "random") {
-      spatialPhrase += " (Selección aleatoria)";
+    if (behavior.target?.type !== "self") {
+      if (behavior.target?.area?.shape && behavior.target?.area?.sizeMeters) {
+        const shape = behavior.target.area.shape;
+        const size = behavior.target.area.sizeMeters;
+        if (shape === "radius") spatialPhrase += ` en un radio de ${size} m`;
+        else if (shape === "cone") spatialPhrase += ` en un cono de ${size} m`;
+        else if (shape === "line") spatialPhrase += ` en una línea de ${size} m`;
+        else spatialPhrase += ` en un área de ${size} m`;
+      }
+      if (behavior.target?.range?.type === "distance" && behavior.target?.range?.distanceMeters) {
+        spatialPhrase += ` a un máximo de ${behavior.target.range.distanceMeters} m`;
+      } else if (behavior.target?.range?.type === "contact") {
+        spatialPhrase += ` al contacto`;
+      }
+      if (behavior.target?.selectionMode === "manual") {
+        spatialPhrase += " (Elección manual)";
+      } else if (behavior.target?.selectionMode === "random") {
+        spatialPhrase += " (Selección aleatoria)";
+      }
     }
 
     const getPrepositionalTarget = (t: any): string => {
@@ -1324,6 +1380,14 @@ export function describeMechanicalBehavior(
       mainActionClause = `${sections.effects[0]}${spatialPhrase}`.trim();
     } else if (hasTarget) {
       mainActionClause = `${sections.target.join(", ")}${spatialPhrase}`.trim();
+    }
+
+    // Activation delay clause if applicable
+    if (behavior.mode === "active" && behavior.activation) {
+      const actTurns = behavior.activation.delay ?? behavior.activation.turns;
+      if (actTurns && actTurns > 0) {
+        clauses.push(`Tarda ${pluralize(actTurns, "turno", "turnos")} en activarse`);
+      }
     }
 
     // Handle Trigger + Action merge if reactive (or trigger present)

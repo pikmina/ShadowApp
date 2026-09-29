@@ -1204,54 +1204,60 @@ export default function SuperSheet() {
           {/* Quirk Evolution Progression Levels with Cyber Module headers */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Level 1 */}
-            <div className="p-4 rounded-lg bg-zinc-950/80 border border-zinc-800 space-y-2">
-              <div className="flex items-center justify-between">
+            <div className="p-4 rounded-lg bg-zinc-950/80 border border-zinc-800 flex flex-col gap-2 max-h-72 sm:max-h-80 shadow-xs">
+              <div className="flex items-center justify-between shrink-0 border-b border-zinc-900 pb-2">
                 <span className="text-xs font-oxanium font-black uppercase text-amber-400">
                   NIVEL 1 · DESPERTAR
                 </span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800">
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800 shrink-0">
                   ACTIVO // ONLINE
                 </span>
               </div>
-              <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
-                {quirkLevelOne}
-              </p>
+              <div className="overflow-y-auto pr-1.5 flex-1 scrollbar-thin scrollbar-thumb-zinc-800">
+                <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
+                  {quirkLevelOne}
+                </p>
+              </div>
             </div>
 
             {/* Level 2 */}
             <div className={cn(
-              "p-4 rounded-lg border space-y-2",
+              "p-4 rounded-lg border flex flex-col gap-2 max-h-72 sm:max-h-80 shadow-xs",
               quirkLevelTwo ? "bg-zinc-950/80 border-zinc-800" : "bg-zinc-950/30 border-dashed border-zinc-800/60 opacity-60"
             )}>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between shrink-0 border-b border-zinc-900 pb-2">
                 <span className="text-xs font-oxanium font-black uppercase text-amber-400">
                   NIVEL 2 · DOMINIO
                 </span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800">
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800 shrink-0">
                   {quirkLevelTwo ? 'STANDBY // UNLOCKED' : 'LOCKED'}
                 </span>
               </div>
-              <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
-                {displayValue(quirkLevelTwo, 'Aún no se ha desarrollado el segundo nivel de dominio para este don.')}
-              </p>
+              <div className="overflow-y-auto pr-1.5 flex-1 scrollbar-thin scrollbar-thumb-zinc-800">
+                <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
+                  {displayValue(quirkLevelTwo, 'Aún no se ha desarrollado el segundo nivel de dominio para este don.')}
+                </p>
+              </div>
             </div>
 
             {/* Level 3 */}
             <div className={cn(
-              "p-4 rounded-lg border space-y-2",
+              "p-4 rounded-lg border flex flex-col gap-2 max-h-72 sm:max-h-80 shadow-xs",
               quirkLevelThree ? "bg-zinc-950/80 border-zinc-800" : "bg-zinc-950/30 border-dashed border-zinc-800/60 opacity-60"
             )}>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between shrink-0 border-b border-zinc-900 pb-2">
                 <span className="text-xs font-oxanium font-black uppercase text-amber-400">
                   NIVEL 3 · SINGULARIDAD
                 </span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800">
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800 shrink-0">
                   {quirkLevelThree ? 'STANDBY // UNLOCKED' : 'LOCKED'}
                 </span>
               </div>
-              <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
-                {displayValue(quirkLevelThree, 'Nivel máximo de singularidad aún no alcanzado.')}
-              </p>
+              <div className="overflow-y-auto pr-1.5 flex-1 scrollbar-thin scrollbar-thumb-zinc-800">
+                <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
+                  {displayValue(quirkLevelThree, 'Nivel máximo de singularidad aún no alcanzado.')}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -1567,7 +1573,7 @@ export default function SuperSheet() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                      <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
                         {elem.description || tech.description || 'Sin descripción detallada.'}
                       </p>
                       <div className="p-2.5 rounded bg-zinc-900/90 border border-cyan-500/30 text-xs text-cyan-200/90 font-mono space-y-1 mt-2.5">
@@ -1615,38 +1621,44 @@ export default function SuperSheet() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {background && (
-                <div className="space-y-2 p-4 rounded-lg bg-zinc-950/70 border border-zinc-800/80">
-                  <span className="text-xs font-oxanium font-black uppercase text-amber-400 tracking-wide flex items-center gap-1.5 font-mono">
+                <div className="p-4 rounded-lg bg-zinc-950/70 border border-zinc-800/80 flex flex-col gap-2 max-h-72 sm:max-h-80 shadow-xs">
+                  <span className="text-xs font-oxanium font-black uppercase text-amber-400 tracking-wide flex items-center gap-1.5 font-mono shrink-0 border-b border-zinc-900 pb-2">
                     <Scroll className="size-4 text-cyan-400" />
                     // HISTORIA & ANTECEDENTES
                   </span>
-                  <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
-                    {background}
-                  </p>
+                  <div className="overflow-y-auto pr-1.5 flex-1 scrollbar-thin scrollbar-thumb-zinc-800">
+                    <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
+                      {background}
+                    </p>
+                  </div>
                 </div>
               )}
 
               {personality && (
-                <div className="space-y-2 p-4 rounded-lg bg-zinc-950/70 border border-zinc-800/80">
-                  <span className="text-xs font-oxanium font-black uppercase text-rose-400 tracking-wide flex items-center gap-1.5 font-mono">
+                <div className="p-4 rounded-lg bg-zinc-950/70 border border-zinc-800/80 flex flex-col gap-2 max-h-72 sm:max-h-80 shadow-xs">
+                  <span className="text-xs font-oxanium font-black uppercase text-rose-400 tracking-wide flex items-center gap-1.5 font-mono shrink-0 border-b border-zinc-900 pb-2">
                     <Brain className="size-4 text-rose-400" />
                     // PERFIL PSICOLÓGICO
                   </span>
-                  <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
-                    {personality}
-                  </p>
+                  <div className="overflow-y-auto pr-1.5 flex-1 scrollbar-thin scrollbar-thumb-zinc-800">
+                    <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
+                      {personality}
+                    </p>
+                  </div>
                 </div>
               )}
 
               {physicalAppearance && (
-                <div className="space-y-2 p-4 rounded-lg bg-zinc-950/70 border border-zinc-800/80">
-                  <span className="text-xs font-oxanium font-black uppercase text-cyan-400 tracking-wide flex items-center gap-1.5 font-mono">
+                <div className="p-4 rounded-lg bg-zinc-950/70 border border-zinc-800/80 flex flex-col gap-2 max-h-72 sm:max-h-80 shadow-xs">
+                  <span className="text-xs font-oxanium font-black uppercase text-cyan-400 tracking-wide flex items-center gap-1.5 font-mono shrink-0 border-b border-zinc-900 pb-2">
                     <Eye className="size-4 text-cyan-400" />
                     // ASPECTO & INDUMENTARIA
                   </span>
-                  <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
-                    {physicalAppearance}
-                  </p>
+                  <div className="overflow-y-auto pr-1.5 flex-1 scrollbar-thin scrollbar-thumb-zinc-800">
+                    <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
+                      {physicalAppearance}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

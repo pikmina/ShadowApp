@@ -190,11 +190,13 @@ export default function SettingsAdmin() {
       <SectionHeader icon={SectionIcon} title="Ajustes globales" description="Configura la cronología y los grupos del mundo de Shadowmore." />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="mb-6 bg-card/50 border border-border">
-          <TabsTrigger value="time">Tiempo On-Rol</TabsTrigger>
-          <TabsTrigger value="groups">Grupos / Facciones</TabsTrigger>
-          <TabsTrigger value="profile">Mi Perfil</TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto pb-1.5 no-scrollbar mb-6">
+          <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto">
+            <TabsTrigger value="time">Tiempo On-Rol</TabsTrigger>
+            <TabsTrigger value="groups">Grupos / Facciones</TabsTrigger>
+            <TabsTrigger value="profile">Mi Perfil</TabsTrigger>
+          </TabsList>
+        </div>
         <TabsContent value="time">
           <Card>
             <CardHeader>

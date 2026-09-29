@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import useSWR from 'swr';
 import { fetcher, apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
-import { Plus, Trash2, Check, X, Shield, Lock, Unlock, Eye, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Check, X, Shield, Lock, Unlock, Eye, Edit2, Search } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -195,33 +195,41 @@ export default function CanonCharactersAdmin() {
         }
       />
 
-      <EntityPanel variant="character">
+      <EntityPanel variant="default">
         <div className="p-4 sm:p-5">
-          <div className="mt-1">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               placeholder="Buscar canon..."
-              className="max-w-sm"
+              className="pl-9 w-full bg-background/70 text-xs h-9"
             />
           </div>
+        </div>
+      </EntityPanel>
 
-          {isCreating && (
-            <div className="mt-4 space-y-3 rounded-md border border-border bg-muted/20 p-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <CanonProfileFields fields={processedFields} value={formData.profileData} onChange={profileData => setFormData({ ...formData, profileData })} disabled={false} />
-                <div className="sm:col-span-2 space-y-1">
-                  <label className="text-xs text-muted-foreground block">Descripción breve</label>
-                  <Textarea value={formData.summary} onChange={(e) => setFormData({ ...formData, summary: e.target.value })} placeholder="Resumen público" />
-                </div>
+      {isCreating && (
+        <EntityPanel variant="character">
+          <div className="p-4 sm:p-5 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <CanonProfileFields fields={processedFields} value={formData.profileData} onChange={profileData => setFormData({ ...formData, profileData })} disabled={false} />
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs text-muted-foreground block">Descripción breve</label>
+                <Textarea value={formData.summary} onChange={(e) => setFormData({ ...formData, summary: e.target.value })} placeholder="Resumen público" />
               </div>
+            </div>
+            <div className="flex gap-2">
               <Button onClick={handleCreate}>Guardar</Button>
               <Button variant="ghost" onClick={() => setIsCreating(false)}>Cancelar</Button>
             </div>
-          )}
+          </div>
+        </EntityPanel>
+      )}
 
-          <div className="mt-6">
-            <div className="rounded-md border border-border">
+      <EntityPanel variant="character">
+        <div className="p-4 sm:p-5">
+          <div className="rounded-md border border-border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -336,8 +344,7 @@ export default function CanonCharactersAdmin() {
               <div className="text-center py-8 text-muted-foreground">No se encontraron personajes canon con esos criterios.</div>
             )}
           </div>
-        </div>
-      </EntityPanel>
+        </EntityPanel>
 
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>

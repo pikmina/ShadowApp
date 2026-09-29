@@ -22,11 +22,52 @@ export type ActivationActionType = z.infer<typeof activationActionTypeSchema>;
 export const activationTimingSchema = z.enum(["immediate", "turns", "manual"]);
 export type ActivationTiming = z.infer<typeof activationTimingSchema>;
 
-export const mechanicalActivationSchema = z.object({
+export const baseMechanicalActivationSchema = z.object({
   actionType: activationActionTypeSchema.default("action"),
   timing: activationTimingSchema.default("immediate"),
   turns: z.number().int().nonnegative().optional().default(0),
+  delay: z.number().int().nonnegative().optional().default(0),
   description: z.string().optional().default(""),
+});
+
+export const mechanicalActivationSchema = z.preprocess((val) => {
+  if (val && typeof val === "object") {
+    const raw = { ...(val as Record<string, any>) };
+    const effectiveTurns = raw.delay ?? raw.turns ?? 0;
+    if (raw.timing === "immediate" || effectiveTurns === 0) {
+      delete raw.delay;
+      raw.turns = 0;
+      raw.timing = "immediate";
+    } else {
+      raw.turns = effectiveTurns;
+      raw.delay = effectiveTurns;
+      raw.timing = "turns";
+    }
+    return raw;
+  }
+  return val;
+}, baseMechanicalActivationSchema).transform((act): {
+  actionType: ActivationActionType;
+  timing: ActivationTiming;
+  turns?: number;
+  delay?: number;
+  description?: string;
+} => {
+  const effectiveDelay = act.delay ?? act.turns ?? 0;
+  if (effectiveDelay > 0) {
+    return {
+      ...act,
+      timing: "turns",
+      turns: effectiveDelay,
+      delay: effectiveDelay,
+    };
+  }
+  return {
+    ...act,
+    timing: act.timing === "turns" ? "immediate" : act.timing,
+    turns: 0,
+    delay: 0,
+  };
 });
 export type MechanicalActivation = z.infer<typeof mechanicalActivationSchema>;
 
@@ -36,7 +77,9 @@ export type MechanicalActivation = z.infer<typeof mechanicalActivationSchema>;
 export const triggerKindSchema = z.union([
   z.enum([
     "receive_damage",
+    "damage_received",
     "deal_damage",
+    "damage_dealt",
     "receive_healing",
     "receive_barrier",
     "attacked",
@@ -49,6 +92,7 @@ export const triggerKindSchema = z.union([
     "end_element",
     "cancel_element",
     "roll",
+    "roll_resolved",
     "roll_success",
     "roll_failure",
     "critical",
@@ -65,15 +109,29 @@ export const triggerKindSchema = z.union([
     "consume_item",
     "equip_item",
     "unequip_item",
+    "status_applied",
+    "status_removed",
+    "behavior_resolved",
+    "effect_ended",
     "manual",
   ]),
   z.string().min(1), // Extensible open trigger identifier
 ]);
 export type TriggerKind = z.infer<typeof triggerKindSchema>;
 
+export const triggerFilterSchema = z.object({
+  sourceEntityType: z.array(z.string()).optional(),
+  origin: z.array(z.string()).optional(),
+  tags: z.array(z.string()).optional(),
+  resourceId: z.array(z.string()).optional(),
+  statusElementId: z.array(z.string()).optional(),
+}).catchall(z.any());
+export type TriggerFilter = z.infer<typeof triggerFilterSchema>;
+
 export const mechanicalTriggerSchema = z.object({
   kind: triggerKindSchema,
   description: z.string().optional(),
+  filters: triggerFilterSchema.optional(),
   resourceId: z.enum(["SA", "ES"]).or(z.string()).optional(),
   threshold: z.number().optional(),
   direction: z.enum(["cross_up", "cross_down", "any"]).optional(),
@@ -89,107 +147,152 @@ export type MechanicalTrigger = z.infer<typeof mechanicalTriggerSchema>;
 export const conditionComparisonSchema = z.enum(["<", "<=", "=", ">=", ">"]);
 export type ConditionComparison = z.infer<typeof conditionComparisonSchema>;
 
-export const conditionItemSchema = z.discriminatedUnion("type", [
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("resource"),
-    resourceId: z.enum(["SA", "ES"]).or(z.string()).optional(),
-    comparison: conditionComparisonSchema,
-    value: z.number(),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("percentage"),
-    resourceId: z.enum(["SA", "ES"]).or(z.string()).optional(),
-    comparison: conditionComparisonSchema,
-    percent: z.number().min(0).max(100),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("roll"),
-    rollType: z.string().optional(),
-    comparison: conditionComparisonSchema,
-    target: z.number(),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("die"),
-    dieSelection: z.enum(["any", "both", "individual", "first", "second"]).default("any"),
-    comparison: conditionComparisonSchema,
-    value: z.number(),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("status"),
-    statusElementId: z.string().min(1),
-    present: z.boolean().default(true),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("turn_aggregate"),
-    metric: z.enum(["damage_dealt", "damage_taken", "es_spent", "hp_spent"]).or(z.string()),
-    comparison: conditionComparisonSchema,
-    value: z.number(),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("turn_history"),
-    event: z.enum(["used_quirk", "used_technique", "consecutive_turns_used"]).or(z.string()),
-    comparison: conditionComparisonSchema.optional(),
-    value: z.union([z.number(), z.boolean()]).optional(),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("tag"),
-    tag: z.string().min(1),
-    scope: z.enum(["source", "target", "attack", "action", "any"]).default("any"),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("item"),
-    elementId: z.string().min(1),
-    quantity: z.number().int().positive().default(1),
-    comparison: conditionComparisonSchema.default(">="),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("counter"),
-    counterId: z.string().min(1),
-    comparison: conditionComparisonSchema.default(">="),
-    value: z.number(),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("attribute"),
-    attributeId: z.string().min(1),
-    comparison: conditionComparisonSchema,
-    value: z.number(),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("manual"),
-    signalId: z.string().min(1),
-    description: z.string().optional(),
-    negated: z.boolean().optional(),
-  }),
-  z.object({
-    id: z.string().optional(),
-    type: z.literal("equipped"),
-    negated: z.boolean().optional(),
-  }),
-]);
-export type MechanicalCondition = z.infer<typeof conditionItemSchema>;
+export type MechanicalCondition =
+  | { id?: string; type: "resource"; resourceId?: string; comparison: ConditionComparison; value: number; negated?: boolean }
+  | { id?: string; type: "percentage"; resourceId?: string; comparison: ConditionComparison; percent: number; negated?: boolean }
+  | { id?: string; type: "roll"; rollType?: string; comparison: ConditionComparison; target: number; negated?: boolean }
+  | { id?: string; type: "die"; dieSelection?: "any" | "both" | "individual" | "first" | "second" | "pair" | "double"; comparison?: ConditionComparison; value?: number; pair?: number[]; min?: number; max?: number; negated?: boolean }
+  | { id?: string; type: "status"; statusElementId: string; present?: boolean; negated?: boolean }
+  | { id?: string; type: "turn_aggregate"; metric?: string; comparison: ConditionComparison; value: number; negated?: boolean }
+  | { id?: string; type: "turn_history"; event?: string; comparison?: ConditionComparison; value?: number | boolean; negated?: boolean }
+  | { id?: string; type: "tag"; tag: string; scope?: "source" | "target" | "attack" | "action" | "any"; negated?: boolean }
+  | { id?: string; type: "item"; elementId: string; quantity?: number; comparison?: ConditionComparison; negated?: boolean }
+  | { id?: string; type: "counter"; counterId: string; comparison?: ConditionComparison; value: number; negated?: boolean }
+  | { id?: string; type: "attribute"; attributeId: string; comparison: ConditionComparison; value: number; negated?: boolean }
+  | { id?: string; type: "manual"; signalId: string; description?: string; negated?: boolean }
+  | { id?: string; type: "equipped"; negated?: boolean }
+  | { id?: string; type: "active_behavior"; behaviorId?: string; elementId?: string; present?: boolean; scope?: "self" | "target" | "any"; negated?: boolean }
+  | { id?: string; type: "conscious"; target?: "self" | "target"; conscious?: boolean; negated?: boolean }
+  | { id?: string; type: "group"; logic?: "all" | "any"; conditions: MechanicalCondition[]; negated?: boolean };
+
+export const conditionItemSchema: z.ZodType<MechanicalCondition> = z.lazy(() =>
+  z.discriminatedUnion("type", [
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("resource"),
+      resourceId: z.enum(["SA", "ES"]).or(z.string()).optional(),
+      comparison: conditionComparisonSchema,
+      value: z.number(),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("percentage"),
+      resourceId: z.enum(["SA", "ES"]).or(z.string()).optional(),
+      comparison: conditionComparisonSchema,
+      percent: z.number().min(0).max(100),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("roll"),
+      rollType: z.string().optional(),
+      comparison: conditionComparisonSchema,
+      target: z.number(),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("die"),
+      dieSelection: z.enum(["any", "both", "individual", "first", "second", "pair", "double"]).default("any"),
+      comparison: conditionComparisonSchema.default("="),
+      value: z.number().optional().default(0),
+      pair: z.array(z.number()).optional(),
+      min: z.number().optional(),
+      max: z.number().optional(),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("status"),
+      statusElementId: z.string().min(1),
+      present: z.boolean().default(true),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("turn_aggregate"),
+      metric: z.enum(["damage_dealt", "damage_taken", "es_spent", "hp_spent"]).or(z.string()),
+      comparison: conditionComparisonSchema,
+      value: z.number(),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("turn_history"),
+      event: z.enum(["used_quirk", "used_technique", "consecutive_turns_used"]).or(z.string()),
+      comparison: conditionComparisonSchema.optional(),
+      value: z.union([z.number(), z.boolean()]).optional(),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("tag"),
+      tag: z.string().min(1),
+      scope: z.enum(["source", "target", "attack", "action", "any"]).default("any"),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("item"),
+      elementId: z.string().min(1),
+      quantity: z.number().int().positive().default(1),
+      comparison: conditionComparisonSchema.default(">="),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("counter"),
+      counterId: z.string().min(1),
+      comparison: conditionComparisonSchema.default(">="),
+      value: z.number(),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("attribute"),
+      attributeId: z.string().min(1),
+      comparison: conditionComparisonSchema,
+      value: z.number(),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("manual"),
+      signalId: z.string().min(1),
+      description: z.string().optional(),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("equipped"),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("active_behavior"),
+      behaviorId: z.string().optional(),
+      elementId: z.string().optional(),
+      present: z.boolean().default(true),
+      scope: z.enum(["self", "target", "any"]).default("self"),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("conscious"),
+      target: z.enum(["self", "target"]).default("target"),
+      conscious: z.boolean().default(true),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("group"),
+      logic: z.enum(["all", "any"]).default("all"),
+      conditions: z.array(z.lazy(() => conditionItemSchema)).default([]),
+      negated: z.boolean().optional(),
+    }),
+  ])
+);
 
 export const conditionLogicSchema = z.enum(["all", "any"]);
 export type MechanicalConditionLogic = z.infer<typeof conditionLogicSchema>;
@@ -285,6 +388,15 @@ export const mechanicalTargetSchema = z.preprocess((val) => {
   if (val && typeof val === "object") {
     const raw = { ...(val as Record<string, any>) };
 
+    // Invariant CE-4B.1: target.type === "self" does not accept quantity, range, area, selectionMode, or selectionRestriction
+    if (raw.type === "self") {
+      delete raw.quantity;
+      delete raw.range;
+      delete raw.area;
+      delete raw.selectionMode;
+      delete raw.selectionRestriction;
+    }
+
     // Legacy normalization: allies / enemies -> ally / enemy + quantity all (if quantity not set)
     if (raw.type === "enemies") {
       raw.type = "enemy";
@@ -320,8 +432,20 @@ export const mechanicalTargetSchema = z.preprocess((val) => {
   selectionMode: selectionModeSchema.optional(),
   selectionRestriction: selectionRestrictionSchema.optional(),
   description: z.string().optional(),
-}));
+})).transform((target) => (
+  target.type === "self"
+    ? { type: "self" as const, ...(target.description ? { description: target.description } : {}) }
+    : target
+));
 export type MechanicalTarget = z.infer<typeof mechanicalTargetSchema>;
+
+export function normalizeMechanicalTarget(target: unknown): MechanicalTarget {
+  const parsed = mechanicalTargetSchema.parse(target ?? { type: "self" });
+  if (parsed.type === "self") {
+    return { type: "self" };
+  }
+  return parsed;
+}
 
 // ==========================================
 // 6. TEMPORALITY (Duration, Frequency, Maintenance)
@@ -345,9 +469,9 @@ export type DurationType = z.infer<typeof durationTypeSchema>;
 
 export const mechanicalDurationSchema = z.preprocess((val) => {
   if (val && typeof val === "object") {
-    const raw = val as Record<string, any>;
+    const raw = { ...(val as Record<string, any>) };
     let t = raw.type;
-    let turns = raw.turns;
+    let turns = raw.turns ?? raw.value;
 
     if (typeof t === "number" || (typeof t === "string" && !isNaN(Number(t)) && Number(t) > 0)) {
       turns = turns ?? Number(t);
@@ -356,19 +480,66 @@ export const mechanicalDurationSchema = z.preprocess((val) => {
       t = "until_deactivated";
     }
 
+    if (t !== "turns") {
+      delete raw.turns;
+      delete raw.value;
+    }
+
     return {
       ...raw,
       type: t,
-      turns,
+      ...(turns !== undefined ? { turns, value: turns } : {}),
     };
   }
   return val;
 }, z.object({
   type: durationTypeSchema.default("instant"),
   turns: z.number().int().positive().optional(),
+  value: z.number().int().positive().optional(),
   conditionDescription: z.string().optional(),
-}));
+})).transform((dur) => {
+  if (dur.type !== "turns") {
+    const { turns, value, ...rest } = dur;
+    return rest;
+  }
+  const effectiveTurns = dur.turns ?? dur.value ?? 1;
+  return {
+    ...dur,
+    turns: effectiveTurns,
+    value: effectiveTurns,
+  };
+});
 export type MechanicalDuration = z.infer<typeof mechanicalDurationSchema>;
+
+export const periodicityModeSchema = z.enum(["once", "each_turn"]);
+export type PeriodicityMode = z.infer<typeof periodicityModeSchema>;
+
+export const periodicityTimingSchema = z.enum(["turn_start", "turn_end"]);
+export type PeriodicityTiming = z.infer<typeof periodicityTimingSchema>;
+
+export const mechanicalPeriodicitySchema = z.preprocess((val) => {
+  if (val && typeof val === "object") {
+    const raw = { ...(val as Record<string, any>) };
+    const mode = raw.mode ?? "once";
+    if (mode === "once") {
+      delete raw.timing;
+    }
+    return {
+      ...raw,
+      mode,
+    };
+  }
+  return val;
+}, z.object({
+  mode: periodicityModeSchema.default("once"),
+  timing: periodicityTimingSchema.optional(),
+})).transform((p) => {
+  if (p.mode === "once") {
+    return { mode: "once" as const };
+  }
+  return { mode: "each_turn" as const, timing: p.timing ?? ("turn_start" as const) };
+});
+export type MechanicalPeriodicity = z.infer<typeof mechanicalPeriodicitySchema>;
 
 export const frequencyTypeSchema = z.enum([
   "once",
@@ -380,10 +551,25 @@ export const frequencyTypeSchema = z.enum([
 ]);
 export type FrequencyType = z.infer<typeof frequencyTypeSchema>;
 
-export const mechanicalFrequencySchema = z.object({
+export const mechanicalFrequencySchema = z.preprocess((val) => {
+  if (val && typeof val === "object") {
+    const raw = { ...(val as Record<string, any>) };
+    if (raw.type === "once") {
+      delete raw.nTurns;
+    }
+    return raw;
+  }
+  return val;
+}, z.object({
   type: frequencyTypeSchema.default("once"),
   nTurns: z.number().int().positive().optional(),
   description: z.string().optional(),
+})).transform((freq) => {
+  if (freq.type === "once") {
+    const { nTurns, ...rest } = freq;
+    return rest;
+  }
+  return freq;
 });
 export type MechanicalFrequency = z.infer<typeof mechanicalFrequencySchema>;
 
@@ -394,12 +580,68 @@ export const mechanicalMaintenanceSchema = z.object({
 });
 export type MechanicalMaintenance = z.infer<typeof mechanicalMaintenanceSchema>;
 
-export const mechanicalTemporalitySchema = z.object({
+export const mechanicalTemporalitySchema = z.preprocess((val) => {
+  if (val && typeof val === "object") {
+    const raw = { ...(val as Record<string, any>) };
+
+    // Clean duration turns if instant
+    if (raw.duration?.type === "instant") {
+      if (typeof raw.duration === "object") {
+        delete raw.duration.turns;
+        delete raw.duration.value;
+      }
+    }
+
+    // Harmonize legacy frequency with periodicity if periodicity is missing
+    if (!raw.periodicity && raw.frequency) {
+      if (raw.frequency.type === "each_turn") {
+        raw.periodicity = { mode: "each_turn", timing: "turn_start" };
+      } else if (raw.frequency.type === "turn_start") {
+        raw.periodicity = { mode: "each_turn", timing: "turn_start" };
+      } else if (raw.frequency.type === "turn_end") {
+        raw.periodicity = { mode: "each_turn", timing: "turn_end" };
+      } else if (raw.frequency.type === "once") {
+        raw.periodicity = { mode: "once" };
+      }
+    }
+
+    // If duration is instant, enforce periodicity mode "once" and clean timing
+    if (raw.duration?.type === "instant") {
+      raw.periodicity = { mode: "once" };
+    }
+
+    return raw;
+  }
+  return val;
+}, z.object({
   duration: mechanicalDurationSchema.default({ type: "instant" }),
+  periodicity: mechanicalPeriodicitySchema.default({ mode: "once" }),
   frequency: mechanicalFrequencySchema.optional(),
   maintenance: mechanicalMaintenanceSchema.optional(),
+})).transform((temp) => {
+  const result: any = { ...temp };
+  if (result.duration?.type !== "turns") {
+    delete result.duration.turns;
+    delete result.duration.value;
+  }
+  if (result.duration?.type === "instant") {
+    result.periodicity = { mode: "once" };
+  } else if (result.periodicity?.mode === "once") {
+    delete result.periodicity.timing;
+  }
+  if (result.frequency?.type === "once") {
+    delete result.frequency.nTurns;
+  }
+  if (result.maintenance && !result.maintenance.enabled) {
+    delete result.maintenance;
+  }
+  return result;
 });
 export type MechanicalTemporality = z.infer<typeof mechanicalTemporalitySchema>;
+
+export function normalizeMechanicalTemporality(temp: unknown): MechanicalTemporality {
+  return mechanicalTemporalitySchema.parse(temp ?? { duration: { type: "instant" }, periodicity: { mode: "once" } });
+}
 
 // ==========================================
 // 7. MODIFIER OPERATIONS & EFFECTS
@@ -754,7 +996,7 @@ export type MechanicalResolution = z.infer<typeof mechanicalResolutionSchema>;
 // ==========================================
 // 9. LIMITATIONS
 // ==========================================
-export const mechanicalLimitationSchema = z.discriminatedUnion("type", [
+const baseMechanicalLimitationSchema = z.discriminatedUnion("type", [
   z.object({
     id: z.string().min(1),
     type: z.literal("cooldown"),
@@ -763,8 +1005,10 @@ export const mechanicalLimitationSchema = z.discriminatedUnion("type", [
   z.object({
     id: z.string().min(1),
     type: z.literal("usage_limit"),
-    period: z.enum(["turn", "combat", "mission", "day"]).or(z.string()),
+    period: z.enum(["turn", "combat", "mission", "day"]).or(z.string()).default("combat"),
+    scope: z.enum(["turn", "combat", "mission", "day"]).or(z.string()).optional(),
     max: z.number().int().positive().default(1),
+    count: z.number().int().positive().optional(),
   }),
   z.object({
     id: z.string().min(1),
@@ -793,7 +1037,80 @@ export const mechanicalLimitationSchema = z.discriminatedUnion("type", [
     description: z.string().min(1),
   }),
 ]);
-export type MechanicalLimitation = z.infer<typeof mechanicalLimitationSchema>;
+
+export const mechanicalLimitationSchema = z.preprocess((val) => {
+  if (val && typeof val === "object") {
+    const raw = { ...(val as Record<string, any>) };
+    if (!raw.id) {
+      raw.id = nanoid(6);
+    }
+    if (raw.type === "cooldown") {
+      delete raw.period;
+      delete raw.scope;
+      delete raw.max;
+      delete raw.count;
+      raw.turns = Math.max(1, Number(raw.turns ?? 1));
+    } else if (raw.type === "usage_limit") {
+      delete raw.turns;
+      const period = raw.scope ?? raw.period ?? "combat";
+      const max = Math.max(1, Number(raw.count ?? raw.max ?? 1));
+      raw.period = period;
+      raw.scope = period;
+      raw.max = max;
+      raw.count = max;
+    }
+    return raw;
+  }
+  return val;
+}, baseMechanicalLimitationSchema);
+export type MechanicalLimitation = z.infer<typeof baseMechanicalLimitationSchema>;
+
+// ==========================================
+// 9.1. REQUIREMENTS (for technique / behavior activation)
+// ==========================================
+export const requirementResolutionSchema = z.enum(["automatic", "manual"]);
+export type RequirementResolution = z.infer<typeof requirementResolutionSchema>;
+
+export const requirementTypeSchema = z.enum([
+  "physical_contact",
+  "visual_contact",
+  "auditory_contact",
+  "speak_directly",
+  "target_conscious",
+  "conscious",
+  "active_behavior",
+  "consume",
+  "resource_threshold",
+  "item",
+  "previous_roll",
+  "manual",
+  "custom",
+]);
+export type RequirementType = z.infer<typeof requirementTypeSchema>;
+
+export const mechanicalRequirementSchema = z.preprocess((val) => {
+  if (val && typeof val === "object") {
+    const raw = { ...(val as Record<string, any>) };
+    if (!raw.id) {
+      raw.id = nanoid(6);
+    }
+    return raw;
+  }
+  return val;
+}, z.object({
+  id: z.string().min(1),
+  type: requirementTypeSchema,
+  resolution: requirementResolutionSchema.optional(),
+  description: z.string().optional().default(""),
+  behaviorId: z.string().optional(),
+  elementId: z.string().optional(),
+  resourceId: z.enum(["ES", "SA"]).or(z.string()).optional(),
+  minAmount: z.number().optional(),
+  quantity: z.number().int().positive().optional(),
+  target: z.enum(["self", "target"]).optional(),
+  parameters: z.record(z.string(), z.any()).optional(),
+}));
+export type MechanicalRequirement = z.infer<typeof mechanicalRequirementSchema>;
 
 // ==========================================
 // 10. ADVANCED CONTROL
@@ -870,6 +1187,8 @@ export const mechanicalBehaviorSchema = z.object({
   conditions: z.array(conditionItemSchema).default([]),
   conditionLogic: conditionLogicSchema.default("all"),
 
+  requirements: z.array(mechanicalRequirementSchema).optional(),
+
   resolution: mechanicalResolutionSchema.optional(),
 
   effects: z.array(mechanicalEffectItemSchema).default([]),
@@ -903,10 +1222,11 @@ export function createDefaultMechanicalBehavior(
     trigger: mode === "reactive" ? { kind: "receive_damage", description: "", parameters: {} } : undefined,
     conditions: [],
     conditionLogic: "all",
+    requirements: [],
     resolution: { type: "automatic", outcomes: [] },
     effects: [],
     target: { type: "self" },
-    temporality: { duration: { type: "instant" } },
+    temporality: { duration: { type: "instant" }, periodicity: { mode: "once" } },
     limitations: [],
   };
 }
@@ -969,4 +1289,79 @@ export function createDefaultMechanicalEffect(
     default:
       return { ...base, type: "damage", dice: "1D6" };
   }
+}
+
+export function normalizeMechanicalBehavior(candidate: unknown): MechanicalBehavior {
+  const parsed = mechanicalBehaviorSchema.parse(candidate);
+  const target = parsed.target ? normalizeMechanicalTarget(parsed.target) : undefined;
+  const temporality = parsed.temporality ? normalizeMechanicalTemporality(parsed.temporality) : undefined;
+
+  const effects = (parsed.effects ?? []).map((eff) => {
+    const effTarget = eff.target ? normalizeMechanicalTarget(eff.target) : undefined;
+    const effTemp = eff.temporality ? normalizeMechanicalTemporality(eff.temporality) : undefined;
+    return {
+      ...eff,
+      ...(effTarget ? { target: effTarget } : {}),
+      ...(effTemp ? { temporality: effTemp } : {}),
+    } as MechanicalEffectItem;
+  });
+
+  const limitations = (parsed.limitations ?? []).filter((lim) => {
+    if (lim.type === "cooldown" && (!lim.turns || lim.turns <= 0)) return false;
+    if (lim.type === "usage_limit" && (!lim.max || lim.max <= 0)) return false;
+    return true;
+  });
+
+  // Normalize legacy requirement limitations into requirements if requirements is empty
+  let requirements = [...(parsed.requirements ?? [])];
+  if (requirements.length === 0 && parsed.limitations) {
+    for (const lim of parsed.limitations) {
+      if (lim.type === "physical_requirement") {
+        requirements.push({
+          id: lim.id,
+          type: "physical_contact",
+          resolution: "manual",
+          description: lim.description,
+          target: "target",
+        });
+      } else if (lim.type === "item_requirement") {
+        requirements.push({
+          id: lim.id,
+          type: "item",
+          resolution: "automatic",
+          elementId: lim.referenceValue,
+          quantity: lim.quantity,
+          description: `Objeto requerido: ${lim.referenceValue}`,
+          target: "target",
+        });
+      } else if (lim.type === "resource_threshold") {
+        requirements.push({
+          id: lim.id,
+          type: "resource_threshold",
+          resolution: "automatic",
+          resourceId: lim.resourceId,
+          minAmount: lim.minReserve,
+          description: lim.description ?? `Reserva de ${lim.resourceId} >= ${lim.minReserve}`,
+          target: "target",
+        });
+      } else if (lim.type === "manual") {
+        requirements.push({
+          id: lim.id,
+          type: "manual",
+          resolution: "manual",
+          description: lim.description,
+          target: "target",
+        });
+      }
+    }
+  }
+
+  return {
+    ...parsed,
+    ...(target ? { target } : {}),
+    ...(temporality ? { temporality } : {}),
+    effects,
+    limitations,
+    requirements,
+  };
 }

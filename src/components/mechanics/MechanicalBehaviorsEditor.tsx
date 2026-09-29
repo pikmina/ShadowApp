@@ -38,6 +38,7 @@ import {
   type MechanicalEffectItem,
   type MechanicalLimitation,
   type DifferentiatedOutcome,
+  type TargetType,
 } from "../../domain/mechanicalBehavior.ts";
 import {
   getMechanicalLabel,
@@ -2830,6 +2831,8 @@ function TargetEditor({
   const currentSelMode = target.selectionMode || (target.selectionRestriction ? (target.selectionRestriction === "random" ? "random" : target.selectionRestriction === "manual" ? "manual" : "standard_priority") : "standard_priority");
   const currentSelOpt = selectionOptions.find((o) => o.runtimeKey === currentSelMode);
 
+  const isSelf = (target.type || "self") === "self";
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
       {/* 1. Tipo de Objetivo */}
@@ -2837,7 +2840,13 @@ function TargetEditor({
         <Label className="text-xs">Tipo de Objetivo</Label>
         <Select
           value={target.type || "self"}
-          onValueChange={(val) => onChange({ ...target, type: val })}
+          onValueChange={(val) => {
+            if (val === "self") {
+              onChange({ type: "self" });
+            } else {
+              onChange({ type: val as TargetType });
+            }
+          }}
         >
           <SelectTrigger className="h-8 text-xs bg-background">
             <SelectValue>
@@ -2863,232 +2872,236 @@ function TargetEditor({
         </Select>
       </div>
 
-      {/* 2. Cantidad de Objetivos (target_count) */}
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Cantidad de Objetivos</Label>
-        <Select
-          value={currentCountKey}
-          onValueChange={(val) => {
-            if (val === "all") {
-              onChange({ ...target, quantity: { mode: "all" } });
-            } else {
-              onChange({ ...target, quantity: { mode: "up_to", count: parseInt(val, 10) || 1 } });
-            }
-          }}
-        >
-          <SelectTrigger className="h-8 text-xs bg-background">
-            <SelectValue>
-              {currentCountOpt
-                ? `${currentCountOpt.name}${currentCountOpt.cost ? ` (+${currentCountOpt.cost} CE)` : ""}`
-                : `${currentCountKey === "all" ? "Todos" : `Hasta ${currentCountKey}`} · Valor histórico sin regla de CE`}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {getVisibleOptions(targetCountOptions, currentCountKey).map((opt) => (
-              <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
-                {opt.name}
-                {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
-                {opt.isAvailable === false ? " · No disponible" : ""}
-              </SelectItem>
-            ))}
-            {!currentCountOpt && currentCountKey && (
-              <SelectItem value={currentCountKey} disabled>
-                {currentCountKey === "all" ? "Todos los objetivos" : `Hasta ${currentCountKey}`} · Valor histórico sin regla de CE
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
+      {!isSelf && (
+        <>
+          {/* 2. Cantidad de Objetivos (target_count) */}
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Cantidad de Objetivos</Label>
+            <Select
+              value={currentCountKey}
+              onValueChange={(val) => {
+                if (val === "all") {
+                  onChange({ ...target, quantity: { mode: "all" } });
+                } else {
+                  onChange({ ...target, quantity: { mode: "up_to", count: parseInt(val, 10) || 1 } });
+                }
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs bg-background">
+                <SelectValue>
+                  {currentCountOpt
+                    ? `${currentCountOpt.name}${currentCountOpt.cost ? ` (+${currentCountOpt.cost} CE)` : ""}`
+                    : `${currentCountKey === "all" ? "Todos" : `Hasta ${currentCountKey}`} · Valor histórico sin regla de CE`}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {getVisibleOptions(targetCountOptions, currentCountKey).map((opt) => (
+                  <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                    {opt.name}
+                    {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                    {opt.isAvailable === false ? " · No disponible" : ""}
+                  </SelectItem>
+                ))}
+                {!currentCountOpt && currentCountKey && (
+                  <SelectItem value={currentCountKey} disabled>
+                    {currentCountKey === "all" ? "Todos los objetivos" : `Hasta ${currentCountKey}`} · Valor histórico sin regla de CE
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* 3. Rango */}
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Rango</Label>
-        <Select
-          value={target.range?.type || "contact"}
-          onValueChange={(val) =>
-            onChange({
-              ...target,
-              range: { ...(target.range || {}), type: val },
-            })
-          }
-        >
-          <SelectTrigger className="h-8 text-xs bg-background">
-            <SelectValue>
-              {currentRangeTypeOpt
-                ? `${currentRangeTypeOpt.name || getMechanicalLabel("ranges", currentRangeTypeOpt.runtimeKey)}${currentRangeTypeOpt.cost ? ` (+${currentRangeTypeOpt.cost} CE)` : ""}`
-                : `${getMechanicalLabel("ranges", target.range?.type) || target.range?.type} · Valor histórico sin regla de CE`}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {getVisibleOptions(rangeTypeOptions, target.range?.type || "contact").map((opt) => (
-              <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
-                {opt.name || getMechanicalLabel("ranges", opt.runtimeKey)}
-                {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
-                {opt.isAvailable === false ? " · No disponible" : ""}
-              </SelectItem>
-            ))}
-            {!currentRangeTypeOpt && target.range?.type && (
-              <SelectItem value={target.range.type} disabled>
-                {getMechanicalLabel("ranges", target.range.type) || target.range.type} · Valor histórico sin regla de CE
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
+          {/* 3. Rango */}
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Rango</Label>
+            <Select
+              value={target.range?.type || "contact"}
+              onValueChange={(val) =>
+                onChange({
+                  ...target,
+                  range: { ...(target.range || {}), type: val },
+                })
+              }
+            >
+              <SelectTrigger className="h-8 text-xs bg-background">
+                <SelectValue>
+                  {currentRangeTypeOpt
+                    ? `${currentRangeTypeOpt.name || getMechanicalLabel("ranges", currentRangeTypeOpt.runtimeKey)}${currentRangeTypeOpt.cost ? ` (+${currentRangeTypeOpt.cost} CE)` : ""}`
+                    : `${getMechanicalLabel("ranges", target.range?.type) || target.range?.type} · Valor histórico sin regla de CE`}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {getVisibleOptions(rangeTypeOptions, target.range?.type || "contact").map((opt) => (
+                  <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                    {opt.name || getMechanicalLabel("ranges", opt.runtimeKey)}
+                    {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                    {opt.isAvailable === false ? " · No disponible" : ""}
+                  </SelectItem>
+                ))}
+                {!currentRangeTypeOpt && target.range?.type && (
+                  <SelectItem value={target.range.type} disabled>
+                    {getMechanicalLabel("ranges", target.range.type) || target.range.type} · Valor histórico sin regla de CE
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* 4. Distancia Discreta (Metros) */}
-      {target.range?.type === "distance" && (
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Distancia de Rango</Label>
-          <Select
-            value={currentDistanceKey}
-            onValueChange={(val) =>
-              onChange({
-                ...target,
-                range: {
-                  ...(target.range || { type: "distance" }),
-                  distanceMeters: parseInt(val, 10) || 0,
-                },
-              })
-            }
-          >
-            <SelectTrigger className="h-8 text-xs bg-background">
-              <SelectValue>
-                {currentDistanceOpt
-                  ? `${currentDistanceOpt.name}${currentDistanceOpt.cost ? ` (+${currentDistanceOpt.cost} CE)` : ""}`
-                  : `${currentDistanceKey} m · Valor histórico sin regla de CE`}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {getVisibleOptions(distanceOptions, currentDistanceKey).map((opt) => (
-                <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
-                  {opt.name}
-                  {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
-                  {opt.isAvailable === false ? " · No disponible" : ""}
-                </SelectItem>
-              ))}
-              {!currentDistanceOpt && (
-                <SelectItem value={currentDistanceKey} disabled>
-                  {currentDistanceKey} m · Valor histórico sin regla de CE
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
+          {/* 4. Distancia Discreta (Metros) */}
+          {target.range?.type === "distance" && (
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Distancia de Rango</Label>
+              <Select
+                value={currentDistanceKey}
+                onValueChange={(val) =>
+                  onChange({
+                    ...target,
+                    range: {
+                      ...(target.range || { type: "distance" }),
+                      distanceMeters: parseInt(val, 10) || 0,
+                    },
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue>
+                    {currentDistanceOpt
+                      ? `${currentDistanceOpt.name}${currentDistanceOpt.cost ? ` (+${currentDistanceOpt.cost} CE)` : ""}`
+                      : `${currentDistanceKey} m · Valor histórico sin regla de CE`}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {getVisibleOptions(distanceOptions, currentDistanceKey).map((opt) => (
+                    <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                      {opt.name}
+                      {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                      {opt.isAvailable === false ? " · No disponible" : ""}
+                    </SelectItem>
+                  ))}
+                  {!currentDistanceOpt && (
+                    <SelectItem value={currentDistanceKey} disabled>
+                      {currentDistanceKey} m · Valor histórico sin regla de CE
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* 5. Área de Efecto (Independiente del tipo de objetivo) */}
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Área de Efecto</Label>
+            <Select
+              value={currentAreaShape || "none"}
+              onValueChange={(val) => {
+                if (val === "none") {
+                  onChange({ ...target, area: undefined });
+                } else {
+                  onChange({
+                    ...target,
+                    area: {
+                      shape: val,
+                      sizeMeters: target.area?.sizeMeters ?? 5,
+                    },
+                  });
+                }
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs bg-background">
+                <SelectValue>
+                  {currentAreaShape
+                    ? getMechanicalLabel("areaShapes", currentAreaShape)
+                    : "Sin área (Objetivos directos)"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin área (Objetivos directos)</SelectItem>
+                {getVisibleOptions(areaShapeOptions, currentAreaShape).map((opt) => (
+                  <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                    {opt.name || getMechanicalLabel("areaShapes", opt.runtimeKey)}
+                    {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                    {opt.isAvailable === false ? " · No disponible" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 6. Tamaño Discreto de Área (Metros) */}
+          {currentAreaShape && (
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Tamaño de Área</Label>
+              <Select
+                value={currentSizeKey}
+                onValueChange={(val) =>
+                  onChange({
+                    ...target,
+                    area: {
+                      ...(target.area || { shape: "radius" }),
+                      sizeMeters: parseInt(val, 10) || 0,
+                    },
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue>
+                    {currentSizeOpt
+                      ? `${currentSizeOpt.name}${currentSizeOpt.cost ? ` (+${currentSizeOpt.cost} CE)` : ""}`
+                      : `${currentSizeKey} m · Valor histórico sin regla de CE`}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {getVisibleOptions(sizeOptions, currentSizeKey).map((opt) => (
+                    <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                      {opt.name}
+                      {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                      {opt.isAvailable === false ? " · No disponible" : ""}
+                    </SelectItem>
+                  ))}
+                  {!currentSizeOpt && (
+                    <SelectItem value={currentSizeKey} disabled>
+                      {currentSizeKey} m · Valor histórico sin regla de CE
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* 7. Modo de Selección */}
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Modo de Selección</Label>
+            <Select
+              value={currentSelMode}
+              onValueChange={(val) =>
+                onChange({ ...target, selectionMode: val, selectionRestriction: undefined })
+              }
+            >
+              <SelectTrigger className="h-8 text-xs bg-background">
+                <SelectValue>
+                  {currentSelOpt
+                    ? `${currentSelOpt.name || getMechanicalLabel("selectionModes", currentSelOpt.runtimeKey)}${currentSelOpt.cost ? ` (+${currentSelOpt.cost} CE)` : ""}`
+                    : `${getMechanicalLabel("selectionModes", currentSelMode) || currentSelMode} · Valor histórico sin regla de CE`}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {getVisibleOptions(selectionOptions, currentSelMode).map((opt) => (
+                  <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                    {opt.name || getMechanicalLabel("selectionModes", opt.runtimeKey) || getMechanicalLabel("selectionRestrictions", opt.runtimeKey)}
+                    {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                    {opt.isAvailable === false ? " · No disponible" : ""}
+                  </SelectItem>
+                ))}
+                {!currentSelOpt && currentSelMode && (
+                  <SelectItem value={currentSelMode} disabled>
+                    {getMechanicalLabel("selectionModes", currentSelMode) || currentSelMode} · Valor histórico sin regla de CE
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </>
       )}
-
-      {/* 5. Área de Efecto (Independiente del tipo de objetivo) */}
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Área de Efecto</Label>
-        <Select
-          value={currentAreaShape || "none"}
-          onValueChange={(val) => {
-            if (val === "none") {
-              onChange({ ...target, area: undefined });
-            } else {
-              onChange({
-                ...target,
-                area: {
-                  shape: val,
-                  sizeMeters: target.area?.sizeMeters ?? 5,
-                },
-              });
-            }
-          }}
-        >
-          <SelectTrigger className="h-8 text-xs bg-background">
-            <SelectValue>
-              {currentAreaShape
-                ? getMechanicalLabel("areaShapes", currentAreaShape)
-                : "Sin área (Objetivos directos)"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Sin área (Objetivos directos)</SelectItem>
-            {getVisibleOptions(areaShapeOptions, currentAreaShape).map((opt) => (
-              <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
-                {opt.name || getMechanicalLabel("areaShapes", opt.runtimeKey)}
-                {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
-                {opt.isAvailable === false ? " · No disponible" : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* 6. Tamaño Discreto de Área (Metros) */}
-      {currentAreaShape && (
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Tamaño de Área</Label>
-          <Select
-            value={currentSizeKey}
-            onValueChange={(val) =>
-              onChange({
-                ...target,
-                area: {
-                  ...(target.area || { shape: "radius" }),
-                  sizeMeters: parseInt(val, 10) || 0,
-                },
-              })
-            }
-          >
-            <SelectTrigger className="h-8 text-xs bg-background">
-              <SelectValue>
-                {currentSizeOpt
-                  ? `${currentSizeOpt.name}${currentSizeOpt.cost ? ` (+${currentSizeOpt.cost} CE)` : ""}`
-                  : `${currentSizeKey} m · Valor histórico sin regla de CE`}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {getVisibleOptions(sizeOptions, currentSizeKey).map((opt) => (
-                <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
-                  {opt.name}
-                  {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
-                  {opt.isAvailable === false ? " · No disponible" : ""}
-                </SelectItem>
-              ))}
-              {!currentSizeOpt && (
-                <SelectItem value={currentSizeKey} disabled>
-                  {currentSizeKey} m · Valor histórico sin regla de CE
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* 7. Modo de Selección */}
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Modo de Selección</Label>
-        <Select
-          value={currentSelMode}
-          onValueChange={(val) =>
-            onChange({ ...target, selectionMode: val, selectionRestriction: undefined })
-          }
-        >
-          <SelectTrigger className="h-8 text-xs bg-background">
-            <SelectValue>
-              {currentSelOpt
-                ? `${currentSelOpt.name || getMechanicalLabel("selectionModes", currentSelOpt.runtimeKey)}${currentSelOpt.cost ? ` (+${currentSelOpt.cost} CE)` : ""}`
-                : `${getMechanicalLabel("selectionModes", currentSelMode) || currentSelMode} · Valor histórico sin regla de CE`}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {getVisibleOptions(selectionOptions, currentSelMode).map((opt) => (
-              <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
-                {opt.name || getMechanicalLabel("selectionModes", opt.runtimeKey) || getMechanicalLabel("selectionRestrictions", opt.runtimeKey)}
-                {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
-                {opt.isAvailable === false ? " · No disponible" : ""}
-              </SelectItem>
-            ))}
-            {!currentSelOpt && currentSelMode && (
-              <SelectItem value={currentSelMode} disabled>
-                {getMechanicalLabel("selectionModes", currentSelMode) || currentSelMode} · Valor histórico sin regla de CE
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
     </div>
   );
 }
@@ -3106,11 +3119,14 @@ function TemporalityEditor({
   mechanics?: SystemMechanicsConfig;
 }) {
   const durationOptions = getCategoryOptions(mechanics, "duration");
-  const frequencyOptions = getCategoryOptions(mechanics, "frequency");
+  const isInstant = !temporality.duration?.type || temporality.duration?.type === "instant";
+  const periodicityMode = isInstant ? "once" : (temporality.periodicity?.mode || (temporality.frequency?.type === "each_turn" ? "each_turn" : "once"));
+  const periodicityTiming = temporality.periodicity?.timing || (temporality.frequency?.type === "turn_end" ? "turn_end" : "turn_start");
 
   return (
     <div className="space-y-3 text-xs">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* 1. Duración */}
         <div className="grid gap-1.5">
           <Label className="text-xs">Duración</Label>
           <Select
@@ -3121,26 +3137,31 @@ function TemporalityEditor({
             }
             onValueChange={(val) => {
               if (!isNaN(Number(val)) && Number(val) > 0) {
+                const turns = Number(val);
                 onChange({
                   ...temporality,
                   duration: {
-                    ...(temporality.duration || {}),
                     type: "turns",
-                    turns: Number(val),
+                    turns,
+                    value: turns,
                   },
+                });
+              } else if (val === "instant") {
+                onChange({
+                  ...temporality,
+                  duration: { type: "instant" },
+                  periodicity: { mode: "once" },
+                  frequency: { type: "once" },
                 });
               } else if (val === "sustained") {
                 onChange({
                   ...temporality,
-                  duration: {
-                    ...(temporality.duration || {}),
-                    type: "until_deactivated",
-                  },
+                  duration: { type: "until_deactivated" },
                 });
               } else {
                 onChange({
                   ...temporality,
-                  duration: { ...(temporality.duration || {}), type: val },
+                  duration: { type: val },
                 });
               }
             }}
@@ -3165,6 +3186,7 @@ function TemporalityEditor({
           </Select>
         </div>
 
+        {/* 2. Cantidad de Turnos */}
         {temporality.duration?.type === "turns" && (
           <div className="grid gap-1.5">
             <Label className="text-xs">Cantidad de Turnos</Label>
@@ -3172,45 +3194,79 @@ function TemporalityEditor({
               type="number"
               min={1}
               value={temporality.duration?.turns ?? 1}
-              onChange={(e) =>
+              onChange={(e) => {
+                const turns = Math.max(1, parseInt(e.target.value, 10) || 1);
                 onChange({
                   ...temporality,
                   duration: {
-                    ...(temporality.duration || { type: "turns" }),
-                    turns: parseInt(e.target.value, 10) || 1,
+                    type: "turns",
+                    turns,
+                    value: turns,
                   },
-                })
-              }
+                });
+              }}
               className="h-8 text-xs bg-background"
             />
           </div>
         )}
 
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Frecuencia de Ejecución</Label>
-          <Select
-            value={temporality.frequency?.type || "once"}
-            onValueChange={(val) =>
-              onChange({
-                ...temporality,
-                frequency: { ...(temporality.frequency || {}), type: val },
-              })
-            }
-          >
-            <SelectTrigger className="h-8 text-xs bg-background">
-              <SelectValue>{getMechanicalLabel("frequencies", temporality.frequency?.type || "once")}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {getVisibleOptions(frequencyOptions, temporality.frequency?.type || "once").map((opt) => (
-                <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
-                  {opt.name || getMechanicalLabel("frequencies", opt.runtimeKey)}
-                  {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
-                  {opt.isAvailable === false ? " · No disponible" : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* 3. Periodicidad (Modo) */}
+        {!isInstant && (
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Periodicidad</Label>
+            <Select
+              value={periodicityMode}
+              onValueChange={(val: "once" | "each_turn") => {
+                if (val === "once") {
+                  onChange({
+                    ...temporality,
+                    periodicity: { mode: "once" },
+                    frequency: { type: "once" },
+                  });
+                } else {
+                  onChange({
+                    ...temporality,
+                    periodicity: { mode: "each_turn", timing: periodicityTiming },
+                    frequency: { type: periodicityTiming === "turn_end" ? "turn_end" : "turn_start" },
+                  });
+                }
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="once">Una sola vez (permanece)</SelectItem>
+                <SelectItem value="each_turn">Cada turno (periódico)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* 4. Momento del Turno (si es periódico) */}
+        {!isInstant && periodicityMode === "each_turn" && (
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Momento del Turno</Label>
+            <Select
+              value={periodicityTiming}
+              onValueChange={(val: "turn_start" | "turn_end") => {
+                onChange({
+                  ...temporality,
+                  periodicity: { mode: "each_turn", timing: val },
+                  frequency: { type: val },
+                });
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="turn_start">Al inicio del turno</SelectItem>
+                <SelectItem value="turn_end">Al final del turno</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* Maintenance */}

@@ -39,6 +39,7 @@ export function getCategoryFamily(cat: { family?: string; coreKey?: string; id?:
       return "target";
     case "duration":
     case "frequency":
+    case "periodicity":
       return "temporality";
     case "cooldown":
     case "maintenance":

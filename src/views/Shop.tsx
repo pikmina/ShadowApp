@@ -761,14 +761,14 @@ export default function Shop() {
           <TabsContent value="store" className="flex-1 overflow-hidden m-0 data-[state=active]:flex flex-col">
             {/* Top Toolbar: Search + Quick Character Balance + Cart Drawer Button */}
             <div className="p-4 px-6 border-b border-border bg-card/50 flex flex-wrap items-center justify-between gap-3 shrink-0">
-              <div className="relative w-full sm:w-72 md:w-80">
+              <div className="relative w-full sm:flex-1 sm:min-w-[50%]">
                 <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   type="text"
                   placeholder="Buscar por nombre, tipo o descripción..."
                   value={storeSearch}
                   onChange={e => setStoreSearch(e.target.value)}
-                  className="h-9 pl-9 pr-8 text-xs bg-background/80"
+                  className="h-9 pl-9 pr-8 text-xs bg-background/80 w-full"
                 />
                 {storeSearch && (
                   <button
@@ -1516,9 +1516,9 @@ export default function Shop() {
           <div className="flex-1 overflow-hidden flex flex-col min-w-0">
             <Tabs value={offerModalTab} onValueChange={setOfferModalTab} className="flex-1 flex flex-col w-full h-full">
               <div className="px-6 pt-3 pb-2 border-b bg-muted/40 shrink-0">
-                <TabsList className="inline-flex h-auto p-1 gap-1 bg-card border border-border/50">
-                  <TabsTrigger value="info" className="px-3.5 py-1.5 text-xs font-medium">1. Datos y Precios</TabsTrigger>
-                  <TabsTrigger value="reqs" className="px-3.5 py-1.5 text-xs font-medium">
+                <TabsList>
+                  <TabsTrigger value="info">1. Datos y Precios</TabsTrigger>
+                  <TabsTrigger value="reqs">
                     2. Requisitos ({editingOffer?.requirements?.requirements?.length || 0})
                   </TabsTrigger>
                 </TabsList>

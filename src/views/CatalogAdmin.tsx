@@ -339,28 +339,30 @@ export default function CatalogAdmin() {
       />
 
       
-      <div className="flex flex-col sm:flex-row gap-4 mb-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input 
-            value={searchTerm} 
-            onChange={e => setSearchTerm(e.target.value)} 
-            placeholder="Buscar por nombre..." 
-            className="pl-9 bg-card"
-          />
-        </div>
-        <div className="w-full sm:w-64">
-          <Select value={selectedType} onValueChange={setSelectedType}>
-            <SelectTrigger className="bg-card">
-              <SelectValue>{selectedType === 'all' ? 'Todos los tipos' : KIND_TYPES[selectedType]}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los tipos</SelectItem>
-              {Object.entries(KIND_TYPES).map(([val, label]) => (
-                <SelectItem key={val} value={val}>{label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="p-4 sm:p-5 bg-card/60 border border-border/80 rounded-lg mb-4">
+        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+          <div className="relative flex-1 min-w-[50%] w-full">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input 
+              value={searchTerm} 
+              onChange={e => setSearchTerm(e.target.value)} 
+              placeholder="Buscar por nombre..." 
+              className="pl-9 bg-background/70 text-xs w-full h-9"
+            />
+          </div>
+          <div className="w-full sm:w-64 shrink-0">
+            <Select value={selectedType} onValueChange={setSelectedType}>
+              <SelectTrigger className="bg-background/70 text-xs h-9">
+                <SelectValue>{selectedType === 'all' ? 'Todos los tipos' : KIND_TYPES[selectedType]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los tipos</SelectItem>
+                {Object.entries(KIND_TYPES).map(([val, label]) => (
+                  <SelectItem key={val} value={val}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -463,10 +465,10 @@ export default function CatalogAdmin() {
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col w-full h-full">
               <div className="px-4 sm:px-6 pt-3 pb-2 border-b bg-muted/40 overflow-x-auto no-scrollbar">
-                <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto h-auto p-1 gap-1 bg-card border border-border/50">
-                  <TabsTrigger value="info" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">1. Info Básica</TabsTrigger>
+                <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto">
+                  <TabsTrigger value="info">1. Info Básica</TabsTrigger>
                   {form.kind !== 'attribute_upgrade' && (
-                    <TabsTrigger value="effects" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">2. Efectos Mecánicos</TabsTrigger>
+                    <TabsTrigger value="effects">2. Efectos Mecánicos</TabsTrigger>
                   )}
                 </TabsList>
               </div>

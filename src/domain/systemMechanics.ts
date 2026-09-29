@@ -1080,60 +1080,75 @@ export function calculateTechniqueStructuralCost(
     // 1. Activation & Trigger mode costs
     if (b.mode === 'active' && b.activation?.actionType) {
       mechanicCostSum += lookupRuleCost('activation', b.activation.actionType);
+      const delayTurns = b.activation.delay ?? b.activation.turns;
+      if (delayTurns && delayTurns > 0) {
+        mechanicCostSum += lookupRuleCost('activation_delay', delayTurns) ||
+          lookupRuleCost('activation', `delay_${delayTurns}`) ||
+          lookupRuleCost('activation', `delay${delayTurns}`) ||
+          lookupRuleCost('activation_delay', String(delayTurns));
+      }
     } else if (b.mode === 'reactive' && b.trigger?.kind) {
       mechanicCostSum += lookupRuleCost('trigger', b.trigger.kind);
     }
 
     // 2. Target, Range, Area, Target count, Selection mode
     if (b.target) {
-      if (b.target.type) {
-        mechanicCostSum += lookupRuleCost('target', b.target.type);
-      }
-      const rawCount = b.target.quantity?.mode === 'all'
-        ? 'all'
-        : (b.target.quantity?.count ?? (b.target.quantity as any)?.max ?? b.target.maxTargets);
-      if (rawCount !== undefined && rawCount !== null && rawCount !== '') {
-        const targetCountOpt = findTargetCountOption(effectiveCats, rawCount);
-        if (targetCountOpt) {
-          mechanicCostSum += targetCountOpt.cost;
-        } else {
-          mechanicCostSum += lookupRuleCost('target_count', rawCount);
-        }
-      }
-      if (b.target.range?.type) {
-        mechanicCostSum += lookupRuleCost('range', b.target.range.type);
-        if (b.target.range.type === 'distance') {
-          const dist = b.target.range.distanceMeters ?? b.target.range.distance;
-          if (dist !== undefined && dist !== null && dist !== '') {
-            mechanicCostSum += lookupRuleCost('range', dist);
+      const targetType = b.target.type || 'self';
+      mechanicCostSum += lookupRuleCost('target', targetType);
+
+      // Invariant CE-4B.1: target.type === 'self' ignores quantity, range, area, selectionMode
+      if (targetType !== 'self') {
+        const rawCount = b.target.quantity?.mode === 'all'
+          ? 'all'
+          : (b.target.quantity?.count ?? (b.target.quantity as any)?.max ?? b.target.maxTargets);
+        if (rawCount !== undefined && rawCount !== null && rawCount !== '') {
+          const targetCountOpt = findTargetCountOption(effectiveCats, rawCount);
+          if (targetCountOpt) {
+            mechanicCostSum += targetCountOpt.cost;
+          } else {
+            mechanicCostSum += lookupRuleCost('target_count', rawCount);
           }
         }
-      }
-      if (b.target.area?.shape) {
-        mechanicCostSum += lookupRuleCost('area', b.target.area.shape);
-        const areaSize = b.target.area.sizeMeters ?? b.target.area.radius;
-        if (areaSize !== undefined && areaSize !== null && areaSize !== '') {
-          mechanicCostSum += lookupRuleCost('area', areaSize);
+        if (b.target.range?.type) {
+          mechanicCostSum += lookupRuleCost('range', b.target.range.type);
+          if (b.target.range.type === 'distance') {
+            const dist = b.target.range.distanceMeters ?? b.target.range.distance;
+            if (dist !== undefined && dist !== null && dist !== '') {
+              mechanicCostSum += lookupRuleCost('range', dist);
+            }
+          }
         }
-      }
-      const selMode = b.target.selectionMode ?? b.target.selectionRestriction;
-      if (selMode && selMode !== 'none' && selMode !== 'standard_priority') {
-        mechanicCostSum += lookupRuleCost('selection_restriction', selMode) || lookupRuleCost('selection_mode', selMode);
+        if (b.target.area?.shape) {
+          mechanicCostSum += lookupRuleCost('area', b.target.area.shape);
+          const areaSize = b.target.area.sizeMeters ?? b.target.area.radius;
+          if (areaSize !== undefined && areaSize !== null && areaSize !== '') {
+            mechanicCostSum += lookupRuleCost('area', areaSize);
+          }
+        }
+        const selMode = b.target.selectionMode ?? b.target.selectionRestriction;
+        if (selMode && selMode !== 'none' && selMode !== 'standard_priority') {
+          mechanicCostSum += lookupRuleCost('selection_restriction', selMode) || lookupRuleCost('selection_mode', selMode);
+        }
       }
     }
 
-    // 3. Temporality (Duration, Frequency, Maintenance)
+    // 3. Temporality (Duration, Frequency/Periodicity, Maintenance)
     if (b.temporality) {
       if (b.temporality.duration?.type) {
-        if (b.temporality.duration.type === 'turns' && b.temporality.duration.turns) {
-          const turnsCost = lookupRuleCost('duration', b.temporality.duration.turns);
-          mechanicCostSum += turnsCost || lookupRuleCost('duration', 'turns');
+        const durTurns = b.temporality.duration.turns ?? b.temporality.duration.value;
+        if (b.temporality.duration.type === 'turns' && durTurns) {
+          const turnsCost = lookupRuleCost('duration', durTurns);
+          mechanicCostSum += turnsCost || lookupRuleCost('duration', String(durTurns)) || lookupRuleCost('duration', 'turns');
         } else {
           mechanicCostSum += lookupRuleCost('duration', b.temporality.duration.type);
         }
       }
-      if (b.temporality.frequency?.type) {
-        mechanicCostSum += lookupRuleCost('frequency', b.temporality.frequency.type);
+      if (b.temporality.periodicity?.mode && b.temporality.periodicity.mode !== 'once') {
+        mechanicCostSum += lookupRuleCost('periodicity', b.temporality.periodicity.mode) ||
+          lookupRuleCost('frequency', b.temporality.periodicity.mode);
+      } else if (b.temporality.frequency?.type && b.temporality.frequency.type !== 'once') {
+        mechanicCostSum += lookupRuleCost('periodicity', b.temporality.frequency.type) ||
+          lookupRuleCost('frequency', b.temporality.frequency.type);
       }
       if (b.temporality.maintenance?.enabled) {
         const maintOpt = findMaintenanceOption(categories, b.temporality.maintenance.amount, b.temporality.maintenance.resource);
@@ -1158,9 +1173,12 @@ export function calculateTechniqueStructuralCost(
     if (Array.isArray(b.limitations)) {
       for (const lim of b.limitations) {
         if (lim.type === 'cooldown' && lim.turns) {
-          mechanicCostSum += lookupRuleCost('cooldown', lim.turns);
-        } else if (lim.type === 'usage_limit' && lim.period) {
-          mechanicCostSum += lookupRuleCost('usage', lim.period);
+          mechanicCostSum += lookupRuleCost('cooldown', lim.turns) || lookupRuleCost('cooldown', String(lim.turns));
+        } else if (lim.type === 'usage_limit') {
+          const p = lim.scope ?? lim.period;
+          if (p) {
+            mechanicCostSum += lookupRuleCost('usage', p) || lookupRuleCost('usage_limit', p);
+          }
         }
       }
     }

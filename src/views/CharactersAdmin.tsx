@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { CyberSpacer } from '@/components/ui/cyber-spacer';
 import { EntityPanel } from '@/components/ui/entity-panel';
 import { SectionHeader } from '@/components/common/SectionHeader';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
@@ -234,57 +235,51 @@ export default function CharactersAdmin() {
       />
 
       <EntityPanel variant="character">
-        <div className="p-4 sm:p-5">
-          <div className="flex w-full max-w-sm rounded-md border border-border bg-muted/30 p-1">
-            {([
-              { key: 'all', label: 'Activos' },
-              { key: 'canon', label: 'Cánones' },
-              { key: 'archived', label: 'Archivados' },
-            ] as const).map(tab => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 rounded px-3 py-1.5 font-oxanium text-[11px] font-bold uppercase tracking-wider transition-colors ${activeTab === tab.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        <div className="p-4 sm:p-5 space-y-4">
+          <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)}>
+            <TabsList>
+              <TabsTrigger value="all">Activos</TabsTrigger>
+              <TabsTrigger value="canon">Cánones</TabsTrigger>
+              <TabsTrigger value="archived">Archivados</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-          <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Filtrar por nombre, don o ID..." className="h-9 bg-background/70 pl-8 text-xs" />
+          <div className="space-y-3">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Filtrar por nombre, don o ID..." className="h-9 bg-background/70 pl-9 text-xs w-full" />
             </div>
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{selectedGroup === 'all' || selectedGroup === '' ? 'Grupo: Todos' : `Grupo: ${selectedGroup}`}</SelectValue></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Grupo: Todos</SelectItem>
-                {groupOptions.map(group => <SelectItem key={group} value={group}>Grupo: {group}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={selectedDon} onValueChange={setSelectedDon}>
-              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{selectedDon === 'all' || selectedDon === '' ? 'Don: Todos' : `Don: ${selectedDon}`}</SelectValue></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Don: Todos</SelectItem>
-                {donOptions.map(don => <SelectItem key={don} value={don}>Don: {don}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={selectedStage} onValueChange={setSelectedStage}>
-              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{selectedStage === 'all' || selectedStage === '' ? 'Etapa: Todas' : `Etapa: ${selectedStage}`}</SelectValue></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Etapa: Todas</SelectItem>
-                {stageOptions.map(stage => <SelectItem key={stage} value={stage}>Etapa: {stage}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={sortBy} onValueChange={value => setSortBy(value as 'name' | 'recent')}>
-              <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{sortBy === 'name' ? 'Ordenar: Nombre' : 'Ordenar: Actualización'}</SelectValue></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name">Ordenar: Nombre</SelectItem>
-                <SelectItem value="recent">Ordenar: Actualización</SelectItem>
-              </SelectContent>
-            </Select>
+            
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{selectedGroup === 'all' || selectedGroup === '' ? 'Grupo: Todos' : `Grupo: ${selectedGroup}`}</SelectValue></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Grupo: Todos</SelectItem>
+                  {groupOptions.map(group => <SelectItem key={group} value={group}>Grupo: {group}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={selectedDon} onValueChange={setSelectedDon}>
+                <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{selectedDon === 'all' || selectedDon === '' ? 'Don: Todos' : `Don: ${selectedDon}`}</SelectValue></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Don: Todos</SelectItem>
+                  {donOptions.map(don => <SelectItem key={don} value={don}>Don: {don}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={selectedStage} onValueChange={setSelectedStage}>
+                <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{selectedStage === 'all' || selectedStage === '' ? 'Etapa: Todas' : `Etapa: ${selectedStage}`}</SelectValue></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Etapa: Todas</SelectItem>
+                  {stageOptions.map(stage => <SelectItem key={stage} value={stage}>Etapa: {stage}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={value => setSortBy(value as 'name' | 'recent')}>
+                <SelectTrigger className="h-9 bg-background/70 text-xs"><SelectValue>{sortBy === 'name' ? 'Ordenar: Nombre' : 'Ordenar: Actualización'}</SelectValue></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Ordenar: Nombre</SelectItem>
+                  <SelectItem value="recent">Ordenar: Actualización</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </EntityPanel>

@@ -67,6 +67,13 @@ export const MECHANICAL_LABELS = {
     receive_support: "Recibir soporte",
     ally_support_received: "Recibir soporte de aliado",
     roll_resolution: "Resolución de tirada",
+    roll_resolved: "Resolución de tirada",
+    damage_received: "Recibir daño",
+    damage_dealt: "Infligir daño",
+    status_applied: "Estado aplicado",
+    status_removed: "Estado eliminado",
+    behavior_resolved: "Comportamiento resuelto",
+    effect_ended: "Efecto finalizado",
   },
 
   triggerDirections: {
@@ -90,6 +97,9 @@ export const MECHANICAL_LABELS = {
     attribute: "Atributo",
     manual: "Condición manual / Narrativa",
     equipped: "Equipado",
+    active_behavior: "Técnica o habilidad activa",
+    conscious: "Estado de consciencia",
+    group: "Grupo de condiciones",
   },
 
   conditionLogic: {
@@ -97,6 +107,27 @@ export const MECHANICAL_LABELS = {
     any: "Cualquiera de las condiciones (O)",
     and: "Todas las condiciones (Y)",
     or: "Cualquiera de las condiciones (O)",
+  },
+
+  // 4.1. REQUIREMENTS
+  requirements: {
+    physical_contact: "Contacto físico",
+    visual_contact: "Contacto visual",
+    auditory_contact: "Contacto auditivo",
+    speak_directly: "Hablar directamente al objetivo",
+    target_conscious: "Objetivo consciente",
+    active_behavior: "Técnica o habilidad activa",
+    consume: "Consumir algo",
+    resource_threshold: "Reserva mínima de recurso",
+    item: "Objeto requerido",
+    previous_roll: "Tirada previa exitosa",
+    manual: "Requisito manual / Narrativo",
+    custom: "Requisito personalizado",
+  },
+
+  requirementResolutions: {
+    automatic: "Automática",
+    manual: "Manual (Director de Juego)",
   },
 
   counters: {

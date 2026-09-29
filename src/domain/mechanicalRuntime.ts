@@ -6,6 +6,7 @@ import type {
   MechanicalCondition,
   MechanicalEffectItem,
   MechanicalLimitation,
+  MechanicalRequirement,
   MechanicalTarget,
   MechanicalTemporality,
   MechanicalTrigger,
@@ -25,6 +26,9 @@ export interface MechanicalEvent {
   sourceEntityId?: string;
   targetEntityId?: string;
 
+  sourceEntityType?: "character" | "npc" | "status" | "weakness" | "system" | string;
+  targetEntityType?: "character" | "npc" | string;
+
   sourceElementId?: string;
   sourceBehaviorId?: string;
 
@@ -32,6 +36,34 @@ export interface MechanicalEvent {
   timestamp?: number;
 
   payload?: Record<string, unknown>;
+
+  behavior?: {
+    id?: string;
+    sourceType?: string;
+    tags?: string[];
+  };
+  roll?: {
+    type?: string;
+    dice?: number[];
+    total?: number;
+    critical?: boolean;
+  };
+  resource?: {
+    resource?: string;
+    previous?: number;
+    current?: number;
+    maximum?: number;
+  };
+  damage?: {
+    amount?: number;
+    sourceEntityId?: string;
+    sourceEntityType?: string;
+    origin?: string;
+  };
+  status?: {
+    statusElementId?: string;
+    action?: "applied" | "removed";
+  };
 
   parentEventId?: string;
   
@@ -60,11 +92,27 @@ export interface ActiveTimedEffect {
   id: string;
   sourceBehaviorId: string;
   sourceElementId?: string;
+  sourceEntityId?: string;
   effect: MechanicalEffectItem;
   temporality: MechanicalTemporality;
   remainingTurns?: number;
+  initialTurns?: number;
+  appliedAtTurn?: number;
   expiresAtTurn?: number;
   targetEntityId: string;
+  periodicity?: {
+    mode: "once" | "each_turn";
+    timing?: "turn_start" | "turn_end";
+  };
+  activationDelay?: {
+    delay: number;
+    declaredAtTurn: number;
+    sourceEntityId: string;
+    targetEntityId?: string;
+    behavior: MechanicalBehavior;
+    elementId?: string;
+    options?: any;
+  };
 }
 
 export interface ReservedInventoryItem {
@@ -201,7 +249,8 @@ export function getOrCreateParticipantState(
 
 export function advanceTurn(
   encounter: EncounterRuntimeState,
-  ownedBehaviorsByEntity?: Record<string, Array<{ elementId: string; behavior: MechanicalBehavior }>>
+  ownedBehaviorsByEntity?: Record<string, Array<{ elementId: string; behavior: MechanicalBehavior }>>,
+  world?: RuleWorld
 ): EncounterRuntimeState {
   const next = structuredClone(encounter);
   next.turn += 1;
@@ -227,21 +276,127 @@ export function advanceTurn(
     participant.hpLostThisTurn = 0;
     participant.hpRecoveredThisTurn = 0;
 
+    // Reset per-turn usage counters
+    for (const key of Object.keys(participant.usageCounters)) {
+      if (key.startsWith("turn:")) {
+        delete participant.usageCounters[key];
+      }
+    }
+
     // Remove pending modifiers with duration 'until_turn_end'
     participant.pendingModifiers = participant.pendingModifiers.filter(
       (m) => m.duration !== "until_turn_end" && !m.consumed
     );
 
-    // Decrement or expire active timed effects
+    // 1. Process delayed activations declared by this participant
+    const retainedTimedEffects: ActiveTimedEffect[] = [];
+    for (const timed of participant.activeTimedEffects) {
+      if (timed.activationDelay) {
+        if (participant.currentTurn >= timed.activationDelay.declaredAtTurn + timed.activationDelay.delay) {
+          const res = executeMechanicalBehavior({
+            behavior: timed.activationDelay.behavior,
+            elementId: timed.activationDelay.elementId ?? timed.sourceElementId ?? "delayed",
+            sourceEntityId: timed.activationDelay.sourceEntityId,
+            targetEntityId: timed.activationDelay.targetEntityId ?? entityId,
+            world: world ?? {},
+            encounter: next,
+            rollResult: timed.activationDelay.options?.rollResult,
+            dice: timed.activationDelay.options?.dice,
+            attackTags: timed.activationDelay.options?.attackTags,
+            signals: timed.activationDelay.options?.signals,
+            isExecutingDelayed: true,
+          } as any);
+          if (res.success && world) {
+            Object.assign(world, res.newWorld);
+          }
+          continue; // delayed activation completed
+        }
+      }
+      retainedTimedEffects.push(timed);
+    }
+    participant.activeTimedEffects = retainedTimedEffects;
+
+    // 2. Process periodic effects on this participant (at turn_start)
+    for (const timed of participant.activeTimedEffects) {
+      if (timed.activationDelay) continue;
+      if (timed.periodicity?.mode === "each_turn") {
+        const timing = timed.periodicity.timing ?? "turn_start";
+        if (timing === "turn_start") {
+          // Check that application turn is not counted twice and effect has not expired
+          if (timed.appliedAtTurn !== undefined && participant.currentTurn <= timed.appliedAtTurn) {
+            continue;
+          }
+          if (timed.expiresAtTurn !== undefined && participant.currentTurn > timed.expiresAtTurn) {
+            continue;
+          }
+          if (timed.effect.type === "damage") {
+            let tickDmg = 4;
+            const formula = (timed.effect as any).formula ?? (timed.effect as any).magnitude?.formula ?? (timed.effect as any).dice;
+            if (typeof (timed.effect as any).amount === "number") {
+              tickDmg = (timed.effect as any).amount;
+            } else if (typeof formula === "string") {
+              const match = /^(\d+)[dD](\d+)$/.exec(formula.trim());
+              if (match) {
+                tickDmg = parseInt(match[1], 10) * Math.ceil(parseInt(match[2], 10) / 2);
+              } else {
+                tickDmg = parseInt(formula, 10) || 4;
+              }
+            }
+            if (world && world[entityId]) {
+              const res = processDamagePipeline({
+                baseDamage: tickDmg,
+                attackerId: timed.sourceEntityId ?? entityId,
+                targetId: entityId,
+                world,
+                encounter: next,
+              });
+              if (res.newWorld[entityId]) {
+                Object.assign(world[entityId], res.newWorld[entityId]);
+              }
+            }
+          } else if (timed.effect.type === "healing") {
+            let tickHealing = (timed.effect as any).amount ?? 0;
+            const formula = (timed.effect as any).formula ?? (timed.effect as any).magnitude?.formula ?? (timed.effect as any).dice;
+            if (typeof formula === "string") {
+              const match = /^(\d+)[dD](\d+)$/.exec(formula.trim());
+              if (match) {
+                tickHealing = parseInt(match[1], 10) * Math.ceil(parseInt(match[2], 10) / 2);
+              }
+            }
+            if (world && world[entityId]) {
+              const res = processHealingPipeline({
+                baseHealing: tickHealing,
+                resourceId: (timed.effect as any).resourceId ?? "SA",
+                healerId: timed.sourceEntityId ?? entityId,
+                targetId: entityId,
+                world,
+                encounter: next,
+              });
+              if (res.newWorld[entityId]) {
+                Object.assign(world[entityId], res.newWorld[entityId]);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Decrement or expire active timed effects
     participant.activeTimedEffects = participant.activeTimedEffects.filter((effect) => {
+      if (effect.activationDelay) return true;
+      if (effect.temporality?.duration?.type === "while_condition") return true;
+      // The application turn does NOT consume duration: "Una duración de N turnos concede N turnos posteriores completos al portador"
+      if (effect.appliedAtTurn !== undefined && participant.currentTurn <= effect.appliedAtTurn) {
+        return true;
+      }
       if (effect.remainingTurns !== undefined) {
         effect.remainingTurns -= 1;
       }
       if (effect.expiresAtTurn !== undefined) {
-        return effect.expiresAtTurn > next.turn;
+        return effect.expiresAtTurn >= next.turn;
       }
       if (effect.remainingTurns !== undefined) {
-        return effect.remainingTurns > 0;
+        return effect.remainingTurns >= 0;
       }
       return true;
     });
@@ -269,6 +424,16 @@ export function advanceTurn(
             }
           }
         }
+      }
+
+      if (world) {
+        const synced = syncWhileConditionEffects(
+          entityId,
+          ownedBehaviorsByEntity[entityId],
+          world,
+          next
+        );
+        next.participants[entityId] = synced.participants[entityId];
       }
     }
   }
@@ -348,25 +513,63 @@ export function evaluateSingleCondition(
     }
 
     case "die": {
-      const dice = ctx.dice ?? [];
+      const dice = ctx.dice ?? (ctx.event?.roll?.dice as number[] | undefined) ?? [];
       if (dice.length === 0) {
         result = false;
         break;
       }
+
+      if (condition.dieSelection === "pair") {
+        if (condition.pair && condition.pair.length === 2) {
+          result = dice.length >= 2 && dice[0] === condition.pair[0] && dice[1] === condition.pair[1];
+        } else if (condition.value !== undefined && condition.value > 0) {
+          result = dice.length >= 2 && dice[0] === condition.value && dice[1] === condition.value;
+        } else {
+          result = dice.length >= 2 && dice[0] === dice[1];
+        }
+        break;
+      }
+
+      if (condition.dieSelection === "double") {
+        const isDouble = dice.length >= 2 && dice[0] === dice[1];
+        if (!isDouble) {
+          result = false;
+        } else if (condition.value !== undefined && condition.value > 0) {
+          result = compareNumbers(dice[0], condition.comparison ?? "=", condition.value);
+        } else {
+          result = true;
+        }
+        break;
+      }
+
+      if (condition.min !== undefined || condition.max !== undefined) {
+        const min = condition.min ?? 1;
+        const max = condition.max ?? 10;
+        if (condition.dieSelection === "both") {
+          result = dice.length >= 2 && dice.every((d) => d >= min && d <= max);
+        } else {
+          result = dice.some((d) => d >= min && d <= max);
+        }
+        break;
+      }
+
+      const comp = condition.comparison ?? "=";
+      const val = condition.value ?? 0;
+
       switch (condition.dieSelection) {
         case "both":
-          result = dice.length >= 2 && dice.every((d) => compareNumbers(d, condition.comparison, condition.value));
+          result = dice.length >= 2 && dice.every((d) => compareNumbers(d, comp, val));
           break;
         case "first":
-          result = dice.length >= 1 && compareNumbers(dice[0], condition.comparison, condition.value);
+          result = dice.length >= 1 && compareNumbers(dice[0], comp, val);
           break;
         case "second":
-          result = dice.length >= 2 && compareNumbers(dice[1], condition.comparison, condition.value);
+          result = dice.length >= 2 && compareNumbers(dice[1], comp, val);
           break;
         case "individual":
         case "any":
         default:
-          result = dice.some((d) => compareNumbers(d, condition.comparison, condition.value));
+          result = dice.some((d) => compareNumbers(d, comp, val));
           break;
       }
       break;
@@ -477,6 +680,44 @@ export function evaluateSingleCondition(
       } else {
         result = false;
       }
+      break;
+    }
+
+    case "active_behavior": {
+      const part = ctx.participant;
+      const hasActive = (part.activeTimedEffects ?? []).some(
+        (eff) =>
+          (condition.behaviorId && eff.sourceBehaviorId === condition.behaviorId) ||
+          (condition.elementId && eff.sourceElementId === condition.elementId)
+      );
+      result = condition.present !== false ? hasActive : !hasActive;
+      break;
+    }
+
+    case "conscious": {
+      const targetId =
+        condition.target === "target"
+          ? (ctx.event?.targetEntityId ?? ctx.participant.entityId)
+          : ctx.participant.entityId;
+      const ent = (ctx.world && ctx.world[targetId]) ? ctx.world[targetId] : ctx.entity;
+      const sa = ent?.resources?.SA?.current ?? 0;
+      const hasUnconsciousStatus = (ent?.statuses ?? []).some(
+        (s: any) =>
+          s.statusElementId === "core.status.unconscious" ||
+          s.statusElementId === "unconscious" ||
+          s.statusElementId === "core.status.defeated"
+      );
+      const isConscious = sa > 0 && !hasUnconsciousStatus;
+      result = condition.conscious !== false ? isConscious : !isConscious;
+      break;
+    }
+
+    case "group": {
+      result = evaluateMechanicalConditions(
+        condition.conditions ?? [],
+        condition.logic ?? "all",
+        ctx
+      );
       break;
     }
 
@@ -993,6 +1234,206 @@ export function checkLimitations(
 }
 
 // ============================================================================
+// 12.1. EVALUADOR DE REQUISITOS (evaluateRequirements)
+// ============================================================================
+
+export interface RequirementEvaluationContext {
+  sourceEntityId: string;
+  targetEntityId?: string;
+  world: RuleWorld;
+  encounter: EncounterRuntimeState;
+  confirmedManualSignals?: string[];
+  rolls?: Record<string, number>;
+  inventory?: Record<string, number>;
+}
+
+export interface RequirementEvaluationResult {
+  satisfied: boolean;
+  unresolved: MechanicalRequirement[];
+  failed: MechanicalRequirement[];
+  reasons: string[];
+  requiresManualResolution: boolean;
+}
+
+export function evaluateRequirements(
+  requirements: MechanicalRequirement[] = [],
+  context: RequirementEvaluationContext
+): RequirementEvaluationResult {
+  const unresolved: MechanicalRequirement[] = [];
+  const failed: MechanicalRequirement[] = [];
+  const reasons: string[] = [];
+
+  const sourceEntity = context.world[context.sourceEntityId];
+  const targetId = context.targetEntityId ?? context.sourceEntityId;
+  const targetEntity = context.world[targetId];
+  const participant = context.encounter.participants[context.sourceEntityId];
+  const confirmedSignals = new Set(context.confirmedManualSignals ?? []);
+
+  for (const req of requirements) {
+    if (req.resolution === "manual") {
+      // Manual requirements require explicit confirmation in confirmedManualSignals
+      const isConfirmed =
+        confirmedSignals.has(req.type) ||
+        confirmedSignals.has(req.id) ||
+        Boolean(req.parameters?.signalId && confirmedSignals.has(req.parameters.signalId));
+
+      if (!isConfirmed) {
+        unresolved.push(req);
+        reasons.push(`Requiere confirmación manual del Director: ${req.description || req.type}`);
+      }
+      continue;
+    }
+
+    // Automatic requirements
+    switch (req.type) {
+      case "target_conscious":
+      case "conscious": {
+        const entity = targetEntity ?? sourceEntity;
+        const sa = entity?.resources?.SA?.current ?? 0;
+        const hasUnconsciousStatus = (entity?.statuses ?? []).some(
+          (s: any) =>
+            s.statusElementId === "core.status.unconscious" ||
+            s.statusElementId === "unconscious" ||
+            s.statusElementId === "core.status.defeated"
+        );
+        if (sa <= 0 || hasUnconsciousStatus) {
+          failed.push(req);
+          reasons.push("El objetivo no está consciente");
+        }
+        break;
+      }
+
+      case "active_behavior": {
+        const hasActive = (participant?.activeTimedEffects ?? []).some(
+          (timed) =>
+            (req.behaviorId && timed.sourceBehaviorId === req.behaviorId) ||
+            (req.elementId && timed.sourceElementId === req.elementId)
+        );
+        if (!hasActive) {
+          failed.push(req);
+          reasons.push(`Requiere técnica o habilidad activa: ${req.behaviorId || req.elementId || ""}`);
+        }
+        break;
+      }
+
+      case "resource_threshold": {
+        const resId = (req.resourceId ?? "ES") as "SA" | "ES";
+        const currentRes = sourceEntity?.resources?.[resId]?.current ?? 0;
+        const minReq = req.minAmount ?? 0;
+        if (currentRes < minReq) {
+          failed.push(req);
+          reasons.push(`Reserva insuficiente de ${resId}: actual ${currentRes} < requerida ${minReq}`);
+        }
+        break;
+      }
+
+      case "item": {
+        const itemKey = req.elementId ?? "";
+        const currentQty = sourceEntity?.inventory?.[itemKey] ?? 0;
+        const reserved = participant?.reservedInventory?.[itemKey] ?? 0;
+        const available = currentQty - reserved;
+        const requiredQty = req.quantity ?? 1;
+        if (available < requiredQty) {
+          failed.push(req);
+          reasons.push(`Objeto insuficiente (${itemKey}): disponible ${available} < requerido ${requiredQty}`);
+        }
+        break;
+      }
+
+      default: {
+        failed.push(req);
+        reasons.push(`Requisito automático no satisfecho: ${req.description || req.type}`);
+        break;
+      }
+    }
+  }
+
+  const satisfied = failed.length === 0 && unresolved.length === 0;
+  const requiresManualResolution = unresolved.length > 0;
+
+  return {
+    satisfied,
+    unresolved,
+    failed,
+    reasons,
+    requiresManualResolution,
+  };
+}
+
+// ============================================================================
+// 12.2. GESTIÓN DEL CICLO DE VIDA DE WHILE_CONDITION
+// ============================================================================
+
+export function syncWhileConditionEffects(
+  entityId: string,
+  ownedBehaviors: OwnedBehaviorEntry[],
+  world: RuleWorld,
+  encounter: EncounterRuntimeState,
+  signals?: string[]
+): EncounterRuntimeState {
+  const next = structuredClone(encounter);
+  const participant = getOrCreateParticipantState(next, entityId);
+  const entity = world[entityId];
+  if (!entity) return next;
+
+  for (const { elementId, behavior } of ownedBehaviors) {
+    const hasWhileCond =
+      behavior.temporality?.duration?.type === "while_condition" ||
+      behavior.effects.some((e) => e.temporality?.duration?.type === "while_condition");
+
+    if (!hasWhileCond) continue;
+
+    const ctx: ConditionEvaluationContext = {
+      entity,
+      participant,
+      elementId,
+      behaviorId: behavior.id,
+      world,
+      signals,
+    };
+
+    const conditionsMet = evaluateMechanicalConditions(
+      behavior.conditions,
+      behavior.conditionLogic,
+      ctx
+    );
+
+    const existingIndex = participant.activeTimedEffects.findIndex(
+      (t) => t.sourceBehaviorId === behavior.id
+    );
+
+    if (conditionsMet) {
+      // false -> true: activate
+      // true -> true: maintain, do NOT duplicate
+      if (existingIndex === -1) {
+        for (const eff of behavior.effects) {
+          const effectiveTemp = resolveEffectiveTemporality(eff, behavior);
+          participant.activeTimedEffects.push({
+            id: `while_${behavior.id}_${eff.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            sourceElementId: elementId,
+            sourceEntityId: entityId,
+            targetEntityId: entityId,
+            effect: eff,
+            temporality: effectiveTemp ?? { duration: { type: "while_condition" } },
+            appliedAtTurn: next.turn,
+          });
+        }
+      }
+    } else {
+      // true -> false: deactivate / remove
+      if (existingIndex !== -1) {
+        participant.activeTimedEffects = participant.activeTimedEffects.filter(
+          (t) => t.sourceBehaviorId !== behavior.id
+        );
+      }
+    }
+  }
+
+  return next;
+}
+
+// ============================================================================
 // 13. CONTINUOUS MODIFIERS (getActiveContinuousModifiers)
 // ============================================================================
 
@@ -1105,6 +1546,91 @@ export function getActiveContinuousModifiers(
     }
   }
 
+  // Also collect active modifiers from participant's active timed effects (e.g. +2 FUE for 2 turns)
+  if (participant && Array.isArray(participant.activeTimedEffects)) {
+    for (const timed of participant.activeTimedEffects) {
+      if (timed.activationDelay) continue;
+      if (timed.periodicity?.mode === "each_turn") continue;
+
+      const effect = timed.effect;
+      result.effects.push(effect as any);
+
+      if (effect.type === "attribute_modifier") {
+        result.attributeModifiers.push({
+          attributeId: effect.attributeId,
+          amount: effect.amount,
+          operation: effect.operation ?? "add",
+        });
+      } else if (effect.type === "derived_stat_modifier") {
+        result.derivedStatModifiers.push({
+          statId: effect.statId,
+          amount: effect.amount,
+          operation: effect.operation ?? "add",
+        });
+      } else if (effect.type === "bonus") {
+        const stat = (effect.targetStat || "").toLowerCase();
+        if (["fue", "des", "res", "int", "vol", "vel"].includes(stat)) {
+          result.attributeModifiers.push({
+            attributeId: stat,
+            amount: effect.amount,
+            operation: effect.operation ?? "add",
+          });
+        } else {
+          result.derivedStatModifiers.push({
+            statId: stat,
+            amount: effect.amount,
+            operation: effect.operation ?? "add",
+          });
+        }
+      } else if (effect.type === "penalty") {
+        const stat = (effect.targetStat || "").toLowerCase();
+        const amt = -Math.abs(effect.amount);
+        if (["fue", "des", "res", "int", "vol", "vel"].includes(stat)) {
+          result.attributeModifiers.push({
+            attributeId: stat,
+            amount: amt,
+            operation: "add",
+          });
+        } else {
+          result.derivedStatModifiers.push({
+            statId: stat,
+            amount: amt,
+            operation: "add",
+          });
+        }
+      } else if (effect.type === "skill_modifier") {
+        result.skillModifiers.push({
+          skillId: effect.skillId,
+          amount: effect.amount,
+          operation: effect.operation ?? "add",
+        });
+      } else if (effect.type === "roll_modifier") {
+        result.rollModifiers.push({
+          rollType: effect.rollType,
+          amount: effect.amount,
+          operation: effect.operation ?? "add",
+        });
+      } else if (effect.type === "cost_modifier") {
+        result.costModifiers.push({
+          scopeId: effect.scopeId ?? "all",
+          amount: effect.amount,
+          operation: effect.operation,
+        });
+      } else if (effect.type === "incoming_damage_modifier") {
+        result.incomingDamageModifiers.push({
+          tagFilter: effect.tagFilter,
+          amount: effect.amount,
+          operation: effect.operation,
+        });
+      } else if (effect.type === "incoming_healing_modifier") {
+        result.incomingHealingModifiers.push({
+          amount: effect.amount,
+          operation: effect.operation,
+        });
+      }
+    }
+  }
+
   return result;
 }
 
@@ -1143,6 +1669,7 @@ export interface ExecuteBehaviorOptions {
   useException?: boolean;
   targetOwnedBehaviors?: Array<{ elementId: string; behavior: MechanicalBehavior }>;
   interceptIncomingEffect?: InterceptIncomingEffectFn;
+  isExecutingDelayed?: boolean;
 }
 
 export interface ExecuteBehaviorResult {
@@ -1190,6 +1717,49 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
 
   const participant = getOrCreateParticipantState(newEncounter, sourceEntityId);
 
+  // Check delayed activation for active mode (unless already executing the delayed invocation)
+  const actDelay = behavior.activation?.delay ?? behavior.activation?.turns ?? 0;
+  if (
+    behavior.mode === "active" &&
+    behavior.activation?.timing === "turns" &&
+    actDelay > 0 &&
+    !options.isExecutingDelayed
+  ) {
+    if (!participant.activeTimedEffects) {
+      participant.activeTimedEffects = [];
+    }
+    participant.activeTimedEffects.push({
+      id: `delayed_${behavior.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      sourceBehaviorId: behavior.id,
+      sourceElementId: elementId,
+      sourceEntityId,
+      targetEntityId,
+      effect: behavior.effects[0] ?? { id: "delayed", type: "manual", message: "delayed activation" },
+      temporality: { duration: { type: "turns", turns: actDelay } },
+      activationDelay: {
+        delay: actDelay,
+        declaredAtTurn: newEncounter.turn,
+        sourceEntityId,
+        targetEntityId,
+        behavior,
+        elementId,
+        options: {
+          rollResult,
+          dice,
+          attackTags,
+          signals,
+        },
+      },
+    });
+    return {
+      success: true,
+      newWorld,
+      newEncounter,
+      appliedEffects: [],
+      emittedEvents: [],
+    };
+  }
+
   // Anti-loop / duplicate execution check on same event
   if (event) {
     const execKey = `${behavior.id}:${event.id}`;
@@ -1197,6 +1767,28 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
       return {
         success: false,
         reasons: ["Behavior already executed for this event"],
+        newWorld,
+        newEncounter,
+        appliedEffects: [],
+        emittedEvents: [],
+      };
+    }
+  }
+
+  // 0. Evaluate activation requirements (if any)
+  if (behavior.requirements && behavior.requirements.length > 0) {
+    const reqResult = evaluateRequirements(behavior.requirements, {
+      sourceEntityId,
+      targetEntityId,
+      world: newWorld,
+      encounter: newEncounter,
+      confirmedManualSignals: signals,
+    });
+
+    if (!reqResult.satisfied) {
+      return {
+        success: false,
+        reasons: reqResult.reasons,
         newWorld,
         newEncounter,
         appliedEffects: [],
@@ -1299,6 +1891,29 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
     // Check temporality: if duration is pending (until_next_use, until_next_roll, until_turn_end)
     const temporality = eff.temporality ?? behavior.temporality;
     const durationType = temporality?.duration?.type ?? "instant";
+
+    if (durationType === "while_condition") {
+      const targetPart = newEncounter.participants[actualTargetId] ?? participant;
+      if (!targetPart.activeTimedEffects) {
+        targetPart.activeTimedEffects = [];
+      }
+      const alreadyActive = targetPart.activeTimedEffects.some(
+        (t) => t.sourceBehaviorId === behavior.id && t.effect.id === eff.id
+      );
+      if (!alreadyActive) {
+        targetPart.activeTimedEffects.push({
+          id: `while_${behavior.id}_${eff.id}_${Date.now()}`,
+          sourceBehaviorId: behavior.id,
+          sourceElementId: elementId,
+          sourceEntityId,
+          targetEntityId: actualTargetId,
+          effect: eff,
+          temporality: temporality ?? { duration: { type: "while_condition" } },
+          appliedAtTurn: newEncounter.turn,
+        });
+      }
+      continue;
+    }
 
     if (durationType === "until_next_use" || durationType === "until_next_roll" || durationType === "until_turn_end") {
       if (eff.type === "cost_modifier") {
@@ -1476,6 +2091,29 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
           });
           newWorld = res.newWorld;
         }
+
+        const effectiveTemp = resolveEffectiveTemporality(eff, behavior);
+        if (effectiveTemp?.periodicity?.mode === "each_turn" && effectiveTemp.duration?.type === "turns") {
+          const turns = effectiveTemp.duration.turns ?? 1;
+          const targetPart = newEncounter.participants[actualTargetId] ?? participant;
+          if (!targetPart.activeTimedEffects) {
+            targetPart.activeTimedEffects = [];
+          }
+          targetPart.activeTimedEffects.push({
+            id: `${eff.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            sourceBehaviorId: behavior.id,
+            sourceElementId: elementId,
+            sourceEntityId,
+            effect: eff,
+            temporality: effectiveTemp,
+            remainingTurns: turns,
+            initialTurns: turns,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + turns,
+            targetEntityId: actualTargetId,
+            periodicity: effectiveTemp.periodicity,
+          });
+        }
         break;
       }
 
@@ -1512,6 +2150,29 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
             encounter: newEncounter,
           });
           newWorld = res.newWorld;
+        }
+
+        const effectiveHealingTemp = resolveEffectiveTemporality(eff, behavior);
+        if (effectiveHealingTemp?.periodicity?.mode === "each_turn" && effectiveHealingTemp.duration?.type === "turns") {
+          const turns = effectiveHealingTemp.duration.turns ?? 1;
+          const targetPart = newEncounter.participants[actualTargetId] ?? participant;
+          if (!targetPart.activeTimedEffects) {
+            targetPart.activeTimedEffects = [];
+          }
+          targetPart.activeTimedEffects.push({
+            id: `${eff.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            sourceBehaviorId: behavior.id,
+            sourceElementId: elementId,
+            sourceEntityId,
+            effect: eff,
+            temporality: effectiveHealingTemp,
+            remainingTurns: turns,
+            initialTurns: turns,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + turns,
+            targetEntityId: actualTargetId,
+            periodicity: effectiveHealingTemp.periodicity,
+          });
         }
         break;
       }
@@ -1608,11 +2269,46 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
           id: `${eff.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
           sourceBehaviorId: behavior.id,
           sourceElementId: elementId,
+          sourceEntityId,
           effect: eff,
           temporality: effectiveTemp ?? { duration: { type: "turns", turns: 1 } },
           remainingTurns: turns,
+          initialTurns: turns,
+          appliedAtTurn: newEncounter.turn,
           expiresAtTurn,
           targetEntityId: actualTargetId,
+          periodicity: effectiveTemp?.periodicity,
+        });
+        break;
+      }
+
+      case "attribute_modifier":
+      case "derived_stat_modifier":
+      case "bonus":
+      case "penalty": {
+        const effectiveTemp = resolveEffectiveTemporality(eff, behavior);
+        const durationType = effectiveTemp?.duration?.type;
+        const turns = effectiveTemp?.duration?.turns ?? (durationType === "turns" ? 1 : undefined);
+        const expiresAtTurn = turns !== undefined ? newEncounter.turn + turns : undefined;
+
+        const targetPart = newEncounter.participants[actualTargetId] ?? participant;
+        if (!targetPart.activeTimedEffects) {
+          targetPart.activeTimedEffects = [];
+        }
+
+        targetPart.activeTimedEffects.push({
+          id: `${eff.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          sourceBehaviorId: behavior.id,
+          sourceElementId: elementId,
+          sourceEntityId,
+          effect: eff,
+          temporality: effectiveTemp ?? { duration: { type: "turns", turns: 1 } },
+          remainingTurns: turns,
+          initialTurns: turns,
+          appliedAtTurn: newEncounter.turn,
+          expiresAtTurn,
+          targetEntityId: actualTargetId,
+          periodicity: effectiveTemp?.periodicity,
         });
         break;
       }
@@ -1702,6 +2398,30 @@ export interface DispatchEventResult {
   newEncounter: EncounterRuntimeState;
 }
 
+const CANONICAL_TRIGGER_EQUIVALENTS: Record<string, string[]> = {
+  damage_received: ["damage_received", "receive_damage"],
+  receive_damage: ["damage_received", "receive_damage"],
+  damage_dealt: ["damage_dealt", "deal_damage"],
+  deal_damage: ["damage_dealt", "deal_damage"],
+  roll_resolved: ["roll_resolved", "roll", "roll_resolution"],
+  roll: ["roll_resolved", "roll", "roll_resolution"],
+  resource_changed: [
+    "resource_changed",
+    "spend_resource",
+    "recover_resource",
+    "lose_resource",
+    "resource_threshold_crossed",
+  ],
+  spend_resource: ["spend_resource", "resource_changed"],
+  recover_resource: ["recover_resource", "resource_changed"],
+  lose_resource: ["lose_resource", "resource_changed"],
+  status_applied: ["status_applied", "status_apply"],
+  status_removed: ["status_removed"],
+  behavior_resolved: ["behavior_resolved"],
+  effect_ended: ["effect_ended", "end_element"],
+  end_element: ["effect_ended", "end_element"],
+};
+
 export function dispatchMechanicalEvent(options: DispatchEventOptions): DispatchEventResult {
   const { event, world, encounter } = options;
 
@@ -1716,8 +2436,16 @@ export function dispatchMechanicalEvent(options: DispatchEventOptions): Dispatch
     type: eventKind,
     sourceEntityId: event.sourceEntityId,
     targetEntityId: event.targetEntityId,
+    sourceEntityType: (event as any).sourceEntityType ?? (event as any).damage?.sourceEntityType ?? (event as any).payload?.sourceEntityType,
+    targetEntityType: (event as any).targetEntityType,
+    turn: (event as any).turn ?? currentEncounter.turn,
     timestamp: (event as any).timestamp ?? Date.now(),
     payload: event.payload ?? {},
+    behavior: (event as any).behavior,
+    roll: (event as any).roll ?? (options.rollResult !== undefined || options.dice ? { total: options.rollResult, dice: Array.isArray(options.dice) ? options.dice : (typeof options.dice === "number" ? [options.dice] : undefined) } : undefined),
+    resource: (event as any).resource ?? (event.payload?.resourceId ? { resource: event.payload.resourceId as string, amount: event.payload.amount as number } : undefined),
+    damage: (event as any).damage ?? (eventKind === "receive_damage" || eventKind === "damage_received" ? { amount: event.payload?.amount as number, sourceEntityId: event.sourceEntityId, sourceEntityType: (event as any).sourceEntityType ?? (event as any).payload?.sourceEntityType } : undefined),
+    status: (event as any).status,
   };
 
   const ownedBehaviorsByEntity: Record<string, OwnedBehaviorEntry[]> =
@@ -1747,9 +2475,65 @@ export function dispatchMechanicalEvent(options: DispatchEventOptions): Dispatch
     for (const { elementId, behavior } of list) {
       if (behavior.mode !== "reactive" || !behavior.trigger) continue;
 
-      // Match trigger kind
-      if (behavior.trigger.kind !== eventKind && behavior.trigger.kind !== (event as any).kind && behavior.trigger.kind !== (event as any).type) {
+      // Match trigger kind (canonical aliases supported)
+      const trigKind = behavior.trigger.kind;
+      const matchesKind =
+        trigKind === eventKind ||
+        trigKind === (event as any).kind ||
+        trigKind === (event as any).type ||
+        Boolean(CANONICAL_TRIGGER_EQUIVALENTS[trigKind]?.includes(eventKind));
+
+      if (!matchesKind) {
         continue;
+      }
+
+      // Check trigger filters
+      if (behavior.trigger.filters) {
+        const filters = behavior.trigger.filters;
+
+        if (filters.sourceEntityType && filters.sourceEntityType.length > 0) {
+          const rawSourceType =
+            eventObj.sourceEntityType ??
+            eventObj.damage?.sourceEntityType ??
+            (eventObj.payload?.sourceEntityType as string | undefined) ??
+            (eventObj.sourceEntityId && currentWorld[eventObj.sourceEntityId]
+              ? ((currentWorld[eventObj.sourceEntityId] as any).entityKind ??
+                 (currentWorld[eventObj.sourceEntityId] as any).kind ??
+                 (eventObj.sourceEntityId === "enemy" ? "npc" : "character"))
+              : undefined);
+
+          if (!rawSourceType || !filters.sourceEntityType.includes(rawSourceType)) {
+            continue;
+          }
+        }
+
+        if (filters.origin && filters.origin.length > 0) {
+          const rawOrigin = eventObj.damage?.origin ?? (eventObj.payload?.origin as string | undefined);
+          if (!rawOrigin || !filters.origin.includes(rawOrigin)) {
+            continue;
+          }
+        }
+
+        if (filters.tags && filters.tags.length > 0) {
+          const rawTags =
+            (eventObj.payload?.tags as string[] | undefined) ??
+            options.attackTags ??
+            eventObj.behavior?.tags ??
+            [];
+          const hasTagMatch = filters.tags.some((t: string) => rawTags.includes(t));
+          if (!hasTagMatch) {
+            continue;
+          }
+        }
+
+        if (filters.resourceId && filters.resourceId.length > 0) {
+          const rawRes =
+            eventObj.resource?.resource ??
+            (eventObj.payload?.resourceId as string | undefined);
+          if (!rawRes || !filters.resourceId.includes(rawRes)) {
+            continue;
+          }
+        }
       }
 
       // Execute behavior against event
@@ -1775,6 +2559,17 @@ export function dispatchMechanicalEvent(options: DispatchEventOptions): Dispatch
         executedBehaviors.push({ behaviorId: behavior.id, success: true });
       }
     }
+  }
+
+  // Synchronize while_condition states after reactive events
+  for (const entityId of entitiesToCheck) {
+    currentEncounter = syncWhileConditionEffects(
+      entityId,
+      ownedBehaviorsByEntity[entityId] ?? [],
+      currentWorld,
+      currentEncounter,
+      options.signals
+    );
   }
 
   return {
@@ -2282,6 +3077,10 @@ export function resolveTargetCandidates(options: {
 
   // 1. Filter valid candidates by relationship
   const targetType = targetDef?.type ?? "ally";
+  if (targetType === "self") {
+    return { success: true, selectedIds: [sourceEntityId] };
+  }
+
   const validCandidates: string[] = [];
   const dedupedCandidates = Array.from(new Set(candidateIds));
 
@@ -2296,10 +3095,6 @@ export function resolveTargetCandidates(options: {
       }
     } else if (targetType === "enemy") {
       if (tid !== sourceEntityId && rel === "enemy") {
-        validCandidates.push(tid);
-      }
-    } else if (targetType === "self") {
-      if (tid === sourceEntityId || rel === "self") {
         validCandidates.push(tid);
       }
     } else {

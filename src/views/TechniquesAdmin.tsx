@@ -249,18 +249,18 @@ export default function TechniquesAdmin() {
       />
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between p-4 bg-card/60 border border-border/80 rounded-lg">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3 p-4 sm:p-5 bg-card/60 border border-border/80 rounded-lg">
+        <div className="relative w-full">
           <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por técnica, personaje o descripción..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
+            className="pl-9 w-full bg-background/70"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* Character Filter */}
           <Select
             value={selectedCharacterFilter}
@@ -288,7 +288,7 @@ export default function TechniquesAdmin() {
 
           {/* Source Type Filter */}
           <Select value={selectedSourceFilter} onValueChange={setSelectedSourceFilter}>
-            <SelectTrigger className="w-[130px] h-9 text-xs">
+            <SelectTrigger className="w-[140px] h-9 text-xs">
               <SelectValue placeholder="Todos los orígenes">
                 {selectedSourceFilter === 'all'
                   ? 'Todos los orígenes'
@@ -308,7 +308,7 @@ export default function TechniquesAdmin() {
             value={selectedCategoryFilter}
             onValueChange={setSelectedCategoryFilter}
           >
-            <SelectTrigger className="w-[140px] h-9 text-xs">
+            <SelectTrigger className="w-[150px] h-9 text-xs">
               <SelectValue placeholder="Todas las categorías">
                 {selectedCategoryFilter === 'all'
                   ? 'Todas las categorías'
@@ -348,15 +348,15 @@ export default function TechniquesAdmin() {
 
       {/* Global Techniques Table */}
       <div className="border border-border/80 rounded-lg overflow-hidden bg-card/40">
-        <Table>
+        <Table className="table-fixed w-full">
           <TableHeader className="bg-muted/40">
             <TableRow>
               <TableHead className="w-[28%]">Técnica</TableHead>
               <TableHead className="w-[18%]">Personaje</TableHead>
               <TableHead className="w-[12%]">Origen</TableHead>
-              <TableHead className="w-[12%]">Nivel (Coste ES)</TableHead>
+              <TableHead className="w-[14%]">Nivel (Coste ES)</TableHead>
               <TableHead className="w-[16%]">Clasificación</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
+              <TableHead className="w-[12%] text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -404,13 +404,16 @@ export default function TechniquesAdmin() {
                   <React.Fragment key={tech.id}>
                     <TableRow className="hover:bg-muted/30 transition-colors">
                       {/* Name and Description */}
-                      <TableCell className="align-top py-3">
-                        <div className="space-y-1">
-                          <span className="font-oxanium font-bold text-sm text-foreground block">
+                      <TableCell className="align-top py-3 whitespace-normal">
+                        <div className="space-y-1 min-w-0">
+                          <span className="font-oxanium font-bold text-sm text-foreground block truncate">
                             {tech.name}
                           </span>
                           {tech.description ? (
-                            <p className="text-xs text-muted-foreground line-clamp-1">
+                            <p
+                              className="text-xs text-muted-foreground line-clamp-2 break-words"
+                              title={tech.description}
+                            >
                               {tech.description}
                             </p>
                           ) : (
@@ -422,8 +425,8 @@ export default function TechniquesAdmin() {
                       </TableCell>
 
                       {/* Character Owner */}
-                      <TableCell className="align-top py-3">
-                        <div className="flex items-center gap-1.5 text-xs font-medium">
+                      <TableCell className="align-top py-3 whitespace-normal">
+                        <div className="flex items-center gap-1.5 text-xs font-medium min-w-0">
                           <User className="size-3.5 text-primary shrink-0" />
                           <span className="font-semibold text-foreground truncate">
                             {tech.characterName || 'Personaje sin nombre'}
@@ -547,7 +550,7 @@ export default function TechniquesAdmin() {
                     {/* Expandable Breakdown Row */}
                     {isExpanded && (
                       <TableRow className="bg-muted/15">
-                        <TableCell colSpan={6} className="p-4 border-b">
+                        <TableCell colSpan={6} className="p-4 border-b whitespace-normal">
                           <div className="space-y-3 bg-card/70 border border-border/60 p-4 rounded-lg">
                             <div className="flex items-center justify-between text-xs font-semibold text-foreground uppercase tracking-wider border-b border-border/40 pb-2">
                               <span className="flex items-center gap-1.5">

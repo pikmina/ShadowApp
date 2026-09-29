@@ -328,14 +328,14 @@ export default function RulesAdmin() {
 
       <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setSearchParams({ tab: val }); }} className="w-full">
         <div className="w-full overflow-x-auto pb-1.5 no-scrollbar">
-          <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto h-auto p-1 gap-1 bg-muted/60 border border-border/50">
-            <TabsTrigger value="stages" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Etapas por Edad</TabsTrigger>
-            <TabsTrigger value="attributes" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Atributos Base</TabsTrigger>
-            <TabsTrigger value="derived" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Estad. Derivadas</TabsTrigger>
-            <TabsTrigger value="limits" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Límites y RD</TabsTrigger>
-            <TabsTrigger value="mechanics" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Categorías Mecánicas</TabsTrigger>
-            <TabsTrigger value="stamina" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Costes de Estamina</TabsTrigger>
-            <TabsTrigger value="employment" className="shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium">Empleos y nómina</TabsTrigger>
+          <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto">
+            <TabsTrigger value="stages">Etapas por Edad</TabsTrigger>
+            <TabsTrigger value="attributes">Atributos Base</TabsTrigger>
+            <TabsTrigger value="derived">Estad. Derivadas</TabsTrigger>
+            <TabsTrigger value="limits">Límites y RD</TabsTrigger>
+            <TabsTrigger value="mechanics">Categorías Mecánicas</TabsTrigger>
+            <TabsTrigger value="stamina">Costes de Estamina</TabsTrigger>
+            <TabsTrigger value="employment">Empleos y nómina</TabsTrigger>
           </TabsList>
         </div>
 

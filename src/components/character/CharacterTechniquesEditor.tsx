@@ -863,7 +863,7 @@ export function CharacterTechniquesEditor({
                   >
                     {/* Header Row */}
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                      <div className="space-y-1">
+                      <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="font-oxanium font-bold text-base text-foreground">
                             {tech.name}
@@ -887,7 +887,7 @@ export function CharacterTechniquesEditor({
                         </div>
 
                         {tech.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-2">
+                          <p className="text-xs text-muted-foreground line-clamp-2 break-words">
                             {tech.description}
                           </p>
                         )}

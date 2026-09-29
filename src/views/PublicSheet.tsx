@@ -418,6 +418,9 @@ export default function PublicSheet() {
             type: t.sourceType === 'quirk' ? 'DON / QUIRK' : (t.sourceType?.toUpperCase() || 'QUIRK'),
             target: t.activationAttributeId ? `ATR: ${t.activationAttributeId}` : 'VS EVA',
             level: String(t.level || '1'),
+            activationAttributeId: t.activationAttributeId,
+            sourceType: t.sourceType,
+            mechanicalBehaviors: t.mechanicalBehaviors || []
           };
         })
       : [];
@@ -448,7 +451,8 @@ export default function PublicSheet() {
           cost: costStr,
           type: r.element.metadata?.type || 'OFENSIVA',
           target: r.element.metadata?.target || 'VS EVA',
-          level: r.element.metadata?.level || '1'
+          level: r.element.metadata?.level || '1',
+          mechanicalBehaviors: r.element.mechanicalBehaviors || []
         };
       });
 
@@ -472,7 +476,8 @@ export default function PublicSheet() {
             cost: '3 CE',
             type: 'OFENSIVA',
             target: 'VS EVA',
-            level: '1'
+            level: '1',
+            mechanicalBehaviors: (el as any).mechanicalBehaviors || []
           });
         }
       } else if (pTech && !combined.some(c => c.id === pTech.id || c.name === pTech.name)) {
@@ -485,13 +490,14 @@ export default function PublicSheet() {
           cost: pCost,
           type: pTech.type || 'OFENSIVA',
           target: pTech.target || 'VS EVA',
-          level: String(pTech.level || '1')
+          level: String(pTech.level || '1'),
+          mechanicalBehaviors: pTech.mechanicalBehaviors || []
         });
       }
     });
 
     return combined;
-  }, [character?.techniques, possessionRows, profile, elements]);
+  }, [character?.techniques, possessionRows, profile, rules, mechanicsList, elements]);
 
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-background font-oxanium text-sm text-muted-foreground">Cargando expediente...</div>;
   if (error || !character) return <div className="flex min-h-screen items-center justify-center bg-background p-6 text-center font-oxanium text-sm text-destructive">Ficha no encontrada o no disponible (Revisa la consola).</div>;
@@ -1180,7 +1186,7 @@ export default function PublicSheet() {
                         <span>Descripción Mecánica:</span>
                       </div>
                       <p className="leading-normal font-mono text-text1">
-                        {generateAutoDescription(tech)}
+                        {tech.autoDescription || generateAutoDescription(tech)}
                       </p>
                     </div>
                   </div>

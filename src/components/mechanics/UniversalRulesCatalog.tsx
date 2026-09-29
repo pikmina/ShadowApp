@@ -1,4 +1,5 @@
 import { EntityPanel } from "../ui/entity-panel";
+import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 import { useState } from 'react';
 import { nanoid } from 'nanoid';
 import { Button } from '../ui/button';
@@ -234,39 +235,30 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
       </div>
 
       {/* Group navigation tabs / filters */}
-      <div className="flex flex-wrap gap-1.5 p-1 bg-muted/40 rounded-lg border border-border/50">
-        <button
-          type="button"
-          onClick={() => setActiveGroup('all')}
-          className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
-            activeGroup === 'all'
-              ? 'bg-background text-foreground shadow-sm font-semibold'
-              : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-          }`}
-        >
-          Todas ({mechanics.length})
-        </button>
-        {MECHANICAL_BEHAVIOR_GROUPS.map(g => {
-          const count = mechanics.filter(c => getCategoryGroupKey(c) === g.key).length;
-          const GroupIcon = g.icon;
-          return (
-            <button
-              key={g.key}
-              type="button"
-              onClick={() => setActiveGroup(g.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                activeGroup === g.key
-                  ? 'bg-background text-foreground shadow-sm font-semibold'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-              }`}
-            >
-              <GroupIcon className="w-3.5 h-3.5 opacity-70" />
-              <span>{g.title.split(' ')[0]}</span>
-              <span className="text-[10px] opacity-70 bg-muted px-1.5 py-0.2 rounded-full">{count}</span>
-            </button>
-          );
-        })}
-      </div>
+      <Tabs value={activeGroup} onValueChange={setActiveGroup} className="w-full">
+        <div className="w-full overflow-x-auto pb-1.5 no-scrollbar">
+          <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto">
+            <TabsTrigger value="all">
+              Todas ({mechanics.length})
+            </TabsTrigger>
+            {MECHANICAL_BEHAVIOR_GROUPS.map(g => {
+              const count = mechanics.filter(c => getCategoryGroupKey(c) === g.key).length;
+              const GroupIcon = g.icon;
+              return (
+                <TabsTrigger
+                  key={g.key}
+                  value={g.key}
+                  className="flex items-center gap-1.5"
+                >
+                  <GroupIcon className="w-3.5 h-3.5 opacity-70" />
+                  <span>{g.title.split(' ')[0]}</span>
+                  <span className="text-[10px] opacity-70 bg-muted px-1.5 py-0.5 rounded-full">{count}</span>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </div>
+      </Tabs>
 
       {/* Render grouped sections */}
       <div className="space-y-8">

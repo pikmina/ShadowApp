@@ -3,6 +3,7 @@ import useSWR from 'swr';
 import { fetcher } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import { EntityPanel } from '@/components/ui/entity-panel';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search, Library, Shield, Users, Clock, UserCheck } from 'lucide-react';
@@ -79,11 +80,15 @@ export default function PublicRegistry() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4">
-      <div className="flex justify-center gap-4 mb-6 flex-wrap">
-        <button onClick={() => setActiveTab('canon')} className={`px-4 py-2 font-oxanium text-sm uppercase tracking-wider ${activeTab === 'canon' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Personajes Canon</button>
-        <button onClick={() => setActiveTab('players')} className={`px-4 py-2 font-oxanium text-sm uppercase tracking-wider ${activeTab === 'players' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Jugadores</button>
-        <button onClick={() => setActiveTab('employments')} className={`px-4 py-2 font-oxanium text-sm uppercase tracking-wider ${activeTab === 'employments' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Empleos</button>
-        <button onClick={() => setActiveTab('classes')} className={`px-4 py-2 font-oxanium text-sm uppercase tracking-wider ${activeTab === 'classes' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Clases</button>
+      <div className="flex justify-center mb-6">
+        <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)}>
+          <TabsList className="flex-wrap justify-center">
+            <TabsTrigger value="canon">Personajes Canon</TabsTrigger>
+            <TabsTrigger value="players">Jugadores</TabsTrigger>
+            <TabsTrigger value="employments">Empleos</TabsTrigger>
+            <TabsTrigger value="classes">Clases</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
       <div className="flex flex-col items-center justify-center text-center py-10">
         <Shield className="size-12 text-primary mb-4" />
@@ -93,20 +98,20 @@ export default function PublicRegistry() {
 
       {activeTab === 'canon' && (
         <>
-          <div className="flex flex-col gap-4 mb-8">
-            <div className="relative w-full max-w-sm mx-auto">
+          <div className="p-4 sm:p-5 bg-card/60 border border-border/80 rounded-lg space-y-3 mb-6">
+            <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder="Buscar personaje..."
-                className="pl-9 bg-background/50 border-border/50 focus:border-primary/50"
+                className="pl-9 w-full bg-background/70 border-border/50 focus:border-primary/50 text-xs h-9"
               />
             </div>
             
-            <div className="flex flex-wrap justify-center gap-3">
+            <div className="flex flex-wrap gap-2.5 items-center">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-fit min-w-[140px] h-8 text-[11px] uppercase tracking-wider font-oxanium bg-black/40 border-border/50">
+                <SelectTrigger className="w-fit min-w-[140px] h-9 text-xs font-oxanium bg-background/70 border-border/50">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent>
@@ -119,7 +124,7 @@ export default function PublicRegistry() {
               
               {affiliations.length > 0 && (
                 <Select value={affiliationFilter} onValueChange={setAffiliationFilter}>
-                  <SelectTrigger className="w-fit min-w-[160px] h-8 text-[11px] uppercase tracking-wider font-oxanium bg-black/40 border-border/50">
+                  <SelectTrigger className="w-fit min-w-[160px] h-9 text-xs font-oxanium bg-background/70 border-border/50">
                     <SelectValue placeholder="Afiliación" />
                   </SelectTrigger>
                   <SelectContent>
@@ -133,7 +138,7 @@ export default function PublicRegistry() {
               
               {employments.length > 0 && (
                 <Select value={employmentFilter} onValueChange={setEmploymentFilter}>
-                  <SelectTrigger className="w-fit min-w-[160px] h-8 text-[11px] uppercase tracking-wider font-oxanium bg-black/40 border-border/50">
+                  <SelectTrigger className="w-fit min-w-[160px] h-9 text-xs font-oxanium bg-background/70 border-border/50">
                     <SelectValue placeholder="Empleo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -147,7 +152,7 @@ export default function PublicRegistry() {
 
               {classes.length > 0 && (
                 <Select value={classFilter} onValueChange={setClassFilter}>
-                  <SelectTrigger className="w-fit min-w-[160px] h-8 text-[11px] uppercase tracking-wider font-oxanium bg-black/40 border-border/50">
+                  <SelectTrigger className="w-fit min-w-[160px] h-9 text-xs font-oxanium bg-background/70 border-border/50">
                     <SelectValue placeholder="Clases" />
                   </SelectTrigger>
                   <SelectContent>
@@ -263,26 +268,30 @@ function PublicPlayers() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
-        <div className="relative w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar jugador o personaje..."
-            className="pl-9 bg-background/50 border-border/50 focus:border-primary/50"
-          />
+      <div className="p-4 sm:p-5 bg-card/60 border border-border/80 rounded-lg mb-4">
+        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+          <div className="relative flex-1 min-w-[50%] w-full">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar jugador o personaje..."
+              className="pl-9 bg-background/70 border-border/50 focus:border-primary/50 text-xs h-9 w-full"
+            />
+          </div>
+          <div className="w-full sm:w-48 shrink-0">
+            <Select value={statusFilter} onValueChange={(val: any) => setStatusFilter(val)}>
+              <SelectTrigger className="w-full h-9 text-xs font-oxanium bg-background/70 border-border/50">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="active">Activo</SelectItem>
+                <SelectItem value="absent">Ausente</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <Select value={statusFilter} onValueChange={(val: any) => setStatusFilter(val)}>
-          <SelectTrigger className="w-full sm:w-[180px] h-9 text-[11px] uppercase tracking-wider font-oxanium bg-black/40 border-border/50">
-            <SelectValue placeholder="Estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los estados</SelectItem>
-            <SelectItem value="active">Activo</SelectItem>
-            <SelectItem value="absent">Ausente</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {filtered.length === 0 ? (

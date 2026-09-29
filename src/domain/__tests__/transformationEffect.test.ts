@@ -160,7 +160,12 @@ describe("Transformation Mechanical Effect System", () => {
     expect(hasActiveTransformation(nextState.participants.hero1)).toBe(true);
     expect(getActiveTransformations(nextState.participants.hero1)[0].remainingTurns).toBe(1);
 
-    // Turn 5 -> Turn 6 (Expires!)
+    // Turn 5 -> Turn 6 (5to turno posterior completo, activo)
+    nextState = advanceTurn(nextState);
+    expect(hasActiveTransformation(nextState.participants.hero1)).toBe(true);
+    expect(getActiveTransformations(nextState.participants.hero1)[0].remainingTurns).toBe(0);
+
+    // Turn 6 -> Turn 7 (Expira tras 5 turnos posteriores completos)
     nextState = advanceTurn(nextState);
     expect(hasActiveTransformation(nextState.participants.hero1)).toBe(false);
     expect(getActiveTransformations(nextState.participants.hero1)).toHaveLength(0);

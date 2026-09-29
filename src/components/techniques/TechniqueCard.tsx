@@ -26,7 +26,7 @@ export const TechniqueCard = ({ technique }: { technique: any }) => {
         </Badge>
       </div>
 
-      <p className="text-xs text-muted-foreground text-justify leading-relaxed">
+      <p className="text-xs text-muted-foreground leading-relaxed break-words">
         {technique.description || 'Descripción de la técnica.'}
       </p>
 

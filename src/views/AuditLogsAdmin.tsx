@@ -318,22 +318,22 @@ export default function AuditLogsAdmin() {
       </div>
 
       {/* Filter and Search Bar */}
-      <Card className="border-border bg-card">
-        <CardContent className="p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-            {/* Search Input */}
-            <div className="md:col-span-4 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por ID, nombre, email o detalles..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 h-9 text-xs"
-              />
-            </div>
+      <Card className="border-border bg-card/60">
+        <CardContent className="p-4 sm:p-5 space-y-3">
+          {/* Search Input */}
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por ID, nombre, email o detalles..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 h-9 text-xs w-full bg-background/70"
+            />
+          </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-2.5 items-center">
             {/* Action Type Filter */}
-            <div className="md:col-span-3">
+            <div className="md:col-span-5">
               <Select
                 value={actionTypeFilter}
                 onValueChange={(val) => {
@@ -341,7 +341,7 @@ export default function AuditLogsAdmin() {
                   setPage(1);
                 }}
               >
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger className="h-9 text-xs bg-background/70">
                   <SelectValue placeholder="Todas las acciones" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
@@ -371,7 +371,7 @@ export default function AuditLogsAdmin() {
             </div>
 
             {/* Start Date */}
-            <div className="md:col-span-2">
+            <div className="md:col-span-3">
               <Input
                 type="date"
                 value={startDate}
@@ -379,13 +379,13 @@ export default function AuditLogsAdmin() {
                   setStartDate(e.target.value);
                   setPage(1);
                 }}
-                className="h-9 text-xs"
+                className="h-9 text-xs bg-background/70"
                 title="Fecha inicio"
               />
             </div>
 
             {/* End Date */}
-            <div className="md:col-span-2">
+            <div className="md:col-span-3">
               <Input
                 type="date"
                 value={endDate}
@@ -393,7 +393,7 @@ export default function AuditLogsAdmin() {
                   setEndDate(e.target.value);
                   setPage(1);
                 }}
-                className="h-9 text-xs"
+                className="h-9 text-xs bg-background/70"
                 title="Fecha fin"
               />
             </div>
@@ -404,7 +404,7 @@ export default function AuditLogsAdmin() {
                 variant="ghost"
                 size="sm"
                 onClick={handleResetFilters}
-                className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground"
+                className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground w-full md:w-auto"
                 title="Limpiar filtros"
               >
                 Limpiar
