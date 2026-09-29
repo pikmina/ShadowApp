@@ -71,6 +71,7 @@ export const CORE_CATEGORIES = {
   numeric_modifier: 'Modificador numérico',
   derived_stat: 'Estadística derivada',
   attribute: 'Atributo',
+  skill: 'Habilidad',
   status: 'Estado alterado',
   cost_adjustment: 'Modificar coste',
   manual_resolution: 'Resolución manual',
@@ -93,8 +94,10 @@ export const CORE_CATEGORIES = {
   additional_requirement: 'Requisito adicional',
   die_condition: 'Dado individual',
   health_cost: 'Coste de HP',
+  consequence: 'Consecuencia',
   caps: 'Límites / caps',
   transformation: 'Transformación',
+  object_manipulation: 'Manipulación de objetos',
 } as const;
 export type CoreCategoryKey = keyof typeof CORE_CATEGORIES;
 
@@ -127,6 +130,13 @@ export const CORE_CATEGORY_CONTRACTS: Record<CoreCategoryKey, CoreCategoryContra
   // B. Ajustes de CE / Parámetros
   attribute: {
     coreKey: 'attribute',
+    kind: 'ce_adjustment',
+    ruleClass: 'cost_modifier',
+    ruleClassLabel: 'Ajuste de CE',
+    editorMode: 'parameter',
+  },
+  skill: {
+    coreKey: 'skill',
     kind: 'ce_adjustment',
     ruleClass: 'cost_modifier',
     ruleClassLabel: 'Ajuste de CE',
@@ -195,6 +205,14 @@ export const CORE_CATEGORY_CONTRACTS: Record<CoreCategoryKey, CoreCategoryContra
     effectType: 'transformation',
     editorMode: 'effect',
   },
+  object_manipulation: {
+    coreKey: 'object_manipulation',
+    kind: 'effect',
+    ruleClass: 'effect',
+    ruleClassLabel: 'Efecto',
+    effectType: 'object_manipulation',
+    editorMode: 'effect',
+  },
   cost_adjustment: {
     coreKey: 'cost_adjustment',
     kind: 'effect',
@@ -232,6 +250,7 @@ export const CORE_CATEGORY_CONTRACTS: Record<CoreCategoryKey, CoreCategoryContra
   additional_requirement: { coreKey: 'additional_requirement', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
   die_condition: { coreKey: 'die_condition', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
   health_cost: { coreKey: 'health_cost', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  consequence: { coreKey: 'consequence', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
   caps: { coreKey: 'caps', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
 };
 
@@ -300,7 +319,7 @@ export function createCoreCategories(): SystemMechanicsConfig {
     scope: { techniques: true, objects: true, actions: true },
     rules: [] as any[],
   }));
-  function option(key: CoreCategoryKey, suffix: string, name: string, component?: RuleComponent, runtimeKey?: string, cost: number = 0) {
+  function option(key: CoreCategoryKey, suffix: string, name: string, component?: RuleComponent, runtimeKey?: string, cost: number = 0, isAvailable?: boolean) {
     const cat = categories.find(c => c.coreKey === key);
     if (!cat) return;
     const rule: any = {
@@ -311,31 +330,48 @@ export function createCoreCategories(): SystemMechanicsConfig {
       ruleType: component ? 'component' : 'cost_modifier',
     };
     if (component) rule.component = component;
+    if (isAvailable !== undefined) rule.isAvailable = isAvailable;
     cat.rules.push(rule);
   }
-  function effect(key: CoreCategoryKey, suffix: string, name: string, value: object, runtimeKey?: string, cost: number = 0) {
+  function effect(key: CoreCategoryKey, suffix: string, name: string, value: object, runtimeKey?: string, cost: number = 0, isAvailable?: boolean) {
     const cat = categories.find(c => c.coreKey === key);
     if (!cat) return;
-    cat.rules.push({
+    const rule: any = {
       id: `${coreId(key)}.${suffix}`,
       name,
       cost,
       runtimeKey: runtimeKey ?? suffix,
       ruleType: 'effect',
       effect: { timing: 'on_activation', ...value },
-    });
+    };
+    if (isAvailable !== undefined) rule.isAvailable = isAvailable;
+    cat.rules.push(rule);
   }
 
-  // Damage Dice
-  effect('damage', '4d8', '4D8', { type: 'damage', dice: '4D8' }, '4D8', 4);
-  effect('damage', '1d6', '1D6', { type: 'damage', dice: '1D6' }, '1D6', 1);
-  effect('damage', '1d8', '1D8', { type: 'damage', dice: '1D8' }, '1D8', 1);
-  effect('damage', '2d6', '2D6', { type: 'damage', dice: '2D6' }, '2D6', 2);
-  effect('damage', '2d8', '2D8', { type: 'damage', dice: '2D8' }, '2D8', 2);
-  effect('damage', '1d10', '1D10', { type: 'damage', dice: '1D10' }, '1D10', 2);
-  effect('damage', '3d6', '3D6', { type: 'damage', dice: '3D6' }, '3D6', 3);
-  effect('damage', '4d6', '4D6', { type: 'damage', dice: '4D6' }, '4D6', 4);
-  effect('damage', '2d10', '2D10', { type: 'damage', dice: '2D10' }, '2D10', 4);
+  // Damage: Canonical Core Category
+  // Fixed damage
+  effect('damage', '2', '2', { type: 'damage', dice: '2' }, '2', 1);
+  effect('damage', '4', '4', { type: 'damage', dice: '4' }, '4', 2);
+  effect('damage', '6', '6', { type: 'damage', dice: '6' }, '6', 3);
+  effect('damage', '8', '8', { type: 'damage', dice: '8' }, '8', 4);
+
+  // Dice damage
+  effect('damage', '1d4', '1D4', { type: 'damage', dice: '1D4' }, '1D4', 2);
+  effect('damage', '1d6', '1D6', { type: 'damage', dice: '1D6' }, '1D6', 2);
+  effect('damage', '1d8', '1D8', { type: 'damage', dice: '1D8' }, '1D8', 3);
+  effect('damage', '2d4', '2D4', { type: 'damage', dice: '2D4' }, '2D4', 2);
+  effect('damage', '2d6', '2D6', { type: 'damage', dice: '2D6' }, '2D6', 3);
+  effect('damage', '2d8', '2D8', { type: 'damage', dice: '2D8' }, '2D8', 4);
+  effect('damage', '3d4', '3D4', { type: 'damage', dice: '3D4' }, '3D4', 3);
+  effect('damage', '3d6', '3D6', { type: 'damage', dice: '3D6' }, '3D6', 5);
+  effect('damage', '3d8', '3D8', { type: 'damage', dice: '3D8' }, '3D8', 6);
+  effect('damage', '4d4', '4D4', { type: 'damage', dice: '4D4' }, '4D4', 3);
+  effect('damage', '4d6', '4D6', { type: 'damage', dice: '4D6' }, '4D6', 5);
+  effect('damage', '4d8', '4D8', { type: 'damage', dice: '4D8' }, '4D8', 7);
+  effect('damage', '5d4', '5D4', { type: 'damage', dice: '5D4' }, '5D4', 4);
+  effect('damage', '5d6', '5D6', { type: 'damage', dice: '5D6' }, '5D6', 6);
+  effect('damage', '6d6', '6D6', { type: 'damage', dice: '6D6' }, '6D6', 7);
+  effect('damage', '5d8', '5D8', { type: 'damage', dice: '5D8' }, '5D8', 7);
 
   // Damage Types (Canonical Core Category)
   option('damage_type', 'fisico', 'Físico', undefined, 'fisico', 0);
@@ -350,64 +386,115 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('damage_type', 'perforante', 'Perforante', undefined, 'perforante', 0);
   option('damage_type', 'contundente', 'Contundente', undefined, 'contundente', 0);
 
-  // Healing & Barrier
-  effect('healing', '1', 'Curación 1', { type: 'healing', resourceId: 'SA', kind: 'fixed', amount: 1, magnitude: { kind: 'fixed', amount: 1 } }, '1', 1);
-  effect('healing', '2', 'Curación 2', { type: 'healing', resourceId: 'SA', kind: 'fixed', amount: 2, magnitude: { kind: 'fixed', amount: 2 } }, '2', 1);
-  effect('healing', '3', 'Curación 3', { type: 'healing', resourceId: 'SA', kind: 'fixed', amount: 3, magnitude: { kind: 'fixed', amount: 3 } }, '3', 2);
-  effect('healing', '4', 'Curación 4', { type: 'healing', resourceId: 'SA', kind: 'fixed', amount: 4, magnitude: { kind: 'fixed', amount: 4 } }, '4', 2);
-  effect('healing', '5', 'Curación 5', { type: 'healing', resourceId: 'SA', kind: 'fixed', amount: 5, magnitude: { kind: 'fixed', amount: 5 } }, '5', 3);
-  effect('healing', '10', 'Curación 10', { type: 'healing', resourceId: 'SA', kind: 'fixed', amount: 10, magnitude: { kind: 'fixed', amount: 10 } }, '10', 6);
-  effect('healing', 'es2', 'Recuperar 2 EST', { type: 'healing', resourceId: 'ES', kind: 'fixed', amount: 2, magnitude: { kind: 'fixed', amount: 2 } }, 'es2', 1);
-  effect('healing', 'hp2', 'Recuperar 2 HP', { type: 'healing', resourceId: 'SA', kind: 'fixed', amount: 2, magnitude: { kind: 'fixed', amount: 2 } }, 'hp2', 1);
-  effect('healing', 'es5', 'Recuperar 5 EST', { type: 'healing', resourceId: 'ES', kind: 'fixed', amount: 5, magnitude: { kind: 'fixed', amount: 5 } }, 'es5', 3);
-  effect('healing', 'hp5', 'Recuperar 5 HP', { type: 'healing', resourceId: 'SA', kind: 'fixed', amount: 5, magnitude: { kind: 'fixed', amount: 5 } }, 'hp5', 3);
-  effect('healing', 'es10', 'Recuperar 10 EST', { type: 'healing', resourceId: 'ES', kind: 'fixed', amount: 10, magnitude: { kind: 'fixed', amount: 10 } }, 'es10', 6);
-  effect('healing', 'hp10', 'Recuperar 10 HP', { type: 'healing', resourceId: 'SA', kind: 'fixed', amount: 10, magnitude: { kind: 'fixed', amount: 10 } }, 'hp10', 6);
-  effect('healing', '1d4', 'Curación 1D4', { type: 'healing', resourceId: 'SA', kind: 'dice', formula: '1D4', dice: '1D4', magnitude: { kind: 'dice', formula: '1D4' } }, '1D4', 1);
-  effect('healing', '1d6', 'Curación 1D6', { type: 'healing', resourceId: 'SA', kind: 'dice', formula: '1D6', dice: '1D6', magnitude: { kind: 'dice', formula: '1D6' } }, '1D6', 2);
-  effect('healing', '2d4', 'Curación 2D4', { type: 'healing', resourceId: 'SA', kind: 'dice', formula: '2D4', dice: '2D4', magnitude: { kind: 'dice', formula: '2D4' } }, '2D4', 2);
-  effect('healing', '2d6', 'Curación 2D6', { type: 'healing', resourceId: 'SA', kind: 'dice', formula: '2D6', dice: '2D6', magnitude: { kind: 'dice', formula: '2D6' } }, '2D6', 3);
-  effect('healing', '3d4', 'Curación 3D4', { type: 'healing', resourceId: 'SA', kind: 'dice', formula: '3D4', dice: '3D4', magnitude: { kind: 'dice', formula: '3D4' } }, '3D4', 3);
-  effect('healing', '3d6', 'Curación 3D6', { type: 'healing', resourceId: 'SA', kind: 'dice', formula: '3D6', dice: '3D6', magnitude: { kind: 'dice', formula: '3D6' } }, '3D6', 4);
-  effect('barrier', '10', 'Barrera 10', { type: 'barrier', amount: 10 }, '10', 1);
-  effect('barrier', '15', 'Barrera 15', { type: 'barrier', amount: 15 }, '15', 2);
-  effect('barrier', '20', 'Barrera 20', { type: 'barrier', amount: 20 }, '20', 2);
-  effect('barrier', '30', 'Barrera 30', { type: 'barrier', amount: 30 }, '30', 3);
-  effect('barrier', '40', 'Barrera 40', { type: 'barrier', amount: 40 }, '40', 4);
-  effect('barrier', '50', 'Barrera 50', { type: 'barrier', amount: 50 }, '50', 5);
+  // Healing: Canonical Core Category
+  // Fixed healing
+  effect('healing', '2', '2', { type: 'healing', kind: 'fixed', amount: 2, magnitude: { kind: 'fixed', amount: 2 } }, '2', 1);
+  effect('healing', '3', '3', { type: 'healing', kind: 'fixed', amount: 3, magnitude: { kind: 'fixed', amount: 3 } }, '3', 2);
+  effect('healing', '4', '4', { type: 'healing', kind: 'fixed', amount: 4, magnitude: { kind: 'fixed', amount: 4 } }, '4', 2);
+  effect('healing', '6', '6', { type: 'healing', kind: 'fixed', amount: 6, magnitude: { kind: 'fixed', amount: 6 } }, '6', 3);
+  effect('healing', '8', '8', { type: 'healing', kind: 'fixed', amount: 8, magnitude: { kind: 'fixed', amount: 8 } }, '8', 4);
 
-  // Numeric Modifiers (Generic magnitudes with sign)
-  for (const n of [1, 2, 3, 4, 5]) {
-    const bonusCost = n === 3 ? 2 : (n === 2 ? 1 : (n > 3 ? n - 1 : 0));
-    option('numeric_modifier', String(n), `+${n}`, undefined, String(n), bonusCost);
-    option('numeric_modifier', `-${n}`, `−${n}`, undefined, `-${n}`, 0);
+  // Dice healing
+  effect('healing', '1d4', '1D4', { type: 'healing', kind: 'dice', formula: '1D4', dice: '1D4', magnitude: { kind: 'dice', formula: '1D4' } }, '1D4', 1);
+  effect('healing', '2d4', '2D4', { type: 'healing', kind: 'dice', formula: '2D4', dice: '2D4', magnitude: { kind: 'dice', formula: '2D4' } }, '2D4', 1);
+  effect('healing', '3d4', '3D4', { type: 'healing', kind: 'dice', formula: '3D4', dice: '3D4', magnitude: { kind: 'dice', formula: '3D4' } }, '3D4', 2);
+  effect('healing', '4d4', '4D4', { type: 'healing', kind: 'dice', formula: '4D4', dice: '4D4', magnitude: { kind: 'dice', formula: '4D4' } }, '4D4', 2);
+  effect('healing', '5d4', '5D4', { type: 'healing', kind: 'dice', formula: '5D4', dice: '5D4', magnitude: { kind: 'dice', formula: '5D4' } }, '5D4', 3);
+  effect('healing', '1d6', '1D6', { type: 'healing', kind: 'dice', formula: '1D6', dice: '1D6', magnitude: { kind: 'dice', formula: '1D6' } }, '1D6', 2);
+  effect('healing', '2d6', '2D6', { type: 'healing', kind: 'dice', formula: '2D6', dice: '2D6', magnitude: { kind: 'dice', formula: '2D6' } }, '2D6', 3);
+  effect('healing', '3d6', '3D6', { type: 'healing', kind: 'dice', formula: '3D6', dice: '3D6', magnitude: { kind: 'dice', formula: '3D6' } }, '3D6', 3);
+  effect('healing', '4d6', '4D6', { type: 'healing', kind: 'dice', formula: '4D6', dice: '4D6', magnitude: { kind: 'dice', formula: '4D6' } }, '4D6', 4);
+  effect('healing', '5d6', '5D6', { type: 'healing', kind: 'dice', formula: '5D6', dice: '5D6', magnitude: { kind: 'dice', formula: '5D6' } }, '5D6', 5);
+  effect('healing', '1d8', '1D8', { type: 'healing', kind: 'dice', formula: '1D8', dice: '1D8', magnitude: { kind: 'dice', formula: '1D8' } }, '1D8', 3);
+  effect('healing', '2d8', '2D8', { type: 'healing', kind: 'dice', formula: '2D8', dice: '2D8', magnitude: { kind: 'dice', formula: '2D8' } }, '2D8', 4);
+  effect('healing', '3d8', '3D8', { type: 'healing', kind: 'dice', formula: '3D8', dice: '3D8', magnitude: { kind: 'dice', formula: '3D8' } }, '3D8', 5);
+  effect('healing', '4d8', '4D8', { type: 'healing', kind: 'dice', formula: '4D8', dice: '4D8', magnitude: { kind: 'dice', formula: '4D8' } }, '4D8', 6);
+
+  // Barrier: Canonical Core Category
+  effect('barrier', '15', '15', { type: 'barrier', amount: 15 }, '15', 1);
+  effect('barrier', '20', '20', { type: 'barrier', amount: 20 }, '20', 2);
+  effect('barrier', '30', '30', { type: 'barrier', amount: 30 }, '30', 3);
+  effect('barrier', '40', '40', { type: 'barrier', amount: 40 }, '40', 4);
+  effect('barrier', '50', '50', { type: 'barrier', amount: 50 }, '50', 5);
+
+  // Numeric Modifiers: Canonical Core Category (+1..+4 and -1..-5)
+  for (const n of [1, 2, 3, 4]) {
+    const cost = n - 1;
+    option('numeric_modifier', String(n), `+${n}`, undefined, String(n), cost);
   }
+  for (const n of [1, 2, 3, 4, 5]) {
+    const cost = n - 1;
+    option('numeric_modifier', `-${n}`, `-${n}`, undefined, `-${n}`, cost);
+  }
+  // +5 is retired / not available for new configurations (RULES-DATA-2.1)
+  option('numeric_modifier', '5', '+5', undefined, '5', 4, false);
 
   // Derived Stats (Core Category)
+  option('derived_stat', 'db', `${getDerivedStatLabel('DB')} (DB)`, undefined, 'DB', 1);
   option('derived_stat', 'eva', `${getDerivedStatLabel('EVA')} (EVA)`, undefined, 'EVA', 2);
   option('derived_stat', 'sal', `${getDerivedStatLabel('SAL')} (SA)`, undefined, 'SAL', 0);
   option('derived_stat', 'est', `${getDerivedStatLabel('EST')} (ES)`, undefined, 'EST', 0);
-  option('derived_stat', 'ini', `${getDerivedStatLabel('INI')} (INI)`, undefined, 'INI', 0);
-  option('derived_stat', 'rd', `${getDerivedStatLabel('RD')} (RD)`, undefined, 'RD', 0);
-  option('derived_stat', 'cor', `${getDerivedStatLabel('COR')} (COR)`, undefined, 'COR', 0);
+  option('derived_stat', 'ini', `${getDerivedStatLabel('INI')} (INI)`, undefined, 'INI', 2);
+  option('derived_stat', 'rd', `${getDerivedStatLabel('RD')} (RD)`, undefined, 'RD', 3);
+  option('derived_stat', 'cor', `${getDerivedStatLabel('COR')} (COR)`, undefined, 'COR', 2);
 
   // Attributes (Core Category)
-  option('attribute', 'fue', getAttributeLabel('FUE'), undefined, 'FUE', 0);
-  option('attribute', 'res', getAttributeLabel('RES'), undefined, 'RES', 0);
-  option('attribute', 'des', getAttributeLabel('DES'), undefined, 'DES', 0);
-  option('attribute', 'int', getAttributeLabel('INT'), undefined, 'INT', 0);
-  option('attribute', 'vel', getAttributeLabel('VEL'), undefined, 'VEL', 0);
-  option('attribute', 'vol', getAttributeLabel('VOL'), undefined, 'VOL', 0);
+  option('attribute', 'fue', getAttributeLabel('FUE'), undefined, 'FUE', 1);
+  option('attribute', 'res', getAttributeLabel('RES'), undefined, 'RES', 1);
+  option('attribute', 'des', getAttributeLabel('DES'), undefined, 'DES', 1);
+  option('attribute', 'int', getAttributeLabel('INT'), undefined, 'INT', 1);
+  option('attribute', 'vel', getAttributeLabel('VEL'), undefined, 'VEL', 1);
+  option('attribute', 'vol', getAttributeLabel('VOL'), undefined, 'VOL', 1);
+
+  // Skills (Core Category)
+  option('skill', 'carisma', 'Carisma', undefined, 'carisma', 3);
+  option('skill', 'presencia', 'Presencia', undefined, 'presencia', 3);
 
   // Health Cost (Sacrificio de HP)
   for (const n of [1, 2, 3, 4, 5]) {
     option('health_cost', String(n), `${n} HP`, { kind: 'consequence', role: 'consequence', when: 'activation', consequence: { kind: 'resource', resourceId: 'SA', amount: n } }, String(n), 0);
   }
 
-  // Status & Manual Adjustments
-  effect('status', 'stunned', 'Aturdido', { type: 'status', statusElementId: 'core.status.stunned' });
+  // Status (Canonical Altered Statuses)
+  effect('status', 'asfixia', 'Asfixia', { type: 'status', statusElementId: 'core.status.asfixia' }, 'asfixia', 3);
+  effect('status', 'stunned', 'Aturdido', { type: 'status', statusElementId: 'core.status.stunned' }, 'stunned', 3);
+  effect('status', 'berserker_grave', 'Berserker Grave', { type: 'status', statusElementId: 'core.status.berserker_grave' }, 'berserker_grave', 5);
+  effect('status', 'berserker_leve', 'Berserker Leve', { type: 'status', statusElementId: 'core.status.berserker_leve' }, 'berserker_leve', 3);
+  effect('status', 'coma_ilusorio', 'Coma Ilusorio', { type: 'status', statusElementId: 'core.status.coma_ilusorio' }, 'coma_ilusorio', 4);
+  effect('status', 'congelado', 'Congelado', { type: 'status', statusElementId: 'core.status.congelado' }, 'congelado', 3);
+  effect('status', 'conmocion', 'Conmoción', { type: 'status', statusElementId: 'core.status.conmocion' }, 'conmocion', 3);
+  effect('status', 'desbalanceado', 'Desbalanceado', { type: 'status', statusElementId: 'core.status.desbalanceado' }, 'desbalanceado', 3);
+  effect('status', 'desorientado', 'Desorientado', { type: 'status', statusElementId: 'core.status.desorientado' }, 'desorientado', 3);
+  effect('status', 'dormido', 'Dormido', { type: 'status', statusElementId: 'core.status.dormido' }, 'dormido', 3);
+  effect('status', 'electrocutado', 'Electrocutado', { type: 'status', statusElementId: 'core.status.electrocutado' }, 'electrocutado', 3);
+  effect('status', 'hemorragia_grave', 'Hemorragia Grave', { type: 'status', statusElementId: 'core.status.hemorragia_grave' }, 'hemorragia_grave', 6);
+  effect('status', 'hemorragia_leve', 'Hemorragia Leve', { type: 'status', statusElementId: 'core.status.hemorragia_leve' }, 'hemorragia_leve', 3);
+  effect('status', 'locura', 'Locura', { type: 'status', statusElementId: 'core.status.locura' }, 'locura', 3);
+  effect('status', 'miedo', 'Miedo / Aterrorizado', { type: 'status', statusElementId: 'core.status.miedo' }, 'miedo', 3);
+  effect('status', 'mutacion_visual', 'Mutación Visual', { type: 'status', statusElementId: 'core.status.mutacion_visual' }, 'mutacion_visual', 3);
+  effect('status', 'nulificacion_don', 'Nulificación de Don', { type: 'status', statusElementId: 'core.status.nulificacion_don' }, 'nulificacion_don', 5);
+  effect('status', 'quemadura_grave', 'Quemadura Grave', { type: 'status', statusElementId: 'core.status.quemadura_grave' }, 'quemadura_grave', 5);
+  effect('status', 'quemadura_leve', 'Quemadura Leve', { type: 'status', statusElementId: 'core.status.quemadura_leve' }, 'quemadura_leve', 2);
+  effect('status', 'ralentizado', 'Ralentizado', { type: 'status', statusElementId: 'core.status.ralentizado' }, 'ralentizado', 2);
+  effect('status', 'sobrecalentado', 'Sobrecalentado', { type: 'status', statusElementId: 'core.status.sobrecalentado' }, 'sobrecalentado', 3);
+  effect('status', 'veneno_grave', 'Veneno Grave', { type: 'status', statusElementId: 'core.status.veneno_grave' }, 'veneno_grave', 5);
+  effect('status', 'veneno_leve', 'Veneno Leve', { type: 'status', statusElementId: 'core.status.veneno_leve' }, 'veneno_leve', 2);
+  effect('status', 'inmovilizado', 'Inmovilizado', { type: 'status', statusElementId: 'core.status.inmovilizado' }, 'inmovilizado', 3);
+  // Legacy status options (preserved for backward compatibility, not available for new selection)
+  effect('status', 'vulnerable', 'Vulnerable', { type: 'status', statusElementId: 'core.status.vulnerable' }, 'vulnerable', 0, false);
+  effect('status', 'paralyzed', 'Paralizado', { type: 'status', statusElementId: 'core.status.paralyzed' }, 'paralyzed', 3, false);
+  effect('status', 'berserker', 'Berserker', { type: 'status', statusElementId: 'core.status.berserker' }, 'berserker', 3, false);
+
+  // Manual Adjustments & Costs
   effect('cost_adjustment', 'quirk1', '+1 a costes de quirk', { type: 'cost_adjustment', scopeId: 'quirk', amount: 1 });
+  effect('cost_adjustment', 'stamina_reduction', 'Reducción de Estamina', { type: 'cost_adjustment', scopeId: 'stamina', amount: -1 }, 'stamina_reduction', 4);
   effect('manual_resolution', 'unstable', 'Quirk inestable', { type: 'manual_resolution', message: 'El quirk se activa de forma inestable. El Master determina el efecto.' });
+
+  // Object Manipulation (Core Category core.object_manipulation)
+  effect('object_manipulation', 'small', 'Objetos pequeños (1–50 cm)', { type: 'object_manipulation', size: 'small', maxDimension: '50cm' }, 'small', 1);
+  effect('object_manipulation', 'medium', 'Objetos medianos (hasta 1.50 m)', { type: 'object_manipulation', size: 'medium', maxDimension: '1.50m' }, 'medium', 2);
+  effect('object_manipulation', 'large', 'Objetos grandes (hasta 5 m)', { type: 'object_manipulation', size: 'large', maxDimension: '5m' }, 'large', 4);
+  effect('object_manipulation', 'huge', 'Objetos enormes (hasta 10 m)', { type: 'object_manipulation', size: 'huge', maxDimension: '10m' }, 'huge', 6);
 
   // Transformation Magnitudes
   effect('transformation', 'body', 'Corporal', { type: 'transformation', magnitude: { type: 'body', value: 1 } }, 'body', 1);
@@ -417,56 +504,79 @@ export function createCoreCategories(): SystemMechanicsConfig {
   effect('transformation', '20m', '20 metros', { type: 'transformation', magnitude: { type: '20m', value: 6 } }, '20m', 6);
 
   // Target
-  option('target', 'self', 'Uno mismo', { kind: 'target', self: true, allies: false, enemies: false }, 'self');
-  option('target', 'enemy', 'Enemigo', { kind: 'target', self: false, allies: false, enemies: true }, 'enemy');
-  option('target', 'ally', 'Aliado', { kind: 'target', self: false, allies: true, enemies: false }, 'ally');
-  option('target', 'character', 'Personaje', { kind: 'target', self: true, allies: true, enemies: true }, 'character');
-  option('target', 'object', 'Objeto', undefined, 'object');
-  option('target', 'area', 'Área', undefined, 'area');
-  option('target', 'roll', 'Tirada', undefined, 'roll');
-  option('target', 'resource', 'Recurso', undefined, 'resource');
-  option('target', 'active_element', 'Elemento activo', undefined, 'active_element');
-  option('target', 'manual', 'Manual / A determinar', undefined, 'manual');
-  option('target', 'allies', 'Aliados', { kind: 'target', self: false, allies: true, enemies: false }, 'allies');
-  option('target', 'enemies', 'Enemigos', { kind: 'target', self: false, allies: false, enemies: true }, 'enemies');
-  option('target', 'any', 'Cualquiera', { kind: 'target', self: true, allies: true, enemies: true }, 'any');
+  option('target', 'self', 'Uno mismo', { kind: 'target', self: true, allies: false, enemies: false }, 'self', 0);
+  option('target', 'enemy', 'Enemigo', { kind: 'target', self: false, allies: false, enemies: true }, 'enemy', 0);
+  option('target', 'ally', 'Aliado', { kind: 'target', self: false, allies: true, enemies: false }, 'ally', 0);
+  option('target', 'character', 'Personaje', { kind: 'target', self: true, allies: true, enemies: true }, 'character', 0);
+  option('target', 'object', '1 objeto', undefined, 'object', 1);
+  option('target', 'structure', '1 estructura (edificio de hasta 2 pisos)', undefined, 'structure', 3);
+  option('target', 'area', 'Área', undefined, 'area', 0);
+  option('target', 'roll', 'Tirada', undefined, 'roll', 0);
+  option('target', 'resource', 'Recurso', undefined, 'resource', 0);
+  option('target', 'active_element', 'Elemento activo', undefined, 'active_element', 0);
+  option('target', 'manual', 'Manual / A determinar', undefined, 'manual', 0);
+  option('target', 'any', 'Cualquiera', { kind: 'target', self: true, allies: true, enemies: true }, 'any', 0);
+  // Legacy target options (marked isAvailable: false)
+  option('target', 'allies', 'Aliados (Legacy)', { kind: 'target', self: false, allies: true, enemies: false }, 'allies', 0, false);
+  option('target', 'enemies', 'Enemigos (Legacy)', { kind: 'target', self: false, allies: false, enemies: true }, 'enemies', 0, false);
 
-  // Target Count
-  for (const n of [1, 2, 3, 4, 5]) {
-    option('target_count', String(n), `Hasta ${n}`, { kind: 'target_count', min: 1, max: n }, String(n));
-  }
-  option('target_count', 'all', 'Todos los objetivos válidos', undefined, 'all');
+  // Target Count (Capacity & Asymmetry)
+  // Enemy capacities
+  option('target_count', 'enemy_1', '1 enemigo', { kind: 'target_count', min: 1, max: 1, targetType: 'enemy' }, 'enemy_1', 0);
+  option('target_count', 'enemy_2', 'Hasta 2 enemigos', { kind: 'target_count', min: 1, max: 2, targetType: 'enemy' }, 'enemy_2', 2);
+  option('target_count', 'enemy_3', 'Hasta 3 enemigos', { kind: 'target_count', min: 1, max: 3, targetType: 'enemy' }, 'enemy_3', 3);
+  // Ally capacities
+  option('target_count', 'ally_1', '1 aliado', { kind: 'target_count', min: 1, max: 1, targetType: 'ally' }, 'ally_1', 0);
+  option('target_count', 'ally_2', 'Hasta 2 aliados', { kind: 'target_count', min: 1, max: 2, targetType: 'ally' }, 'ally_2', 3);
+  option('target_count', 'ally_3', 'Hasta 3 aliados', { kind: 'target_count', min: 1, max: 3, targetType: 'ally' }, 'ally_3', 4);
+  // Generic target count fallbacks
+  option('target_count', '1', 'Hasta 1', { kind: 'target_count', min: 1, max: 1 }, '1', 0);
+  option('target_count', '2', 'Hasta 2', { kind: 'target_count', min: 1, max: 2 }, '2', 2);
+  option('target_count', '3', 'Hasta 3', { kind: 'target_count', min: 1, max: 3 }, '3', 3);
+  option('target_count', '4', 'Hasta 4', { kind: 'target_count', min: 1, max: 4 }, '4', 4);
+  option('target_count', '5', 'Hasta 5', { kind: 'target_count', min: 1, max: 5 }, '5', 5);
+  option('target_count', 'all', 'Todos los objetivos válidos', undefined, 'all', 0);
 
-  // Range
-  option('range', 'self', 'Personal', { kind: 'range', meters: 0 }, 'self');
-  option('range', 'contact', 'Contacto', { kind: 'range', meters: 1 }, 'contact');
-  option('range', 'distance', 'A distancia', { kind: 'range', meters: 10 }, 'distance');
-  option('range', 'unlimited', 'Ilimitado', { kind: 'range', meters: 9999 }, 'unlimited');
-  for (const meters of [0, 5, 10, 20, 50]) option('range', String(meters), `${meters} m`, { kind: 'range', meters }, String(meters));
+  // Range (Preserved structurally with 0 CE, no invented non-canonical distance costs)
+  option('range', 'self', 'Personal', { kind: 'range', meters: 0 }, 'self', 0);
+  option('range', 'contact', 'Contacto', { kind: 'range', meters: 1 }, 'contact', 0);
+  option('range', 'distance', 'A distancia', { kind: 'range', meters: 10 }, 'distance', 0);
+  option('range', 'unlimited', 'Ilimitado', { kind: 'range', meters: 9999 }, 'unlimited', 0);
+  for (const meters of [0, 5, 10, 20, 50]) option('range', String(meters), `${meters} m`, { kind: 'range', meters }, String(meters), 0);
 
-  // Area
-  option('area', 'radius', 'Radio circular', { kind: 'area', radius: 5 }, 'radius');
-  option('area', 'cone', 'Cono', undefined, 'cone');
-  option('area', 'line', 'Línea recta', undefined, 'line');
-  option('area', 'zone', 'Zona delimitada', undefined, 'zone');
-  for (const meters of [5, 10, 15, 20, 50]) option('area', String(meters), `${meters} m`, { kind: 'area', radius: meters }, String(meters));
+  // Area (Canonical Radius / Area of Effect)
+  option('area', 'radius', 'Radio circular', { kind: 'area', radius: 5 }, 'radius', 0);
+  option('area', 'cone', 'Cono', undefined, 'cone', 0);
+  option('area', 'line', 'Línea recta', undefined, 'line', 0);
+  option('area', 'zone', 'Zona delimitada', undefined, 'zone', 0);
+  option('area', '5', '5 metros a la redonda', { kind: 'area', radius: 5 }, '5', 1);
+  option('area', '10', '10 metros a la redonda', { kind: 'area', radius: 10 }, '10', 2);
+  option('area', '20', '20 metros a la redonda', { kind: 'area', radius: 20 }, '20', 3);
+  option('area', '50', '50 metros a la redonda', { kind: 'area', radius: 50 }, '50', 4);
+  option('area', '100', '100 metros a la redonda', { kind: 'area', radius: 100 }, '100', 5);
 
-  // Selection Mode (Core Category core.selection_restriction)
+  // Selection Mode (Core Category core.selection_restriction - All cost 0 CE)
   option('selection_restriction', 'standard_priority', 'Prioridad estándar', undefined, 'standard_priority', 0);
   option('selection_restriction', 'manual', 'Elección manual', undefined, 'manual', 0);
   option('selection_restriction', 'random', 'Aleatoria', undefined, 'random', 0);
-  option('selection_restriction', 'none', 'Sin restricción', undefined, 'none');
-  option('selection_restriction', 'nearest', 'Más cercano', undefined, 'nearest');
-  option('selection_restriction', 'specific', 'Específico', undefined, 'specific');
-  option('selection_restriction', 'exclude', 'Excluir específico', undefined, 'exclude');
+  option('selection_restriction', 'none', 'Sin restricción', undefined, 'none', 0);
+  option('selection_restriction', 'nearest', 'Más cercano', undefined, 'nearest', 0);
+  option('selection_restriction', 'specific', 'Específico', undefined, 'specific', 0);
+  option('selection_restriction', 'exclude', 'Excluir específico', undefined, 'exclude', 0);
 
   // Duration
   option('duration', 'instant', 'Instantánea', { kind: 'duration', duration: { mode: 'instant' } }, 'instant', 0);
   option('duration', 'turns', 'Por turnos', { kind: 'duration', duration: { mode: 'turns', turns: 1 } }, 'turns', 0);
   for (const n of [1, 2, 3, 4, 5]) {
     const durCost = n === 1 ? 0 : (n === 2 ? 1 : n - 1);
-    option('duration', String(n), `${n} turnos`, { kind: 'duration', duration: { mode: 'turns', turns: n } }, String(n), durCost);
+    const durLabel = n === 1 ? '1 turno' : `${n} turnos`;
+    option('duration', String(n), durLabel, { kind: 'duration', duration: { mode: 'turns', turns: n } }, String(n), durCost);
   }
+  // Tiempo Pasivo / Long-Term Duration (Canonical Core)
+  option('duration', '1_day', '1 día', { kind: 'duration', duration: { mode: 'passive_time', unit: 'day', value: 1 } }, '1_day', 4);
+  option('duration', '1_week', '1 semana', { kind: 'duration', duration: { mode: 'passive_time', unit: 'week', value: 1 } }, '1_week', 8);
+  option('duration', '1_month', '1 mes', { kind: 'duration', duration: { mode: 'passive_time', unit: 'month', value: 1 } }, '1_month', 14);
+
   option('duration', 'until_turn_end', 'Hasta el final del turno', { kind: 'duration', duration: { mode: 'until_turn_end' } }, 'until_turn_end');
   option('duration', 'until_next_turn', 'Hasta el siguiente turno', { kind: 'duration', duration: { mode: 'until_next_turn' } }, 'until_next_turn');
   option('duration', 'until_next_roll', 'Hasta la siguiente tirada', { kind: 'duration', duration: { mode: 'until_next_roll' } }, 'until_next_roll');
@@ -489,7 +599,7 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('activation', 'voluntary_reaction', 'Reacción voluntaria', { kind: 'activation', turns: 0, signalId: 'voluntary_reaction', passive: false }, 'voluntary_reaction');
   option('activation', 'free_action', 'Acción libre', { kind: 'activation', turns: 0, signalId: 'free_action', passive: false }, 'free_action');
   option('activation', 'passive', 'Pasivo', { kind: 'activation', turns: 0, signalId: '', passive: true }, 'passive');
-  option('activation', 'delay1', 'Preparación: 1 turno', { kind: 'activation', turns: 1, signalId: '', passive: false }, 'delay1');
+  option('activation', 'delay1', 'Preparación: 1 turno', { kind: 'activation', turns: 1, signalId: '', passive: false }, 'delay1', -1);
   option('activation', 'speech', 'Acción manual: discurso', { kind: 'activation', turns: 0, signalId: 'speech', passive: false }, 'speech');
   option('activation', 'manual', 'Activación manual', { kind: 'activation', turns: 0, signalId: 'manual', passive: false }, 'manual');
 
@@ -517,10 +627,12 @@ export function createCoreCategories(): SystemMechanicsConfig {
 
   // Limitations: Usage & Cooldown
   for (const period of ['turn', 'combat', 'mission', 'day'] as const) {
-    option('usage', period, `1 por ${{ turn: 'turno', combat: 'combate', mission: 'misión', day: 'día' }[period]}`, { kind: 'usage', period, max: 1 }, period, 0);
+    const usageCost = period === 'turn' ? 0 : -4;
+    option('usage', period, `1 por ${{ turn: 'turno', combat: 'combate', mission: 'misión', day: 'día' }[period]}`, { kind: 'usage', period, max: 1 }, period, usageCost);
   }
   for (const n of [1, 2, 3, 4, 5]) {
-    option('cooldown', String(n), `${n} ${n === 1 ? 'turno' : 'turnos'}`, { kind: 'cooldown', turns: n }, String(n), -n);
+    const cdCost = n === 2 ? -2 : 0;
+    option('cooldown', String(n), `${n} ${n === 1 ? 'turno' : 'turnos'}`, { kind: 'cooldown', turns: n }, String(n), cdCost);
   }
 
   // Roll Types
@@ -530,6 +642,7 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('roll_type', 'saving', 'Tirada de salvación', undefined, 'saving');
   option('roll_type', 'skill', 'Prueba de habilidad', undefined, 'skill');
   option('roll_type', 'all', 'Cualquier acción', undefined, 'all');
+  option('roll_type', 'roll', 'Tirada', undefined, 'roll', 3);
 
   // Conditions, Maintenance & Requirements
   option('maintenance', 'es1', '1 EST por turno', { kind: 'maintenance', resourceId: 'ES', amount: 1 }, 'es1', 0);
@@ -537,25 +650,36 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('maintenance', 'hp1', '1 HP por turno', { kind: 'maintenance', resourceId: 'SA', amount: 1 }, 'hp1', 0);
   option('maintenance', 'hp2', '2 HP por turno', { kind: 'maintenance', resourceId: 'SA', amount: 2 }, 'hp2', 0);
 
-  for (const [key, sense, label] of [['visual_contact', 'visual', 'Contacto visual'], ['auditory_contact', 'auditory', 'Contacto auditivo']] as const) option('manual_condition', key, label, { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'contact', sense }] });
-  option('manual_condition', 'physical_contact', 'Contacto físico', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'contact', sense: 'physical' }] });
-  option('manual_condition', 'speak_directly', 'Debe hablar directamente al objetivo', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'manual', signalId: 'speak_directly' }] }, 'speak_directly', 0);
-  option('manual_condition', 'conscious', 'Objetivo consciente', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'conscious' }] });
-  option('manual_condition', 'emotion', 'Emoción intensa', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'manual', signalId: 'intense_emotion' }] });
+  option('manual_condition', 'visual_contact', 'Contacto visual', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'contact', sense: 'visual' }] }, 'visual_contact', -1);
+  option('manual_condition', 'auditory_contact', 'Contacto auditivo', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'contact', sense: 'auditory' }] }, 'auditory_contact', -1);
+  option('manual_condition', 'physical_contact', 'Contacto físico', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'contact', sense: 'physical' }] }, 'physical_contact', -1);
+  option('manual_condition', 'speak_directly', 'Debe hablar directamente al objetivo', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'manual', signalId: 'speak_directly' }] }, 'speak_directly', -1);
+  option('manual_condition', 'conscious', 'Objetivo consciente', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'conscious' }] }, 'conscious', -2);
+  option('manual_condition', 'emotion', 'Emoción intensa', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'manual', signalId: 'intense_emotion' }] }, 'emotion', 0);
 
   option('resource_threshold', 'es50', 'ES ≤ 50%', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'resource', resourceId: 'ES', comparison: 'lte', percent: 50 }] }, 'es50', 0);
   option('resource_threshold', 'es25', 'ES ≤ 25%', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'resource', resourceId: 'ES', comparison: 'lte', percent: 25 }] }, 'es25', 0);
   option('resource_threshold', 'hp50', 'HP ≤ 50%', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'resource', resourceId: 'SA', comparison: 'lte', percent: 50 }] }, 'hp50', 0);
   option('resource_threshold', 'hp25', 'HP ≤ 25%', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'resource', resourceId: 'SA', comparison: 'lte', percent: 25 }] }, 'hp25', 0);
   
-  option('additional_requirement', 'active_ability', 'Técnica activa (configurar ID)', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'ability_active', abilityId: 'ability-id' }] }, 'active_ability', 0);
-  option('additional_requirement', 'consumption', 'Consumir algo', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'manual', signalId: 'consume_something' }] }, 'consumption', 0);
+  option('additional_requirement', 'active_ability', 'Técnica activa (configurar ID)', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'ability_active', abilityId: 'ability-id' }] }, 'active_ability', -2);
+  option('additional_requirement', 'consumption', 'Consumir algo', { kind: 'condition', role: 'requirement', match: 'all', predicates: [{ kind: 'manual', signalId: 'consume_something' }] }, 'consumption', -1);
   
   option('die_condition', '1to5', 'Algún dado entre 1 y 5', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'die', min: 1, max: 5 }] }, '1to5', 0);
   option('die_condition', 'crit', 'En tirada crítica', { kind: 'condition', role: 'condition', match: 'all', predicates: [{ kind: 'die', min: 6, max: 6 }] }, 'crit', 0);
 
   option('caps', 'ce', 'CE entre 0 y 100 (editable)', { kind: 'cap', subject: 'stamina_cost', min: 0, max: 100 }, 'ce', 0);
   option('caps', 'damage', 'Daño máximo acotado', { kind: 'cap', subject: 'damage', min: 0, max: 50 }, 'damage', 0);
+  option('caps', 'absorb_max_6', 'Absorbe un máximo de 6 de daño recibido', { kind: 'cap', subject: 'barrier', min: 0, max: 6 }, 'absorb_max_6', -3);
+
+  // Consequences (Canonical Core Category core.consequence)
+  option('consequence', 'self_damage_turn', 'Recibe 1 punto de daño cada turno activo', { kind: 'consequence', role: 'consequence', when: 'each_turn', consequence: { kind: 'resource', resourceId: 'SA', amount: 1 } }, 'self_damage_turn', -1);
+  option('consequence', 'self_damage_fixed_2', 'Recibe 2 puntos de daño al utilizarla', { kind: 'consequence', role: 'consequence', when: 'activation', consequence: { kind: 'resource', resourceId: 'SA', amount: 2 } }, 'self_damage_fixed_2', -1);
+  option('consequence', 'recoil_half', 'Recibe la mitad del daño provocado', { kind: 'consequence', role: 'consequence', when: 'after_damage', consequence: { kind: 'recoil', fraction: 0.5 } }, 'recoil_half', -4);
+  option('consequence', 'after_effect_int2_3t', 'Al finalizar: -2 INT durante 3 turnos por sobrecarga sensorial', { kind: 'consequence', role: 'consequence', when: 'end', consequence: { kind: 'attribute', attributeId: 'INT', amount: -2, turns: 3, untilEnd: false } }, 'after_effect_int2_3t', -3);
+  option('consequence', 'while_active_des2', '-2 Destreza mientras el efecto está activo', { kind: 'consequence', role: 'consequence', when: 'activation', consequence: { kind: 'attribute', attributeId: 'DES', amount: -2, turns: 1, untilEnd: true } }, 'while_active_des2', -2);
+  option('consequence', 'int2_per_active_turn', '-2 INT cada turno activo (Pendiente por ambigüedad)', { kind: 'consequence', role: 'consequence', when: 'each_turn', consequence: { kind: 'attribute', attributeId: 'INT', amount: -2, turns: 1 } }, 'int2_per_active_turn', -1, false);
+  option('consequence', 'overheated_threshold', 'Si queda en 5 de EST o menos: adquiere Sobrecalentado', { kind: 'consequence', role: 'consequence', when: 'activation', consequence: { kind: 'status', statusElementId: 'core.status.sobrecalentado', turns: 1 } }, 'overheated_threshold', -3);
 
   return systemMechanicsConfigSchema.parse(categories);
 }
@@ -588,13 +712,18 @@ export function getCategoryOptions(
     };
   };
 
-  if (!cat || !Array.isArray(cat.rules) || cat.rules.length === 0) {
+  // Only fall back to initial schema defaults if categories was not provided at all or is empty (e.g. uninitialized / offline unit tests)
+  if (!categories || categories.length === 0) {
     const coreCats = createCoreCategories();
     const fallbackCat = coreCats.find(
       c => c.id === categoryKeyOrId || c.coreKey === categoryKeyOrId || c.id === `core.${categoryKeyOrId}`
     );
     if (!fallbackCat || !Array.isArray(fallbackCat.rules)) return [];
     return fallbackCat.rules.map(extractRuleProps);
+  }
+
+  if (!cat || !Array.isArray(cat.rules)) {
+    return [];
   }
 
   return cat.rules.map(extractRuleProps);
@@ -624,7 +753,10 @@ export function getVisibleOptions<T extends { runtimeKey?: string; id?: string; 
 }
 
 export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig {
-  let parsed = systemMechanicsConfigSchema.parse(existing ?? []);
+  if (!existing || (Array.isArray(existing) && existing.length === 0)) {
+    return createCoreCategories();
+  }
+  let parsed = systemMechanicsConfigSchema.parse(existing);
   
   const manualCondition = parsed.find(m => m.id === 'core.manual_condition');
   if (manualCondition) {
@@ -764,19 +896,15 @@ export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig 
     return withFamily;
   });
 
-  // Backfill missing core categories
+  // Ensure all core categories exist in schema (without altering their configured options/rules)
   const defaultCoreCategories = createCoreCategories();
-  for (const defaultCat of defaultCoreCategories) {
-    const existingCat = parsed.find(c => c.id === defaultCat.id || c.coreKey === defaultCat.coreKey);
-    if (!existingCat) {
-      parsed.push(defaultCat);
-    } else {
-      // Backfill missing core options into existing categories without overwriting existing or custom rules
-      for (const defaultRule of defaultCat.rules) {
-        const hasRule = existingCat.rules.some(r => r.id === defaultRule.id || ((r as any).runtimeKey && (r as any).runtimeKey === (defaultRule as any).runtimeKey));
-        if (!hasRule) {
-          existingCat.rules.push(defaultRule);
-        }
+  if (parsed.length === 0) {
+    parsed = defaultCoreCategories;
+  } else {
+    for (const defaultCat of defaultCoreCategories) {
+      const existingCat = parsed.find(c => c.id === defaultCat.id || c.coreKey === defaultCat.coreKey);
+      if (!existingCat) {
+        parsed.push({ ...defaultCat, rules: [] });
       }
     }
   }
@@ -835,3 +963,395 @@ export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig 
 export function validateCoreCategories(value: SystemMechanicsConfig): boolean {
   return Object.keys(CORE_CATEGORIES).every(key => value.some(c => c.id === coreId(key) && c.coreKey === key)) && value.every(c => c.coreKey === undefined || c.id === coreId(String(c.coreKey)) && c.coreKey in CORE_CATEGORIES);
 }
+
+/**
+ * RULES-DATA-2: Controlled, explicit one-time catalog migration.
+ * Upgrades the dummy/default options of damage, healing, barrier, duration (turn values),
+ * and numeric_modifier to the canonical Shadowmore values, while preserving any
+ * custom non-canonical options in those categories and keeping all other categories
+ * untouched.
+ */
+export function migrateCanonicalCatalogRulesData2(existingCategories: SystemMechanicsConfig): SystemMechanicsConfig {
+  const canonicalCats = createCoreCategories();
+  const canonicalMap = new Map(canonicalCats.map(c => [c.id, c]));
+
+  const targetCategoryIds = [
+    'core.damage',
+    'core.healing',
+    'core.barrier',
+    'core.duration',
+    'core.numeric_modifier',
+  ];
+
+  const updated = existingCategories.map(cat => {
+    if (!targetCategoryIds.includes(cat.id)) {
+      return cat;
+    }
+
+    const canonicalCat = canonicalMap.get(cat.id);
+    if (!canonicalCat) return cat;
+
+    if (cat.id === 'core.duration') {
+      // Preserve non-turn duration rules (instant, sustained, while_condition, etc.)
+      // and replace 1-5 turns options with the canonical ones.
+      const nonTurnRules = cat.rules.filter(r => {
+        const rk = r.runtimeKey || r.id.split('.').pop() || '';
+        return !['1', '2', '3', '4', '5'].includes(rk);
+      });
+      const canonicalTurnRules = canonicalCat.rules.filter(r => {
+        const rk = r.runtimeKey || r.id.split('.').pop() || '';
+        return ['1', '2', '3', '4', '5'].includes(rk);
+      });
+      return {
+        ...cat,
+        rules: [...canonicalTurnRules, ...nonTurnRules],
+      };
+    }
+
+    // For damage, healing, barrier, numeric_modifier:
+    // Retain any custom rules (rules whose IDs do not start with core.<catKey> or are user-created)
+    // and replace core rules with the canonical list.
+    const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+    return {
+      ...cat,
+      rules: [...canonicalCat.rules, ...customUserRules],
+    };
+  });
+
+  return systemMechanicsConfigSchema.parse(updated);
+}
+
+/**
+ * RULES-DATA-2.1: Controlled, explicit one-time catalog migration.
+ * Corrects:
+ * - numeric_modifier: +5 marked isAvailable: false (does not exist in canonical catalog; kept for existing refs).
+ * - base attributes: FUE/DES/RES/INT/VEL/VOL to +1 CE.
+ * - derived stats: DB (+1 CE), EVA (+2 CE), COR (+2 CE), INI (+2 CE), RD (+3 CE).
+ * - skills: core.skill with Carisma (+3 CE), Presencia (+3 CE).
+ * - roll_type: roll ("Tirada") with +3 CE.
+ * - cost_adjustment: stamina_reduction ("Reducción de Estamina") with +4 CE.
+ */
+export function migrateCanonicalCatalogRulesData2_1(existingCategories: SystemMechanicsConfig): SystemMechanicsConfig {
+  const canonicalCats = createCoreCategories();
+  const canonicalMap = new Map(canonicalCats.map(c => [c.id, c]));
+
+  let updated = migrateCoreCategories(existingCategories);
+
+  updated = updated.map(cat => {
+    const canonicalCat = canonicalMap.get(cat.id);
+    if (!canonicalCat) return cat;
+
+    if (cat.id === 'core.numeric_modifier') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      const coreRules = canonicalCat.rules.map(cr => {
+        if (cr.id === 'core.numeric_modifier.5') {
+          return { ...cr, cost: 4, isAvailable: false };
+        }
+        return cr;
+      });
+      return {
+        ...cat,
+        rules: [...coreRules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.attribute') {
+      const canonicalAttrCosts: Record<string, number> = {
+        FUE: 1,
+        DES: 1,
+        RES: 1,
+        INT: 1,
+        VEL: 1,
+        VOL: 1,
+      };
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      const coreRules = canonicalCat.rules.map(cr => {
+        const rk = (cr.runtimeKey || '').toUpperCase();
+        const cost = canonicalAttrCosts[rk] ?? cr.cost ?? 1;
+        return { ...cr, cost };
+      });
+      return {
+        ...cat,
+        rules: [...coreRules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.derived_stat') {
+      const canonicalStatCosts: Record<string, number> = {
+        DB: 1,
+        EVA: 2,
+        COR: 2,
+        INI: 2,
+        RD: 3,
+        SAL: 0,
+        EST: 0,
+      };
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      const coreRules = canonicalCat.rules.map(cr => {
+        const rk = (cr.runtimeKey || '').toUpperCase();
+        const cost = canonicalStatCosts[rk] ?? cr.cost ?? 0;
+        return { ...cr, cost };
+      });
+      return {
+        ...cat,
+        rules: [...coreRules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.skill') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      return {
+        ...cat,
+        rules: [...canonicalCat.rules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.roll_type') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      const rules = [...cat.rules.filter(r => r.id.startsWith(`${cat.id}.`))];
+      for (const cr of canonicalCat.rules) {
+        if (!rules.some(r => r.id === cr.id || (r.runtimeKey && r.runtimeKey === cr.runtimeKey))) {
+          rules.push(cr);
+        }
+      }
+      return {
+        ...cat,
+        rules: [...rules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.cost_adjustment') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      const rules = [...cat.rules.filter(r => r.id.startsWith(`${cat.id}.`))];
+      for (const cr of canonicalCat.rules) {
+        if (!rules.some(r => r.id === cr.id || (r.runtimeKey && r.runtimeKey === cr.runtimeKey))) {
+          rules.push(cr);
+        }
+      }
+      return {
+        ...cat,
+        rules: [...rules, ...customUserRules],
+      };
+    }
+
+    return cat;
+  });
+
+  return systemMechanicsConfigSchema.parse(updated);
+}
+
+/**
+ * RULES-DATA-3A: Controlled, explicit one-time catalog migration.
+ * Integrates canonical rules and CE balance for:
+ * 1. Status (24 Altered Statuses with canonical CE, legacy statuses marked isAvailable: false)
+ * 2. Object Manipulation (small=1, medium=2, large=4, huge=6)
+ * 3. Transformation (body=1, 2m=2, 5m=3, 10m=4, 20m=6)
+ * 4. Duration (1_day=4, 1_week=8, 1_month=14)
+ */
+export function migrateCanonicalCatalogRulesData3A(existingCategories: SystemMechanicsConfig): SystemMechanicsConfig {
+  const canonicalCats = createCoreCategories();
+  const canonicalMap = new Map(canonicalCats.map(c => [c.id, c]));
+
+  let updated = migrateCoreCategories(existingCategories);
+
+  updated = updated.map(cat => {
+    const canonicalCat = canonicalMap.get(cat.id);
+    if (!canonicalCat) return cat;
+
+    if (cat.id === 'core.status') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      return {
+        ...cat,
+        rules: [...canonicalCat.rules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.object_manipulation') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      return {
+        ...cat,
+        rules: [...canonicalCat.rules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.transformation') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      return {
+        ...cat,
+        rules: [...canonicalCat.rules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.duration') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      const rules = [...cat.rules.filter(r => r.id.startsWith(`${cat.id}.`))];
+      for (const cr of canonicalCat.rules) {
+        const existingRule = rules.find(r => r.id === cr.id || (r.runtimeKey && r.runtimeKey === cr.runtimeKey));
+        if (!existingRule) {
+          rules.push(cr);
+        } else if (['1_day', '1_week', '1_month'].includes(cr.runtimeKey || '')) {
+          existingRule.cost = cr.cost;
+        }
+      }
+      return {
+        ...cat,
+        rules: [...rules, ...customUserRules],
+      };
+    }
+
+    return cat;
+  });
+
+  return systemMechanicsConfigSchema.parse(updated);
+}
+
+/**
+ * RULES-DATA-3B: Controlled, explicit one-time catalog migration.
+ * Integrates canonical rules and CE balance for:
+ * 1. Target (object=1, structure=3, self=0, enemy=0, ally=0, character=0)
+ * 2. Target Count (enemy_2=2, enemy_3=3, ally_2=3, ally_3=4, generic up_to N)
+ * 3. Area / Radius (5m=1, 10m=2, 20m=3, 50m=4, 100m=5)
+ * 4. Range (preserved with 0 CE)
+ * 5. Selection Restriction / Mode (all 0 CE)
+ */
+export function migrateCanonicalCatalogRulesData3B(existingCategories: SystemMechanicsConfig): SystemMechanicsConfig {
+  const canonicalCats = createCoreCategories();
+  const canonicalMap = new Map(canonicalCats.map(c => [c.id, c]));
+
+  let updated = migrateCoreCategories(existingCategories);
+
+  updated = updated.map(cat => {
+    const canonicalCat = canonicalMap.get(cat.id);
+    if (!canonicalCat) return cat;
+
+    if (cat.id === 'core.target') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      return {
+        ...cat,
+        rules: [...canonicalCat.rules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.target_count') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      return {
+        ...cat,
+        rules: [...canonicalCat.rules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.area') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      return {
+        ...cat,
+        rules: [...canonicalCat.rules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.range') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      return {
+        ...cat,
+        rules: [...canonicalCat.rules, ...customUserRules],
+      };
+    }
+
+    if (cat.id === 'core.selection_restriction') {
+      const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      return {
+        ...cat,
+        rules: [...canonicalCat.rules, ...customUserRules],
+      };
+    }
+
+    return cat;
+  });
+
+  return systemMechanicsConfigSchema.parse(updated);
+}
+
+/**
+ * RULES-DATA-4A: Controlled, explicit one-time catalog migration.
+ * Integrates canonical rules and CE balance for:
+ * 1. Activation delay (delay1 = -1 CE)
+ * 2. Cooldown (2 turns = -2 CE, other 1, 3, 4, 5 = 0 CE)
+ * 3. Usage limits (combat = -4 CE, mission = -4 CE, day = -4 CE, turn = 0 CE)
+ * 4. Manual conditions (visual_contact = -1, auditory_contact = -1, physical_contact = -1, speak_directly = -1, conscious = -2)
+ * 5. Additional requirements (consumption = -1, active_ability = -2)
+ */
+export function migrateCanonicalCatalogRulesData4A(existingCategories: SystemMechanicsConfig): SystemMechanicsConfig {
+  const canonicalCats = createCoreCategories();
+  const canonicalMap = new Map(canonicalCats.map(c => [c.id, c]));
+
+  let updated = migrateCoreCategories(existingCategories);
+
+  const targetCategoryIds = [
+    'core.activation',
+    'core.cooldown',
+    'core.usage',
+    'core.manual_condition',
+    'core.additional_requirement',
+  ];
+
+  updated = updated.map(cat => {
+    if (!targetCategoryIds.includes(cat.id)) {
+      return cat;
+    }
+
+    const canonicalCat = canonicalMap.get(cat.id);
+    if (!canonicalCat) return cat;
+
+    const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+    return {
+      ...cat,
+      rules: [...canonicalCat.rules, ...customUserRules],
+    };
+  });
+
+  return systemMechanicsConfigSchema.parse(updated);
+}
+
+/**
+ * RULES-DATA-4B: Controlled, explicit one-time catalog migration.
+ * Integrates canonical consequences and caps:
+ * 1. Self damage per active turn (-1 CE)
+ * 2. Fixed self damage 2 (-1 CE)
+ * 3. Half dealt damage recoil (-4 CE)
+ * 4. After-effect -2 INT for 3 turns (-3 CE)
+ * 5. -2 DES while active (-2 CE)
+ * 6. -2 INT per active turn (-1 CE)
+ * 7. EST <= 5 -> Overheated (-3 CE)
+ * 8. Absorb max 6 damage cap (-3 CE)
+ */
+export function migrateCanonicalCatalogRulesData4B(existingCategories: SystemMechanicsConfig): SystemMechanicsConfig {
+  const canonicalCats = createCoreCategories();
+  const canonicalMap = new Map(canonicalCats.map(c => [c.id, c]));
+
+  let updated = migrateCoreCategories(existingCategories);
+
+  const targetCategoryIds = [
+    'core.consequence',
+    'core.caps',
+    'core.health_cost',
+  ];
+
+  updated = updated.map(cat => {
+    if (!targetCategoryIds.includes(cat.id)) {
+      return cat;
+    }
+
+    const canonicalCat = canonicalMap.get(cat.id);
+    if (!canonicalCat) return cat;
+
+    const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+    return {
+      ...cat,
+      rules: [...canonicalCat.rules, ...customUserRules],
+    };
+  });
+
+  return systemMechanicsConfigSchema.parse(updated);
+}
+
+
+

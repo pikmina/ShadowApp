@@ -1,5 +1,5 @@
 import { assertElementMechanics, validateElementMechanics } from "../domain/elementMechanics.ts";
-import { migrateCoreCategories, validateCoreCategories } from "../domain/coreRuleCatalog.ts";
+import { createCoreCategories, migrateCanonicalCatalogRulesData2, migrateCanonicalCatalogRulesData2_1, migrateCanonicalCatalogRulesData3A, migrateCanonicalCatalogRulesData3B, migrateCanonicalCatalogRulesData4A, migrateCanonicalCatalogRulesData4B, migrateCoreCategories, validateCoreCategories } from "../domain/coreRuleCatalog.ts";
 import { systemMechanicsConfigSchema } from "../domain/systemMechanics.ts";
 import { systemElements, auditLogs } from "./schema.ts";
 import { db } from './index.ts';
@@ -179,10 +179,124 @@ export async function seedCoreRules() {
   await db.transaction(async tx => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(72643001)`);
     const [stored] = await tx.select().from(systemRules).where(eq(systemRules.key, 'system_mechanics'));
-    const value = migrateCoreCategories(stored?.value);
-    if (!stored || JSON.stringify(stored.value) !== JSON.stringify(value)) {
-      await tx.insert(systemRules).values({ key: 'system_mechanics', type: 'json', value, description: 'Motor universal de reglas' }).onConflictDoUpdate({ target: systemRules.key, set: { value, updatedAt: new Date() } });
+    const [migrationFlag2] = await tx.select().from(systemRules).where(eq(systemRules.key, 'migration_rules_data_2'));
+    const [migrationFlag21] = await tx.select().from(systemRules).where(eq(systemRules.key, 'migration_rules_data_2_1'));
+    const [migrationFlag3a] = await tx.select().from(systemRules).where(eq(systemRules.key, 'migration_rules_data_3a'));
+    const [migrationFlag3b] = await tx.select().from(systemRules).where(eq(systemRules.key, 'migration_rules_data_3b'));
+    const [migrationFlag4a] = await tx.select().from(systemRules).where(eq(systemRules.key, 'migration_rules_data_4a'));
+    const [migrationFlag4b] = await tx.select().from(systemRules).where(eq(systemRules.key, 'migration_rules_data_4b'));
+
+    if (!stored) {
+      // 1. Fresh installation bootstrap: create canonical catalog directly
+      const value = createCoreCategories();
+      await tx.insert(systemRules).values({
+        key: 'system_mechanics',
+        type: 'json',
+        value,
+        description: 'Motor universal de reglas',
+      });
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_2',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-2 aplicada',
+      }).onConflictDoNothing();
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_2_1',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-2.1 aplicada',
+      }).onConflictDoNothing();
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_3a',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-3A aplicada',
+      }).onConflictDoNothing();
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_3b',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-3B aplicada',
+      }).onConflictDoNothing();
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_4a',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-4A aplicada',
+      }).onConflictDoNothing();
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_4b',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-4B aplicada',
+      }).onConflictDoNothing();
+    } else if (!migrationFlag4b) {
+      // 2. Explicit controlled migration of current configuration to canonical catalog (runs ONCE for RULES-DATA-4B)
+      let baseValue = stored.value;
+      if (!migrationFlag2) baseValue = migrateCanonicalCatalogRulesData2(baseValue as any);
+      if (!migrationFlag21) baseValue = migrateCanonicalCatalogRulesData2_1(baseValue as any);
+      if (!migrationFlag3a) baseValue = migrateCanonicalCatalogRulesData3A(baseValue as any);
+      if (!migrationFlag3b) baseValue = migrateCanonicalCatalogRulesData3B(baseValue as any);
+      if (!migrationFlag4a) baseValue = migrateCanonicalCatalogRulesData4A(baseValue as any);
+      const value = migrateCanonicalCatalogRulesData4B(baseValue as any);
+      await tx.insert(systemRules).values({
+        key: 'system_mechanics',
+        type: 'json',
+        value,
+        description: 'Motor universal de reglas',
+      }).onConflictDoUpdate({ target: systemRules.key, set: { value, updatedAt: new Date() } });
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_2',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-2 aplicada',
+      }).onConflictDoNothing();
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_2_1',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-2.1 aplicada',
+      }).onConflictDoNothing();
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_3a',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-3A aplicada',
+      }).onConflictDoNothing();
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_3b',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-3B aplicada',
+      }).onConflictDoNothing();
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_4a',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-4A aplicada',
+      }).onConflictDoNothing();
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_4b',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-4B aplicada',
+      }).onConflictDoNothing();
+    } else {
+      // 3. Normal startup / restart after migration: DATABASE = SOURCE OF TRUTH.
+      // Only ensure missing core categories exist at schema level (with empty rules array).
+      // Never alter, backfill, or resurrect deleted/modified options.
+      const value = migrateCoreCategories(stored.value);
+      if (JSON.stringify(stored.value) !== JSON.stringify(value)) {
+        await tx.insert(systemRules).values({
+          key: 'system_mechanics',
+          type: 'json',
+          value,
+          description: 'Motor universal de reglas',
+        }).onConflictDoUpdate({ target: systemRules.key, set: { value, updatedAt: new Date() } });
+      }
     }
+
     await tx.insert(systemRules).values({
       key: 'employment_compensation', type: 'json', value: defaultEmploymentCompensation,
       description: 'Tablas de remuneración por nivel y riesgo para empleos',

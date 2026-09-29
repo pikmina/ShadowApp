@@ -16,6 +16,7 @@ export const effectTypeLabels: Record<MechanicalEffectType, string> = {
   cost_adjustment: "Modificar coste",
   manual_resolution: "Resolución manual",
   transformation: "Transformación",
+  object_manipulation: "Manipulación de objetos",
 };
 
 export function createEffectDefinition(type: MechanicalEffectType, previous?: MechanicalEffectDefinition): MechanicalEffectDefinition {
@@ -36,6 +37,7 @@ export function createEffectDefinition(type: MechanicalEffectType, previous?: Me
     case "rule_override": return { ...base, type, ruleId: "rule-id" };
     case "choice": return { ...base, type, options: ["Opción"] };
     case "transformation": return { ...base, type, magnitude: { type: "corporal", value: 1 } };
+    case "object_manipulation": return { ...base, type, size: "small", maxDimension: "50cm" };
   }
 }
 
@@ -46,6 +48,7 @@ export function describeEffect(effect: MechanicalEffectDefinition, targeting?: E
   if (effect.type === "damage") behavior += ` ${effect.dice}`;
   if (effect.type === "barrier") behavior += ` +${effect.amount}`;
   if (effect.type === "transformation") behavior += ` (${(effect as any).magnitude?.type ?? "corporal"})`;
+  if (effect.type === "object_manipulation") behavior += ` (${{"small": "1–50 cm", "medium": "hasta 1.50 m", "large": "hasta 5 m", "huge": "hasta 10 m"}[(effect as any).size ?? "small"] || (effect as any).size})`;
   if (effect.type === "healing") {
     const isDice = (effect as any).magnitude?.kind === "dice" || (effect as any).kind === "dice" || Boolean((effect as any).dice) || Boolean((effect as any).formula);
     if (isDice) {

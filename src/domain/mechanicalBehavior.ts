@@ -309,6 +309,7 @@ export const targetTypeSchema = z.enum([
   "character",
   "any",
   "object",
+  "structure",
   "area",
   "roll",
   "resource",
@@ -453,6 +454,13 @@ export function normalizeMechanicalTarget(target: unknown): MechanicalTarget {
 export const durationTypeSchema = z.enum([
   "instant",
   "turns",
+  "1_day",
+  "1_week",
+  "1_month",
+  "days",
+  "weeks",
+  "months",
+  "passive_time",
   "until_turn_end",
   "until_next_turn",
   "until_next_roll",
@@ -496,6 +504,7 @@ export const mechanicalDurationSchema = z.preprocess((val) => {
   type: durationTypeSchema.default("instant"),
   turns: z.number().int().positive().optional(),
   value: z.number().int().positive().optional(),
+  unit: z.enum(["turn", "day", "week", "month"]).optional(),
   conditionDescription: z.string().optional(),
 })).transform((dur) => {
   if (dur.type !== "turns") {
@@ -917,6 +926,16 @@ export const mechanicalEffectItemSchema = z.discriminatedUnion("type", [
     target: mechanicalTargetSchema.optional(),
     temporality: mechanicalTemporalitySchema.optional(),
   }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("object_manipulation"),
+    size: z.enum(["small", "medium", "large", "huge"]).or(z.string()).default("small"),
+    ruleId: z.string().optional(),
+    runtimeKey: z.string().optional(),
+    description: z.string().optional(),
+    target: mechanicalTargetSchema.optional(),
+    temporality: mechanicalTemporalitySchema.optional(),
+  }),
 ]);
 export type MechanicalEffectItem = z.infer<typeof mechanicalEffectItemSchema>;
 
@@ -1113,6 +1132,29 @@ export const mechanicalRequirementSchema = z.preprocess((val) => {
 export type MechanicalRequirement = z.infer<typeof mechanicalRequirementSchema>;
 
 // ==========================================
+// 9.2. CONSEQUENCES
+// ==========================================
+export const mechanicalConsequenceSchema = z.object({
+  id: z.string().optional(),
+  type: z.string(),
+  ruleId: z.string().optional(),
+  runtimeKey: z.string().optional(),
+  when: z.enum(["activation", "each_turn", "end", "after_damage"]).optional().default("activation"),
+  amount: z.number().optional(),
+  fraction: z.number().optional(),
+  attributeId: z.string().optional(),
+  resourceId: z.string().optional(),
+  statusElementId: z.string().optional(),
+  turns: z.number().optional(),
+  threshold: z.number().optional(),
+  value: z.number().optional(),
+  untilEnd: z.boolean().optional(),
+  description: z.string().optional(),
+  consequence: z.any().optional(),
+});
+export type MechanicalConsequence = z.infer<typeof mechanicalConsequenceSchema>;
+
+// ==========================================
 // 10. ADVANCED CONTROL
 // ==========================================
 export const mechanicalControlSchema = z.object({
@@ -1199,6 +1241,8 @@ export const mechanicalBehaviorSchema = z.object({
 
   limitations: z.array(mechanicalLimitationSchema).default([]),
 
+  consequences: z.array(mechanicalConsequenceSchema).optional(),
+
   control: mechanicalControlSchema.optional(),
 });
 export type MechanicalBehavior = z.infer<typeof mechanicalBehaviorSchema>;
@@ -1223,6 +1267,7 @@ export function createDefaultMechanicalBehavior(
     conditions: [],
     conditionLogic: "all",
     requirements: [],
+    consequences: [],
     resolution: { type: "automatic", outcomes: [] },
     effects: [],
     target: { type: "self" },
@@ -1286,6 +1331,8 @@ export function createDefaultMechanicalEffect(
       return { ...base, type: "manual", message: "Efecto manual a resolver por la narración." };
     case "transformation":
       return { ...base, type: "transformation", magnitude: { type: "corporal", value: 1 } };
+    case "object_manipulation":
+      return { ...base, type: "object_manipulation", size: "small" };
     default:
       return { ...base, type: "damage", dice: "1D6" };
   }

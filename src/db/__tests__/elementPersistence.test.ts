@@ -158,7 +158,7 @@ describe('Element service persistence contract with transactional storage adapte
     expect(afterSecondSeed.mechanicalBehaviors[0].id).toBe('custom_b1');
   });
   test('create/save/load/edit/save/reload/delete preserves references and valid falsy values', async () => {
-    const effects = [{ applicationId: 'a1', groupId: 'speech', mechanicId: 'core.healing', ruleId: 'core.healing.es2' }];
+    const effects = [{ applicationId: 'a1', groupId: 'speech', mechanicId: 'core.healing', ruleId: 'core.healing.2' }];
     const created = await upsertElement({ kind: 'trait', name: 'TEMP lifecycle', description: '', effects, metadata: { amount: 0, enabled: false } });
     expect((await getElement(created.id)).effects).toEqual(effects);
     await upsertElement({ id: created.id, name: 'TEMP renamed' });
@@ -183,13 +183,13 @@ describe('Element service persistence contract with transactional storage adapte
     expect(memory.tables.system_rules).toHaveLength(1);
   });
   test('removing an option referenced by elements lists the referencing elements in the error message', async () => {
-    const effects = [{ applicationId: 'a1', groupId: 'speech', mechanicId: 'core.healing', ruleId: 'core.healing.es2' }];
+    const effects = [{ applicationId: 'a1', groupId: 'speech', mechanicId: 'core.healing', ruleId: 'core.healing.2' }];
     await upsertElement({ kind: 'trait', name: 'Item Curativo Alpha', description: '', effects });
     await upsertElement({ kind: 'trait', name: 'Poción Beta', description: '', effects });
 
     const updatedMechanics = createCoreCategories().map(cat => {
       if (cat.id === 'core.healing') {
-        return { ...cat, rules: cat.rules.filter(r => r.id !== 'core.healing.es2') };
+        return { ...cat, rules: cat.rules.filter(r => r.id !== 'core.healing.2') };
       }
       return cat;
     });

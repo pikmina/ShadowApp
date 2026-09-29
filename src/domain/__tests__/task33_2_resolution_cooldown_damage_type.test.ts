@@ -193,15 +193,15 @@ describe('Tarea 33.2 — Resolución de Técnicas, Cooldown, Tipo de Daño y Des
           {
             id: 'e1',
             type: 'damage',
-            dice: '2D6', // cost 2
+            dice: '2D6', // cost 3
             damageType: 'radiante', // cost 2
           },
         ],
       };
 
       const cost = calculateTechniqueStructuralCost([behavior], coreCats);
-      // 2D6 (cost 2) + radiante (cost 2) = 4 CE
-      expect(cost).toBe(4);
+      // 2D6 (cost 3) + radiante (cost 2) = 5 CE
+      expect(cost).toBe(5);
     });
   });
 
@@ -240,14 +240,14 @@ describe('Tarea 33.2 — Resolución de Técnicas, Cooldown, Tipo de Daño y Des
           {
             id: 'e1',
             type: 'damage',
-            dice: '4D6', // cost 4
+            dice: '4D6', // cost 5
           },
         ],
       };
 
       const cost = calculateTechniqueStructuralCost([behavior], coreCats);
-      // 4 (4D6) + (-2 cooldown) = 2 CE
-      expect(cost).toBe(2);
+      // 5 (4D6) + (-2 cooldown) = 3 CE
+      expect(cost).toBe(3);
     });
 
     it('B. Añadir 4 turnos desde administración hace la opción válida sin modificar frontend', () => {

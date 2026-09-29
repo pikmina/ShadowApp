@@ -35,9 +35,9 @@ describe('FASE CE-3B: Normalización determinista de Daño, Curación y Barrera'
         { techniqueByLevel: [{ level: 1, cost: 1 }] } as any
       );
 
-      // 4D8 -> +4 CE, fuego -> +0 CE
-      // Total structural cost = 4 CE
-      expect(resultCE).toBe(4);
+      // 4D8 -> +7 CE, fuego -> +0 CE
+      // Total structural cost = 7 CE
+      expect(resultCE).toBe(7);
     });
 
     test('findDamageTypeOption resuelve correctamente tipos de daño', () => {
@@ -94,7 +94,7 @@ describe('FASE CE-3B: Normalización determinista de Daño, Curación y Barrera'
                 resourceId: 'ES',
                 magnitude: {
                   kind: 'fixed',
-                  amount: 5,
+                  amount: 6,
                 },
               },
             ],
@@ -108,7 +108,7 @@ describe('FASE CE-3B: Normalización determinista de Daño, Curación y Barrera'
         { techniqueByLevel: [{ level: 1, cost: 1 }] } as any
       );
 
-      // 5 con ES (es5) -> +3 CE
+      // 6 con ES -> +3 CE
       expect(resultCE).toBe(3);
     });
 
@@ -122,7 +122,7 @@ describe('FASE CE-3B: Normalización determinista de Daño, Curación y Barrera'
               {
                 type: 'healing',
                 resourceId: 'SA',
-                amount: 10, // hp10 -> +6 CE
+                amount: 8, // hp8 -> +4 CE
               },
             ],
           },
@@ -135,7 +135,7 @@ describe('FASE CE-3B: Normalización determinista de Daño, Curación y Barrera'
         { techniqueByLevel: [{ level: 1, cost: 1 }] } as any
       );
 
-      expect(resultCE).toBe(6);
+      expect(resultCE).toBe(4);
     });
   });
 

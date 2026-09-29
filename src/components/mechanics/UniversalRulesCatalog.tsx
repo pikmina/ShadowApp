@@ -19,7 +19,7 @@ import { systemMechanicsConfigSchema, type SystemMechanicsConfig } from '../../d
 import { getCoreCategoryContract } from '../../domain/coreRuleCatalog';
 import { createEffectDefinition, describeEffect, MechanicalEffectDefinitionEditor } from './MechanicalEffectDefinitionEditor';
 import { RuleComponentEditor, componentTemplates } from './RuleComponentEditor';
-import { Edit2, Plus, Trash2, Swords, Shield, HeartHandshake, Brain, Lock, Wrench, Package, HandFist, HeartPulse, BrickWall, UserRoundPlus, UserRoundMinus, BugOff, MessageSquareDiff, Handshake, Target, Hash, FoldHorizontal, LandPlot, Hourglass, Star, Clock, ArrowUpCircle, Ban, HandGrab, Eye, Ear, UserStar, Parentheses, KeyRound, CookingPot, Dices, BatteryCharging, BatteryPlus, BoneFracture, ClockArrowDown, Flame, LineDotRightHorizontal, ClockArrowRight, RefreshCw, Settings2, Sparkles, AlertCircle } from 'lucide-react';
+import { Edit2, Plus, Trash2, Swords, Shield, HeartHandshake, Brain, Lock, Wrench, Package, HandFist, HeartPulse, BrickWall, UserRoundPlus, UserRoundMinus, BugOff, MessageSquareDiff, Handshake, Target, Hash, FoldHorizontal, LandPlot, Hourglass, Star, Clock, ArrowUpCircle, Ban, HandGrab, Eye, Ear, UserStar, Parentheses, KeyRound, CookingPot, Dices, BatteryCharging, BatteryPlus, BoneFracture, ClockArrowDown, Flame, LineDotRightHorizontal, ClockArrowRight, RefreshCw, Settings2, Sparkles, AlertCircle, ShieldAlert, Sliders } from 'lucide-react';
 
 type Category = SystemMechanicsConfig[number];
 
@@ -84,6 +84,8 @@ const getLogicalTypeLabel = (type: string) => {
 
 export type MechanicalBehaviorGroupKey = 
   | 'effects'
+  | 'consequences'
+  | 'caps'
   | 'activation'
   | 'targeting'
   | 'conditions'
@@ -105,7 +107,21 @@ export const MECHANICAL_BEHAVIOR_GROUPS: CategoryGroupDef[] = [
     title: 'Efectos y Magnitudes',
     subtitle: 'Daño, curación, barreras, modificadores numéricos, estados alterados y transformaciones',
     icon: Swords,
-    coreKeys: ['damage', 'damage_type', 'healing', 'barrier', 'numeric_modifier', 'status', 'transformation', 'caps', 'health_cost', 'cost_adjustment']
+    coreKeys: ['damage', 'damage_type', 'healing', 'barrier', 'numeric_modifier', 'status', 'transformation', 'object_manipulation', 'cost_adjustment']
+  },
+  {
+    key: 'consequences',
+    title: 'Consecuencias y Efectos Secundarios',
+    subtitle: 'Daño propio, recoil, penalizaciones al finalizar y efectos secundarios',
+    icon: ShieldAlert,
+    coreKeys: ['consequence', 'health_cost']
+  },
+  {
+    key: 'caps',
+    title: 'Limitantes y Caps',
+    subtitle: 'Límites de absorción máxima, topes de daño y techos de parámetros',
+    icon: Sliders,
+    coreKeys: ['caps']
   },
   {
     key: 'activation',

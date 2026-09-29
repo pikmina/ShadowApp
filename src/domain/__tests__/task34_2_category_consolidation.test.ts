@@ -170,9 +170,9 @@ describe('TAREA 34.2 & 34.2.2 — Saneamiento y Consolidación de Categorías Me
     expect(heal2d4).toBeDefined();
     expect(heal2d4?.dice).toBe('2D4');
 
-    // 3D8 is not configured and fails
-    const heal3d8 = findHealingOption(categories, '3d8', 'SA');
-    expect(heal3d8).toBeUndefined();
+    // 5D8 is not configured in healing and fails
+    const heal5d8 = findHealingOption(categories, '5d8', 'SA');
+    expect(heal5d8).toBeUndefined();
 
     const behaviorInvalid: MechanicalBehavior = {
       id: 'b_heal_invalid',
@@ -182,11 +182,11 @@ describe('TAREA 34.2 & 34.2.2 — Saneamiento y Consolidación de Categorías Me
       conditionLogic: 'all',
       limitations: [],
       activation: { actionType: 'action', timing: 'immediate', turns: 0, description: '' },
-      effects: [{ id: 'e1', type: 'healing', dice: '3D8', resourceId: 'SA' }]
+      effects: [{ id: 'e1', type: 'healing', dice: '5D8', resourceId: 'SA' }]
     };
     const res = validateBehaviorMechanicalValues(behaviorInvalid, categories);
     expect(res.valid).toBe(false);
-    expect(res.errors[0]).toContain('3D8');
+    expect(res.errors[0]).toContain('5D8');
   });
 
   test('6. Independence of mechanical value and stamina cost (amount != staminaCost)', () => {
@@ -208,7 +208,8 @@ describe('TAREA 34.2 & 34.2.2 — Saneamiento y Consolidación de Categorías Me
     };
 
     const cost = calculateTechniqueStructuralCost({ level: 1, mechanicalBehaviors: [behavior] }, customCats);
-    expect(cost).toBe(7);
+    // VOL (1 CE) + numMod3 (7 CE) = 8 CE
+    expect(cost).toBe(8);
   });
 
   test('7. migrateCoreCategories preserves legacy customized bonus/penalty costs', () => {

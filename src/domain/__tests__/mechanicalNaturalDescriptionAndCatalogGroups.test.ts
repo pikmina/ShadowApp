@@ -204,10 +204,10 @@ describe('Task: Natural Mechanical Description & Visual Catalog Grouping', () =>
       expect(getCategoryGroupKey(customCat)).toBe('custom');
     });
 
-    it('B.3: Define los 7 grupos con títulos e iconos semánticos', () => {
-      expect(MECHANICAL_BEHAVIOR_GROUPS.length).toBe(7);
+    it('B.3: Define los grupos con títulos e iconos semánticos', () => {
+      expect(MECHANICAL_BEHAVIOR_GROUPS.length).toBe(9);
       const keys = MECHANICAL_BEHAVIOR_GROUPS.map(g => g.key);
-      expect(keys).toEqual(['effects', 'activation', 'targeting', 'conditions', 'temporality', 'resolution', 'custom']);
+      expect(keys).toEqual(['effects', 'consequences', 'caps', 'activation', 'targeting', 'conditions', 'temporality', 'resolution', 'custom']);
     });
   });
 });

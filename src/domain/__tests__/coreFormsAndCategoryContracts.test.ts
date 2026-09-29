@@ -28,7 +28,7 @@ describe('CORE-FORMS-1: Core Category Contracts & Contextual Forms', () => {
       expect(attrCat).toBeDefined();
       const fueRule = attrCat?.rules.find(r => r.runtimeKey === 'FUE' || r.id.endsWith('.fue') || r.id.endsWith('.FUE'));
       expect(fueRule).toBeDefined();
-      expect(fueRule?.cost).toBe(0);
+      expect(fueRule?.cost).toBe(1);
       expect(fueRule?.ruleType).toBe('cost_modifier');
       expect((fueRule as any).effect).toBeUndefined();
     });
@@ -246,7 +246,7 @@ describe('CORE-FORMS-1: Core Category Contracts & Contextual Forms', () => {
       expect(cost).toBe(4);
     });
 
-    it('resolves CE for FUE (+0 CE base or custom) + magnitude +2 (+1 CE) = 1 CE', () => {
+    it('resolves CE for FUE (+1 CE base) + magnitude +2 (+1 CE) = 2 CE', () => {
       const canonicalTechnique = {
         level: 1,
         mechanicalBehaviors: [
@@ -265,10 +265,10 @@ describe('CORE-FORMS-1: Core Category Contracts & Contextual Forms', () => {
 
       const cost = calculateTechniqueStructuralCost(canonicalTechnique, coreCategories);
       
-      // FUE cost = 0 CE
+      // FUE cost = 1 CE
       // Numeric +2 cost = +1 CE
-      // Total sum = 0 + 1 = 1 CE
-      expect(cost).toBe(1);
+      // Total sum = 1 + 1 = 2 CE
+      expect(cost).toBe(2);
     });
   });
 });

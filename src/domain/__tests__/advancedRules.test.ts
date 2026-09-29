@@ -40,7 +40,8 @@ test('OR conditions pass when one explicit predicate passes', () => {
 });
 test('on-hit effect waits for the hit and cannot resolve twice with a different event ID', () => {
   const config = structuredClone(categories);
-  config[0].rules[0].effect!.timing = 'on_hit';
+  const rule4d8 = config[0].rules.find(r => r.id === 'core.damage.4d8');
+  if (rule4d8 && rule4d8.effect) rule4d8.effect.timing = 'on_hit';
   const group = resolveAppliedMechanics(refs('damage.4d8'), config).groups[0];
   const activation = evaluateRuleGroup(group, c);
   expect(activation.operations.some(o => o.kind === 'effect')).toBe(false);

@@ -1244,7 +1244,7 @@ function ConditionsEditor({
                       opt.ruleType === "component"
                   );
 
-                  if (allOptions.length === 0) {
+                  if (allOptions.length === 0 && (!mechanics || mechanics.length === 0)) {
                     const coreCats = createCoreCategories();
                     allOptions.push(
                       ...getCategoryOptions(coreCats, "manual_condition"),

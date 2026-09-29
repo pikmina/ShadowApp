@@ -13,6 +13,7 @@ import {
   MechanicalTarget,
   MechanicalCondition,
   MechanicalLimitation,
+  MechanicalConsequence,
   MechanicalTrigger,
   MechanicalTemporality,
   MechanicalActivation,
@@ -227,6 +228,16 @@ export function describeMechanicalTarget(
         text = `Hasta ${pluralize(count, "objeto", "objetos")}`;
       } else {
         text = pluralize(count, "objeto", "objetos");
+      }
+      break;
+
+    case "structure":
+      if (mode === "all") {
+        text = "Todas las estructuras";
+      } else if (mode === "up_to") {
+        text = `Hasta ${pluralize(count, "estructura de hasta 2 pisos", "estructuras de hasta 2 pisos")}`;
+      } else {
+        text = pluralize(count, "estructura de hasta 2 pisos", "estructuras de hasta 2 pisos");
       }
       break;
 
@@ -567,6 +578,13 @@ export function describeMechanicalEffect(
       break;
     }
 
+    case "object_manipulation": {
+      const sizeKey = (eff as any).size || (eff as any).magnitude || "small";
+      const sizeLabel = (MECHANICAL_LABELS.objectSizes as Record<string, string>)?.[sizeKey] || "Objetos";
+      text = `Manipula ${sizeLabel.toLowerCase()}`;
+      break;
+    }
+
     default: {
       const unkType = (eff as any).type;
       text = `Efecto desconocido (${unkType})`;
@@ -711,7 +729,7 @@ export function describeMechanicalCondition(
         ...(options?.mechanics ? getCategoryOptions(options.mechanics, "additional_requirement") : [])
       ];
 
-      if (allOptions.length === 0) {
+      if (allOptions.length === 0 && (!options?.mechanics || options.mechanics.length === 0)) {
         const coreCats = createCoreCategories();
         allOptions.push(
           ...getCategoryOptions(coreCats, "manual_condition"),
@@ -968,8 +986,52 @@ export function describeMechanicalTrigger(
 }
 
 // ============================================================================
-// 7. TEMPORALITY RENDERERS (Duration, Frequency, Maintenance)
+// 5.1. CONSEQUENCE & CAP RENDERERS
 // ============================================================================
+
+export function describeMechanicalConsequence(cons: MechanicalConsequence | any): string {
+  if (!cons) return "";
+  if (cons.description && cons.description.trim()) {
+    return cons.description.trim();
+  }
+  const t = cons.type || cons.ruleId || cons.runtimeKey;
+  if (t === "self_damage_turn" || (cons.type === "resource" && cons.when === "each_turn")) {
+    return "Recibe 1 punto de daño por cada turno activo";
+  }
+  if (t === "self_damage_fixed_2" || t === "self_damage_fixed" || (cons.type === "resource" && cons.when === "activation")) {
+    return `Recibe ${cons.amount ?? 2} puntos de daño al utilizar la técnica`;
+  }
+  if (t === "recoil_half" || t === "recoil") {
+    return "Recibe la mitad del daño que provoque";
+  }
+  if (t === "after_effect_int2_3t" || t === "after_effect") {
+    return "Al finalizar, recibe -2 INT durante 3 turnos por sobrecarga sensorial";
+  }
+  if (t === "while_active_des2" || t === "while_active_modifier") {
+    return "Obtiene -2 DES mientras la técnica permanezca activa";
+  }
+  if (t === "int2_per_active_turn" || t === "per_turn_modifier") {
+    return "Recibe -2 INT por cada turno activo";
+  }
+  if (t === "overheated_threshold" || t === "resource_threshold_status") {
+    return "Si queda en 5 de EST o menos, adquiere Sobrecalentado";
+  }
+  return "Efecto secundario o consecuencia activa";
+}
+
+export function describeMechanicalCap(cap: any): string {
+  if (!cap) return "";
+  if (cap.subject === "absorb_max_6" || cap.max === 6 || cap.subject === "barrier" || cap.subject === "damage_absorbed") {
+    return "Puede absorber un máximo de 6 puntos de daño";
+  }
+  if (cap.subject === "stamina_cost") {
+    return `Coste de Estamina acotado entre ${cap.min ?? 0} y ${cap.max}`;
+  }
+  if (cap.subject === "damage") {
+    return `Daño máximo acotado a ${cap.max}`;
+  }
+  return `Límite máximo de ${cap.subject}: ${cap.max}`;
+}
 
 export interface DescribeTemporalityResult {
   text: string;
@@ -1021,6 +1083,23 @@ export function describeMechanicalTemporality(
             clauses.push(`Durante ${pluralize(durTurns, "turno", "turnos")}`);
           }
           break;
+        case "1_day":
+        case "days":
+          clauses.push("Durante 1 día");
+          break;
+        case "1_week":
+        case "weeks":
+          clauses.push("Durante 1 semana");
+          break;
+        case "1_month":
+        case "months":
+          clauses.push("Durante 1 mes");
+          break;
+        case "passive_time": {
+          const u = (dur as any).unit === "month" ? "1 mes" : (dur as any).unit === "week" ? "1 semana" : "1 día";
+          clauses.push(`Durante ${u}`);
+          break;
+        }
         case "until_turn_end":
           clauses.push("Hasta el final del turno");
           break;
@@ -1210,12 +1289,34 @@ export function describeMechanicalBehavior(
     warnings.push(...trigRes.warnings);
   }
 
-  // 3. Conditions
+  // 3. Conditions & Requirements
   for (const cond of behavior.conditions ?? []) {
     const cRes = describeMechanicalCondition(cond, options);
     if (cRes.text) sections.conditions.push(cRes.text);
     if (!cRes.complete) isComplete = false;
     warnings.push(...cRes.warnings);
+  }
+
+  for (const req of (behavior as any).requirements ?? []) {
+    if (req) {
+      if (req.description) {
+        sections.conditions.push(req.description);
+      } else if (req.type === 'physical_contact') {
+        sections.conditions.push('Requiere contacto físico');
+      } else if (req.type === 'visual_contact') {
+        sections.conditions.push('Requiere contacto visual');
+      } else if (req.type === 'auditory_contact') {
+        sections.conditions.push('Requiere contacto auditivo');
+      } else if (req.type === 'target_conscious') {
+        sections.conditions.push('El objetivo debe estar consciente');
+      } else if (req.type === 'speak_directly') {
+        sections.conditions.push('Requiere hablar directamente al objetivo');
+      } else if (req.type === 'consume') {
+        sections.conditions.push('Requiere consumir el objeto');
+      } else if (req.type === 'active_ability') {
+        sections.conditions.push('Requiere comportamiento activo');
+      }
+    }
   }
 
   // 4. Effects
@@ -1266,7 +1367,23 @@ export function describeMechanicalBehavior(
     warnings.push(...rRes.warnings);
   }
 
-  // 7. External Cost Context
+  // 7. Consequences & Control Caps
+  if (Array.isArray(behavior.consequences)) {
+    for (const cons of behavior.consequences) {
+      const desc = describeMechanicalConsequence(cons);
+      if (desc) sections.limitations.push(desc);
+    }
+  }
+
+  if (behavior.control) {
+    const capsList = Array.isArray((behavior.control as any).caps) ? (behavior.control as any).caps : (behavior.control.cap ? [behavior.control.cap] : []);
+    for (const cap of capsList) {
+      const desc = describeMechanicalCap(cap);
+      if (desc) sections.limitations.push(desc);
+    }
+  }
+
+  // 8. External Cost Context
   if (typeof context?.staminaCost === "number") {
     sections.cost.push(`Coste: ${context.staminaCost} de Estamina`);
   }

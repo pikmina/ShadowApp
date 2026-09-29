@@ -11,6 +11,7 @@ export const ruleDurationSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('until_next_use') }),
   z.strictObject({ mode: z.literal('while_owned') }),
   z.strictObject({ mode: z.literal('permanent') }),
+  z.strictObject({ mode: z.literal('passive_time'), unit: z.enum(['day', 'week', 'month']), value: z.number().int().positive() }),
 ]);
 export const predicateSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('contact'), sense: z.enum(['physical', 'visual', 'auditory']) }),
@@ -31,7 +32,7 @@ export const consequenceSchema = z.discriminatedUnion('kind', [
 ]);
 export const ruleComponentSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('target'), self: z.boolean(), allies: z.boolean(), enemies: z.boolean() }),
-  z.strictObject({ kind: z.literal('target_count'), min: z.number().int().positive(), max: z.number().int().positive() }),
+  z.strictObject({ kind: z.literal('target_count'), min: z.number().int().positive(), max: z.number().int().positive(), targetType: z.enum(['enemy', 'ally', 'character', 'object', 'structure', 'any']).optional() }),
   z.strictObject({ kind: z.literal('range'), meters: z.number().nonnegative() }),
   z.strictObject({ kind: z.literal('area'), radius: z.number().positive() }),
   z.strictObject({ kind: z.literal('duration'), duration: ruleDurationSchema }),

@@ -159,6 +159,18 @@ export interface ParticipantRuntimeState {
   /** Active timed effects being tracked */
   activeTimedEffects: ActiveTimedEffect[];
 
+  /** Active attribute/stat modifiers currently affecting this participant */
+  activeModifiers?: Array<{
+    id: string;
+    sourceBehaviorId?: string;
+    attributeId?: string;
+    amount: number;
+    turns?: number;
+    untilEnd?: boolean;
+    appliedAtTurn?: number;
+    expiresAtTurn?: number;
+  }>;
+
   /** Set of processed event IDs to prevent duplicate triggers */
   executedBehaviorEvents: string[];
 
@@ -218,6 +230,7 @@ export function createParticipantRuntimeState(entityId: string, turn: number = 1
     usageCounters: {},
     reservedInventory: {},
     activeTimedEffects: [],
+    activeModifiers: [],
     executedBehaviorEvents: [],
     actionBlocks: [],
     turnLoss: 0,
@@ -354,6 +367,11 @@ export function advanceTurn(
                 Object.assign(world[entityId], res.newWorld[entityId]);
               }
             }
+          } else if ((timed.effect as any).type === "consequence_periodic_hp") {
+            const tickHp = (timed.effect as any).amount ?? 1;
+            if (world && world[entityId]) {
+              world[entityId].resources.SA.current = Math.max(0, world[entityId].resources.SA.current - tickHp);
+            }
           } else if (timed.effect.type === "healing") {
             let tickHealing = (timed.effect as any).amount ?? 0;
             const formula = (timed.effect as any).formula ?? (timed.effect as any).magnitude?.formula ?? (timed.effect as any).dice;
@@ -392,14 +410,44 @@ export function advanceTurn(
       if (effect.remainingTurns !== undefined) {
         effect.remainingTurns -= 1;
       }
+
+      let isExpired = false;
       if (effect.expiresAtTurn !== undefined) {
-        return effect.expiresAtTurn >= next.turn;
+        isExpired = next.turn > effect.expiresAtTurn;
+      } else if (effect.remainingTurns !== undefined) {
+        isExpired = effect.remainingTurns < 0;
       }
-      if (effect.remainingTurns !== undefined) {
-        return effect.remainingTurns >= 0;
+
+      if (isExpired) {
+        // Trigger after-effect if present
+        if ((effect.effect as any)?.type === 'after_effect_modifier') {
+          if (!participant.activeModifiers) participant.activeModifiers = [];
+          const eff = effect.effect as any;
+          participant.activeModifiers.push({
+            id: `mod_after_${effect.sourceBehaviorId}_${Date.now()}`,
+            sourceBehaviorId: effect.sourceBehaviorId,
+            attributeId: eff.attributeId ?? 'INT',
+            amount: eff.amount ?? -2,
+            turns: eff.turns ?? 3,
+            appliedAtTurn: next.turn,
+            expiresAtTurn: next.turn + (eff.turns ?? 3),
+          });
+        }
+        return false;
       }
+
       return true;
     });
+
+    // Clean up activeModifiers that have expired
+    if (participant.activeModifiers) {
+      participant.activeModifiers = participant.activeModifiers.filter((m) => {
+        if (m.expiresAtTurn !== undefined) {
+          return next.turn < m.expiresAtTurn;
+        }
+        return true;
+      });
+    }
 
     // Process behaviors with counter reset on turn_end or turn_without_quirk
     if (ownedBehaviorsByEntity?.[entityId]) {
@@ -1877,6 +1925,7 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
   }
 
   // 4. Apply Effects
+  let totalFinalDamageDealt = 0;
   const appliedEffects: MechanicalEffectItem[] = [];
   const emittedEvents: MechanicalEvent[] = [];
 
@@ -2090,6 +2139,7 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
             encounter: newEncounter,
           });
           newWorld = res.newWorld;
+          totalFinalDamageDealt += res.finalDamage;
         }
 
         const effectiveTemp = resolveEffectiveTemporality(eff, behavior);
@@ -2315,6 +2365,148 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
 
       default:
         break;
+    }
+  }
+
+  // 4b. Process Consequences
+  const currentSourceEntity = newWorld[sourceEntityId];
+  if (Array.isArray(behavior.consequences)) {
+    for (const cons of behavior.consequences) {
+      if (!cons) continue;
+
+      // 1. Fixed self damage (activation)
+      if (
+        cons.type === 'self_damage_fixed' ||
+        cons.type === 'self_damage_fixed_2' ||
+        (cons.type === 'resource' && cons.when === 'activation' && cons.amount === 2) ||
+        (cons.type === 'hp_cost' && cons.amount === 2)
+      ) {
+        const amt = cons.amount ?? 2;
+        if (currentSourceEntity) {
+          currentSourceEntity.resources.SA.current = Math.max(0, currentSourceEntity.resources.SA.current - amt);
+        }
+        participant.hpLostThisTurn = (participant.hpLostThisTurn ?? 0) + amt;
+      }
+
+      // 2. Periodic self damage (each active turn)
+      if (
+        cons.type === 'self_damage_turn' ||
+        (cons.type === 'resource' && cons.when === 'each_turn' && cons.amount === 1)
+      ) {
+        if (!participant.activeTimedEffects) participant.activeTimedEffects = [];
+        const alreadyHas = participant.activeTimedEffects.some(
+          t => t.sourceBehaviorId === behavior.id && (t.effect as any).type === 'consequence_periodic_hp'
+        );
+        if (!alreadyHas) {
+          const turns = behavior.temporality?.duration?.turns ?? 3;
+          participant.activeTimedEffects.push({
+            id: `cons_hp_${behavior.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            sourceEntityId,
+            targetEntityId: sourceEntityId,
+            effect: { id: `eff_periodic_hp`, type: 'consequence_periodic_hp', amount: cons.amount ?? 1 } as any,
+            temporality: behavior.temporality ?? { duration: { type: 'turns', turns } },
+            remainingTurns: turns,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + turns,
+            periodicity: { mode: 'each_turn' },
+          });
+        }
+      }
+
+      // 3. Recoil (after damage)
+      if (
+        cons.type === 'recoil_half' ||
+        cons.type === 'recoil' ||
+        cons.consequence?.kind === 'recoil' ||
+        (cons.when === 'after_damage' && cons.consequence?.fraction === 0.5)
+      ) {
+        const frac = cons.fraction ?? cons.consequence?.fraction ?? 0.5;
+        const dmgDealt = totalFinalDamageDealt;
+        const recoilDmg = Math.floor(dmgDealt * frac);
+        if (recoilDmg > 0 && currentSourceEntity) {
+          currentSourceEntity.resources.SA.current = Math.max(0, currentSourceEntity.resources.SA.current - recoilDmg);
+          participant.hpLostThisTurn = (participant.hpLostThisTurn ?? 0) + recoilDmg;
+        }
+      }
+
+      // 4. After-effect (on effect end)
+      if (
+        cons.type === 'after_effect' ||
+        cons.type === 'after_effect_int2_3t' ||
+        (cons.when === 'end' && (cons.attributeId === 'INT' || cons.consequence?.attributeId === 'INT'))
+      ) {
+        if (!participant.activeTimedEffects) participant.activeTimedEffects = [];
+        const alreadyHas = participant.activeTimedEffects.some(
+          t => t.sourceBehaviorId === behavior.id && (t.effect as any).type === 'after_effect_modifier'
+        );
+        if (!alreadyHas) {
+          const behaviorTurns = behavior.temporality?.duration?.turns ?? 2;
+          participant.activeTimedEffects.push({
+            id: `cons_after_${behavior.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            sourceEntityId,
+            targetEntityId: sourceEntityId,
+            effect: {
+              id: `eff_after_mod`,
+              type: 'after_effect_modifier',
+              attributeId: cons.attributeId ?? cons.consequence?.attributeId ?? 'INT',
+              amount: cons.amount ?? cons.consequence?.amount ?? -2,
+              turns: cons.turns ?? cons.consequence?.turns ?? 3,
+            } as any,
+            temporality: behavior.temporality ?? { duration: { type: 'turns', turns: behaviorTurns } },
+            remainingTurns: behaviorTurns,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + behaviorTurns,
+          });
+        }
+      }
+
+      // 5. While active modifier
+      if (
+        cons.type === 'while_active_des2' ||
+        cons.type === 'while_active_modifier' ||
+        (cons.attributeId === 'DES' && cons.untilEnd) ||
+        (cons.consequence?.attributeId === 'DES' && cons.consequence?.untilEnd)
+      ) {
+        if (!participant.activeModifiers) participant.activeModifiers = [];
+        const attrId = cons.attributeId ?? cons.consequence?.attributeId ?? 'DES';
+        const alreadyHas = participant.activeModifiers.some(
+          m => m.sourceBehaviorId === behavior.id && m.attributeId === attrId
+        );
+        if (!alreadyHas) {
+          const behaviorTurns = behavior.temporality?.duration?.turns ?? 1;
+          participant.activeModifiers.push({
+            id: `mod_while_${behavior.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            attributeId: attrId,
+            amount: cons.amount ?? cons.consequence?.amount ?? -2,
+            untilEnd: true,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + behaviorTurns,
+          });
+        }
+      }
+
+      // 6. Threshold status (EST <= 5)
+      if (
+        cons.type === 'overheated_threshold' ||
+        cons.type === 'resource_threshold_status' ||
+        (cons.resourceId === 'ES' && (cons.threshold === 5 || cons.value === 5)) ||
+        (cons.consequence?.statusElementId === 'core.status.sobrecalentado')
+      ) {
+        const esVal = currentSourceEntity?.resources.ES?.current ?? 30;
+        const thresh = cons.threshold ?? cons.value ?? 5;
+        if (esVal <= thresh && currentSourceEntity) {
+          if (!currentSourceEntity.statuses) currentSourceEntity.statuses = [];
+          if (!currentSourceEntity.statuses.some((s: any) => s.statusElementId === 'core.status.sobrecalentado' || s.id === 'core.status.sobrecalentado')) {
+            currentSourceEntity.statuses.push({
+              sourceId: sourceEntityId,
+              statusElementId: 'core.status.sobrecalentado',
+            });
+          }
+        }
+      }
     }
   }
 
@@ -3553,6 +3745,7 @@ export function executeMultiTargetBehavior(
   }
 
   // 8. Apply effects per target
+  let totalFinalDamageDealt = 0;
   const targetResults: Record<string, TargetExecutionResult> = {};
   const allAppliedEffects: MechanicalEffectItem[] = [];
   const emittedEvents: MechanicalEvent[] = [];
@@ -3774,6 +3967,7 @@ export function executeMultiTargetBehavior(
             encounter: newEncounter,
           });
           newWorld = res.newWorld;
+          totalFinalDamageDealt += res.finalDamage;
           break;
         }
 
@@ -3846,6 +4040,148 @@ export function executeMultiTargetBehavior(
 
   if (event) {
     participant.executedBehaviorEvents.push(`${behavior.id}:${event.id}`);
+  }
+
+  // 4b. Process Consequences (Multi-target context)
+  const currentSourceEntity = newWorld[sourceEntityId];
+  if (Array.isArray(behavior.consequences)) {
+    for (const cons of behavior.consequences) {
+      if (!cons) continue;
+
+      // 1. Fixed self damage (activation)
+      if (
+        cons.type === 'self_damage_fixed' ||
+        cons.type === 'self_damage_fixed_2' ||
+        (cons.type === 'resource' && cons.when === 'activation' && cons.amount === 2) ||
+        (cons.type === 'hp_cost' && cons.amount === 2)
+      ) {
+        const amt = cons.amount ?? 2;
+        if (currentSourceEntity) {
+          currentSourceEntity.resources.SA.current = Math.max(0, currentSourceEntity.resources.SA.current - amt);
+        }
+        participant.hpLostThisTurn = (participant.hpLostThisTurn ?? 0) + amt;
+      }
+
+      // 2. Periodic self damage (each active turn)
+      if (
+        cons.type === 'self_damage_turn' ||
+        (cons.type === 'resource' && cons.when === 'each_turn' && cons.amount === 1)
+      ) {
+        if (!participant.activeTimedEffects) participant.activeTimedEffects = [];
+        const alreadyHas = participant.activeTimedEffects.some(
+          t => t.sourceBehaviorId === behavior.id && (t.effect as any).type === 'consequence_periodic_hp'
+        );
+        if (!alreadyHas) {
+          const turns = behavior.temporality?.duration?.turns ?? 3;
+          participant.activeTimedEffects.push({
+            id: `cons_hp_${behavior.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            sourceEntityId,
+            targetEntityId: sourceEntityId,
+            effect: { id: `eff_periodic_hp`, type: 'consequence_periodic_hp', amount: cons.amount ?? 1 } as any,
+            temporality: behavior.temporality ?? { duration: { type: 'turns', turns } },
+            remainingTurns: turns,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + turns,
+            periodicity: { mode: 'each_turn' },
+          });
+        }
+      }
+
+      // 3. Recoil (after damage) - Multi-target sum
+      if (
+        cons.type === 'recoil_half' ||
+        cons.type === 'recoil' ||
+        cons.consequence?.kind === 'recoil' ||
+        (cons.when === 'after_damage' && cons.consequence?.fraction === 0.5)
+      ) {
+        const frac = cons.fraction ?? cons.consequence?.fraction ?? 0.5;
+        const dmgDealt = totalFinalDamageDealt;
+        const recoilDmg = Math.floor(dmgDealt * frac);
+        if (recoilDmg > 0 && currentSourceEntity) {
+          currentSourceEntity.resources.SA.current = Math.max(0, currentSourceEntity.resources.SA.current - recoilDmg);
+          participant.hpLostThisTurn = (participant.hpLostThisTurn ?? 0) + recoilDmg;
+        }
+      }
+
+      // 4. After-effect (on effect end)
+      if (
+        cons.type === 'after_effect' ||
+        cons.type === 'after_effect_int2_3t' ||
+        (cons.when === 'end' && (cons.attributeId === 'INT' || cons.consequence?.attributeId === 'INT'))
+      ) {
+        if (!participant.activeTimedEffects) participant.activeTimedEffects = [];
+        const alreadyHas = participant.activeTimedEffects.some(
+          t => t.sourceBehaviorId === behavior.id && (t.effect as any).type === 'after_effect_modifier'
+        );
+        if (!alreadyHas) {
+          const behaviorTurns = behavior.temporality?.duration?.turns ?? 2;
+          participant.activeTimedEffects.push({
+            id: `cons_after_${behavior.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            sourceEntityId,
+            targetEntityId: sourceEntityId,
+            effect: {
+              id: `eff_after_mod`,
+              type: 'after_effect_modifier',
+              attributeId: cons.attributeId ?? cons.consequence?.attributeId ?? 'INT',
+              amount: cons.amount ?? cons.consequence?.amount ?? -2,
+              turns: cons.turns ?? cons.consequence?.turns ?? 3,
+            } as any,
+            temporality: behavior.temporality ?? { duration: { type: 'turns', turns: behaviorTurns } },
+            remainingTurns: behaviorTurns,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + behaviorTurns,
+          });
+        }
+      }
+
+      // 5. While active modifier (DES -2)
+      if (
+        cons.type === 'while_active_modifier' ||
+        cons.type === 'while_active_des2' ||
+        (cons.attributeId === 'DES' && cons.untilEnd) ||
+        (cons.consequence?.attributeId === 'DES' && cons.consequence?.untilEnd)
+      ) {
+        if (!participant.activeModifiers) participant.activeModifiers = [];
+        const alreadyHas = participant.activeModifiers.some(
+          m => m.sourceBehaviorId === behavior.id && m.attributeId === 'DES'
+        );
+        if (!alreadyHas) {
+          const behaviorTurns = behavior.temporality?.duration?.turns ?? 2;
+          participant.activeModifiers.push({
+            id: `cons_active_mod_${behavior.id}`,
+            sourceBehaviorId: behavior.id,
+            attributeId: 'DES',
+            amount: cons.amount ?? cons.consequence?.amount ?? -2,
+            turns: behaviorTurns,
+            untilEnd: true,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + behaviorTurns,
+          });
+        }
+      }
+
+      // 6. Threshold status (EST <= 5)
+      if (
+        cons.type === 'overheated_threshold' ||
+        cons.type === 'resource_threshold_status' ||
+        (cons.resourceId === 'ES' && (cons.threshold === 5 || cons.value === 5)) ||
+        (cons.consequence?.statusElementId === 'core.status.sobrecalentado')
+      ) {
+        const esVal = currentSourceEntity?.resources.ES?.current ?? 30;
+        const thresh = cons.threshold ?? cons.value ?? 5;
+        if (esVal <= thresh && currentSourceEntity) {
+          if (!currentSourceEntity.statuses) currentSourceEntity.statuses = [];
+          if (!currentSourceEntity.statuses.some((s: any) => s.statusElementId === 'core.status.sobrecalentado' || s.id === 'core.status.sobrecalentado')) {
+            currentSourceEntity.statuses.push({
+              sourceId: behavior.id,
+              statusElementId: 'core.status.sobrecalentado',
+            });
+          }
+        }
+      }
+    }
   }
 
   newEncounter.traceLog.push({

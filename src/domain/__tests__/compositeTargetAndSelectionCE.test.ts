@@ -107,9 +107,9 @@ describe('TAREA CE-4B — Composición de Objetivos, Cantidad, Rango, Área y Se
         },
       };
 
-      // CE: 3D6 (3 CE) + 20m range (1 CE) = 4 CE
+      // CE: 3D6 (5 CE) + 20m range (1 CE) = 6 CE
       const cost = calculateTechniqueStructuralCost({ level: 1, mechanicalBehaviors: [behavior] }, customMechanics);
-      expect(cost).toBe(4);
+      expect(cost).toBe(6);
 
       // Description
       const desc = describeMechanicalBehavior(behavior, { format: 'compact' });
@@ -122,7 +122,7 @@ describe('TAREA CE-4B — Composición de Objetivos, Cantidad, Rango, Área y Se
       const customMechanics = createCoreCategories();
       // Configure target_count: 3 cost = +2 CE
       const tcCat = customMechanics.find(c => c.id === 'core.target_count');
-      const opt3 = tcCat?.rules.find(r => r.runtimeKey === '3');
+      const opt3 = tcCat?.rules.find(r => r.runtimeKey === 'ally_3' || r.runtimeKey === '3');
       if (opt3) opt3.cost = 2;
 
       const behavior: MechanicalBehavior = {
@@ -210,9 +210,9 @@ describe('TAREA CE-4B — Composición de Objetivos, Cantidad, Rango, Área y Se
         },
       };
 
-      // CE: 4D8 (4 CE) + area 10 (1 CE) = 5 CE
+      // CE: 4D8 (7 CE) + enemy_3 (3 CE) + area 10 (1 CE) = 11 CE
       const cost = calculateTechniqueStructuralCost({ level: 1, mechanicalBehaviors: [behavior] }, customMechanics);
-      expect(cost).toBe(5);
+      expect(cost).toBe(11);
 
       // Description
       const desc = describeMechanicalBehavior(behavior, { format: 'compact' });

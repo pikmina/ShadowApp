@@ -15,6 +15,7 @@ export const mechanicalEffectTypeSchema = z.enum([
   "cost_adjustment",
   "manual_resolution",
   "transformation",
+  "object_manipulation",
 ]);
 
 export const effectTimingSchema = z.enum([
@@ -138,6 +139,12 @@ export const mechanicalEffectDefinitionSchema = z.discriminatedUnion("type", [
       })
       .optional(),
   }),
+  z.strictObject({
+    ...effectDefinitionBaseShape,
+    type: z.literal("object_manipulation"),
+    size: z.enum(["small", "medium", "large", "huge"]).optional(),
+    maxDimension: z.string().optional(),
+  }),
 ]);
 
 export const mechanicalEffectSchema = z.discriminatedUnion("type", [
@@ -211,6 +218,12 @@ export const mechanicalEffectSchema = z.discriminatedUnion("type", [
         value: z.number().default(1),
       })
       .optional(),
+  }),
+  z.strictObject({
+    ...baseEffectShape,
+    type: z.literal("object_manipulation"),
+    size: z.enum(["small", "medium", "large", "huge"]).optional(),
+    maxDimension: z.string().optional(),
   }),
 ]);
 
@@ -612,26 +625,33 @@ export interface ConfiguredOptionResult {
 
 export function findDamageOption(
   categories: SystemMechanicsConfig = [],
-  diceFormula?: string
+  diceFormula?: string | number
 ): ConfiguredOptionResult | undefined {
-  if (!diceFormula || typeof diceFormula !== 'string') return undefined;
-  const norm = diceFormula.trim().toUpperCase();
+  if (diceFormula === undefined || diceFormula === null || diceFormula === '') return undefined;
+  const str = String(diceFormula).trim();
+  if (!str) return undefined;
+  const norm = str.toUpperCase();
   const cat = categories.find(c => c.id === 'damage' || c.coreKey === 'damage' || c.id === 'core.damage');
   if (!cat || !cat.rules) return undefined;
   const rule = cat.rules.find(r =>
     (r as any).runtimeKey?.toUpperCase() === norm ||
     (r as any).effect?.dice?.toUpperCase() === norm ||
+    (r as any).effect?.formula?.toUpperCase() === norm ||
+    String((r as any).effect?.amount) === norm ||
     r.name.toUpperCase() === norm ||
     r.id.toUpperCase().endsWith(`.${norm}`)
   );
   if (!rule) return undefined;
+  const isDice = isNaN(Number(norm));
   return {
     ruleId: rule.id,
     name: rule.name,
     cost: typeof rule.cost === 'number' ? rule.cost : 0,
     runtimeKey: (rule as any).runtimeKey || norm,
-    dice: norm,
-    kind: 'dice'
+    dice: isDice ? norm : undefined,
+    formula: isDice ? norm : undefined,
+    amount: !isDice ? parseInt(norm, 10) : undefined,
+    kind: isDice ? 'dice' : 'fixed'
   };
 }
 
@@ -776,6 +796,90 @@ export function findAttributeOption(
   };
 }
 
+export function findSkillOption(
+  categories: SystemMechanicsConfig = [],
+  skillId?: string
+): ConfiguredOptionResult | undefined {
+  if (!skillId) return undefined;
+  const normalizedKey = String(skillId).trim().toLowerCase();
+  const cat = categories.find(c => c.id === 'skill' || c.coreKey === 'skill' || c.id === 'core.skill');
+  if (!cat || !cat.rules) return undefined;
+  const rule = cat.rules.find(r =>
+    (r as any).runtimeKey?.toLowerCase() === normalizedKey ||
+    r.id?.toLowerCase().endsWith(`.${normalizedKey}`) ||
+    r.name?.toLowerCase().includes(normalizedKey)
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || normalizedKey,
+    kind: 'fixed'
+  };
+}
+
+export function findRollTypeOption(
+  categories: SystemMechanicsConfig = [],
+  rollType?: string
+): ConfiguredOptionResult | undefined {
+  if (!rollType) return undefined;
+  const normalizedKey = String(rollType).trim().toLowerCase();
+  const cat = categories.find(c => c.id === 'roll_type' || c.coreKey === 'roll_type' || c.id === 'core.roll_type');
+  if (!cat || !cat.rules) return undefined;
+  const rule = cat.rules.find(r =>
+    (r as any).runtimeKey?.toLowerCase() === normalizedKey ||
+    r.id?.toLowerCase().endsWith(`.${normalizedKey}`) ||
+    r.name?.toLowerCase().includes(normalizedKey)
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || normalizedKey,
+    kind: 'fixed'
+  };
+}
+
+export function findModifierTargetOption(
+  categories: SystemMechanicsConfig = [],
+  targetKey?: string
+): ConfiguredOptionResult | undefined {
+  if (!targetKey) return undefined;
+  const key = String(targetKey).trim();
+  const lower = key.toLowerCase();
+  const upper = key.toUpperCase();
+
+  // 1. Base Attributes (FUE, DES, RES, INT, VEL, VOL)
+  const attrOpt = findAttributeOption(categories, upper) || findAttributeOption(categories, lower);
+  if (attrOpt) return attrOpt;
+
+  // 2. Derived Stats (DB, EVA, COR, INI, RD, SAL, EST)
+  const statOpt = findStatOption(categories, upper) || findStatOption(categories, lower);
+  if (statOpt) return statOpt;
+
+  // 3. Skills (Carisma, Presencia)
+  const skillOpt = findSkillOption(categories, lower);
+  if (skillOpt) return skillOpt;
+
+  // 4. Roll / Tirada
+  if (lower === 'roll' || lower === 'tirada') {
+    const rollOpt = findRollTypeOption(categories, 'roll') || findRollTypeOption(categories, 'tirada');
+    if (rollOpt) return rollOpt;
+  }
+
+  // 5. Reducción de Estamina / Cost Adjustment
+  if (lower.includes('estamina') || lower === 'stamina' || lower === 'stamina_reduction' || lower === 'es') {
+    const costOpt = findCostAdjustmentOption(categories, 'stamina_reduction') ||
+      findCostAdjustmentOption(categories, 'stamina') ||
+      findCostAdjustmentOption(categories, 'es');
+    if (costOpt) return costOpt;
+  }
+
+  return undefined;
+}
+
 export function findMaintenanceOption(
   categories: SystemMechanicsConfig = [],
   amount?: number | string,
@@ -811,14 +915,86 @@ export function findMaintenanceOption(
   };
 }
 
+export function findTargetOption(
+  categories: SystemMechanicsConfig = [],
+  targetType?: string
+): ConfiguredOptionResult | undefined {
+  if (!targetType) return undefined;
+  const cat = categories.find(c => c.id === 'target' || c.coreKey === 'target' || c.id === 'core.target');
+  if (!cat || !cat.rules) return undefined;
+  const lower = targetType.trim().toLowerCase();
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === lower ||
+    r.id?.toLowerCase().endsWith(`.${lower}`) ||
+    (r as any).runtimeKey?.toLowerCase() === lower ||
+    (r.name && r.name.toLowerCase() === lower)
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || lower,
+    kind: 'fixed'
+  };
+}
+
+export function findAreaOption(
+  categories: SystemMechanicsConfig = [],
+  areaQuery?: number | string
+): ConfiguredOptionResult | undefined {
+  if (areaQuery === undefined || areaQuery === null || areaQuery === '') return undefined;
+  const cat = categories.find(c => c.id === 'area' || c.coreKey === 'area' || c.id === 'core.area');
+  if (!cat || !cat.rules) return undefined;
+  const str = String(areaQuery).trim().toLowerCase();
+  const num = parseInt(str.replace(/[^0-9]/g, ''), 10);
+
+  // 1. Exact direct match on id, runtimeKey or name
+  let rule = cat.rules.find(r => {
+    const rk = (r as any).runtimeKey?.toLowerCase();
+    return (
+      r.id?.toLowerCase() === str ||
+      r.id?.toLowerCase().endsWith(`.${str}`) ||
+      rk === str ||
+      (r.name && r.name.toLowerCase() === str)
+    );
+  });
+
+  // 2. Numeric match on runtimeKey or id ending with the number
+  if (!rule && !isNaN(num)) {
+    rule = cat.rules.find(r => {
+      const rk = (r as any).runtimeKey?.toLowerCase();
+      return rk === String(num) || r.id?.toLowerCase().endsWith(`.${num}`);
+    });
+  }
+
+  // 3. Component radius match
+  if (!rule && !isNaN(num)) {
+    rule = cat.rules.find(r => (r as any).component?.radius === num);
+  }
+
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || str,
+    amount: !isNaN(num) ? num : undefined,
+    kind: 'fixed'
+  };
+}
+
 export function findTargetCountOption(
   categories: SystemMechanicsConfig = [],
-  count?: number | string
+  count?: number | string,
+  targetType?: string
 ): ConfiguredOptionResult | undefined {
   if (count === undefined || count === null || count === '') return undefined;
   const cat = categories.find(c => c.id === 'target_count' || c.coreKey === 'target_count' || c.id === 'core.target_count');
   if (!cat || !cat.rules) return undefined;
   const str = String(count).trim().toLowerCase();
+  const normType = targetType ? targetType.trim().toLowerCase() : undefined;
+
   if (str === 'all') {
     const rule = cat.rules.find(r => (r as any).runtimeKey === 'all' || r.id.endsWith('.all'));
     if (!rule) return undefined;
@@ -830,8 +1006,32 @@ export function findTargetCountOption(
       kind: 'semantic'
     };
   }
+
   const num = parseInt(str, 10);
   if (isNaN(num) || num <= 0) return undefined;
+
+  // 1. If targetType is provided (e.g. 'enemy', 'ally'), check for specific targetType + count rule first
+  if (normType) {
+    const specificRule = cat.rules.find(r => {
+      const rk = (r as any).runtimeKey?.toLowerCase();
+      const comp = (r as any).component;
+      const isTypeMatch = comp?.targetType === normType || rk?.startsWith(`${normType}_`) || r.id?.includes(`.${normType}_`);
+      const isNumMatch = comp?.max === num || rk === `${normType}_${num}` || r.id?.endsWith(`.${normType}_${num}`);
+      return isTypeMatch && isNumMatch;
+    });
+    if (specificRule) {
+      return {
+        ruleId: specificRule.id,
+        name: specificRule.name,
+        cost: typeof specificRule.cost === 'number' ? specificRule.cost : 0,
+        runtimeKey: (specificRule as any).runtimeKey || `${normType}_${num}`,
+        amount: num,
+        kind: 'fixed'
+      };
+    }
+  }
+
+  // 2. Generic fallback
   const rule = cat.rules.find(r =>
     (r as any).runtimeKey === String(num) ||
     (r as any).component?.max === num ||
@@ -901,12 +1101,327 @@ export function findCostAdjustmentOption(
   };
 }
 
+export function findStatusOption(
+  categories: SystemMechanicsConfig = [],
+  statusId?: string
+): ConfiguredOptionResult | undefined {
+  if (!statusId) return undefined;
+  const raw = String(statusId).trim();
+  const lower = raw.toLowerCase();
+  const normalizedKey = lower.replace(/^core\.status\./, '');
+  const cat = categories.find(c => c.id === 'status' || c.coreKey === 'status' || c.id === 'core.status');
+  if (!cat || !cat.rules) return undefined;
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === lower ||
+    r.id?.toLowerCase() === `core.status.${normalizedKey}` ||
+    (r as any).runtimeKey?.toLowerCase() === normalizedKey ||
+    (r as any).effect?.statusElementId?.toLowerCase() === lower ||
+    (r as any).effect?.statusElementId?.toLowerCase() === `core.status.${normalizedKey}` ||
+    r.name?.toLowerCase() === lower ||
+    (r.name?.toLowerCase().includes(lower) && lower.length > 3)
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || normalizedKey,
+    kind: 'fixed'
+  };
+}
+
+export function findObjectManipulationOption(
+  categories: SystemMechanicsConfig = [],
+  size?: string
+): ConfiguredOptionResult | undefined {
+  if (!size) return undefined;
+  const raw = String(size).trim();
+  const lower = raw.toLowerCase();
+  const cat = categories.find(c => c.id === 'object_manipulation' || c.coreKey === 'object_manipulation' || c.id === 'core.object_manipulation');
+  if (!cat || !cat.rules) return undefined;
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === lower ||
+    r.id?.toLowerCase().endsWith(`.${lower}`) ||
+    (r as any).runtimeKey?.toLowerCase() === lower ||
+    (r as any).effect?.size?.toLowerCase() === lower ||
+    r.name?.toLowerCase().includes(lower)
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || lower,
+    kind: 'fixed'
+  };
+}
+
+export function findTransformationOption(
+  categories: SystemMechanicsConfig = [],
+  magnitude?: string
+): ConfiguredOptionResult | undefined {
+  if (!magnitude) return undefined;
+  const raw = String(magnitude).trim();
+  const lower = raw.toLowerCase();
+  const normalizedKey = lower === 'corporal' ? 'body' : lower;
+  const cat = categories.find(c => c.id === 'transformation' || c.coreKey === 'transformation' || c.id === 'core.transformation');
+  if (!cat || !cat.rules) return undefined;
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === lower ||
+    r.id?.toLowerCase().endsWith(`.${normalizedKey}`) ||
+    (r as any).runtimeKey?.toLowerCase() === normalizedKey ||
+    (r as any).runtimeKey?.toLowerCase() === lower ||
+    (r as any).effect?.magnitude?.type?.toLowerCase() === lower ||
+    (r as any).effect?.magnitude?.type?.toLowerCase() === normalizedKey ||
+    r.name?.toLowerCase() === lower ||
+    (lower === 'body' && r.name?.toLowerCase() === 'corporal') ||
+    (lower === 'corporal' && (r as any).runtimeKey === 'body')
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || normalizedKey,
+    kind: 'fixed'
+  };
+}
+
+export function findDurationOption(
+  categories: SystemMechanicsConfig = [],
+  durationQuery?: number | string
+): ConfiguredOptionResult | undefined {
+  if (durationQuery === undefined || durationQuery === null || durationQuery === '') return undefined;
+  const cat = categories.find(c => c.id === 'duration' || c.coreKey === 'duration' || c.id === 'core.duration');
+  if (!cat || !cat.rules) return undefined;
+  const str = String(durationQuery).trim().toLowerCase();
+  
+  const normKey = str === '1 día' || str === '1 dia' || str === '1day' || str === 'day' || str === 'days' ? '1_day' :
+    str === '1 semana' || str === '1week' || str === 'week' || str === 'weeks' ? '1_week' :
+    str === '1 mes' || str === '1month' || str === 'month' || str === 'months' ? '1_month' :
+    str;
+
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === normKey ||
+    r.id?.toLowerCase().endsWith(`.${normKey}`) ||
+    (r as any).runtimeKey?.toLowerCase() === normKey ||
+    (r as any).runtimeKey?.toLowerCase() === str ||
+    (r as any).component?.duration?.mode === 'turns' && String((r as any).component?.duration?.turns) === str ||
+    r.name?.toLowerCase() === str ||
+    r.name?.toLowerCase() === normKey
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || normKey,
+    kind: 'fixed'
+  };
+}
+
+export function findActivationOption(
+  categories: SystemMechanicsConfig = [],
+  activationQuery?: number | string
+): ConfiguredOptionResult | undefined {
+  if (activationQuery === undefined || activationQuery === null || activationQuery === '') return undefined;
+  const cat = categories.find(c => c.id === 'activation' || c.coreKey === 'activation' || c.id === 'core.activation');
+  if (!cat || !cat.rules) return undefined;
+  const str = String(activationQuery).trim().toLowerCase();
+
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === str ||
+    r.id?.toLowerCase().endsWith(`.${str}`) ||
+    (r as any).runtimeKey?.toLowerCase() === str ||
+    (r as any).component?.turns === Number(activationQuery) ||
+    ((r as any).component?.kind === 'activation' && (r as any).component?.turns === Number(activationQuery)) ||
+    r.name?.toLowerCase() === str
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || str,
+    kind: 'fixed'
+  };
+}
+
+export function findCooldownOption(
+  categories: SystemMechanicsConfig = [],
+  cooldownQuery?: number | string
+): ConfiguredOptionResult | undefined {
+  if (cooldownQuery === undefined || cooldownQuery === null || cooldownQuery === '') return undefined;
+  const cat = categories.find(c => c.id === 'cooldown' || c.coreKey === 'cooldown' || c.id === 'core.cooldown');
+  if (!cat || !cat.rules) return undefined;
+  const str = String(cooldownQuery).trim().toLowerCase();
+
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === str ||
+    r.id?.toLowerCase().endsWith(`.${str}`) ||
+    (r as any).runtimeKey?.toLowerCase() === str ||
+    (r as any).component?.turns === Number(cooldownQuery) ||
+    ((r as any).component?.kind === 'cooldown' && (r as any).component?.turns === Number(cooldownQuery)) ||
+    r.name?.toLowerCase() === str
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || str,
+    kind: 'fixed'
+  };
+}
+
+export function findUsageOption(
+  categories: SystemMechanicsConfig = [],
+  usageQuery?: string
+): ConfiguredOptionResult | undefined {
+  if (usageQuery === undefined || usageQuery === null || usageQuery === '') return undefined;
+  const cat = categories.find(c => c.id === 'usage' || c.coreKey === 'usage' || c.id === 'core.usage');
+  if (!cat || !cat.rules) return undefined;
+  const str = String(usageQuery).trim().toLowerCase();
+
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === str ||
+    r.id?.toLowerCase().endsWith(`.${str}`) ||
+    (r as any).runtimeKey?.toLowerCase() === str ||
+    (r as any).component?.period === str ||
+    ((r as any).component?.kind === 'usage' && (r as any).component?.period === str) ||
+    r.name?.toLowerCase() === str
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || str,
+    kind: 'fixed'
+  };
+}
+
+export function findManualConditionOption(
+  categories: SystemMechanicsConfig = [],
+  conditionQuery?: string
+): ConfiguredOptionResult | undefined {
+  if (conditionQuery === undefined || conditionQuery === null || conditionQuery === '') return undefined;
+  const cat = categories.find(c => c.id === 'manual_condition' || c.coreKey === 'manual_condition' || c.id === 'core.manual_condition');
+  if (!cat || !cat.rules) return undefined;
+  const str = String(conditionQuery).trim().toLowerCase();
+
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === str ||
+    r.id?.toLowerCase().endsWith(`.${str}`) ||
+    (r as any).runtimeKey?.toLowerCase() === str ||
+    r.name?.toLowerCase() === str
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || str,
+    kind: 'fixed'
+  };
+}
+
+export function findAdditionalRequirementOption(
+  categories: SystemMechanicsConfig = [],
+  requirementQuery?: string
+): ConfiguredOptionResult | undefined {
+  if (requirementQuery === undefined || requirementQuery === null || requirementQuery === '') return undefined;
+  const cat = categories.find(c => c.id === 'additional_requirement' || c.coreKey === 'additional_requirement' || c.id === 'core.additional_requirement');
+  if (!cat || !cat.rules) return undefined;
+  const str = String(requirementQuery).trim().toLowerCase();
+
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === str ||
+    r.id?.toLowerCase().endsWith(`.${str}`) ||
+    (r as any).runtimeKey?.toLowerCase() === str ||
+    r.name?.toLowerCase() === str
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || str,
+    kind: 'fixed'
+  };
+}
+
+export function findConsequenceOption(
+  categories: SystemMechanicsConfig = [],
+  query?: string | number
+): ConfiguredOptionResult | undefined {
+  if (query === undefined || query === null || query === '') return undefined;
+  const cat = categories.find(c => c.id === 'consequence' || c.coreKey === 'consequence' || c.id === 'core.consequence');
+  if (!cat || !cat.rules) return undefined;
+  const str = String(query).trim().toLowerCase();
+
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === str ||
+    r.id?.toLowerCase().endsWith(`.${str}`) ||
+    (r as any).runtimeKey?.toLowerCase() === str ||
+    r.name?.toLowerCase() === str
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || str,
+    kind: 'fixed'
+  };
+}
+
+export function findCapOption(
+  categories: SystemMechanicsConfig = [],
+  query?: string | number
+): ConfiguredOptionResult | undefined {
+  if (query === undefined || query === null || query === '') return undefined;
+  const cat = categories.find(c => c.id === 'caps' || c.coreKey === 'caps' || c.id === 'core.caps');
+  if (!cat || !cat.rules) return undefined;
+  const str = String(query).trim().toLowerCase();
+
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === str ||
+    r.id?.toLowerCase().endsWith(`.${str}`) ||
+    (r as any).runtimeKey?.toLowerCase() === str ||
+    (r as any).component?.max === Number(query) ||
+    r.name?.toLowerCase() === str
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || str,
+    kind: 'fixed'
+  };
+}
+
 export function findConfiguredRule(
   categories: SystemMechanicsConfig = [],
   categoryKey: string,
   query: any
 ): ConfiguredOptionResult | undefined {
   switch (categoryKey) {
+    case 'activation':
+      return findActivationOption(categories, typeof query === 'object' ? query?.turns || query?.actionType : query);
+    case 'cooldown':
+      return findCooldownOption(categories, typeof query === 'object' ? query?.turns : query);
+    case 'usage':
+      return findUsageOption(categories, typeof query === 'object' ? query?.period || query?.scope : query);
+    case 'manual_condition':
+      return findManualConditionOption(categories, typeof query === 'object' ? query?.signalId || query?.runtimeKey : query);
+    case 'additional_requirement':
+      return findAdditionalRequirementOption(categories, typeof query === 'object' ? query?.signalId || query?.runtimeKey : query);
+    case 'consequence':
+      return findConsequenceOption(categories, typeof query === 'object' ? query?.type || query?.runtimeKey : query);
+    case 'caps':
+      return findCapOption(categories, typeof query === 'object' ? query?.subject || query?.max : query);
     case 'damage':
       return findDamageOption(categories, typeof query === 'string' ? query : query?.dice || query?.formula);
     case 'damage_type':
@@ -928,15 +1443,23 @@ export function findConfiguredRule(
     case 'barrier':
       return findBarrierOption(categories, typeof query === 'number' || typeof query === 'string' ? query : query?.amount);
     case 'numeric_modifier':
-      return findNumericModifierOption(categories, typeof query === 'number' || typeof query === 'string' ? query : query?.amount);
     case 'bonus':
-      return findNumericModifierOption(categories, typeof query === 'number' || typeof query === 'string' ? query : query?.amount);
     case 'penalty':
       return findNumericModifierOption(categories, typeof query === 'number' || typeof query === 'string' ? query : query?.amount);
     case 'derived_stat':
       return findStatOption(categories, typeof query === 'string' ? query : query?.statId);
     case 'attribute':
       return findAttributeOption(categories, typeof query === 'string' ? query : query?.attributeId);
+    case 'skill':
+      return findSkillOption(categories, typeof query === 'string' ? query : query?.skillId);
+    case 'status':
+      return findStatusOption(categories, typeof query === 'string' ? query : query?.statusElementId);
+    case 'object_manipulation':
+      return findObjectManipulationOption(categories, typeof query === 'string' ? query : query?.size);
+    case 'transformation':
+      return findTransformationOption(categories, typeof query === 'string' ? query : query?.magnitude?.type || query?.magnitude);
+    case 'duration':
+      return findDurationOption(categories, typeof query === 'object' ? query?.turns || query?.type : query);
     case 'maintenance':
       return findMaintenanceOption(categories, typeof query === 'number' || typeof query === 'string' ? query : query?.amount, query?.resource || query?.resourceId);
     case 'target_count':
@@ -978,10 +1501,13 @@ export function validateBehaviorMechanicalValues(
     for (let i = 0; i < behavior.effects.length; i++) {
       const eff = behavior.effects[i];
       if (!eff) continue;
-      if (eff.type === 'damage' && eff.dice) {
-        const found = findDamageOption(categories, eff.dice);
-        if (!found) {
-          errors.push(`Efecto [${i + 1}] (Daño): La fórmula de dados "${eff.dice}" no existe como opción configurada en Reglas del Sistema.`);
+      if (eff.type === 'damage') {
+        const dmgVal = eff.dice || (eff as any).formula || eff.amount;
+        if (dmgVal !== undefined && dmgVal !== null && dmgVal !== '') {
+          const found = findDamageOption(categories, dmgVal);
+          if (!found) {
+            errors.push(`Efecto [${i + 1}] (Daño): La magnitud "${dmgVal}" no existe como opción configurada en Reglas del Sistema.`);
+          }
         }
       } else if (eff.type === 'healing') {
         const found = findHealingOption(categories, eff, eff.resourceId || 'SA');
@@ -1066,9 +1592,17 @@ export function calculateTechniqueStructuralCost(
       r.id === `${cat.id}.${strKey}` ||
       r.id === `${cat.id}.${strKey.toLowerCase()}` ||
       r.id.endsWith(`.${strKey}`) ||
+      ((r as any).component?.kind === 'condition' && (r as any).component?.predicates?.some((p: any) => p.signalId === strKey || p.kind === strKey)) ||
+      ((r as any).component?.kind === 'cooldown' && (r as any).component?.turns === Number(optionKey)) ||
+      ((r as any).component?.kind === 'activation' && (r as any).component?.turns === Number(optionKey)) ||
+      ((r as any).component?.kind === 'usage' && ((r as any).component?.period === strKey || (r as any).component?.scope === strKey)) ||
       (r as any).component?.turns === Number(optionKey) ||
       (r as any).effect?.dice?.toLowerCase() === strKey.toLowerCase() ||
       (r as any).effect?.amount === Number(optionKey) ||
+      (r as any).effect?.statusElementId === strKey ||
+      (r as any).effect?.statusElementId?.toLowerCase() === strKey.toLowerCase() ||
+      (r as any).effect?.size?.toLowerCase() === strKey.toLowerCase() ||
+      (r as any).effect?.magnitude?.type?.toLowerCase() === strKey.toLowerCase() ||
       r.name.toLowerCase() === strKey.toLowerCase()
     );
     return typeof rule?.cost === 'number' ? rule.cost : 0;
@@ -1094,19 +1628,25 @@ export function calculateTechniqueStructuralCost(
     // 2. Target, Range, Area, Target count, Selection mode
     if (b.target) {
       const targetType = b.target.type || 'self';
-      mechanicCostSum += lookupRuleCost('target', targetType);
 
       // Invariant CE-4B.1: target.type === 'self' ignores quantity, range, area, selectionMode
-      if (targetType !== 'self') {
+      if (targetType === 'self') {
+        const targetOpt = findTargetOption(effectiveCats, 'self');
+        mechanicCostSum += targetOpt ? targetOpt.cost : (lookupRuleCost('target', 'self') || 0);
+      } else {
+        const targetOpt = findTargetOption(effectiveCats, targetType);
+        mechanicCostSum += targetOpt ? targetOpt.cost : (lookupRuleCost('target', targetType) || 0);
+
         const rawCount = b.target.quantity?.mode === 'all'
           ? 'all'
           : (b.target.quantity?.count ?? (b.target.quantity as any)?.max ?? b.target.maxTargets);
         if (rawCount !== undefined && rawCount !== null && rawCount !== '') {
-          const targetCountOpt = findTargetCountOption(effectiveCats, rawCount);
+          const targetCountOpt = findTargetCountOption(effectiveCats, rawCount, targetType);
           if (targetCountOpt) {
             mechanicCostSum += targetCountOpt.cost;
           } else {
-            mechanicCostSum += lookupRuleCost('target_count', rawCount);
+            mechanicCostSum += lookupRuleCost('target_count', `${targetType}_${rawCount}`) ||
+              lookupRuleCost('target_count', rawCount);
           }
         }
         if (b.target.range?.type) {
@@ -1119,10 +1659,17 @@ export function calculateTechniqueStructuralCost(
           }
         }
         if (b.target.area?.shape) {
-          mechanicCostSum += lookupRuleCost('area', b.target.area.shape);
           const areaSize = b.target.area.sizeMeters ?? b.target.area.radius;
-          if (areaSize !== undefined && areaSize !== null && areaSize !== '') {
-            mechanicCostSum += lookupRuleCost('area', areaSize);
+          const areaOpt = areaSize !== undefined && areaSize !== null && areaSize !== ''
+            ? findAreaOption(effectiveCats, areaSize)
+            : findAreaOption(effectiveCats, b.target.area.shape);
+          if (areaOpt) {
+            mechanicCostSum += areaOpt.cost;
+          } else {
+            mechanicCostSum += lookupRuleCost('area', b.target.area.shape);
+            if (areaSize !== undefined && areaSize !== null && areaSize !== '') {
+              mechanicCostSum += lookupRuleCost('area', areaSize);
+            }
           }
         }
         const selMode = b.target.selectionMode ?? b.target.selectionRestriction;
@@ -1135,12 +1682,18 @@ export function calculateTechniqueStructuralCost(
     // 3. Temporality (Duration, Frequency/Periodicity, Maintenance)
     if (b.temporality) {
       if (b.temporality.duration?.type) {
+        const durType = b.temporality.duration.type;
         const durTurns = b.temporality.duration.turns ?? b.temporality.duration.value;
-        if (b.temporality.duration.type === 'turns' && durTurns) {
+        if (durType === 'turns' && durTurns) {
           const turnsCost = lookupRuleCost('duration', durTurns);
           mechanicCostSum += turnsCost || lookupRuleCost('duration', String(durTurns)) || lookupRuleCost('duration', 'turns');
         } else {
-          mechanicCostSum += lookupRuleCost('duration', b.temporality.duration.type);
+          const durOpt = findDurationOption(effectiveCats, durType);
+          if (durOpt) {
+            mechanicCostSum += durOpt.cost;
+          } else {
+            mechanicCostSum += lookupRuleCost('duration', durType);
+          }
         }
       }
       if (b.temporality.periodicity?.mode && b.temporality.periodicity.mode !== 'once') {
@@ -1197,12 +1750,13 @@ export function calculateTechniqueStructuralCost(
           }
         }
         if (eff.type === 'damage') {
-          if (eff.dice) {
-            const dmgOpt = findDamageOption(categories, eff.dice);
+          const dmgVal = eff.dice || (eff as any).formula || eff.amount;
+          if (dmgVal !== undefined && dmgVal !== null && dmgVal !== '') {
+            const dmgOpt = findDamageOption(categories, dmgVal);
             if (dmgOpt) {
               mechanicCostSum += dmgOpt.cost;
             } else {
-              mechanicCostSum += lookupRuleCost('damage', eff.dice);
+              mechanicCostSum += lookupRuleCost('damage', dmgVal);
             }
           }
           if (eff.damageType) {
@@ -1235,16 +1789,24 @@ export function calculateTechniqueStructuralCost(
               lookupRuleCost('barrier', eff.amount);
           }
         } else if (eff.type === 'roll_modifier') {
-          if (eff.rollType) {
-            mechanicCostSum += lookupRuleCost('roll_type', eff.rollType);
+          const rollKey = eff.rollType || 'roll';
+          const rollOpt = findRollTypeOption(effectiveCats, rollKey);
+          const targetCost = rollOpt ? rollOpt.cost : (lookupRuleCost('roll_type', rollKey) || 0);
+          let magnitudeCost = 0;
+          if (typeof eff.amount === 'number' && eff.amount !== 0) {
+            const numOpt = findNumericModifierOption(effectiveCats, eff.amount);
+            magnitudeCost = numOpt ? numOpt.cost : (lookupRuleCost('numeric_modifier', eff.amount) || lookupRuleCost('bonus', eff.amount) || lookupRuleCost('penalty', eff.amount));
           }
-          if (eff.amount) {
-            const numOpt = findNumericModifierOption(categories, eff.amount);
-            mechanicCostSum += numOpt ? numOpt.cost : (lookupRuleCost('numeric_modifier', eff.amount) || lookupRuleCost('bonus', eff.amount) || lookupRuleCost('penalty', eff.amount));
+          mechanicCostSum += targetCost + magnitudeCost;
+        } else if ((eff.type === 'status_apply' || eff.type === 'status') && (eff.statusElementId || (eff as any).statusId || (eff as any).runtimeKey)) {
+          const statusId = eff.statusElementId || (eff as any).statusId || (eff as any).runtimeKey;
+          const statusOpt = findStatusOption(effectiveCats, statusId);
+          if (statusOpt) {
+            mechanicCostSum += statusOpt.cost;
+          } else {
+            const statusKey = String(statusId).replace(/^core\.status\./, '');
+            mechanicCostSum += lookupRuleCost('status', statusId) || lookupRuleCost('status', statusKey);
           }
-        } else if (eff.type === 'status_apply' && eff.statusElementId) {
-          const statusKey = eff.statusElementId.replace(/^core\.status\./, '');
-          mechanicCostSum += lookupRuleCost('status', eff.statusElementId) || lookupRuleCost('status', statusKey);
         } else if (eff.type === 'bonus' || eff.type === 'penalty') {
           const numOpt = findNumericModifierOption(categories, eff.amount);
           if (numOpt) {
@@ -1262,16 +1824,14 @@ export function calculateTechniqueStructuralCost(
           }
           mechanicCostSum += targetCost + magnitudeCost;
         } else if (eff.type === 'skill_modifier' && eff.skillId) {
-          const numOpt = findNumericModifierOption(effectiveCats, eff.amount);
-          if (numOpt) {
-            mechanicCostSum += numOpt.cost;
-          } else {
-            const legacyKey = eff.amount >= 0 ? 'bonus' : 'penalty';
-            const absAmt = Math.abs(eff.amount);
-            mechanicCostSum += lookupRuleCost('numeric_modifier', eff.amount) ||
-              lookupRuleCost(legacyKey, `${eff.skillId.toLowerCase()}${absAmt}`) ||
-              lookupRuleCost(legacyKey, eff.skillId);
+          const skillOpt = findSkillOption(effectiveCats, eff.skillId);
+          const targetCost = skillOpt ? skillOpt.cost : (lookupRuleCost('skill', eff.skillId) || lookupRuleCost('bonus', eff.skillId) || 0);
+          let magnitudeCost = 0;
+          if (typeof eff.amount === 'number' && eff.amount !== 0) {
+            const numOpt = findNumericModifierOption(effectiveCats, eff.amount);
+            magnitudeCost = numOpt ? numOpt.cost : (lookupRuleCost('numeric_modifier', eff.amount) || lookupRuleCost('bonus', eff.amount) || lookupRuleCost('penalty', eff.amount));
           }
+          mechanicCostSum += targetCost + magnitudeCost;
         } else if (eff.type === 'derived_stat_modifier') {
           const statOpt = findStatOption(effectiveCats, eff.statId);
           const targetCost = statOpt ? statOpt.cost : (lookupRuleCost('derived_stat', eff.statId) || lookupRuleCost('bonus', eff.statId));
@@ -1284,10 +1844,15 @@ export function calculateTechniqueStructuralCost(
         } else if (eff.type === 'rd_modifier') {
           mechanicCostSum += lookupRuleCost('resolution', `rd_${eff.amount}`) || lookupRuleCost('resolution', 'rd');
         } else if (eff.type === 'cost_modifier') {
-          const costOpt = findCostAdjustmentOption(categories, eff.scopeId, eff.amount);
+          const costOpt = findCostAdjustmentOption(effectiveCats, eff.scopeId, eff.amount) ||
+            findCostAdjustmentOption(effectiveCats, 'stamina_reduction') ||
+            findCostAdjustmentOption(effectiveCats, 'stamina');
           mechanicCostSum += costOpt ? costOpt.cost : (
             lookupRuleCost('cost_adjustment', eff.scopeId ? `${eff.scopeId}${eff.amount}` : eff.amount) ||
-            lookupRuleCost('cost_adjustment', eff.scopeId)
+            lookupRuleCost('cost_adjustment', eff.scopeId) ||
+            lookupRuleCost('cost_adjustment', 'stamina_reduction') ||
+            lookupRuleCost('cost_adjustment', 'stamina') ||
+            4
           );
         } else if (eff.type === 'resource_modifier') {
           if (eff.amount > 0) {
@@ -1299,41 +1864,58 @@ export function calculateTechniqueStructuralCost(
               lookupRuleCost('cost_adjustment', `hp${Math.abs(eff.amount)}`) || lookupRuleCost('health_cost', 'base') || lookupRuleCost('stamina_cost', 'base')
             );
           }
-        } else if (eff.type === 'transformation') {
-          const magType = (eff as any).magnitude?.type;
-          const magVal = (eff as any).magnitude?.value;
-          const catCost = lookupRuleCost('transformation', magType) ||
-            lookupRuleCost('transformation', (eff as any).ruleId) ||
-            lookupRuleCost('transformation', (eff as any).runtimeKey);
-          if (catCost > 0) {
-            mechanicCostSum += catCost;
-          } else if (typeof magVal === 'number' && magVal > 0) {
-            mechanicCostSum += magVal;
-          } else if (magType === '2m') {
-            mechanicCostSum += 2;
-          } else if (magType === '5m') {
-            mechanicCostSum += 3;
-          } else if (magType === '10m') {
-            mechanicCostSum += 4;
-          } else if (magType === '20m') {
-            mechanicCostSum += 6;
+        } else if (eff.type === 'object_manipulation') {
+          const sizeKey = (eff as any).size || (eff as any).magnitude || (eff as any).runtimeKey;
+          const opt = findObjectManipulationOption(effectiveCats, sizeKey);
+          if (opt) {
+            mechanicCostSum += opt.cost;
           } else {
-            mechanicCostSum += 1;
+            mechanicCostSum += lookupRuleCost('object_manipulation', sizeKey) ||
+              lookupRuleCost('object_manipulation', (eff as any).ruleId) ||
+              0;
+          }
+        } else if (eff.type === 'transformation') {
+          const magType = (eff as any).magnitude?.type ?? (eff as any).magnitude ?? (eff as any).runtimeKey;
+          const opt = findTransformationOption(effectiveCats, magType);
+          if (opt) {
+            mechanicCostSum += opt.cost;
+          } else {
+            const catCost = lookupRuleCost('transformation', magType) ||
+              lookupRuleCost('transformation', (eff as any).ruleId) ||
+              lookupRuleCost('transformation', (eff as any).runtimeKey);
+            mechanicCostSum += catCost;
           }
         }
       }
     }
 
-    // 7. Consequences (Health Cost, etc.)
+    // 7. Consequences (Health Cost, Self Damage, Recoil, After Effect, While Active Modifier, Threshold Status)
     if (Array.isArray(b.consequences)) {
       for (const cons of b.consequences) {
-        if (cons.type === 'hp_cost' && cons.amount) {
+        if (!cons) continue;
+        if (cons.type === 'self_damage_turn' || cons.type === 'self_damage_1' || (cons.type === 'resource' && cons.when === 'each_turn' && cons.amount === 1)) {
+          mechanicCostSum += lookupRuleCost('consequence', 'self_damage_turn') || lookupRuleCost('consequence', 'per_turn_hp1') || -1;
+        } else if (cons.type === 'self_damage_fixed' || cons.type === 'self_damage_fixed_2' || cons.type === 'self_damage_2' || (cons.type === 'hp_cost' && cons.amount === 2) || (cons.type === 'resource' && cons.when === 'activation' && cons.amount === 2)) {
+          mechanicCostSum += lookupRuleCost('consequence', 'self_damage_fixed_2') || lookupRuleCost('consequence', 'self_damage_2') || -1;
+        } else if (cons.type === 'hp_cost' && cons.amount) {
           const hpOpt = findHealthCostOption(categories, cons.amount);
           if (hpOpt) {
             mechanicCostSum += hpOpt.cost;
           } else {
             mechanicCostSum += lookupRuleCost('cost_adjustment', `hp${cons.amount}`) || lookupRuleCost('health_cost', cons.amount) || lookupRuleCost('health_cost', 'base');
           }
+        } else if (cons.type === 'recoil' || cons.type === 'recoil_half' || cons.consequence?.kind === 'recoil' || (cons.when === 'after_damage' && cons.consequence?.fraction === 0.5)) {
+          mechanicCostSum += lookupRuleCost('consequence', 'recoil_half') || lookupRuleCost('consequence', 'recoil') || -4;
+        } else if (cons.type === 'after_effect' || cons.type === 'after_effect_int2_3t' || (cons.when === 'end' && (cons.attributeId === 'INT' || cons.consequence?.attributeId === 'INT'))) {
+          mechanicCostSum += lookupRuleCost('consequence', 'after_effect_int2_3t') || lookupRuleCost('consequence', 'end_int2') || -3;
+        } else if (cons.type === 'while_active_modifier' || cons.type === 'while_active_des2' || (cons.attributeId === 'DES' && cons.untilEnd) || (cons.consequence?.attributeId === 'DES' && cons.consequence?.untilEnd)) {
+          mechanicCostSum += lookupRuleCost('consequence', 'while_active_des2') || lookupRuleCost('consequence', 'des2_active') || -2;
+        } else if ((cons.type === 'per_turn_modifier' && cons.attributeId === 'INT') || cons.type === 'int2_per_active_turn' || (cons.when === 'each_turn' && cons.consequence?.attributeId === 'INT')) {
+          mechanicCostSum += lookupRuleCost('consequence', 'int2_per_active_turn') || -1;
+        } else if (cons.type === 'resource_threshold_status' || cons.type === 'overheated_threshold' || (cons.resourceId === 'ES' && (cons.threshold === 5 || cons.value === 5)) || (cons.consequence?.statusElementId === 'core.status.sobrecalentado')) {
+          mechanicCostSum += lookupRuleCost('consequence', 'overheated_threshold') || lookupRuleCost('consequence', 'sobrecalentado') || -3;
+        } else if (cons.ruleId || cons.runtimeKey) {
+          mechanicCostSum += lookupRuleCost('consequence', cons.ruleId || cons.runtimeKey);
         }
       }
     }
@@ -1351,17 +1933,46 @@ export function calculateTechniqueStructuralCost(
           const senseKey = `${cond.sense || 'physical'}_contact`;
           mechanicCostSum += lookupRuleCost('manual_condition', senseKey) || lookupRuleCost('manual_condition', cond.sense);
         } else if (cond.type === 'manual') {
-          mechanicCostSum += lookupRuleCost('manual_condition', cond.signalId) || lookupRuleCost('manual_condition', cond.runtimeKey);
-        } else if (cond.type === 'ability_active' || cond.type === 'consumption') {
-          mechanicCostSum += lookupRuleCost('additional_requirement', cond.type === 'consumption' ? 'consumption' : 'active_ability');
+          mechanicCostSum += lookupRuleCost('manual_condition', cond.signalId) ||
+            lookupRuleCost('manual_condition', cond.runtimeKey) ||
+            lookupRuleCost('additional_requirement', cond.signalId) ||
+            lookupRuleCost('additional_requirement', cond.runtimeKey);
+        } else if (cond.type === 'ability_active' || cond.type === 'active_behavior' || cond.type === 'consumption' || cond.type === 'consume') {
+          mechanicCostSum += lookupRuleCost('additional_requirement', (cond.type === 'consumption' || cond.type === 'consume') ? 'consumption' : 'active_ability');
+        } else if (cond.type === 'conscious' || cond.type === 'target_conscious') {
+          mechanicCostSum += lookupRuleCost('manual_condition', 'conscious') || lookupRuleCost('manual_condition', 'target_conscious');
+        }
+      }
+    }
+
+    // 8b. Requirements (structured / explicit requirements)
+    if (Array.isArray(b.requirements)) {
+      for (const req of b.requirements) {
+        if (req.type === 'physical_contact' || req.type === 'visual_contact' || req.type === 'auditory_contact') {
+          mechanicCostSum += lookupRuleCost('manual_condition', req.type) || lookupRuleCost('manual_condition', req.type.replace('_contact', ''));
+        } else if (req.type === 'speak_directly') {
+          mechanicCostSum += lookupRuleCost('manual_condition', 'speak_directly');
+        } else if (req.type === 'target_conscious' || req.type === 'conscious') {
+          mechanicCostSum += lookupRuleCost('manual_condition', 'conscious') || lookupRuleCost('manual_condition', 'target_conscious');
+        } else if (req.type === 'active_behavior' || req.type === 'active_ability') {
+          mechanicCostSum += lookupRuleCost('additional_requirement', 'active_ability') || lookupRuleCost('additional_requirement', 'active_behavior');
+        } else if (req.type === 'consume' || req.type === 'consumption') {
+          mechanicCostSum += lookupRuleCost('additional_requirement', 'consumption') || lookupRuleCost('additional_requirement', 'consume');
+        } else if (req.type === 'manual') {
+          mechanicCostSum += lookupRuleCost('manual_condition', req.description) || lookupRuleCost('manual_condition', 'manual');
         }
       }
     }
 
     // 9. Control & Caps
-    if (b.control?.caps && Array.isArray(b.control.caps)) {
-      for (const cap of b.control.caps) {
-        if (cap.subject) {
+    if (b.control) {
+      const capsList = Array.isArray(b.control.caps) ? b.control.caps : (b.control.cap ? [b.control.cap] : []);
+      for (const cap of capsList) {
+        if (!cap) continue;
+        if (cap.subject === 'absorb_max_6' || cap.subject === 'barrier' || cap.max === 6 || cap.subject === 'damage_absorbed') {
+          const capOpt = findCapOption(effectiveCats, 'absorb_max_6') || findCapOption(effectiveCats, 6);
+          mechanicCostSum += capOpt ? capOpt.cost : (lookupRuleCost('caps', 'absorb_max_6') || lookupRuleCost('caps', 6) || -3);
+        } else if (cap.subject) {
           mechanicCostSum += lookupRuleCost('caps', cap.subject);
         }
       }
@@ -1593,6 +2204,14 @@ export const RETIRED_LEGACY_CORE_RULES: Record<string, { category: any; rule: an
   'core.caps.ce': {
     category: { id: 'core.caps', coreKey: 'caps', name: 'Límites / caps' },
     rule: { id: 'core.caps.ce', name: 'CE entre 0 y 100 (editable)', cost: 0, ruleType: 'component', component: { kind: 'cap', subject: 'stamina_cost', min: 0, max: 100 } }
+  },
+  'core.healing.es2': {
+    category: { id: 'core.healing', coreKey: 'healing', name: 'Curación' },
+    rule: { id: 'core.healing.es2', name: 'Curar 2 ES', cost: 1, ruleType: 'effect', effect: { timing: 'on_activation', type: 'healing', resourceId: 'ES', amount: 2, magnitude: { kind: 'fixed', amount: 2 } } }
+  },
+  'core.healing.hp10': {
+    category: { id: 'core.healing', coreKey: 'healing', name: 'Curación' },
+    rule: { id: 'core.healing.hp10', name: 'Curar 10 HP', cost: 6, ruleType: 'effect', effect: { timing: 'on_activation', type: 'healing', resourceId: 'SA', amount: 10, magnitude: { kind: 'fixed', amount: 10 } } }
   },
   'core.bonus.fue2': {
     category: { id: 'core.bonus', coreKey: 'bonus', name: 'Bono' },

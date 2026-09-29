@@ -94,7 +94,7 @@ describe('Composed universal rules', () => {
   });
   test('delayed 4D8 and Aturdido in 50m resolve once after one turn', () => {
     const g = group('damage.4d8', 'status.stunned', 'activation.delay1', 'area.50', 'target.any', 'usage.combat');
-    const c = context({ targets: allies });
+    const c = context({ targets: allies, resources: { ES: { current: 20, max: 20 }, SA: { current: 20, max: 20 } } });
     const first = evaluateRuleGroup(g, c);
     expect(first.state.phase).toBe('preparing');
     expect(first.operations.some(o => o.kind === 'effect')).toBe(false);
