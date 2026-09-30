@@ -147,33 +147,84 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
     if (direct) return direct;
   }
 
-  // 2. Search all characters by name, canonCharacterId, or alias
+  // 2. Search all characters by name, last_name, canonCharacterId, or alias
   const allCharacters = await db.select().from(characters);
   const normalizedSearch = decoded.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
   // Exact match
-  let matched = allCharacters.find(c => 
-    c.name.toLowerCase() === decoded.toLowerCase() || 
-    (c.canonCharacterId && c.canonCharacterId.toLowerCase() === decoded.toLowerCase())
-  );
+  let matched = allCharacters.find(c => {
+    const prof = (c.profileData as any) || {};
+    const lastName = prof.last_name || prof.apellido || '';
+    const fullName = `${c.name} ${lastName}`.trim().toLowerCase();
+    const reverseFullName = `${lastName} ${c.name}`.trim().toLowerCase();
+    return (
+      c.name.toLowerCase() === decoded.toLowerCase() ||
+      String(lastName).toLowerCase() === decoded.toLowerCase() ||
+      fullName === decoded.toLowerCase() ||
+      reverseFullName === decoded.toLowerCase() ||
+      (c.canonCharacterId && c.canonCharacterId.toLowerCase() === decoded.toLowerCase())
+    );
+  });
 
   // Normalized alphanumeric match
   if (!matched) {
     matched = allCharacters.find(c => {
+      const prof = (c.profileData as any) || {};
+      const lastName = prof.last_name || prof.apellido || '';
       const cNorm = c.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+      const lastNorm = String(lastName).toLowerCase().replace(/[^a-z0-9]+/g, '');
+      const fullNorm = `${cNorm}${lastNorm}`;
+      const revNorm = `${lastNorm}${cNorm}`;
       const canonNorm = (c.canonCharacterId || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-      const alias = (c.profileData as any)?.alias || (c.profileData as any)?.hero_name || '';
+      const alias = prof.alias || prof.hero_name || prof.apodo || '';
       const aliasNorm = String(alias).toLowerCase().replace(/[^a-z0-9]+/g, '');
-      return cNorm === normalizedSearch || (canonNorm && canonNorm === normalizedSearch) || (aliasNorm && aliasNorm === normalizedSearch);
+      return (
+        cNorm === normalizedSearch ||
+        lastNorm === normalizedSearch ||
+        fullNorm === normalizedSearch ||
+        revNorm === normalizedSearch ||
+        (canonNorm && canonNorm === normalizedSearch) ||
+        (aliasNorm && aliasNorm === normalizedSearch)
+      );
     });
   }
 
   // Substring match
   if (!matched) {
-    matched = allCharacters.find(c => 
-      c.name.toLowerCase().includes(decoded.toLowerCase()) || 
-      (c.canonCharacterId && c.canonCharacterId.toLowerCase().includes(decoded.toLowerCase()))
-    );
+    matched = allCharacters.find(c => {
+      const prof = (c.profileData as any) || {};
+      const lastName = prof.last_name || prof.apellido || '';
+      const fullName = `${c.name} ${lastName}`.trim().toLowerCase();
+      const alias = String(prof.alias || prof.hero_name || prof.apodo || '').toLowerCase();
+      return (
+        c.name.toLowerCase().includes(decoded.toLowerCase()) ||
+        String(lastName).toLowerCase().includes(decoded.toLowerCase()) ||
+        fullName.includes(decoded.toLowerCase()) ||
+        alias.includes(decoded.toLowerCase()) ||
+        (c.canonCharacterId && c.canonCharacterId.toLowerCase().includes(decoded.toLowerCase()))
+      );
+    });
+  }
+
+  // Also check canon characters if still not matched
+  if (!matched) {
+    const { canonCharacters } = await import('./schema.ts');
+    const allCanons = await db.select().from(canonCharacters);
+    const matchedCanon = allCanons.find(cc => {
+      const idMatch = cc.id.toLowerCase() === decoded.toLowerCase();
+      const nameMatch = cc.name.toLowerCase().includes(decoded.toLowerCase());
+      const firstMatch = (cc.firstName || '').toLowerCase().includes(decoded.toLowerCase());
+      const lastMatch = (cc.lastName || '').toLowerCase().includes(decoded.toLowerCase());
+      const aliasMatch = Array.isArray(cc.aliases) && cc.aliases.some((a: string) => a.toLowerCase().includes(decoded.toLowerCase()));
+      return idMatch || nameMatch || firstMatch || lastMatch || aliasMatch;
+    });
+
+    if (matchedCanon) {
+      const linked = allCharacters.find(c => c.canonCharacterId === matchedCanon.id);
+      if (linked) {
+        matched = linked;
+      }
+    }
   }
 
   if (!matched) return null;

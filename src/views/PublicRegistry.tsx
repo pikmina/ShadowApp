@@ -215,12 +215,9 @@ export default function PublicRegistry() {
                   </div>
                   
                   {c.status === 'occupied' && c.linkedCharacterId && (
-                    <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-end gap-3">
-                      <Link to={`/supersheet/${c.linkedCharacterId}`} target="_blank" rel="noopener noreferrer" className="text-xs font-oxanium text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-widest inline-flex items-center gap-1 font-bold">
-                        ⚡ Heroica
-                      </Link>
-                      <Link to={`/sheet/${c.linkedCharacterId}`} target="_blank" rel="noopener noreferrer" className="text-xs font-oxanium text-slate-300 hover:text-cyan-400 transition-colors uppercase tracking-widest inline-flex items-center gap-1">
-                        Ficha <span aria-hidden="true">&rarr;</span>
+                    <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-end">
+                      <Link to={`/sheet/${c.linkedCharacterId}`} target="_blank" rel="noopener noreferrer" className="text-xs font-oxanium text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-widest inline-flex items-center gap-1 font-bold">
+                        Ver Ficha <span aria-hidden="true">&rarr;</span>
                       </Link>
                     </div>
                   )}

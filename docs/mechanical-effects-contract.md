@@ -162,3 +162,67 @@ El componente `src/components/mechanics/MechanicalBehaviorsEditor.tsx`:
 - **Diseño Dinámico por Modo:** Oculta o resalta secciones según el modo seleccionado (ej. la sección de Disparador se muestra predominantemente en modo `reactive`, mientras que Activación se resalta en modo `active`).
 - **Secciones Colapsables:** Organizado en acordeones temáticos con el lenguaje visual de ShadowApp (tokens de Tailwind, tipografías del sistema, bordes sutiles y contraste estético).
 - **Soporte Multinivel:** Si el elemento es de tipo habilidad (`skill`), permite previsualizar y configurar el escalado por niveles.
+
+---
+
+# Fase 3: Consecuencias, Efectos Secundarios y Caps Canónicos (Septiembre 2026)
+
+Esta sección consolida el diseño e implementación de las 8 reglas mecánicas definitivas introducidas en **RULES-DATA-4B**, incluyendo la precisión del pipeline defensivo de recoil sobre daño final, mitigación de barreras y sumado multi-objetivo.
+
+## 1. Las 8 Reglas Mecánicas del Catálogo Canónico
+
+| Regla | Identificador Core | CE | isAvailable | Comportamiento en Runtime / Ciclo de Vida |
+| :--- | :--- | :---: | :---: | :--- |
+| **1. Daño periódico por turno** | `core.consequence.self_damage_turn` | `-1` | `true` | El turno de activación NO cobra el daño. El portador recibe **1 HP** de daño al inicio de cada uno de sus turnos posteriores (duración 3). |
+| **2. Daño propio fijo** | `core.consequence.self_damage_fixed_2` | `-1` | `true` | Recibe **2 HP** de daño directo de SA de forma atómica en el momento exacto de la resolución de la técnica. |
+| **3. Recoil sobre daño final** | `core.consequence.recoil_half` | `-4` | `true` | Recibe como daño propio el **50% del daño final efectivamente infligido** al objetivo (fórmula `Math.floor(finalDamage * 0.5)`). |
+| **4. Penalización al expirar** | `core.consequence.after_effect_int2_3t` | `-3` | `true` | Al finalizar la duración activa de la técnica, se aplica una penalización de **-2 INT** durante 3 turnos completos al portador. |
+| **5. Modificador mientras activo** | `core.consequence.while_active_des2` | `-2` | `true` | Aplica un penalizador de **-2 DES** que dura mientras la técnica esté activa. No se acumula ni se multiplica en cada turno de mantenimiento. |
+| **6. Modificador por turno activo** | `core.consequence.int2_per_active_turn` | `-1` | `false` | *Pendiente de Decisión Semántica (Ambigüedad)*. Se preserva en base de datos pero se marca como no elegible en interfaz (`isAvailable: false`). |
+| **7. Estado bajo umbral** | `core.consequence.overheated_threshold` | `-3` | `true` | Si tras cobrar el coste de la técnica el portador queda con **EST <= 5**, adquiere inmediatamente el estado **Sobrecalentado** (`core.status.sobrecalentado`). |
+| **8. Cap de absorción de barrera** | `core.caps.absorb_max_6` | `-3` | `true` | Al mitigar daño, las capas de barrera absorben un **máximo de 6 puntos de daño por impacto**. El excedente penetra directamente a la salud. |
+
+---
+
+## 2. Pipeline Canónico de Recoil (Daño Final Infligido)
+
+El daño de recoil (`core.consequence.recoil_half`) opera de forma reactiva y determinista sobre el **daño final neto recibido por el objetivo**, no sobre el daño raw o fórmula declarada.
+
+### Pipeline Conceptual de Daño:
+1. **Fórmula de Daño Raw** (ej. dados o valor fijo)
+2. **Modificadores Outgoing** (ofensivos del atacante)
+3. **Modificadores Incoming** (defensivos del objetivo / modificadores de daño pendientes)
+4. **Mitigación por Barrera** (absorbe daño reduciendo el escudo del objetivo)
+5. **Daño Final Infligido** (`finalDamage` neto que afecta directamente a la SA)
+6. **Cálculo de Recoil** = `Math.floor(finalDamage * 0.5)`
+
+### Regla de Redondeo:
+Se utiliza estrictamente la función `Math.floor` sobre el total final:
+- Daño final = `10` → recoil = `5`
+- Daño final = `7`  → recoil = `3`
+- Daño final = `1`  → recoil = `0`
+- Daño final = `0` (daño completamente mitigado por barreras o defensas) → recoil = `0` (no hay autodaño si el ataque no logra penetrar).
+
+---
+
+## 3. Comportamiento en Múltiples Objetivos (Multi-Target Recoil)
+
+Cuando una técnica con recoil afecta a múltiples objetivos (ej. un ataque de área en `executeMultiTargetBehavior`), el runtime agrega los resultados de la siguiente forma para evitar anomalías y distorsiones de redondeo:
+
+1. El pipeline defensivo procesa individualmente el daño efectivo de cada objetivo: $Da\tilde{n}o_A, Da\tilde{n}o_B, ...$
+2. Se calcula la **Suma Atómica** de todos los daños finales efectivos:
+   $$\text{TotalFinalDamageDealt} = \sum (\text{finalDamage}_i)$$
+3. Se aplica la tasa de recoil (50%) **una sola vez** sobre la suma agregada:
+   $$\text{RecoilDmg} = \lfloor \text{TotalFinalDamageDealt} \times 0.5 \rfloor$$
+
+*Ejemplo:*
+- Objetivo A recibe `6` de daño final (Raw 10 - Barrera 4)
+- Objetivo B recibe `4` de daño final (Raw 10 - Barrera 6)
+- Daño Total = `10` → Recoil = `5` (en lugar de `floor(6 * 0.5) + floor(4 * 0.5)`).
+
+---
+
+## 4. Garantías de Persistencia y Seguridad (Anti-Recursión)
+
+- **Protección de Bucle Infinito:** El daño por recoil se aplica de forma interna decrementando directamente el recurso `SA` de la entidad origen sin emitir nuevos eventos de ataque ofensivos. Esto evita de forma matemática que el recoil vuelva a disparar recoil de forma infinita.
+- **Autoridad de Base de Datos:** Los costes de las consecuencias (ej. recoil = -4 CE) se leen dinámicamente de `system_rules/system_mechanics`. El administrador puede sobrescribir estos valores y el motor los recalculará instantáneamente respetando las directivas del sentinel de persistencia (`migration_rules_data_4b`).
