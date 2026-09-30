@@ -13,7 +13,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // API routes
   app.get("/api/health", async (req, res) => {
@@ -299,7 +300,7 @@ async function startServer() {
     const SettingsSchema = z.object({
       gameDate: z.any().optional(),
       groups: z.any().optional(),
-      expectedUpdatedAt: z.string().optional()
+      expectedUpdatedAt: z.string().nullish()
     });
     const parsed = SettingsSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
