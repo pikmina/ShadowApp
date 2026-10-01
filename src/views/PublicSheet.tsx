@@ -37,8 +37,10 @@ import { StudentSheetView } from '@/components/character/themes/StudentSheetView
 import { HeroSheetView } from '@/components/character/themes/HeroSheetView';
 import { CivilianSheetView } from '@/components/character/themes/CivilianSheetView';
 import { VillainSheetView } from '@/components/character/themes/VillainSheetView';
+import { VigilanteSheetView } from '@/components/character/themes/VigilanteSheetView';
 import { BaseSheetView } from '@/components/character/themes/BaseSheetView';
 import { calculateTechniqueStructuralCost } from '@/domain/systemMechanics';
+import { CANONICAL_STAT_ICONS, resolveCanonicalGroupColor } from '@/domain/canonicalStatIcons';
 
 const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
 
@@ -65,20 +67,23 @@ export default function PublicSheet() {
   const [error, setError] = useState(false);
   const [elements, setElements] = useState<any[]>([]);
   const [rules, setRules] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     const loadCharacter = async () => {
       try {
-        const [response, elemResponse, rulesResponse] = await Promise.all([
+        const [response, elemResponse, rulesResponse, settingsResponse] = await Promise.all([
           fetch(`/api/public/character/${encodeURIComponent(searchId || '')}`, { signal: controller.signal }),
           fetch('/api/elements', { signal: controller.signal }).catch(() => ({ ok: false, json: async () => [] })),
-          fetch('/api/rules', { signal: controller.signal }).catch(() => ({ ok: false, json: async () => [] }))
+          fetch('/api/rules', { signal: controller.signal }).catch(() => ({ ok: false, json: async () => [] })),
+          fetch('/api/settings', { signal: controller.signal }).catch(() => ({ ok: false, json: async () => null }))
         ]);
         if (!response.ok) throw new Error('Character not found');
         setCharacter(await response.json());
         if ((elemResponse as any).ok) setElements(await (elemResponse as any).json());
         if ((rulesResponse as any).ok) setRules(await (rulesResponse as any).json());
+        if ((settingsResponse as any).ok) setSettings(await (settingsResponse as any).json());
       } catch (requestError: any) {
         if (requestError.name !== 'AbortError') {
           console.error("PublicSheet fetch error:", requestError);
@@ -259,6 +264,9 @@ export default function PublicSheet() {
   const basicStage = character ? displayValue(readValue(profile, ['basic_stage', 'stage', 'nivel', 'etapa']), 'Novato') : '';
 
   const detectedTheme = useMemo(() => detectFactionTheme(group), [group]);
+  const resolvedGroupColor = useMemo(() => {
+    return resolveCanonicalGroupColor(group, settings?.groups, detectedTheme);
+  }, [group, settings, detectedTheme]);
   const status = character ? displayValue(readValue(profile, ['status', 'estado']), 'Activo') : '';
   
   // Quirk Info
@@ -299,6 +307,11 @@ export default function PublicSheet() {
       sources,
     };
   });
+
+  const fueStat = baseAttributes.find(a => a.key === 'FUE');
+  const desStat = baseAttributes.find(a => a.key === 'DES');
+  const modFuerzaVal = Math.floor(Number(fueStat?.value || 0) / 2);
+  const modDestrezaVal = Math.floor(Number(desStat?.value || 0) / 2);
 
   const defenseList = [
     {
@@ -552,6 +565,7 @@ export default function PublicSheet() {
           alias={alias}
           avatar={avatar}
           group={displayValue(group, 'Estudiantes')}
+          groupColor={resolvedGroupColor}
           className={classNameResolved}
           courseName={courseNameResolved}
           schoolName={schoolNameResolved}
@@ -598,6 +612,7 @@ export default function PublicSheet() {
           alias={alias}
           avatar={avatar}
           group={displayValue(group, 'Civiles')}
+          groupColor={resolvedGroupColor}
           status={status}
           basicStage={basicStage}
           quirkName={quirkName}
@@ -642,6 +657,7 @@ export default function PublicSheet() {
           alias={alias}
           avatar={avatar}
           group={displayValue(group, 'Héroes')}
+          groupColor={resolvedGroupColor}
           status={status}
           basicStage={basicStage}
           quirkName={quirkName}
@@ -685,6 +701,7 @@ export default function PublicSheet() {
           alias={alias}
           avatar={avatar}
           group={displayValue(group, 'Villanos')}
+          groupColor={resolvedGroupColor}
           status={status}
           basicStage={basicStage}
           quirkName={quirkName}
@@ -708,6 +725,8 @@ export default function PublicSheet() {
           rangeDamageText={String(combatStatusList[1]?.value || '1D4')}
           damageReductionText={String(combatStatusList[2]?.value || '0')}
           initiativeText={String(combatStatusList[3]?.value || '0')}
+          modFuerza={modFuerzaVal}
+          modDestreza={modDestrezaVal}
           baseAttributes={baseAttributes}
           defenseList={defenseList}
           combatStatusList={combatStatusList}
@@ -721,14 +740,15 @@ export default function PublicSheet() {
           biography={readValue(profile, ['biography', 'bio', 'historia', 'descripcion'])}
           character={character}
           profile={profile}
+          employments={employmentsList}
         />
-      ) : (
-        <BaseSheetView
-          theme={detectedTheme}
+      ) : detectedTheme === 'vigilante' ? (
+        <VigilanteSheetView
           fullName={fullName}
           alias={alias}
           avatar={avatar}
-          group={displayValue(group, 'Sin grupo')}
+          group={displayValue(group, 'Vigilantes')}
+          groupColor={resolvedGroupColor}
           status={status}
           basicStage={basicStage}
           quirkName={quirkName}
@@ -752,6 +772,60 @@ export default function PublicSheet() {
           rangeDamageText={String(combatStatusList[1]?.value || '1D4')}
           damageReductionText={String(combatStatusList[2]?.value || '0')}
           initiativeText={String(combatStatusList[3]?.value || '0')}
+          modFuerza={modFuerzaVal}
+          modDestreza={modDestrezaVal}
+          baseAttributes={baseAttributes}
+          defenseList={defenseList}
+          combatStatusList={combatStatusList}
+          personalDataList={personalDataList}
+          traits={resolvedTraits}
+          weaknesses={resolvedWeaknesses}
+          skills={skillsList}
+          credentials={credentials}
+          techniques={resolvedTechniques}
+          possessions={inventoryItemsOnly}
+          biography={readValue(profile, ['biography', 'bio', 'historia', 'descripcion'])}
+          character={character}
+          profile={profile}
+          employments={employmentsList}
+        />
+      ) : (
+        <BaseSheetView
+          theme={detectedTheme}
+          fullName={fullName}
+          alias={alias}
+          avatar={avatar}
+          group={displayValue(group, 'Sin grupo')}
+          groupColor={resolvedGroupColor}
+          status={status}
+          basicStage={basicStage}
+          quirkName={quirkName}
+          quirkType={quirkType}
+          quirkEvolution={quirkEvolution}
+          quirkDescription={quirkDescription}
+          quirkLevelOne={quirkLevelOne}
+          quirkLevelTwo={quirkLevelTwo}
+          quirkLevelThree={quirkLevelThree}
+          reputation={readValue(profile, ['reputation', 'reputacion', 'amenaza'])}
+          yen={character.yen}
+          exp={character.exp}
+          plusUltra={resolvedPlusUltra}
+          currentHealth={currentHealth}
+          maxHealth={maxHealth}
+          currentStamina={currentStamina}
+          maxStamina={maxStamina}
+          evasion={Number(defenseList[0]?.value || 0)}
+          courage={Number(defenseList[1]?.value || 0)}
+          physicalDamageText={String(combatStatusList[0]?.value || '1D4')}
+          rangeDamageText={String(combatStatusList[1]?.value || '1D4')}
+          damageReductionText={String(combatStatusList[2]?.value || '0')}
+          initiativeText={String(combatStatusList[3]?.value || '0')}
+          modFuerza={modFuerzaVal}
+          modDestreza={modDestrezaVal}
+          classNameResolved={classNameResolved}
+          courseNameResolved={courseNameResolved}
+          schoolNameResolved={schoolNameResolved}
+          enrollment={enrollment}
           baseAttributes={baseAttributes}
           defenseList={defenseList}
           combatStatusList={combatStatusList}

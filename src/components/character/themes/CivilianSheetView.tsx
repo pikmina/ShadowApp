@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { StatsHexagon, HexStat } from '../HexagonRadarChart';
 import { ModifierBadgeGroup, ModifierNotesLegend } from '../ModifierBadge';
+import { CANONICAL_STAT_ICONS } from '@/domain/canonicalStatIcons';
 import { cn } from '@/lib/utils';
 
 export const displayValue = (value: unknown, fallback = '—') => {
@@ -35,6 +36,7 @@ export interface CivilianSheetViewProps {
   alias?: string;
   avatar?: string | null;
   group?: string;
+  groupColor?: string;
   status?: string;
   basicStage?: string;
   quirkName?: string;
@@ -140,6 +142,7 @@ export function CivilianSheetView({
   alias,
   avatar,
   group,
+  groupColor,
   status = 'Activo',
   basicStage,
   quirkName,
@@ -579,17 +582,19 @@ export function CivilianSheetView({
               </div>
             </div>
 
-            <div className="p-3.5 flex items-center gap-3 bg-red-50/40">
-              <div className="p-2 border border-red-700/60 bg-red-100 text-red-700">
-                <Sparkles className="size-5 text-red-700" />
+            {resolvedPlusUltra > 0 && (
+              <div className="p-3.5 flex items-center gap-3 bg-red-50/40">
+                <div className="p-2 border border-red-700/60 bg-red-100 text-red-700">
+                  <Sparkles className="size-5 text-red-700" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-sans text-red-800 uppercase block font-bold">Reserva Plus Ultra (超克):</span>
+                  <span className="font-serif font-black text-base text-red-900">
+                    {resolvedPlusUltra} PTS <span className="text-[10px] text-red-700 font-normal font-sans">(Extraordinario)</span>
+                  </span>
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] font-sans text-red-800 uppercase block font-bold">Reserva Plus Ultra (超克):</span>
-                <span className="font-serif font-black text-base text-red-900">
-                  {resolvedPlusUltra} PTS <span className="text-[10px] text-red-700 font-normal font-sans">(Extraordinario)</span>
-                </span>
-              </div>
-            </div>
+            )}
           </div>
         </section>
 
@@ -610,7 +615,7 @@ export function CivilianSheetView({
                 <span className="font-bold text-stone-800 font-serif">DIAGRAMA DE APTITUD BIOMÉTRICA</span>
                 <span className="font-mono text-[10px] text-stone-500">6 PARÁMETROS</span>
               </div>
-              <StatsHexagon stats={baseAttributes} theme="civilian" />
+              <StatsHexagon stats={baseAttributes} theme="civilian" accentColor={groupColor} />
               <p className="text-[10px] text-stone-500 italic mt-2 text-center font-serif">
                 Evaluación homologada según el baremo médico oficial del Ministerio de Salud.
               </p>
@@ -665,7 +670,10 @@ export function CivilianSheetView({
                 <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-stone-300 text-xs">
                   <div className="p-2 border border-stone-300 bg-stone-50 rounded flex items-center justify-between">
                     <div>
-                      <span className="text-[9px] uppercase tracking-wider text-stone-500 font-sans block">Modificador Fuerza (FUE):</span>
+                      <span className="text-[9px] uppercase tracking-wider text-stone-500 font-sans flex items-center gap-1">
+                        <CANONICAL_STAT_ICONS.modFuerza className="size-3 text-stone-700" />
+                        Mod. Fuerza (FUE):
+                      </span>
                       <span className="text-[10px] text-stone-600 font-serif">Bono CQC / Melee</span>
                     </div>
                     <span className="font-mono font-black text-sm text-stone-900 bg-white px-2 py-0.5 border border-stone-300 rounded">
@@ -674,7 +682,10 @@ export function CivilianSheetView({
                   </div>
                   <div className="p-2 border border-stone-300 bg-stone-50 rounded flex items-center justify-between">
                     <div>
-                      <span className="text-[9px] uppercase tracking-wider text-stone-500 font-sans block">Modificador Destreza (DES):</span>
+                      <span className="text-[9px] uppercase tracking-wider text-stone-500 font-sans flex items-center gap-1">
+                        <CANONICAL_STAT_ICONS.modDestreza className="size-3 text-stone-700" />
+                        Mod. Destreza (DES):
+                      </span>
                       <span className="text-[10px] text-stone-600 font-serif">Bono Distancia / Precisión</span>
                     </div>
                     <span className="font-mono font-black text-sm text-stone-900 bg-white px-2 py-0.5 border border-stone-300 rounded">
@@ -687,39 +698,68 @@ export function CivilianSheetView({
               {/* Vitals & Combat Summary Strip Homologado */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3 pt-3 border-t border-dashed border-stone-300 text-xs">
                 <div className="p-2 border border-stone-300 bg-stone-50 rounded">
-                  <span className="text-[9px] text-stone-500 uppercase font-sans block">Vitalidad (HP):</span>
+                  <span className="text-[9px] text-stone-500 uppercase font-sans flex items-center gap-1">
+                    <CANONICAL_STAT_ICONS.health className="size-3 text-rose-600 fill-rose-600" />
+                    Vitalidad (HP):
+                  </span>
                   <span className="font-bold text-stone-900 font-mono text-sm">{currentHealth} / {maxHealth}</span>
                 </div>
                 <div className="p-2 border border-stone-300 bg-stone-50 rounded">
-                  <span className="text-[9px] text-stone-500 uppercase font-sans block">Estamina (ES):</span>
+                  <span className="text-[9px] text-stone-500 uppercase font-sans flex items-center gap-1">
+                    <CANONICAL_STAT_ICONS.stamina className="size-3 text-amber-600 fill-amber-600" />
+                    Estamina (ES):
+                  </span>
                   <span className="font-bold text-stone-900 font-mono text-sm">{currentStamina} / {maxStamina}</span>
                 </div>
-                <div className="p-2 border border-red-700/60 bg-red-50/50 rounded flex flex-col justify-between">
-                  <span className="text-[9px] text-red-800 uppercase font-sans block font-bold">Plus Ultra (超克):</span>
-                  <span className="font-black text-red-900 font-mono text-sm">{resolvedPlusUltra} PTS</span>
-                </div>
+                {resolvedPlusUltra > 0 && (
+                  <div className="p-2 border border-red-700/60 bg-red-50/50 rounded flex flex-col justify-between">
+                    <span className="text-[9px] text-red-800 uppercase font-sans font-bold flex items-center gap-1">
+                      <CANONICAL_STAT_ICONS.plusUltra className="size-3 text-red-600" />
+                      Plus Ultra (超克):
+                    </span>
+                    <span className="font-black text-red-900 font-mono text-sm">{resolvedPlusUltra} PTS</span>
+                  </div>
+                )}
                 <div className="p-2 border border-stone-300 bg-stone-50 rounded">
-                  <span className="text-[9px] text-stone-500 uppercase font-sans block">Iniciativa (Ini):</span>
+                  <span className="text-[9px] text-stone-500 uppercase font-sans flex items-center gap-1">
+                    <CANONICAL_STAT_ICONS.initiative className="size-3 text-stone-700" />
+                    Iniciativa (Ini):
+                  </span>
                   <span className="font-bold text-stone-900 font-mono text-sm">{initiativeText}</span>
                 </div>
                 <div className="p-2 border border-stone-300 bg-stone-50 rounded">
-                  <span className="text-[9px] text-stone-500 uppercase font-sans block">Evasión (EVA):</span>
+                  <span className="text-[9px] text-stone-500 uppercase font-sans flex items-center gap-1">
+                    <CANONICAL_STAT_ICONS.evasion className="size-3 text-stone-700" />
+                    Evasión (EVA):
+                  </span>
                   <span className="font-bold text-stone-900 font-mono text-sm">{evasion}</span>
                 </div>
                 <div className="p-2 border border-stone-300 bg-stone-50 rounded">
-                  <span className="text-[9px] text-stone-500 uppercase font-sans block">Coraje (COR):</span>
+                  <span className="text-[9px] text-stone-500 uppercase font-sans flex items-center gap-1">
+                    <CANONICAL_STAT_ICONS.courage className="size-3 text-stone-700" />
+                    Coraje (COR):
+                  </span>
                   <span className="font-bold text-stone-900 font-mono text-sm">{courage}</span>
                 </div>
                 <div className="p-2 border border-stone-300 bg-stone-50 rounded">
-                  <span className="text-[9px] text-stone-500 uppercase font-sans block">Daño Físico (CQC):</span>
+                  <span className="text-[9px] text-stone-500 uppercase font-sans flex items-center gap-1">
+                    <CANONICAL_STAT_ICONS.physicalDamage className="size-3 text-stone-700" />
+                    Daño Físico (CQC):
+                  </span>
                   <span className="font-bold text-stone-900 font-mono">{physicalDamageText}</span>
                 </div>
                 <div className="p-2 border border-stone-300 bg-stone-50 rounded">
-                  <span className="text-[9px] text-stone-500 uppercase font-sans block">Daño Rango (Dist.):</span>
+                  <span className="text-[9px] text-stone-500 uppercase font-sans flex items-center gap-1">
+                    <CANONICAL_STAT_ICONS.rangeDamage className="size-3 text-stone-700" />
+                    Daño Rango (Dist.):
+                  </span>
                   <span className="font-bold text-stone-900 font-mono">{rangeDamageText}</span>
                 </div>
                 <div className="p-2 border border-stone-300 bg-stone-50 rounded">
-                  <span className="text-[9px] text-stone-500 uppercase font-sans block">Reducción Daño (RD):</span>
+                  <span className="text-[9px] text-stone-500 uppercase font-sans flex items-center gap-1">
+                    <CANONICAL_STAT_ICONS.damageReduction className="size-3 text-stone-700" />
+                    Reducción Daño (RD):
+                  </span>
                   <span className="font-bold text-stone-900 font-mono">{damageReductionText}</span>
                 </div>
               </div>

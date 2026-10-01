@@ -7,6 +7,7 @@ import { HeroSheetView } from '@/components/character/themes/HeroSheetView';
 import { StudentSheetView } from '@/components/character/themes/StudentSheetView';
 import { CivilianSheetView } from '@/components/character/themes/CivilianSheetView';
 import { VillainSheetView } from '@/components/character/themes/VillainSheetView';
+import { VigilanteSheetView } from '@/components/character/themes/VigilanteSheetView';
 
 describe('Skills Data Pipeline & Rendering Parity Audit', () => {
   // Real Character Fixture with 2 distinct Skills at different levels
@@ -397,7 +398,7 @@ describe('Skills Data Pipeline & Rendering Parity Audit', () => {
     expect(villainHtml).toContain('2');
 
     const vigilanteHtml = renderToStaticMarkup(
-      <BaseSheetView
+      <VigilanteSheetView
         fullName={vm.fullName}
         alias={vm.alias}
         avatar={vm.avatar}
@@ -438,7 +439,6 @@ describe('Skills Data Pipeline & Rendering Parity Audit', () => {
         biography={vm.biography}
         character={vm.character}
         profile={vm.profile}
-        theme="vigilante"
       />
     );
     expect(vigilanteHtml).toContain('Combate');

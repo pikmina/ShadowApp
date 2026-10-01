@@ -2,6 +2,7 @@ import { HexStat } from '@/components/character/HexagonRadarChart';
 import { detectFactionTheme, FactionThemeId } from '@/components/character/themes/FactionSheetTheme';
 import { calculateTechniqueStructuralCost } from '@/domain/systemMechanics';
 import { generateAutoDescription } from '@/domain/mechanicalDescription';
+import { CANONICAL_STAT_ICONS } from '@/domain/canonicalStatIcons';
 
 export const readValue = (obj: any, keys: string[]): any => {
   if (!obj || typeof obj !== 'object') return undefined;
@@ -241,12 +242,14 @@ export function buildCharacterSheetViewModel({
     {
       label: 'EVASIÓN',
       value: evasionVal,
+      icon: CANONICAL_STAT_ICONS.evasion,
       equipmentBonus: equipmentBonusData.byDerived.evasion || 0,
       sources: derived?.derivedSources?.evasion || equipmentBonusData.sourcesByDerived.evasion || [],
     },
     {
       label: 'CORAJE',
       value: courageVal,
+      icon: CANONICAL_STAT_ICONS.courage,
       equipmentBonus: equipmentBonusData.byDerived.coraje || 0,
       sources: derived?.derivedSources?.coraje || equipmentBonusData.sourcesByDerived.coraje || [],
     },
@@ -264,11 +267,12 @@ export function buildCharacterSheetViewModel({
   })();
 
   const combatStatusList = [
-    { label: 'DAÑO FÍSICO', value: physicalDamageVal, sub: 'CQC / Melee', sources: [] },
-    { label: 'DAÑO RANGO', value: rangeDamageVal, sub: 'Distancia', sources: [] },
+    { label: 'DAÑO FÍSICO', value: physicalDamageVal, icon: CANONICAL_STAT_ICONS.physicalDamage, sub: 'CQC / Melee', sources: [] },
+    { label: 'DAÑO RANGO', value: rangeDamageVal, icon: CANONICAL_STAT_ICONS.rangeDamage, sub: 'Distancia', sources: [] },
     {
       label: 'REDUCCIÓN DAÑO',
       value: damageReductionVal,
+      icon: CANONICAL_STAT_ICONS.damageReduction,
       sub: 'Armadura / RD',
       equipmentBonus: equipmentBonusData.byDerived.reduccionDano || 0,
       sources: derived?.derivedSources?.reduccionDano || equipmentBonusData.sourcesByDerived.reduccionDano || [],
@@ -276,6 +280,7 @@ export function buildCharacterSheetViewModel({
     {
       label: 'INICIATIVA',
       value: initiativeVal,
+      icon: CANONICAL_STAT_ICONS.initiative,
       sub: 'Velocidad reacción',
       equipmentBonus: equipmentBonusData.byDerived.iniciativa || 0,
       sources: derived?.derivedSources?.iniciativa || equipmentBonusData.sourcesByDerived.iniciativa || [],

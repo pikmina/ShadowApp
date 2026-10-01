@@ -480,3 +480,44 @@ export function StudentAvatarFrame({
     </div>
   );
 }
+
+/**
+ * Resolves the dynamic accent color of a group or faction:
+ * 1. Matching configured group in Settings (/api/settings)
+ * 2. Theme-specific CSS variable or default fallback
+ */
+export function resolveGroupColor(
+  groupName?: string | null,
+  configuredGroups?: { id?: string; name?: string; color?: string }[] | null
+): string {
+  if (!groupName) return '#71717a';
+  const lower = groupName.toLowerCase().trim();
+
+  if (Array.isArray(configuredGroups) && configuredGroups.length > 0) {
+    const match = configuredGroups.find(
+      g => g?.name && (
+        g.name.toLowerCase().trim() === lower ||
+        lower.includes(g.name.toLowerCase().trim()) ||
+        g.name.toLowerCase().trim().includes(lower)
+      )
+    );
+    if (match?.color) return match.color;
+  }
+
+  const theme = detectFactionTheme(groupName);
+  switch (theme) {
+    case 'hero':
+      return 'var(--heroes, #06b6d4)';
+    case 'student':
+      return 'var(--estudiantes, #3b82f6)';
+    case 'civilian':
+      return 'var(--civiles, #f59e0b)';
+    case 'villain':
+      return 'var(--villanos, #e11d48)';
+    case 'vigilante':
+      return 'var(--vigilantes, #6366f1)';
+    default:
+      return '#71717a';
+  }
+}
+

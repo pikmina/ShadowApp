@@ -7,6 +7,7 @@ import { HeroSheetView } from '@/components/character/themes/HeroSheetView';
 import { StudentSheetView } from '@/components/character/themes/StudentSheetView';
 import { CivilianSheetView } from '@/components/character/themes/CivilianSheetView';
 import { VillainSheetView } from '@/components/character/themes/VillainSheetView';
+import { VigilanteSheetView } from '@/components/character/themes/VigilanteSheetView';
 
 describe('Comprehensive Category DATA / RENDER Parity Matrix Audit', () => {
   const fullFixture = {
@@ -375,6 +376,9 @@ describe('Comprehensive Category DATA / RENDER Parity Matrix Audit', () => {
             rangeDamageText={vm.combatStatus.rangeDamageText}
             damageReductionText={vm.combatStatus.damageReductionText}
             initiativeText={vm.combatStatus.initiativeText}
+            modFuerza={vm.combatStatus.modFuerza}
+            modDestreza={vm.combatStatus.modDestreza}
+            combatStatus={vm.combatStatus}
             baseAttributes={vm.baseAttributes}
             defenseList={vm.defenseList}
             combatStatusList={vm.combatStatusList}
@@ -395,7 +399,7 @@ describe('Comprehensive Category DATA / RENDER Parity Matrix Audit', () => {
       name: 'VIGILANTE',
       render: (vm: any) =>
         renderToStaticMarkup(
-          <BaseSheetView
+          <VigilanteSheetView
             fullName={vm.fullName}
             alias={vm.alias}
             avatar={vm.avatar}
@@ -423,6 +427,9 @@ describe('Comprehensive Category DATA / RENDER Parity Matrix Audit', () => {
             rangeDamageText={vm.combatStatus.rangeDamageText}
             damageReductionText={vm.combatStatus.damageReductionText}
             initiativeText={vm.combatStatus.initiativeText}
+            modFuerza={vm.combatStatus.modFuerza}
+            modDestreza={vm.combatStatus.modDestreza}
+            combatStatus={vm.combatStatus}
             baseAttributes={vm.baseAttributes}
             defenseList={vm.defenseList}
             combatStatusList={vm.combatStatusList}
@@ -436,7 +443,6 @@ describe('Comprehensive Category DATA / RENDER Parity Matrix Audit', () => {
             biography={vm.biography}
             character={vm.character}
             profile={vm.profile}
-            theme="vigilante"
           />
         ),
     },
@@ -467,6 +473,8 @@ describe('Comprehensive Category DATA / RENDER Parity Matrix Audit', () => {
       expect(html).toMatch(/coraje/i);
 
       // 4. Modifiers
+      expect(html).toMatch(/Mod(ificador)?(\.|\s+de)?\s*Fuerza/i);
+      expect(html).toMatch(/Mod(ificador)?(\.|\s+de)?\s*Destreza/i);
       expect(html).toMatch(/(\+2|2)/);
 
       // 5. Skills (BOTH skills with correct levels)

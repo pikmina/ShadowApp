@@ -38,6 +38,7 @@ export interface StudentSheetViewProps {
   alias?: string;
   avatar?: string | null;
   group?: string;
+  groupColor?: string;
   className?: string;
   courseName?: string;
   schoolName?: string;
@@ -84,6 +85,7 @@ export function StudentSheetView({
   alias,
   avatar,
   group,
+  groupColor,
   className,
   courseName,
   schoolName,
@@ -202,15 +204,17 @@ export function StudentSheetView({
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 shadow-xs flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-rose-200 text-rose-800 border border-rose-300">
-            <Sparkles className="size-5 text-rose-600" />
+        {resolvedPlusUltra > 0 && (
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 shadow-xs flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-rose-200 text-rose-800 border border-rose-300">
+              <Sparkles className="size-5 text-rose-600" />
+            </div>
+            <div>
+              <span className="text-[10px] font-mono uppercase text-rose-700 block font-bold">Plus Ultra (超克)</span>
+              <span className="text-base font-bold text-rose-950">{resolvedPlusUltra} pts</span>
+            </div>
           </div>
-          <div>
-            <span className="text-[10px] font-mono uppercase text-rose-700 block font-bold">Plus Ultra (超克)</span>
-            <span className="text-base font-bold text-rose-950">{resolvedPlusUltra} pts</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Main Grid: Radar Hexagon Stats & Health Vitals */}
@@ -225,7 +229,7 @@ export function StudentSheetView({
             stickyNote="Resultados homologados según las pruebas de control físico y entrenamiento práctico."
           >
             {/* Health, Stamina & Plus Ultra Pool Gauges */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+            <div className={cn("grid grid-cols-1 gap-3 mb-4", resolvedPlusUltra > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-bold text-rose-800 flex items-center gap-1.5 font-mono">
@@ -256,23 +260,25 @@ export function StudentSheetView({
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-red-800 flex items-center gap-1.5 font-mono">
-                    <Sparkles className="size-4 text-red-600" />
-                    PLUS ULTRA
-                  </span>
-                  <span className="text-base font-bold text-red-950 font-mono">
-                    {resolvedPlusUltra} PTS
-                  </span>
+              {resolvedPlusUltra > 0 && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-red-800 flex items-center gap-1.5 font-mono">
+                      <Sparkles className="size-4 text-red-600" />
+                      PLUS ULTRA
+                    </span>
+                    <span className="text-base font-bold text-red-950 font-mono">
+                      {resolvedPlusUltra} PTS
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-red-700 font-mono">Proeza Extraordinaria</span>
                 </div>
-                <span className="text-[10px] text-red-700 font-mono">Proeza Extraordinaria</span>
-              </div>
+              )}
             </div>
 
             {/* Exact Hexagon Radar Chart with Student theme */}
             <div className="rounded-xl bg-white border border-slate-200 shadow-xs p-2 sm:p-4">
-              <StatsHexagon stats={baseAttributes} theme="student" />
+              <StatsHexagon stats={baseAttributes} theme="student" accentColor={groupColor} />
             </div>
           </StudentNotebookCard>
         </div>

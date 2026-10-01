@@ -36,6 +36,7 @@ export interface HeroSheetViewProps {
   alias?: string;
   avatar?: string | null;
   group?: string;
+  groupColor?: string;
   status?: string;
   basicStage?: string;
   quirkName?: string;
@@ -79,6 +80,7 @@ export function HeroSheetView({
   alias,
   avatar,
   group,
+  groupColor,
   status,
   basicStage,
   quirkName,
@@ -281,11 +283,13 @@ export function HeroSheetView({
                 <span className="text-zinc-400 font-mono text-[11px]">FONDOS:</span>
                 <span className="font-black text-emerald-400">¥{(character.yen ?? 0).toLocaleString()}</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-950 border border-rose-500/50 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.2)]">
-                <Sparkles className="size-4 text-rose-400 animate-pulse" />
-                <span className="text-zinc-400 font-mono text-[11px]">PLUS ULTRA:</span>
-                <span className="font-black text-rose-400 text-sm font-oxanium">{resolvedPlusUltra} PTS</span>
-              </div>
+              {resolvedPlusUltra > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-950 border border-rose-500/50 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.2)]">
+                  <Sparkles className="size-4 text-rose-400 animate-pulse" />
+                  <span className="text-zinc-400 font-mono text-[11px]">PLUS ULTRA:</span>
+                  <span className="font-black text-rose-400 text-sm font-oxanium">{resolvedPlusUltra} PTS</span>
+                </div>
+              )}
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-950 border border-cyan-900/40 text-cyan-400">
                 <Activity className="size-3.5" />
                 <span className="font-mono text-[10px] uppercase">BIO-MONITOR: OK</span>
@@ -373,7 +377,7 @@ export function HeroSheetView({
 
           {/* THE HEXAGON RADAR CHART (FUE, DES, RES, VOL, INT, VEL) */}
           <div className="rounded-lg bg-zinc-950/90 border border-zinc-800/80 p-3 sm:p-4 relative">
-            <StatsHexagon stats={baseAttributes} theme="hero" />
+            <StatsHexagon stats={baseAttributes} theme="hero" accentColor={groupColor} />
           </div>
         </div>
 

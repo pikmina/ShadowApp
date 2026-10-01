@@ -304,6 +304,24 @@
 }
 
 @layer utilities {
+  /* Shared Mask Utilities for dynamic group-colored assets without altering original resources */
+  .mask-splatters {
+    -webkit-mask-image: var(--splatters);
+    mask-image: var(--splatters);
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+  }
+  .mask-bggrain {
+    -webkit-mask-image: var(--bggrain);
+    mask-image: var(--bggrain);
+    -webkit-mask-size: cover;
+    mask-size: cover;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+  }
+
   .splatter-card-bg {
     position: relative;
     overflow: hidden;
