@@ -35,7 +35,7 @@ import {
 } from "./mechanicalLabels";
 
 import { createCoreCategories, getCategoryOptions } from "./coreRuleCatalog";
-import { deriveEffectiveBehaviorResolution } from "./characterTechnique";
+import { deriveEffectiveBehaviorResolution, deriveTechniqueFunctionalCategories } from "./characterTechnique";
 import { deriveSupportDefenseRD, calculateTechniqueStructuralCost } from "./systemMechanics";
 
 export interface MechanicalDescriptionContext {
@@ -1361,6 +1361,23 @@ export function describeMechanicalBehavior(
   if (behavior.resolution) {
     let effectiveRes = behavior.resolution;
     if (
+      (options.classification === "support" || options.classification === "defensive") &&
+      typeof options.structuralCost === "number"
+    ) {
+      const derived = deriveEffectiveBehaviorResolution(behavior, {
+        classification: options.classification,
+        structuralCost: options.structuralCost,
+        supportDifficultyTiers: options.supportDifficultyTiers,
+      });
+      effectiveRes = {
+        type: derived.type as any,
+        attribute: derived.attribute,
+        skill: derived.skill,
+        difficulty: derived.difficulty,
+        attackType: derived.attackType,
+        description: behavior.resolution.description,
+      };
+    } else if (
       effectiveRes.type === "rd" &&
       !effectiveRes.difficulty &&
       (options.classification === "support" || options.classification === "defensive") &&
@@ -1664,9 +1681,39 @@ export function generateAutoDescription(
   // 1. Try mechanicalBehaviors array
   const behaviors = Array.isArray(tech.mechanicalBehaviors) ? tech.mechanicalBehaviors : [];
   if (behaviors.length > 0) {
+    let techClass = tech.classification || tech.type || '';
+    if (typeof techClass === 'string') {
+      techClass = techClass.trim().toLowerCase();
+      if (techClass === 'soporte' || techClass === 'support') {
+        techClass = 'support';
+      } else if (techClass === 'defensiva' || techClass === 'defensa' || techClass === 'defensive') {
+        techClass = 'defensive';
+      } else if (techClass === 'ofensiva' || techClass === 'offensive' || techClass === 'ataque') {
+        techClass = 'offensive';
+      } else if (techClass === 'control') {
+        techClass = 'control';
+      } else {
+        const inferred = deriveTechniqueFunctionalCategories(tech);
+        if (inferred && inferred.length > 0) {
+          techClass = inferred[0];
+        }
+      }
+    } else {
+      const inferred = deriveTechniqueFunctionalCategories(tech);
+      if (inferred && inferred.length > 0) {
+        techClass = inferred[0];
+      }
+    }
+
     const parts = behaviors.map((b: any) => {
       try {
-        const res = describeMechanicalBehavior(b, { format: 'compact', context: { staminaCost: costNum } });
+        const res = describeMechanicalBehavior(b, {
+          format: 'compact',
+          context: { staminaCost: costNum },
+          classification: techClass,
+          structuralCost: costNum,
+          supportDifficultyTiers: policy?.supportDifficulty,
+        });
         return res.text;
       } catch {
         return '';

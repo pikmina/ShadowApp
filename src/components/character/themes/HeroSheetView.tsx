@@ -215,60 +215,33 @@ export function HeroSheetView({
               )}
             </div>
 
-            {/* Quirk Tagline & Essential Summary with Cyber frame */}
-            <div className="p-3.5 rounded-lg bg-zinc-950/80 border border-zinc-800 space-y-1.5 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-full bg-gradient-to-l from-amber-500/5 to-transparent pointer-events-none" />
-              <div className="flex items-center justify-between text-xs font-oxanium">
+            {/* General Information / Registro Civil y Táctico */}
+            <div className="p-3.5 rounded-lg bg-zinc-950/80 border border-zinc-800 space-y-2 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-full bg-gradient-to-l from-rose-500/5 to-transparent pointer-events-none" />
+              <div className="flex items-center justify-between text-xs font-oxanium border-b border-zinc-800/80 pb-1.5">
                 <span className="font-bold text-zinc-400 uppercase flex items-center gap-1.5">
-                  <Zap className="size-3.5 text-amber-400" />
-                  DON / QUIRK BIOSIGNATURE
+                  <FileText className="size-3.5 text-rose-400" />
+                  INFORMACIÓN GENERAL // REGISTRO CIVIL Y TÁCTICO
                 </span>
-                <span className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 font-bold text-[10px] font-mono">
-                  {quirkType} · {quirkEvolution}
+                <span className="px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-bold text-[10px] font-mono">
+                  EXPEDIENTE OFICIAL UA
                 </span>
               </div>
-              <p className="text-base font-black font-oxanium text-amber-300 tracking-wide">
-                {quirkName}
-              </p>
-              <p className="text-xs text-zinc-300 line-clamp-2 leading-relaxed">
-                {quirkDescription}
-              </p>
 
-              {/* Quirk Evolution Levels */}
-              {(quirkLevelOne || quirkLevelTwo || quirkLevelThree) && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-2 border-t border-zinc-800/80">
-                  {quirkLevelOne && (
-                    <div className="p-2.5 rounded bg-zinc-900/80 border border-amber-500/30 space-y-1">
-                      <span className="text-[10px] font-mono font-bold text-amber-300 block uppercase tracking-wider">
-                        NIVEL 1 • DESPERTAR
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
+                {personalDataList.map((item, idx) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={idx} className="p-2 rounded-lg bg-zinc-900/80 border border-zinc-800/60 space-y-0.5 hover:border-zinc-700 transition-colors">
+                      <span className="text-[9px] font-mono text-zinc-500 uppercase flex items-center gap-1.5">
+                        {Icon && <Icon className="size-3 text-zinc-400 shrink-0" />}
+                        <span className="truncate">{item.label}</span>
                       </span>
-                      <p className="text-xs text-zinc-300 leading-relaxed font-sans">
-                        {quirkLevelOne}
-                      </p>
+                      <strong className="block text-zinc-200 truncate font-mono text-[11px]">{String(item.value)}</strong>
                     </div>
-                  )}
-                  {quirkLevelTwo && (
-                    <div className="p-2.5 rounded bg-zinc-900/80 border border-cyan-500/30 space-y-1">
-                      <span className="text-[10px] font-mono font-bold text-cyan-300 block uppercase tracking-wider">
-                        NIVEL 2 • DOMINIO
-                      </span>
-                      <p className="text-xs text-zinc-300 leading-relaxed font-sans">
-                        {quirkLevelTwo}
-                      </p>
-                    </div>
-                  )}
-                  {quirkLevelThree && (
-                    <div className="p-2.5 rounded bg-zinc-900/80 border border-rose-500/30 space-y-1">
-                      <span className="text-[10px] font-mono font-bold text-rose-300 block uppercase tracking-wider">
-                        NIVEL 3 • PLUS ULTRA
-                      </span>
-                      <p className="text-xs text-zinc-300 leading-relaxed font-sans">
-                        {quirkLevelThree}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </div>
 
             {/* Currency & Progression Pills */}
@@ -460,35 +433,74 @@ export function HeroSheetView({
             <ModifierNotesLegend className="mt-3 border-zinc-800/80 bg-zinc-950/40 text-zinc-500" />
           </div>
 
-          {/* Civil & Tactical Registration Card */}
-          <div className="rounded-xl border border-zinc-800 bg-[#0d0d12] p-5 sm:p-6 space-y-4 shadow-xl">
-            <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
-              <div className="p-1.5 rounded bg-rose-600/20 text-rose-400 border border-rose-500/30">
-                <FileText className="size-5" />
+          {/* Don / Quirk Biosignature Card */}
+          <div className="rounded-xl border border-zinc-800 bg-[#0d0d12] p-5 sm:p-6 space-y-4 shadow-xl relative overflow-hidden">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  <Zap className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black font-oxanium uppercase text-white tracking-wide">
+                    DON / QUIRK BIOSIGNATURE
+                  </h3>
+                  <p className="text-xs text-zinc-400 font-mono">
+                    REGISTRO Y DESARROLLO DEL DON
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-black font-oxanium uppercase text-white tracking-wide">
-                  REGISTRO CIVIL Y TÁCTICO
-                </h3>
-                <p className="text-xs text-zinc-400 font-mono">
-                  HISTORIAL DE EXPEDIENTE OFICIAL UA
-                </p>
-              </div>
+              <span className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 font-bold text-[10px] font-mono">
+                {quirkType || 'Emisión'} {quirkEvolution ? `· ${quirkEvolution}` : ''}
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              {personalDataList.map((item, idx) => {
-                const Icon = item.icon;
-                return (
-                  <div key={idx} className="p-3 rounded-lg bg-zinc-950/80 border border-zinc-800/60 space-y-1 hover:border-zinc-700 transition-colors">
-                    <span className="text-[9px] font-mono text-zinc-500 uppercase flex items-center gap-1.5">
-                      {Icon && <Icon className="size-3 text-zinc-400" />}
-                      {item.label}
-                    </span>
-                    <strong className="block text-zinc-200 truncate pl-4.5 font-mono">{String(item.value)}</strong>
-                  </div>
-                );
-              })}
+            <div className="space-y-3">
+              <div>
+                <h4 className="text-base sm:text-lg font-black font-oxanium text-amber-300 tracking-wide">
+                  {quirkName || 'Sin don registrado'}
+                </h4>
+                {quirkDescription && (
+                  <p className="text-xs text-zinc-300 leading-relaxed font-sans mt-1">
+                    {quirkDescription}
+                  </p>
+                )}
+              </div>
+
+              {/* Quirk Evolution Levels */}
+              {(quirkLevelOne || quirkLevelTwo || quirkLevelThree) && (
+                <div className="space-y-2.5 pt-2 border-t border-zinc-800/80">
+                  {quirkLevelOne && (
+                    <div className="p-3 rounded-lg bg-zinc-950/80 border border-amber-500/30 space-y-1">
+                      <span className="text-[10px] font-mono font-bold text-amber-300 block uppercase tracking-wider">
+                        NIVEL 1 • DESPERTAR
+                      </span>
+                      <p className="text-xs text-zinc-300 leading-relaxed font-sans">
+                        {quirkLevelOne}
+                      </p>
+                    </div>
+                  )}
+                  {quirkLevelTwo && (
+                    <div className="p-3 rounded-lg bg-zinc-950/80 border border-cyan-500/30 space-y-1">
+                      <span className="text-[10px] font-mono font-bold text-cyan-300 block uppercase tracking-wider">
+                        NIVEL 2 • DOMINIO
+                      </span>
+                      <p className="text-xs text-zinc-300 leading-relaxed font-sans">
+                        {quirkLevelTwo}
+                      </p>
+                    </div>
+                  )}
+                  {quirkLevelThree && (
+                    <div className="p-3 rounded-lg bg-zinc-950/80 border border-rose-500/30 space-y-1">
+                      <span className="text-[10px] font-mono font-bold text-rose-300 block uppercase tracking-wider">
+                        NIVEL 3 • PLUS ULTRA
+                      </span>
+                      <p className="text-xs text-zinc-300 leading-relaxed font-sans">
+                        {quirkLevelThree}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

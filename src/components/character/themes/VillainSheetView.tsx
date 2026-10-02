@@ -736,11 +736,6 @@ export function VillainSheetView({
                   <Coins className="size-3" />
                   RECURSOS & TELEMETRÍA OPERATIVA
                 </span>
-                {resolvedPlusUltra > 0 && (
-                  <span className="text-zinc-400 font-bold">
-                    PLUS ULTRA: {resolvedPlusUltra}
-                  </span>
-                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px] font-mono">
@@ -753,8 +748,8 @@ export function VillainSheetView({
                   <span className="font-bold text-zinc-200">{resolvedExp} EXP</span>
                 </div>
                 <div className="p-2 rounded bg-[#0e0d13] border border-zinc-800">
-                  <span className="text-zinc-500 block text-[9px] uppercase">NOTORIEDAD / REP</span>
-                  <span className="font-bold text-zinc-200">{resolvedReputation !== null ? String(resolvedReputation) : 'CLANDESTINO'}</span>
+                  <span className="text-zinc-500 block text-[9px] uppercase">PLUS ULTRA // PTS</span>
+                  <span className="font-bold text-zinc-200">{resolvedPlusUltra} PTS</span>
                 </div>
               </div>
 
