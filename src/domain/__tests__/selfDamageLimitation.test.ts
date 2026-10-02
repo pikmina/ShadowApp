@@ -7,7 +7,7 @@ import {
 } from "../mechanicalBehavior";
 import { describeMechanicalLimitation, describeMechanicalBehavior } from "../mechanicalDescription";
 import { calculateTechniqueStructuralCost, validateBehaviorMechanicalValues } from "../systemMechanics";
-import { createCoreCategories, CORE_CATEGORIES, CORE_CATEGORY_CONTRACTS, getCategoryOptions } from "../coreRuleCatalog";
+import { createCoreCategories, CORE_CATEGORIES, CORE_CATEGORY_CONTRACTS, getCategoryOptions, migrateCoreCategories } from "../coreRuleCatalog";
 import {
   executeMechanicalBehavior,
   advanceTurn,
@@ -95,6 +95,66 @@ describe("Canonical Mechanical Limitation: self_damage (Daño autoinfligido)", (
       const options = getCategoryOptions(cats, "self_damage");
       expect(options.some((o) => o.name === "1 HP")).toBe(true);
       expect(options.some((o) => o.name === "10 HP")).toBe(true);
+    });
+
+    it("preserves custom admin cost (-2 CE) and availability on 5 HP when running migrateCoreCategories", () => {
+      const cats = createCoreCategories();
+      const sdCat = cats.find((c) => c.coreKey === "self_damage");
+      const r5 = sdCat?.rules.find((r) => r.runtimeKey === "5");
+      if (r5) {
+        r5.cost = -2;
+        r5.isAvailable = false;
+      }
+
+      const migrated = migrateCoreCategories(cats);
+      const migratedSdCat = migrated.find((c) => c.coreKey === "self_damage");
+      const migratedR5 = migratedSdCat?.rules.find((r) => r.runtimeKey === "5");
+
+      expect(migratedR5?.cost).toBe(-2);
+      expect(migratedR5?.isAvailable).toBe(false);
+    });
+
+    it("preserves custom user-defined categories when running migrateCoreCategories", () => {
+      const cats = createCoreCategories();
+      cats.push({
+        id: "custom.tactics",
+        name: "Estrategia Táctica",
+        description: "Reglas personalizadas de táctica",
+        logicalType: "utility",
+        scope: { techniques: true, objects: true, actions: true },
+        rules: [{ id: "custom.tactics.1", name: "Flanqueo", cost: 1, ruleType: "cost_modifier" }],
+      } as any);
+
+      const migrated = migrateCoreCategories(cats);
+      const customCat = migrated.find((c) => c.id === "custom.tactics");
+
+      expect(customCat).toBeDefined();
+      expect(customCat?.name).toBe("Estrategia Táctica");
+      expect(customCat?.rules.length).toBe(1);
+    });
+
+    it("guarantees idempotency on repeated calls to migrateCoreCategories", () => {
+      const initial = createCoreCategories();
+      const run1 = migrateCoreCategories(initial);
+      const run2 = migrateCoreCategories(run1);
+
+      expect(JSON.stringify(run1)).toBe(JSON.stringify(run2));
+    });
+
+    it("respects intentional option deletion and does not resurrect deleted options within existing core.self_damage", () => {
+      const cats = createCoreCategories();
+      const sdCat = cats.find((c) => c.coreKey === "self_damage");
+      if (sdCat) {
+        // Deliberately remove "7 HP"
+        sdCat.rules = sdCat.rules.filter((r) => r.runtimeKey !== "7");
+      }
+
+      const migrated = migrateCoreCategories(cats);
+      const migratedSdCat = migrated.find((c) => c.coreKey === "self_damage");
+      const r7 = migratedSdCat?.rules.find((r) => r.runtimeKey === "7");
+
+      // 7 HP is NOT resurrected because core.self_damage already exists in DB
+      expect(r7).toBeUndefined();
     });
   });
   describe("1. Schema & Validation", () => {

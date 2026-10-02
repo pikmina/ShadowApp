@@ -9,7 +9,13 @@ import { defaultEmploymentCompensation, employmentCompensationSchema } from '../
 
 export async function getRules() {
   try {
-    return await db.select().from(systemRules);
+    const rules = await db.select().from(systemRules);
+    return rules.map(r => {
+      if (r.key === 'system_mechanics' && Array.isArray(r.value)) {
+        return { ...r, value: migrateCoreCategories(r.value) };
+      }
+      return r;
+    });
   } catch (error) {
     console.error("Database query failed:", error);
     throw new Error("Failed to fetch rules", { cause: error });
@@ -19,7 +25,11 @@ export async function getRules() {
 export async function getRule(key: string) {
   try {
     const results = await db.select().from(systemRules).where(eq(systemRules.key, key));
-    return results[0];
+    const rule = results[0];
+    if (rule && rule.key === 'system_mechanics' && Array.isArray(rule.value)) {
+      return { ...rule, value: migrateCoreCategories(rule.value) };
+    }
+    return rule;
   } catch (error) {
     console.error("Database query failed:", error);
     throw new Error("Failed to fetch rule", { cause: error });

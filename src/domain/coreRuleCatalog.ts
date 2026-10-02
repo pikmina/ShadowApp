@@ -961,6 +961,14 @@ export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig 
     }
   }
 
+  // Ensure all registered core categories exist in parsed configuration
+  const canonicalCoreCategories = createCoreCategories();
+  for (const freshCat of canonicalCoreCategories) {
+    if (freshCat.coreKey && !parsed.some(c => c.id === freshCat.id || c.coreKey === freshCat.coreKey)) {
+      parsed.push(freshCat);
+    }
+  }
+
   const result = systemMechanicsConfigSchema.parse(parsed);
   if (!validateCoreCategories(result)) throw new Error("Reserved core category identity collision");
   return result;
