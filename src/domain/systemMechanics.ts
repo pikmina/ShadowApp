@@ -1712,8 +1712,8 @@ export function calculateTechniqueStructuralCost(
 
     // 3. Temporality (Duration, Frequency/Periodicity, Maintenance)
     if (b.temporality) {
-      if (b.temporality.duration?.type) {
-        const durType = b.temporality.duration.type;
+      const durType = b.temporality.duration?.type || b.temporality.duration?.mode;
+      if (durType) {
         const durTurns = b.temporality.duration.turns ?? b.temporality.duration.value;
         if (durType === 'turns' && durTurns) {
           const turnsCost = lookupRuleCost('duration', durTurns);

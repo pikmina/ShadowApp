@@ -1012,7 +1012,7 @@ export function CharacterTechniquesEditor({
                           </span>
                         </div>
 
-                        <MechanicalDescriptionPreview behaviors={tech.mechanicalBehaviors} />
+                        <MechanicalDescriptionPreview behaviors={tech.mechanicalBehaviors} context={{ staminaCost: structuralCost }} />
                       </div>
                     )}
                   </div>

@@ -563,7 +563,7 @@ export default function TechniquesAdmin() {
                                 </span>
                               )}
                             </div>
-                            <MechanicalDescriptionPreview behaviors={tech.mechanicalBehaviors} />
+                            <MechanicalDescriptionPreview behaviors={tech.mechanicalBehaviors} context={{ staminaCost: structuralCost }} />
                           </div>
                         </TableCell>
                       </TableRow>

@@ -40,6 +40,7 @@ import { VillainSheetView } from '@/components/character/themes/VillainSheetView
 import { VigilanteSheetView } from '@/components/character/themes/VigilanteSheetView';
 import { BaseSheetView } from '@/components/character/themes/BaseSheetView';
 import { calculateTechniqueStructuralCost } from '@/domain/systemMechanics';
+import { deriveTechniqueLevelFromCost } from '@/domain/characterTechnique';
 import { CANONICAL_STAT_ICONS, resolveCanonicalGroupColor } from '@/domain/canonicalStatIcons';
 
 const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
@@ -482,17 +483,21 @@ export default function PublicSheet() {
   const resolvedWeaknesses = weaknesses.map(id => getElement(id));
 
   const resolvedTechniques = techniquesList.map((tech: any) => {
+    const isStructural = Array.isArray(tech?.mechanicalBehaviors) && tech.mechanicalBehaviors.length > 0;
     const structuralCost = calculateTechniqueStructuralCost(tech, mechanicsList, staminaCosts);
-    const finalCost = tech.cost ?? structuralCost;
+    const finalCost = isStructural ? structuralCost : (tech.cost ?? structuralCost);
+    const derivedLevel = isStructural ? deriveTechniqueLevelFromCost(finalCost).level : (tech.level || 1);
     return {
       id: tech.id,
       name: tech.name,
-      level: tech.level || 1,
+      level: derivedLevel,
       cost: finalCost,
       type: tech.type || tech.classification || (tech.sourceType === 'quirk' ? 'Don' : tech.sourceType === 'physical' ? 'Física' : tech.sourceType === 'weapon' ? 'Arma' : undefined),
       target: tech.target || (tech.attackType === 'mental' ? 'Coraje' : tech.attackType === 'physical' ? 'Evasión' : undefined),
       description: tech.description || '',
-      autoDescription: tech.autoDescription || generateAutoDescription(tech),
+      autoDescription: isStructural
+        ? generateAutoDescription({ ...tech, cost: `${finalCost} CE` }, mechanicsList, staminaCosts, finalCost)
+        : (tech.autoDescription || generateAutoDescription(tech, mechanicsList, staminaCosts, finalCost)),
     };
   });
 

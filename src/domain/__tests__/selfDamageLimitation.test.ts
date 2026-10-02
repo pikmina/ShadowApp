@@ -8,6 +8,7 @@ import {
 import { describeMechanicalLimitation, describeMechanicalBehavior } from "../mechanicalDescription";
 import { calculateTechniqueStructuralCost, validateBehaviorMechanicalValues } from "../systemMechanics";
 import { createCoreCategories, CORE_CATEGORIES, CORE_CATEGORY_CONTRACTS, getCategoryOptions, migrateCoreCategories } from "../coreRuleCatalog";
+import { buildCharacterSheetViewModel } from "../characterSheetViewModel";
 import {
   executeMechanicalBehavior,
   advanceTurn,
@@ -701,6 +702,130 @@ describe("Canonical Mechanical Limitation: self_damage (Daño autoinfligido)", (
       // Hero receives 4 damage on end
       expect(worldTurn2.hero.resources.SA.current).toBe(26);
       expect(encAfterTurn3.participants.hero.hpLostThisTurn).toBe(4);
+    });
+  });
+
+  describe("5. Mandatory Canonical CE Parity & Stale Value Immunity", () => {
+    it("synchronizes badge cost, autoDescription, and viewModel cost dynamically for Puño Incandescente when core.self_damage changes", () => {
+      const globalRulesV1 = createCoreCategories();
+      const sdCatV1 = globalRulesV1.find((c) => c.coreKey === "self_damage");
+      const r5V1 = sdCatV1?.rules.find((r) => r.runtimeKey === "5");
+      if (r5V1) r5V1.cost = -4; // 5 HP -> -4 CE
+
+      const punioIncandescenteTech = {
+        id: "puno_incandescente",
+        name: "PUÑO INCANDESCENTE",
+        mechanicalBehaviors: [
+          {
+            ...createDefaultMechanicalBehavior("b_puno"),
+            effects: [
+              { id: "e1", type: "attribute_modifier", attributeId: "FUE", amount: 1 },
+              { id: "e2", type: "attribute_modifier", attributeId: "VEL", amount: 1 },
+            ],
+            temporality: {
+              duration: { mode: "turns", turns: 5 },
+            },
+            limitations: [
+              { id: "sd1", type: "self_damage" as const, amount: 1, frequency: "each_active_turn" as const },
+            ],
+          },
+        ],
+      };
+
+      const charV1 = {
+        id: 101,
+        name: "Katsuki Bakugo",
+        techniques: [punioIncandescenteTech],
+      };
+
+      const systemRulesV1 = [{ key: "system_mechanics", value: globalRulesV1 }];
+
+      // Step A: Evaluate with 5 HP -> -4 CE
+      const vm1 = buildCharacterSheetViewModel({ character: charV1 as any, mechanicsList: globalRulesV1 });
+      const techVM1 = vm1.techniques.find((t) => t.id === "puno_incandescente");
+
+      expect(techVM1).toBeDefined();
+      expect(techVM1?.cost).toBe(2);
+      expect(techVM1?.level).toBe(1);
+      expect(techVM1?.autoDescription).toContain("Coste: 2 de Estamina");
+
+      // Step B: Change global rule 5 HP -> -1 CE without touching the character or technique record
+      const globalRulesV2 = createCoreCategories();
+      const sdCatV2 = globalRulesV2.find((c) => c.coreKey === "self_damage");
+      const r5V2 = sdCatV2?.rules.find((r) => r.runtimeKey === "5");
+      if (r5V2) r5V2.cost = -1; // 5 HP -> -1 CE
+
+      const vm2 = buildCharacterSheetViewModel({ character: charV1 as any, mechanicsList: globalRulesV2 });
+      const techVM2 = vm2.techniques.find((t) => t.id === "puno_incandescente");
+
+      expect(techVM2).toBeDefined();
+      expect(techVM2?.cost).toBe(5);
+      expect(techVM2?.level).toBe(1); // 5 CE is Level 1 (0-5)
+      expect(techVM2?.autoDescription).toContain("Coste: 5 de Estamina");
+    });
+
+    it("ignores stale persisted tech.cost = '999 CE' for structural techniques and displays canonical cost", () => {
+      const globalRules = createCoreCategories();
+      const sdCat = globalRules.find((c) => c.coreKey === "self_damage");
+      const r5 = sdCat?.rules.find((r) => r.runtimeKey === "5");
+      if (r5) r5.cost = -4;
+
+      const staleTech = {
+        id: "stale_tech",
+        name: "Técnica con coste stale",
+        cost: "999 CE",
+        staminaCost: 999,
+        autoDescription: "Texto antiguo. Coste: 999 de Estamina.",
+        mechanicalBehaviors: [
+          {
+            ...createDefaultMechanicalBehavior("b_stale"),
+            effects: [
+              { id: "e1", type: "attribute_modifier", attributeId: "FUE", amount: 1 },
+              { id: "e2", type: "attribute_modifier", attributeId: "VEL", amount: 1 },
+            ],
+            temporality: {
+              duration: { mode: "turns", turns: 5 },
+            },
+            limitations: [
+              { id: "sd1", type: "self_damage" as const, amount: 1, frequency: "each_active_turn" as const },
+            ],
+          },
+        ],
+      };
+
+      const char = {
+        id: 102,
+        name: "Test Hero",
+        techniques: [staleTech],
+      };
+
+      const vm = buildCharacterSheetViewModel({ character: char as any, mechanicsList: globalRules });
+      const techVM = vm.techniques.find((t) => t.id === "stale_tech");
+
+      expect(techVM?.cost).toBe(2);
+      expect(techVM?.autoDescription).not.toContain("999");
+      expect(techVM?.autoDescription).toContain("Coste: 2 de Estamina");
+    });
+
+    it("preserves tech.cost as fallback for pure legacy non-structural techniques", () => {
+      const pureLegacyTech = {
+        id: "legacy_tech",
+        name: "Técnica Pura Legacy",
+        cost: "3 CE",
+        description: "Ataque básico sin estructura de comportamientos mecánicos.",
+        mechanicalBehaviors: [],
+      };
+
+      const char = {
+        id: 103,
+        name: "Legacy Hero",
+        techniques: [pureLegacyTech],
+      };
+
+      const vm = buildCharacterSheetViewModel({ character: char as any, mechanicsList: createCoreCategories() });
+      const techVM = vm.techniques.find((t) => t.id === "legacy_tech");
+
+      expect(techVM?.cost).toBe("3 CE");
     });
   });
 });

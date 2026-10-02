@@ -2,6 +2,7 @@ import { HexStat } from '@/components/character/HexagonRadarChart';
 import { detectFactionTheme, FactionThemeId } from '@/components/character/themes/FactionSheetTheme';
 import { calculateTechniqueStructuralCost } from '@/domain/systemMechanics';
 import { generateAutoDescription } from '@/domain/mechanicalDescription';
+import { deriveTechniqueLevelFromCost } from '@/domain/characterTechnique';
 import { CANONICAL_STAT_ICONS } from '@/domain/canonicalStatIcons';
 
 export const readValue = (obj: any, keys: string[]): any => {
@@ -491,17 +492,21 @@ export function buildCharacterSheetViewModel({
 
   const rawTechniques = Array.isArray(character?.techniques) ? character.techniques : [];
   const techniques = rawTechniques.map((tech: any) => {
+    const isStructural = Array.isArray(tech?.mechanicalBehaviors) && tech.mechanicalBehaviors.length > 0;
     const structuralCost = calculateTechniqueStructuralCost(tech, mechanicsList, staminaCosts);
-    const finalCost = tech.cost ?? structuralCost;
+    const finalCost = isStructural ? structuralCost : (tech.cost ?? structuralCost);
+    const derivedLevel = isStructural ? deriveTechniqueLevelFromCost(finalCost).level : (tech.level || 1);
     return {
       id: tech.id,
       name: tech.name,
-      level: tech.level || 1,
+      level: derivedLevel,
       cost: finalCost,
       type: tech.type || tech.classification || (tech.sourceType === 'quirk' ? 'Don' : tech.sourceType === 'physical' ? 'Física' : tech.sourceType === 'weapon' ? 'Arma' : undefined),
       target: tech.target || (tech.attackType === 'mental' ? 'Coraje' : tech.attackType === 'physical' ? 'Evasión' : undefined),
       description: tech.description || '',
-      autoDescription: tech.autoDescription || generateAutoDescription(tech),
+      autoDescription: isStructural
+        ? generateAutoDescription({ ...tech, cost: `${finalCost} CE` }, mechanicsList, staminaCosts, finalCost)
+        : (tech.autoDescription || generateAutoDescription(tech, mechanicsList, staminaCosts, finalCost)),
     };
   });
 

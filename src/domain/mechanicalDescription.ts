@@ -36,7 +36,7 @@ import {
 
 import { createCoreCategories, getCategoryOptions } from "./coreRuleCatalog";
 import { deriveEffectiveBehaviorResolution } from "./characterTechnique";
-import { deriveSupportDefenseRD } from "./systemMechanics";
+import { deriveSupportDefenseRD, calculateTechniqueStructuralCost } from "./systemMechanics";
 
 export interface MechanicalDescriptionContext {
   staminaCost?: number;
@@ -1635,10 +1635,31 @@ export function describeMechanicalBehavior(
  * Helper to generate a complete auto-description for a technique object.
  * Always includes the CE stamina cost and mechanical behavior details.
  */
-export function generateAutoDescription(tech: any): string {
+export function generateAutoDescription(
+  tech: any,
+  categories?: any[],
+  policy?: any,
+  overrideCost?: number | string
+): string {
   if (!tech) return "";
-  const costStr = tech.cost || (tech.level ? `${tech.level * 2} CE` : '2 CE');
-  const costNum = parseInt(costStr) || undefined;
+
+  let costNum: number | undefined;
+  if (typeof overrideCost === "number") {
+    costNum = overrideCost;
+  } else if (typeof overrideCost === "string") {
+    costNum = parseInt(overrideCost, 10) || undefined;
+  }
+
+  if (costNum === undefined && Array.isArray(tech.mechanicalBehaviors) && tech.mechanicalBehaviors.length > 0) {
+    costNum = calculateTechniqueStructuralCost(tech, categories ?? [], policy);
+  }
+
+  if (costNum === undefined) {
+    const rawCostStr = tech.cost ?? tech.staminaCost;
+    costNum = typeof rawCostStr === "number" ? rawCostStr : (parseInt(String(rawCostStr), 10) || undefined);
+  }
+
+  const costStr = costNum !== undefined ? `${costNum} CE` : (tech.cost || (tech.level ? `${tech.level * 2} CE` : '2 CE'));
 
   // 1. Try mechanicalBehaviors array
   const behaviors = Array.isArray(tech.mechanicalBehaviors) ? tech.mechanicalBehaviors : [];
