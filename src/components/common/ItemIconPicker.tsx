@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { icons, LucideIcon, Search, Smile, Sparkles, X, ChevronDown, Check } from 'lucide-react';
-import data from '@emoji-mart/data';
 import { Picker } from 'emoji-mart';
 import { ItemIcon, resolveLucideIcon, getCategoryFallbackIcon } from './ItemIcon';
 import { Button } from '@/components/ui/button';
@@ -16,6 +15,15 @@ export interface ItemIconPickerProps {
   itemName?: string;
   onChange: (iconType: 'lucide' | 'emoji' | null, iconValue: string | null) => void;
 }
+
+// Quick-access RPG and item emojis
+const POPULAR_ITEM_EMOJIS = [
+  '⚔️', '🗡️', '🛡️', '🏹', '🔫', '💣', '🔨', '⛏️', '🪓', '🥋',
+  '🧪', '💊', '🩹', '💉', '🍷', '🍖', '🍎', '🍄', '🍞', '🥤',
+  '📜', '📖', '🔑', '🗝️', '💰', '🪙', '💎', '💍', '👑', '🏆',
+  '⚡', '🔥', '❄️', '🌪️', '✨', '⭐', '💀', '👁️', '🩸', '🔮',
+  '🚗', '🏍️', '🚁', '🏠', '🏢', '🏰', '📦', '🎒', '🧭', '💼',
+];
 
 // Convert PascalCase to kebab-case
 const toKebab = (str: string) =>
@@ -35,26 +43,32 @@ const ALL_LUCIDE_ICONS: Array<{ pascal: string; kebab: string; Icon: LucideIcon 
  */
 function EmojiMartPickerBox({ onSelect }: { onSelect: (unicodeEmoji: string) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
     containerRef.current.innerHTML = '';
 
-    const picker = new Picker({
-      data,
-      locale: 'es',
-      theme: 'dark',
-      previewPosition: 'none',
-      skinTonePosition: 'search',
-      onEmojiSelect: (emoji: any) => {
-        // Strictly save only the Unicode native character (e.g. "🧪")
-        if (emoji && typeof emoji.native === 'string') {
-          onSelect(emoji.native);
-        }
-      },
-    });
+    try {
+      const picker = new Picker({
+        data: 'https://cdn.jsdelivr.net/npm/@emoji-mart/data',
+        locale: 'es',
+        theme: 'dark',
+        previewPosition: 'none',
+        skinTonePosition: 'search',
+        onEmojiSelect: (emoji: any) => {
+          // Strictly save only the Unicode native character (e.g. "🧪")
+          if (emoji && typeof emoji.native === 'string') {
+            onSelect(emoji.native);
+          }
+        },
+      });
 
-    containerRef.current.appendChild(picker as unknown as HTMLElement);
+      containerRef.current.appendChild(picker as unknown as HTMLElement);
+    } catch (err) {
+      console.error('Error al inicializar Emoji Mart:', err);
+      setLoadError(true);
+    }
 
     return () => {
       if (containerRef.current) {
@@ -62,6 +76,14 @@ function EmojiMartPickerBox({ onSelect }: { onSelect: (unicodeEmoji: string) => 
       }
     };
   }, [onSelect]);
+
+  if (loadError) {
+    return (
+      <div className="p-3 text-center text-xs text-muted-foreground border rounded bg-muted/20">
+        No se pudo cargar el selector de Emoji Mart. Puedes seleccionar cualquier emoji de la paleta rápida superior.
+      </div>
+    );
+  }
 
   return <div ref={containerRef} className="emoji-mart-wrapper flex justify-center max-w-full overflow-hidden rounded-md border border-border bg-card p-1 shadow-md" />;
 }
@@ -303,11 +325,34 @@ export function ItemIconPicker({
               variant={isEmojiPickerOpen ? 'secondary' : 'default'}
               size="sm"
               onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
-              className="gap-1.5 text-xs font-semibold"
+              className="gap-1.5 text-xs font-semibold shrink-0"
             >
               <Smile className="size-4" />
-              {isEmojiPickerOpen ? 'Cerrar selector' : iconValue ? 'Cambiar emoji' : 'Elegir emoji'}
+              {isEmojiPickerOpen ? 'Cerrar Emoji Mart' : iconValue ? 'Buscar en Emoji Mart' : 'Elegir en Emoji Mart'}
             </Button>
+          </div>
+
+          {/* Quick selection chips for common RPG/item emojis */}
+          <div className="space-y-1.5">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+              Selección Rápida de Emojis Populares:
+            </span>
+            <div className="flex flex-wrap gap-1 p-2 rounded-md border border-border/70 bg-background/50 max-h-28 overflow-y-auto">
+              {POPULAR_ITEM_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => handleSelectEmoji(emoji)}
+                  className={cn(
+                    'size-8 rounded flex items-center justify-center text-base hover:bg-muted transition-colors cursor-pointer border',
+                    iconValue === emoji ? 'border-primary bg-primary/20 scale-110 shadow-xs' : 'border-transparent'
+                  )}
+                  title={emoji}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
           </div>
 
           {isEmojiPickerOpen && (
