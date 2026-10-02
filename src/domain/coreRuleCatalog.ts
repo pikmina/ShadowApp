@@ -94,6 +94,7 @@ export const CORE_CATEGORIES = {
   additional_requirement: 'Requisito adicional',
   die_condition: 'Dado individual',
   health_cost: 'Coste de HP',
+  self_damage: 'Daño autoinfligido',
   consequence: 'Consecuencia',
   caps: 'Límites / caps',
   transformation: 'Transformación',
@@ -102,7 +103,6 @@ export const CORE_CATEGORIES = {
 export type CoreCategoryKey = keyof typeof CORE_CATEGORIES;
 
 export const RETIRED_CORE_CATEGORIES = [
-  'self_damage',
   'recoil',
   'stamina_cost',
   'temporary_penalty',
@@ -250,6 +250,7 @@ export const CORE_CATEGORY_CONTRACTS: Record<CoreCategoryKey, CoreCategoryContra
   additional_requirement: { coreKey: 'additional_requirement', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
   die_condition: { coreKey: 'die_condition', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
   health_cost: { coreKey: 'health_cost', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  self_damage: { coreKey: 'self_damage', kind: 'ce_adjustment', ruleClass: 'cost_modifier', ruleClassLabel: 'Ajuste de CE', editorMode: 'parameter' },
   consequence: { coreKey: 'consequence', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
   caps: { coreKey: 'caps', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
 };
@@ -672,9 +673,14 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('caps', 'damage', 'Daño máximo acotado', { kind: 'cap', subject: 'damage', min: 0, max: 50 }, 'damage', 0);
   option('caps', 'absorb_max_6', 'Absorbe un máximo de 6 de daño recibido', { kind: 'cap', subject: 'barrier', min: 0, max: 6 }, 'absorb_max_6', -3);
 
+  // Self Damage Exposure (Canonical Core Category core.self_damage)
+  for (const n of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+    option('self_damage', String(n), `${n} HP`, { kind: 'consequence', role: 'consequence', when: 'activation', consequence: { kind: 'resource', resourceId: 'SA', amount: n } }, String(n), 0);
+  }
+
   // Consequences (Canonical Core Category core.consequence)
-  option('consequence', 'self_damage_turn', 'Recibe 1 punto de daño cada turno activo', { kind: 'consequence', role: 'consequence', when: 'each_turn', consequence: { kind: 'resource', resourceId: 'SA', amount: 1 } }, 'self_damage_turn', -1);
-  option('consequence', 'self_damage_fixed_2', 'Recibe 2 puntos de daño al utilizarla', { kind: 'consequence', role: 'consequence', when: 'activation', consequence: { kind: 'resource', resourceId: 'SA', amount: 2 } }, 'self_damage_fixed_2', -1);
+  option('consequence', 'self_damage_turn', 'Recibe 1 punto de daño cada turno activo', { kind: 'consequence', role: 'consequence', when: 'each_turn', consequence: { kind: 'resource', resourceId: 'SA', amount: 1 } }, 'self_damage_turn', -1, false);
+  option('consequence', 'self_damage_fixed_2', 'Recibe 2 puntos de daño al utilizarla', { kind: 'consequence', role: 'consequence', when: 'activation', consequence: { kind: 'resource', resourceId: 'SA', amount: 2 } }, 'self_damage_fixed_2', -1, false);
   option('consequence', 'recoil_half', 'Recibe la mitad del daño provocado', { kind: 'consequence', role: 'consequence', when: 'after_damage', consequence: { kind: 'recoil', fraction: 0.5 } }, 'recoil_half', -4);
   option('consequence', 'after_effect_int2_3t', 'Al finalizar: -2 INT durante 3 turnos por sobrecarga sensorial', { kind: 'consequence', role: 'consequence', when: 'end', consequence: { kind: 'attribute', attributeId: 'INT', amount: -2, turns: 3, untilEnd: false } }, 'after_effect_int2_3t', -3);
   option('consequence', 'while_active_des2', '-2 Destreza mientras el efecto está activo', { kind: 'consequence', role: 'consequence', when: 'activation', consequence: { kind: 'attribute', attributeId: 'DES', amount: -2, turns: 1, untilEnd: true } }, 'while_active_des2', -2);

@@ -658,7 +658,7 @@ export function normalizeMechanicalTemporality(temp: unknown): MechanicalTempora
 export const modifierOperationSchema = z.enum(["add", "subtract", "multiply", "divide", "set"]);
 export type ModifierOperation = z.infer<typeof modifierOperationSchema>;
 
-export const mechanicalEffectItemSchema = z.discriminatedUnion("type", [
+export const baseMechanicalEffectItemSchema = z.discriminatedUnion("type", [
   z.object({
     id: z.string().min(1),
     type: z.literal("damage"),
@@ -937,7 +937,17 @@ export const mechanicalEffectItemSchema = z.discriminatedUnion("type", [
     temporality: mechanicalTemporalitySchema.optional(),
   }),
 ]);
-export type MechanicalEffectItem = z.infer<typeof mechanicalEffectItemSchema>;
+export const mechanicalEffectItemSchema = z.preprocess((val) => {
+  if (val && typeof val === "object") {
+    const raw = { ...(val as Record<string, any>) };
+    if (!raw.id) {
+      raw.id = nanoid(8);
+    }
+    return raw;
+  }
+  return val;
+}, baseMechanicalEffectItemSchema);
+export type MechanicalEffectItem = z.infer<typeof baseMechanicalEffectItemSchema>;
 
 /**
  * Helper to resolve effective target for an effect (effect.target ?? behavior.target)
@@ -1055,6 +1065,13 @@ const baseMechanicalLimitationSchema = z.discriminatedUnion("type", [
     type: z.literal("manual"),
     description: z.string().min(1),
   }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("self_damage"),
+    amount: z.number().int().positive().default(1),
+    frequency: z.enum(["on_activation", "each_active_turn", "on_end"]).default("on_activation"),
+    description: z.string().optional(),
+  }),
 ]);
 
 export const mechanicalLimitationSchema = z.preprocess((val) => {
@@ -1077,6 +1094,12 @@ export const mechanicalLimitationSchema = z.preprocess((val) => {
       raw.scope = period;
       raw.max = max;
       raw.count = max;
+    } else if (raw.type === "self_damage") {
+      delete raw.costAdjustment;
+      raw.amount = Math.max(1, Math.round(Number(raw.amount ?? 1)));
+      if (!raw.frequency || !["on_activation", "each_active_turn", "on_end"].includes(raw.frequency)) {
+        raw.frequency = "on_activation";
+      }
     }
     return raw;
   }

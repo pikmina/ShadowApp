@@ -378,6 +378,13 @@ export const MECHANICAL_LABELS = {
     physical_requirement: "Requisito físico/sensorial",
     item_requirement: "Requisito de objeto",
     manual: "Requisito manual / narrativo",
+    self_damage: "Daño autoinfligido",
+  },
+
+  selfDamageFrequencies: {
+    on_activation: "Al activar",
+    each_active_turn: "Cada turno activo",
+    on_end: "Al finalizar",
   },
 
   usagePeriods: {

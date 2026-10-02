@@ -270,25 +270,25 @@ describe('Tarea 33.1 — Reglas e Integración de Efectos', () => {
   // 16. Tests obligatorios — Categorías Core obsoletas
   // =========================================================================
   describe('16. Tests obligatorios — Categorías Core obsoletas eliminadas', () => {
-    test('neither Daño propio nor Recoil exist in CORE_CATEGORIES', () => {
-      expect(CORE_CATEGORIES).not.toHaveProperty('self_damage');
+    test('Recoil does not exist in CORE_CATEGORIES and self_damage is canonical', () => {
+      expect(CORE_CATEGORIES).toHaveProperty('self_damage');
       expect(CORE_CATEGORIES).not.toHaveProperty('recoil');
-      expect(Object.keys(CORE_CATEGORIES)).not.toContain('self_damage');
+      expect(Object.keys(CORE_CATEGORIES)).toContain('self_damage');
       expect(Object.keys(CORE_CATEGORIES)).not.toContain('recoil');
     });
 
-    test('createCoreCategories() does not produce self_damage or recoil categories', () => {
+    test('createCoreCategories() produces canonical self_damage and does not produce recoil', () => {
       const coreCats = createCoreCategories();
-      const catKeys = coreCats.map((c) => c.category);
+      const catKeys = coreCats.map((c) => c.coreKey || c.id.replace('core.', ''));
       const catIds = coreCats.map((c) => c.id);
 
-      expect(catKeys).not.toContain('self_damage');
+      expect(catKeys).toContain('self_damage');
       expect(catKeys).not.toContain('recoil');
-      expect(catIds).not.toContain('core.self_damage');
+      expect(catIds).toContain('core.self_damage');
       expect(catIds).not.toContain('core.recoil');
     });
 
-    test('migrateCoreCategories() does not recreate self_damage or recoil', () => {
+    test('migrateCoreCategories() preserves canonical self_damage and does not recreate recoil', () => {
       const coreCats = createCoreCategories();
       const migrated = migrateCoreCategories(coreCats);
       const catKeys = migrated.map((c) => c.category);

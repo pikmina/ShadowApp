@@ -1520,13 +1520,37 @@ export function validateBehaviorMechanicalValues(
         if (!found) {
           errors.push(`Efecto [${i + 1}] (Barrera): La cantidad "${eff.amount}" no está configurada en Reglas del Sistema.`);
         }
-      } else if (eff.type === 'attribute_modifier' || eff.type === 'skill_modifier' || eff.type === 'derived_stat_modifier' || eff.type === 'bonus' || eff.type === 'penalty') {
+      } else if (eff.type === 'attribute_modifier') {
+        if (!eff.attributeId || typeof eff.attributeId !== 'string' || !eff.attributeId.trim()) {
+          errors.push(`Efecto [${i + 1}] (Modificador de atributo): Debe especificar un atributo válido.`);
+        }
+        if (eff.amount !== undefined && eff.amount !== null && eff.amount !== 0) {
+          const found = findNumericModifierOption(categories, eff.amount);
+          if (!found) {
+            const signStr = eff.amount > 0 ? `+${eff.amount}` : String(eff.amount);
+            errors.push(`Efecto [${i + 1}] (Modificador de atributo): La magnitud "${signStr}" no está configurada en Reglas del Sistema.`);
+          }
+        }
+      } else if (eff.type === 'skill_modifier' || eff.type === 'derived_stat_modifier' || eff.type === 'bonus' || eff.type === 'penalty') {
         if (eff.amount !== undefined && eff.amount !== null && eff.amount !== 0) {
           const found = findNumericModifierOption(categories, eff.amount);
           if (!found) {
             const signStr = eff.amount > 0 ? `+${eff.amount}` : String(eff.amount);
             errors.push(`Efecto [${i + 1}] (Modificador): La magnitud "${signStr}" no está configurada en Reglas del Sistema.`);
           }
+        }
+      }
+    }
+  }
+
+  // 1.1. Limitations
+  if (Array.isArray(behavior.limitations)) {
+    for (let i = 0; i < behavior.limitations.length; i++) {
+      const lim = behavior.limitations[i];
+      if (lim && lim.type === 'self_damage' && lim.frequency === 'each_active_turn') {
+        const durTurns = behavior.temporality?.duration?.turns ?? behavior.temporality?.duration?.value ?? behavior.effects?.find((e: any) => e.temporality?.duration?.turns)?.temporality?.duration?.turns;
+        if (typeof durTurns !== 'number' || durTurns <= 0) {
+          errors.push('Limitante (Daño autoinfligido): La frecuencia "Cada turno activo" requiere que la técnica defina una duración finita en turnos.');
         }
       }
     }
@@ -1580,11 +1604,11 @@ export function calculateTechniqueStructuralCost(
 
   let mechanicCostSum = 0;
 
-  function lookupRuleCost(catKey: string, optionKey: string | number | undefined | null): number {
-    if (optionKey === undefined || optionKey === null || optionKey === '') return 0;
+  function lookupRuleCostOpt(catKey: string, optionKey: string | number | undefined | null): { found: boolean; cost: number } {
+    if (optionKey === undefined || optionKey === null || optionKey === '') return { found: false, cost: 0 };
     const strKey = String(optionKey);
     const cat = effectiveCats.find(c => c.id === catKey || c.category === catKey || c.coreKey === catKey || c.id === `core.${catKey}`);
-    if (!cat || !cat.rules) return 0;
+    if (!cat || !cat.rules) return { found: false, cost: 0 };
     const rule = cat.rules.find(r => 
       r.id === strKey || 
       (r as any).runtimeKey === strKey || 
@@ -1605,7 +1629,14 @@ export function calculateTechniqueStructuralCost(
       (r as any).effect?.magnitude?.type?.toLowerCase() === strKey.toLowerCase() ||
       r.name.toLowerCase() === strKey.toLowerCase()
     );
-    return typeof rule?.cost === 'number' ? rule.cost : 0;
+    if (rule && typeof rule.cost === 'number') {
+      return { found: true, cost: rule.cost };
+    }
+    return { found: false, cost: 0 };
+  }
+
+  function lookupRuleCost(catKey: string, optionKey: string | number | undefined | null): number {
+    return lookupRuleCostOpt(catKey, optionKey).cost;
   }
 
   for (const b of behaviors) {
@@ -1731,6 +1762,70 @@ export function calculateTechniqueStructuralCost(
           const p = lim.scope ?? lim.period;
           if (p) {
             mechanicCostSum += lookupRuleCost('usage', p) || lookupRuleCost('usage_limit', p);
+          }
+        } else if (lim.type === 'self_damage') {
+          let applicationCount = 1;
+          let isValidDuration = true;
+          if (lim.frequency === 'each_active_turn') {
+            const durTurns = b.temporality?.duration?.turns ?? b.temporality?.duration?.value ?? b.effects?.find((e: any) => e.temporality?.duration?.turns)?.temporality?.duration?.turns;
+            if (typeof durTurns === 'number' && durTurns > 0) {
+              applicationCount = durTurns;
+            } else {
+              isValidDuration = false;
+            }
+          }
+          if (isValidDuration) {
+            const exposure = (lim.amount || 1) * applicationCount;
+            // Documented Order of Precedence for self_damage exposure CE resolution:
+            // 1. Explicit rule in self_damage category matching exposure (numeric or string)
+            // 2. Canonical consequence rules:
+            //    - If frequency === 'each_active_turn': rule 'self_damage_turn' in consequence category (* applicationCount)
+            //    - If exposure === 2: rule 'self_damage_fixed_2' in consequence category
+            // 3. Option or rule in health_cost category matching exposure (if rule.cost !== 0)
+            // 4. Rule matching hp${exposure} in cost_adjustment category
+            // 5. Option or rule in health_cost category matching exposure (even if cost === 0)
+            // No implicit mathematical fallback is invented if no rule exists; matching cost = 0 stops fallthrough.
+            let resolvedCost: number | undefined;
+
+            const rSelfDmg = lookupRuleCostOpt('self_damage', exposure);
+            if (rSelfDmg.found) {
+              resolvedCost = rSelfDmg.cost;
+            } else {
+              const rSelfDmgStr = lookupRuleCostOpt('self_damage', String(exposure));
+              if (rSelfDmgStr.found) {
+                resolvedCost = rSelfDmgStr.cost;
+              } else {
+                const hpOpt = findHealthCostOption(effectiveCats, exposure);
+                if (hpOpt && hpOpt.cost !== 0) {
+                  resolvedCost = hpOpt.cost;
+                } else {
+                  if (lim.frequency === 'each_active_turn') {
+                    const rConsTurn = lookupRuleCostOpt('consequence', 'self_damage_turn');
+                    if (rConsTurn.found) {
+                      resolvedCost = rConsTurn.cost * applicationCount;
+                    }
+                  }
+                  if (resolvedCost === undefined && exposure === 2) {
+                    const rConsFixed2 = lookupRuleCostOpt('consequence', 'self_damage_fixed_2');
+                    if (rConsFixed2.found) {
+                      resolvedCost = rConsFixed2.cost;
+                    }
+                  }
+                  if (resolvedCost === undefined) {
+                    const rCostAdj = lookupRuleCostOpt('cost_adjustment', `hp${exposure}`);
+                    if (rCostAdj.found) {
+                      resolvedCost = rCostAdj.cost;
+                    } else if (hpOpt) {
+                      resolvedCost = hpOpt.cost;
+                    }
+                  }
+                }
+              }
+            }
+
+            if (resolvedCost !== undefined) {
+              mechanicCostSum += resolvedCost;
+            }
           }
         }
       }

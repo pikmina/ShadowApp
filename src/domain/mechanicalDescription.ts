@@ -913,6 +913,20 @@ export function describeMechanicalLimitation(
       break;
     }
 
+    case "self_damage": {
+      const amount = (lim as any).amount ?? 1;
+      const pts = amount === 1 ? "1 punto de daño" : `${amount} puntos de daño`;
+      const freq = (lim as any).frequency;
+      if (freq === "each_active_turn") {
+        text = `Recibe ${pts} por cada turno que la técnica permanezca activa.`;
+      } else if (freq === "on_end") {
+        text = `Recibe ${pts} al finalizar la técnica.`;
+      } else {
+        text = `Recibe ${pts} al activar la técnica.`;
+      }
+      break;
+    }
+
     default: {
       const unk = (lim as any).type;
       text = `Limitación (${unk})`;

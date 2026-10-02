@@ -367,10 +367,11 @@ export function advanceTurn(
                 Object.assign(world[entityId], res.newWorld[entityId]);
               }
             }
-          } else if ((timed.effect as any).type === "consequence_periodic_hp") {
+          } else if ((timed.effect as any).type === "self_damage_periodic" || (timed.effect as any).type === "consequence_periodic_hp") {
             const tickHp = (timed.effect as any).amount ?? 1;
             if (world && world[entityId]) {
               world[entityId].resources.SA.current = Math.max(0, world[entityId].resources.SA.current - tickHp);
+              participant.hpLostThisTurn = (participant.hpLostThisTurn ?? 0) + tickHp;
             }
           } else if (timed.effect.type === "healing") {
             let tickHealing = (timed.effect as any).amount ?? 0;
@@ -419,6 +420,14 @@ export function advanceTurn(
       }
 
       if (isExpired) {
+        if ((effect.effect as any)?.type === 'self_damage_on_end') {
+          const endDmg = (effect.effect as any).amount ?? 1;
+          if (world && world[entityId]) {
+            world[entityId].resources.SA.current = Math.max(0, world[entityId].resources.SA.current - endDmg);
+            participant.hpLostThisTurn = (participant.hpLostThisTurn ?? 0) + endDmg;
+          }
+        }
+
         // Trigger after-effect if present
         if ((effect.effect as any)?.type === 'after_effect_modifier') {
           if (!participant.activeModifiers) participant.activeModifiers = [];
@@ -2368,8 +2377,59 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
     }
   }
 
-  // 4b. Process Consequences
+  // 4b. Process Limitations (self_damage) & Consequences
   const currentSourceEntity = newWorld[sourceEntityId];
+  if (Array.isArray(behavior.limitations)) {
+    for (const lim of behavior.limitations) {
+      if (!lim || lim.type !== 'self_damage') continue;
+      const amt = lim.amount ?? 1;
+      if (lim.frequency === 'on_activation') {
+        if (currentSourceEntity) {
+          currentSourceEntity.resources.SA.current = Math.max(0, currentSourceEntity.resources.SA.current - amt);
+        }
+        participant.hpLostThisTurn = (participant.hpLostThisTurn ?? 0) + amt;
+      } else if (lim.frequency === 'each_active_turn') {
+        if (!participant.activeTimedEffects) participant.activeTimedEffects = [];
+        const alreadyHas = participant.activeTimedEffects.some(
+          t => t.sourceBehaviorId === behavior.id && (t.effect as any).type === 'self_damage_periodic'
+        );
+        if (!alreadyHas) {
+          const turns = behavior.temporality?.duration?.turns ?? 1;
+          participant.activeTimedEffects.push({
+            id: `self_dmg_turn_${behavior.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            sourceEntityId,
+            targetEntityId: sourceEntityId,
+            effect: { id: `eff_self_dmg_periodic`, type: 'self_damage_periodic', amount: amt } as any,
+            temporality: behavior.temporality ?? { duration: { type: 'turns', turns } },
+            remainingTurns: turns,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + turns,
+            periodicity: { mode: 'each_turn' },
+          });
+        }
+      } else if (lim.frequency === 'on_end') {
+        if (!participant.activeTimedEffects) participant.activeTimedEffects = [];
+        const alreadyHas = participant.activeTimedEffects.some(
+          t => t.sourceBehaviorId === behavior.id && (t.effect as any).type === 'self_damage_on_end'
+        );
+        if (!alreadyHas) {
+          const turns = behavior.temporality?.duration?.turns ?? 1;
+          participant.activeTimedEffects.push({
+            id: `self_dmg_end_${behavior.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            sourceEntityId,
+            targetEntityId: sourceEntityId,
+            effect: { id: `eff_self_dmg_end`, type: 'self_damage_on_end', amount: amt } as any,
+            temporality: behavior.temporality ?? { duration: { type: 'turns', turns } },
+            remainingTurns: turns,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + turns,
+          });
+        }
+      }
+    }
+  }
   if (Array.isArray(behavior.consequences)) {
     for (const cons of behavior.consequences) {
       if (!cons) continue;
@@ -4042,8 +4102,59 @@ export function executeMultiTargetBehavior(
     participant.executedBehaviorEvents.push(`${behavior.id}:${event.id}`);
   }
 
-  // 4b. Process Consequences (Multi-target context)
+  // 4b. Process Limitations (self_damage) & Consequences (Multi-target context)
   const currentSourceEntity = newWorld[sourceEntityId];
+  if (Array.isArray(behavior.limitations)) {
+    for (const lim of behavior.limitations) {
+      if (!lim || lim.type !== 'self_damage') continue;
+      const amt = lim.amount ?? 1;
+      if (lim.frequency === 'on_activation') {
+        if (currentSourceEntity) {
+          currentSourceEntity.resources.SA.current = Math.max(0, currentSourceEntity.resources.SA.current - amt);
+        }
+        participant.hpLostThisTurn = (participant.hpLostThisTurn ?? 0) + amt;
+      } else if (lim.frequency === 'each_active_turn') {
+        if (!participant.activeTimedEffects) participant.activeTimedEffects = [];
+        const alreadyHas = participant.activeTimedEffects.some(
+          t => t.sourceBehaviorId === behavior.id && (t.effect as any).type === 'self_damage_periodic'
+        );
+        if (!alreadyHas) {
+          const turns = behavior.temporality?.duration?.turns ?? 1;
+          participant.activeTimedEffects.push({
+            id: `self_dmg_turn_${behavior.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            sourceEntityId,
+            targetEntityId: sourceEntityId,
+            effect: { id: `eff_self_dmg_periodic`, type: 'self_damage_periodic', amount: amt } as any,
+            temporality: behavior.temporality ?? { duration: { type: 'turns', turns } },
+            remainingTurns: turns,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + turns,
+            periodicity: { mode: 'each_turn' },
+          });
+        }
+      } else if (lim.frequency === 'on_end') {
+        if (!participant.activeTimedEffects) participant.activeTimedEffects = [];
+        const alreadyHas = participant.activeTimedEffects.some(
+          t => t.sourceBehaviorId === behavior.id && (t.effect as any).type === 'self_damage_on_end'
+        );
+        if (!alreadyHas) {
+          const turns = behavior.temporality?.duration?.turns ?? 1;
+          participant.activeTimedEffects.push({
+            id: `self_dmg_end_${behavior.id}_${Date.now()}`,
+            sourceBehaviorId: behavior.id,
+            sourceEntityId,
+            targetEntityId: sourceEntityId,
+            effect: { id: `eff_self_dmg_end`, type: 'self_damage_on_end', amount: amt } as any,
+            temporality: behavior.temporality ?? { duration: { type: 'turns', turns } },
+            remainingTurns: turns,
+            appliedAtTurn: newEncounter.turn,
+            expiresAtTurn: newEncounter.turn + turns,
+          });
+        }
+      }
+    }
+  }
   if (Array.isArray(behavior.consequences)) {
     for (const cons of behavior.consequences) {
       if (!cons) continue;

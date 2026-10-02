@@ -54,6 +54,7 @@ const CoreKeyIcon = ({ coreKey, className }: { coreKey?: string, className?: str
     case 'additional_requirement': return <Settings2 className={className} />;
     case 'die_condition': return <Dices className={className} />;
     case 'health_cost': return <HeartPulse className={className} />;
+    case 'self_damage': return <Flame className={className} />;
     case 'caps': return <Ban className={className} />;
     default: return <Package className={className} />;
   }
@@ -114,7 +115,7 @@ export const MECHANICAL_BEHAVIOR_GROUPS: CategoryGroupDef[] = [
     title: 'Consecuencias y Efectos Secundarios',
     subtitle: 'Daño propio, recoil, penalizaciones al finalizar y efectos secundarios',
     icon: ShieldAlert,
-    coreKeys: ['consequence', 'health_cost']
+    coreKeys: ['self_damage', 'consequence', 'health_cost']
   },
   {
     key: 'caps',
@@ -535,18 +536,41 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                     }
 
                     if (contract?.editorMode === 'parameter') {
+                      const isSelfDamage = contract?.coreKey === 'self_damage';
                       return (
                         <div className="grid gap-4 sm:grid-cols-3">
                           <div className="space-y-2">
-                            <Label className="text-xs font-semibold">Nombre</Label>
+                            <Label className="text-xs font-semibold">{isSelfDamage ? "Exposición (puntos HP)" : "Nombre"}</Label>
                             <Input 
-                              value={editingRule.name} 
-                              onChange={e => patchRule(editingIndex, { name: e.target.value, ruleType: 'cost_modifier', effect: undefined, component: undefined })} 
-                              placeholder="Ej. Fuerza" 
+                              value={isSelfDamage ? (editingRule.runtimeKey || editingRule.name.replace(/\s*HP$/, "")) : editingRule.name} 
+                              onChange={e => {
+                                const rawVal = e.target.value;
+                                if (isSelfDamage) {
+                                  const numVal = parseInt(rawVal.replace(/\D/g, ""), 10);
+                                  const cleanKey = isNaN(numVal) || numVal <= 0 ? "" : String(numVal);
+                                  const cleanName = cleanKey ? `${cleanKey} HP` : rawVal;
+                                  const isDuplicate = draft.rules.some((r, j) => j !== editingIndex && (r.runtimeKey === cleanKey || r.name === cleanName));
+                                  if (isDuplicate && cleanKey) {
+                                    setError(`Ya existe una opción con la exposición ${cleanKey} HP en esta categoría.`);
+                                  } else {
+                                    setError('');
+                                  }
+                                  patchRule(editingIndex, { 
+                                    name: cleanName, 
+                                    runtimeKey: cleanKey, 
+                                    ruleType: 'cost_modifier', 
+                                    effect: undefined, 
+                                    component: undefined 
+                                  });
+                                } else {
+                                  patchRule(editingIndex, { name: rawVal, ruleType: 'cost_modifier', effect: undefined, component: undefined });
+                                }
+                              }} 
+                              placeholder={isSelfDamage ? "Ej. 15" : "Ej. Fuerza"} 
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-xs font-semibold">CE adicional</Label>
+                            <Label className="text-xs font-semibold">Ajuste de CE</Label>
                             <Input type="number" value={editingRule.cost} onChange={e => patchRule(editingIndex, { cost: Number(e.target.value) })} />
                           </div>
                           <div className="space-y-2">

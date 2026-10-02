@@ -2125,10 +2125,17 @@ function EffectsListEditor({
 
                 {eff.type === "attribute_modifier" && (() => {
                   const rawAttrOpts = getCategoryOptions(mechanics, "attribute");
+                  const effectiveAttrId = eff.attributeId || rawAttrOpts[0]?.runtimeKey || "FUE";
                   const visibleAttrOpts = getVisibleOptions(rawAttrOpts, eff.attributeId);
                   const rawAmountOpts = getCategoryOptions(mechanics, "numeric_modifier");
                   const visibleAmountOpts = getVisibleOptions(rawAmountOpts, eff.amount ?? 0);
-                  const currentAttrOpt = rawAttrOpts.find(o => o.runtimeKey === eff.attributeId || o.id === eff.attributeId);
+                  const currentAttrOpt = rawAttrOpts.find(
+                    (o) =>
+                      o.runtimeKey === effectiveAttrId ||
+                      o.id === effectiveAttrId ||
+                      o.runtimeKey?.toUpperCase() === effectiveAttrId.toUpperCase() ||
+                      o.id?.toUpperCase().endsWith(`.${effectiveAttrId.toUpperCase()}`)
+                  );
                   const currentAmountOpt = rawAmountOpts.find(o => o.runtimeKey === String(eff.amount ?? 0) || o.id === String(eff.amount ?? 0));
 
                   return (
@@ -2136,11 +2143,11 @@ function EffectsListEditor({
                       <div className="grid gap-1">
                         <Label className="text-[11px]">Atributo</Label>
                         <Select
-                          value={eff.attributeId || "FUE"}
+                          value={eff.attributeId || effectiveAttrId}
                           onValueChange={(val) => updateEffect(i, { ...eff, attributeId: val })}
                         >
                           <SelectTrigger className="h-7 w-40 text-xs font-medium">
-                            <SelectValue>{currentAttrOpt ? `${currentAttrOpt.name}${currentAttrOpt.cost ? ` (+${currentAttrOpt.cost} CE)` : ''}` : `${getAttributeLabel(eff.attributeId)} · Valor histórico sin regla de CE`}</SelectValue>
+                            <SelectValue>{currentAttrOpt ? `${currentAttrOpt.name}${currentAttrOpt.cost ? ` (+${currentAttrOpt.cost} CE)` : ''}` : `${getAttributeLabel(effectiveAttrId)} · Valor histórico sin regla de CE`}</SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             {visibleAttrOpts.map((opt) => (
@@ -3390,6 +3397,7 @@ function LimitationsEditor({
                   const copy = [...limitations];
                   if (val === "cooldown") copy[i] = { id: lim.id, type: "cooldown", turns: 1 };
                   else if (val === "usage_limit") copy[i] = { id: lim.id, type: "usage_limit", period: "combat", max: 1 };
+                  else if (val === "self_damage") copy[i] = { id: lim.id, type: "self_damage", amount: 1, frequency: "on_activation" };
                   else if (val === "item_requirement") copy[i] = { id: lim.id, type: "item_requirement", referenceType: "tag", referenceValue: "arma", quantity: 1, mode: "require" };
                   else copy[i] = { id: lim.id, type: "manual", description: "" };
                   onChange(copy);
@@ -3401,10 +3409,52 @@ function LimitationsEditor({
                 <SelectContent>
                   <SelectItem value="cooldown">{MECHANICAL_LABELS.limitationTypes.cooldown}</SelectItem>
                   <SelectItem value="usage_limit">{MECHANICAL_LABELS.limitationTypes.usage_limit}</SelectItem>
+                  <SelectItem value="self_damage">{MECHANICAL_LABELS.limitationTypes.self_damage}</SelectItem>
                   <SelectItem value="item_requirement">{MECHANICAL_LABELS.limitationTypes.item_requirement}</SelectItem>
                   <SelectItem value="manual">{MECHANICAL_LABELS.limitationTypes.manual}</SelectItem>
                 </SelectContent>
               </Select>
+
+              {lim.type === "self_damage" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground">Cantidad:</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={lim.amount ?? 1}
+                      onChange={(e) => {
+                        const copy = [...limitations];
+                        const val = parseInt(e.target.value, 10);
+                        copy[i] = { ...lim, amount: isNaN(val) ? 1 : Math.max(1, val) };
+                        onChange(copy);
+                      }}
+                      className="h-7 w-16 text-xs font-mono"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground">Frecuencia:</span>
+                    <Select
+                      value={lim.frequency ?? "on_activation"}
+                      onValueChange={(val: any) => {
+                        const copy = [...limitations];
+                        copy[i] = { ...lim, frequency: val };
+                        onChange(copy);
+                      }}
+                    >
+                      <SelectTrigger className="h-7 w-36 text-xs">
+                        <SelectValue>{MECHANICAL_LABELS.selfDamageFrequencies[lim.frequency ?? "on_activation"]}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="on_activation">{MECHANICAL_LABELS.selfDamageFrequencies.on_activation}</SelectItem>
+                        <SelectItem value="each_active_turn">{MECHANICAL_LABELS.selfDamageFrequencies.each_active_turn}</SelectItem>
+                        <SelectItem value="on_end">{MECHANICAL_LABELS.selfDamageFrequencies.on_end}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
 
               {lim.type === "cooldown" && (() => {
                 const matchedOption = cooldownOptions.find(

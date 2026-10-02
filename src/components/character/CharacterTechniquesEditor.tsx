@@ -286,10 +286,16 @@ export function CharacterTechniqueDialog({
       return;
     }
 
-    // Validate that all healing amounts match configured rules options
+    // Validate behaviors before save
     for (const behavior of editingTechnique.mechanicalBehaviors) {
       if (Array.isArray(behavior.effects)) {
         for (const eff of behavior.effects) {
+          if (eff.type === 'attribute_modifier') {
+            if (!eff.attributeId || typeof eff.attributeId !== 'string' || !eff.attributeId.trim()) {
+              toast.error('Cada modificador de atributo debe especificar un atributo válido.');
+              return;
+            }
+          }
           if (eff.type === 'healing') {
             const healingOpt = findHealingOption(
               effectiveMechanics,
@@ -300,6 +306,17 @@ export function CharacterTechniqueDialog({
               toast.error(
                 'Esta opción de curación no está configurada en las reglas del sistema.'
               );
+              return;
+            }
+          }
+        }
+      }
+      if (Array.isArray(behavior.limitations)) {
+        for (const lim of behavior.limitations) {
+          if (lim.type === 'self_damage' && lim.frequency === 'each_active_turn') {
+            const durTurns = behavior.temporality?.duration?.turns ?? behavior.temporality?.duration?.value ?? behavior.effects?.find((e: any) => e.temporality?.duration?.turns)?.temporality?.duration?.turns;
+            if (typeof durTurns !== 'number' || durTurns <= 0) {
+              toast.error('La limitante de Daño autoinfligido por cada turno activo requiere que la técnica defina una duración en turnos.');
               return;
             }
           }
