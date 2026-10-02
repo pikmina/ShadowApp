@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ItemIcon } from '@/components/common/ItemIcon';
 import {
   Heart,
   Zap,
@@ -1214,7 +1215,7 @@ export function BaseSheetView({
                     </div>
 
                     <div className="my-auto">
-                      <Package className="size-5 text-zinc-500 mx-auto mb-1 group-hover:text-emerald-400 transition-colors" />
+                      <ItemIcon item={item} className="size-5 text-zinc-500 mx-auto mb-1 group-hover:text-emerald-400 transition-colors" />
                       <span className="text-[11px] font-oxanium font-bold text-zinc-200 line-clamp-2 uppercase">
                         {item.name}
                       </span>
@@ -1263,7 +1264,7 @@ export function BaseSheetView({
                   </div>
 
                   <div className="my-auto">
-                    <Package className="size-5 text-zinc-500 mx-auto mb-1 group-hover:text-emerald-400 transition-colors" />
+                    <ItemIcon item={item} className="size-5 text-zinc-500 mx-auto mb-1 group-hover:text-emerald-400 transition-colors" />
                     <span className="text-[11px] font-oxanium font-bold text-zinc-200 line-clamp-2 uppercase">
                       {item.name}
                     </span>

@@ -193,6 +193,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
       name: z.string().min(1),
       description: z.string(),
       status: z.enum(['draft', 'published', 'archived']).optional(),
+      iconType: z.enum(['lucide', 'emoji']).nullable().optional(),
+      iconValue: z.string().nullable().optional(),
       effects: z.array(z.any()).optional(),
       mechanicalBehaviors: z.array(z.any()).optional(),
       requirements: requirementGroupSchema.optional(),

@@ -66,6 +66,7 @@ import { SectionHeader } from "../components/common/SectionHeader";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { calculateProgressionCost } from "../domain/progressionCosts";
+import { ItemIcon } from "../components/common/ItemIcon";
 
 const KIND_TYPES: Record<string, string> = {
   trait: "Rasgo",
@@ -862,7 +863,12 @@ export default function Shop() {
                         )}
                       </div>
 
-                      <h3 className="font-bold text-base mb-1 text-foreground truncate" title={element.name}>{element.name}</h3>
+                      <div className="flex items-center gap-2.5 mb-1.5 min-w-0">
+                        <div className="size-9 rounded-md bg-muted/60 border border-border flex items-center justify-center shrink-0 shadow-xs">
+                          <ItemIcon item={element} className="size-5 text-primary" />
+                        </div>
+                        <h3 className="font-bold text-base text-foreground truncate" title={element.name}>{element.name}</h3>
+                      </div>
                       <p className="text-xs text-muted-foreground line-clamp-2 mb-2 h-8" title={element.description}>{element.description}</p>
                       
                       {/* Requirements pill list */}
@@ -1123,19 +1129,24 @@ export default function Shop() {
                       {cart.map((item, idx) => (
                         <div key={idx} className="bg-background border border-border p-3 rounded-lg text-sm flex flex-col gap-2 shadow-sm relative group">
                           <div className="flex justify-between items-start gap-2">
-                            <div className="min-w-0">
-                              <span className="font-bold block truncate text-foreground" title={item.element.name}>
-                                {item.element.name}
-                              </span>
-                              {item.isProgression ? (
-                                <Badge variant="outline" className="text-[10px] mt-0.5 font-mono text-amber-400 border-amber-500/30 bg-amber-500/10">
-                                  Mejora: Nv. {item.fromLevel} ➔ Nv. {item.toLevel}
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="text-[10px] uppercase tracking-wider font-semibold">
-                                  {KIND_TYPES[item.element.kind] || item.element.kind}
-                                </Badge>
-                              )}
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="size-8 rounded bg-muted/60 border border-border flex items-center justify-center shrink-0">
+                                <ItemIcon item={item.element} className="size-4.5 text-primary" />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="font-bold block truncate text-foreground" title={item.element.name}>
+                                  {item.element.name}
+                                </span>
+                                {item.isProgression ? (
+                                  <Badge variant="outline" className="text-[10px] mt-0.5 font-mono text-amber-400 border-amber-500/30 bg-amber-500/10">
+                                    Mejora: Nv. {item.fromLevel} ➔ Nv. {item.toLevel}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="text-[10px] uppercase tracking-wider font-semibold">
+                                    {KIND_TYPES[item.element.kind] || item.element.kind}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                             <Button
                               variant="ghost"
@@ -1311,20 +1322,27 @@ export default function Shop() {
                         return (
                           <TableRow key={shopData.id}>
                             <TableCell>
-                              <div className="flex flex-col">
-                                <span className="font-semibold text-foreground">
-                                  {el ? el.name : <span className="text-destructive">Elemento Borrado</span>}
-                                </span>
+                              <div className="flex items-center gap-2.5">
                                 {el && (
-                                  <div className="flex items-center gap-1.5 mt-0.5">
-                                    <Badge variant="outline" className="text-[9px] uppercase font-mono px-1 py-0 h-4">
-                                      {KIND_TYPES[el.kind] || el.kind}
-                                    </Badge>
-                                    <span className="text-[10px] text-muted-foreground font-mono">
-                                      ID: {shopData.elementId}
-                                    </span>
+                                  <div className="size-8 rounded bg-muted/60 border border-border flex items-center justify-center shrink-0">
+                                    <ItemIcon item={el} className="size-4.5 text-primary" />
                                   </div>
                                 )}
+                                <div className="flex flex-col">
+                                  <span className="font-semibold text-foreground">
+                                    {el ? el.name : <span className="text-destructive">Elemento Borrado</span>}
+                                  </span>
+                                  {el && (
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <Badge variant="outline" className="text-[9px] uppercase font-mono px-1 py-0 h-4">
+                                        {KIND_TYPES[el.kind] || el.kind}
+                                      </Badge>
+                                      <span className="text-[10px] text-muted-foreground font-mono">
+                                        ID: {shopData.elementId}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell>

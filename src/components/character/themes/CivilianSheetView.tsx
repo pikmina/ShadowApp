@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { ItemIcon } from '@/components/common/ItemIcon';
 import {
   FileText,
   User,
@@ -915,7 +916,10 @@ export function CivilianSheetView({
                   <div key={idx} className="p-2.5 border border-stone-300 bg-stone-50/70 rounded text-xs flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-serif font-bold text-stone-950 truncate">{item.name}</span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <ItemIcon item={item} className="size-4 shrink-0 text-stone-700" />
+                          <span className="font-serif font-bold text-stone-950 truncate">{item.name}</span>
+                        </div>
                         <span className="font-mono text-[10px] font-bold text-stone-600 bg-white px-1.5 py-0.2 border border-stone-300">
                           x{item.quantity || 1}
                         </span>

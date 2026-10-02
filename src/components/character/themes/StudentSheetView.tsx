@@ -1,4 +1,5 @@
 import React from 'react';
+import { ItemIcon } from '@/components/common/ItemIcon';
 import {
   GraduationCap,
   Heart,
@@ -701,7 +702,7 @@ export function StudentSheetView({
                   className="p-3 rounded-xl bg-white border border-slate-300 hover:border-blue-400 transition-colors flex items-start gap-3 shadow-xs"
                 >
                   <div className="p-2 rounded-lg bg-blue-100 text-blue-900 border border-blue-200 shrink-0 mt-0.5">
-                    <Bookmark className="size-4" />
+                    <ItemIcon item={item} className="size-4 text-blue-900" />
                   </div>
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex items-center justify-between gap-1">

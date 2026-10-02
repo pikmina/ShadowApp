@@ -46,6 +46,8 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
     if (existing) {
       const [updated] = await tx.update(systemElements).set({
         kind: data.kind, name: data.name, description: data.description, status: data.status,
+        iconType: data.iconType !== undefined ? data.iconType : existing.iconType,
+        iconValue: data.iconValue !== undefined ? data.iconValue : existing.iconValue,
         effects: data.effects, mechanicalBehaviors: data.mechanicalBehaviors === undefined ? undefined : mechanicalBehaviors,
         requirements: data.requirements === undefined ? undefined : requirements, metadata: data.metadata,
         revision: (existing.revision ?? 1) + 1, updatedAt: new Date(),
@@ -61,6 +63,8 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
           kind: updated.kind,
           status: updated.status,
           previousStatus: existing.status,
+          iconType: updated.iconType,
+          iconValue: updated.iconValue,
           revision: updated.revision,
           effectsCount: Array.isArray(updated.effects) ? (updated.effects as any[]).length : 0,
           mechanicalBehaviorsCount: Array.isArray(updated.mechanicalBehaviors) ? (updated.mechanicalBehaviors as any[]).length : 0,
@@ -71,6 +75,7 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
     }
     const [created] = await tx.insert(systemElements).values({
       id: nanoid(10), kind: data.kind, name: data.name, description: data.description, status,
+      iconType: data.iconType ?? null, iconValue: data.iconValue ?? null,
       effects, mechanicalBehaviors, requirements, metadata: data.metadata ?? {},
     }).returning();
 
@@ -82,6 +87,8 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
         name: created.name,
         kind: created.kind,
         status: created.status,
+        iconType: created.iconType,
+        iconValue: created.iconValue,
         effectsCount: Array.isArray(created.effects) ? (created.effects as any[]).length : 0,
         mechanicalBehaviorsCount: Array.isArray(created.mechanicalBehaviors) ? (created.mechanicalBehaviors as any[]).length : 0,
       },

@@ -524,6 +524,9 @@ export default function PublicSheet() {
       quantity: r?.possession?.quantity ?? r?.quantity ?? 1,
       kind: r?.element?.kind || r?.kind || 'item',
       equipped: r?.possession?.equipped ?? r?.equipped ?? false,
+      element: r?.element,
+      iconType: r?.element?.iconType ?? null,
+      iconValue: r?.element?.iconValue ?? null,
     }));
 
   if (loading) {

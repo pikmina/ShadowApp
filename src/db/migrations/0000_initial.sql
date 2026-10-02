@@ -205,6 +205,8 @@ CREATE TABLE "system_elements" (
 	"name" text NOT NULL,
 	"description" text NOT NULL,
 	"status" "element_status" DEFAULT 'draft' NOT NULL,
+	"icon_type" text,
+	"icon_value" text,
 	"effects" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"mechanical_behaviors" jsonb DEFAULT '[]'::jsonb,
 	"requirements" jsonb DEFAULT '{"operator":"all","requirements":[]}'::jsonb NOT NULL,

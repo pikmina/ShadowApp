@@ -120,6 +120,9 @@ export interface CharacterSheetViewModel {
     quantity: number;
     kind: string;
     equipped: boolean;
+    element?: any;
+    iconType?: 'lucide' | 'emoji' | string | null;
+    iconValue?: string | null;
   }>;
   biography: string;
   employments: any[];
@@ -522,6 +525,9 @@ export function buildCharacterSheetViewModel({
       quantity: r?.possession?.quantity ?? r?.quantity ?? 1,
       kind: r?.element?.kind || r?.kind || 'item',
       equipped: r?.possession?.equipped ?? r?.equipped ?? false,
+      element: r?.element,
+      iconType: r?.element?.iconType ?? null,
+      iconValue: r?.element?.iconValue ?? null,
     }));
 
   return {

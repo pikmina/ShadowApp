@@ -341,6 +341,8 @@ export async function runMigration() {
           ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text;
           ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updated_at" timestamp DEFAULT now();
           ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "mechanical_behaviors" jsonb DEFAULT '[]'::jsonb;
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
           ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "canon_character_id" text;
           ALTER TABLE "class_groups" ADD COLUMN IF NOT EXISTS "course_type" varchar(100);
           ALTER TABLE "character_employments" ALTER COLUMN "character_id" DROP NOT NULL;

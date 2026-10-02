@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { CharacterEmployments, CharacterEnrollments } from "./CharacterRelations";
 import { CharacterTechniquesEditor } from "./CharacterTechniquesEditor";
 import { profileValue, type CoreProfileKey } from "@/domain/coreProfileFields";
+import { ItemIcon } from "@/components/common/ItemIcon";
 
 const profileWithRelationalElements = (character?: any) => {
   const profile = { ...(character?.profileData || {}) };
@@ -1535,7 +1536,10 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                       >
                         <div className="space-y-1.5">
                           <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                            <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                              <div className="size-7 rounded bg-muted/60 border border-border flex items-center justify-center shrink-0">
+                                <ItemIcon item={el} className="size-4 text-primary" />
+                              </div>
                               <span className="font-semibold text-sm text-foreground font-oxanium leading-snug">
                                 {el.name}
                               </span>
@@ -1729,9 +1733,14 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                       >
                         <div className="space-y-1.5">
                           <div className="flex items-start justify-between gap-2">
-                            <span className="font-semibold text-sm text-foreground font-oxanium leading-snug">
-                              {el.name}
-                            </span>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="size-7 rounded bg-muted/60 border border-border flex items-center justify-center shrink-0">
+                                <ItemIcon item={el} className="size-4 text-primary" />
+                              </div>
+                              <span className="font-semibold text-sm text-foreground font-oxanium leading-snug truncate">
+                                {el.name}
+                              </span>
+                            </div>
                             <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold font-mono ${meta.bg} ${meta.text} border ${meta.border}`}>
                               {meta.label}
                             </span>

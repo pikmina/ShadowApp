@@ -1,4 +1,5 @@
 import React from 'react';
+import { ItemIcon } from '@/components/common/ItemIcon';
 import {
   Heart,
   Zap,
@@ -1071,7 +1072,7 @@ export function VigilanteSheetView({
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="size-9 rounded bg-black border border-zinc-700 shrink-0 flex items-center justify-center text-zinc-300">
-                        <Bookmark className="size-4" />
+                        <ItemIcon item={item} className="size-4 text-zinc-300" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">

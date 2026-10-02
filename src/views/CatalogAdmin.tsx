@@ -42,6 +42,8 @@ import { useMemo } from "react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { getProgressionBreakdown } from "../domain/progressionCosts";
+import { ItemIcon } from "../components/common/ItemIcon";
+import { ItemIconPicker } from "../components/common/ItemIconPicker";
 
 const ATTRIBUTE_OPTIONS = [
   { id: "FUE", name: "Fuerza (FUE)" },
@@ -58,6 +60,8 @@ const defaultForm = {
   name: "",
   description: "",
   status: "draft",
+  iconType: null as 'lucide' | 'emoji' | null,
+  iconValue: null as string | null,
   effects: [] as any[],
   mechanicalBehaviors: [] as any[],
   requirements: { operator: "all", requirements: [] as any[] },
@@ -207,6 +211,8 @@ export default function CatalogAdmin() {
         name: el.name,
         description: el.description,
         status: el.status,
+        iconType: el.iconType ?? null,
+        iconValue: el.iconValue ?? null,
         effects: el.effects || [],
         mechanicalBehaviors: el.mechanicalBehaviors || [],
         requirements: el.requirements || { operator: "all", requirements: [] },
@@ -395,16 +401,21 @@ export default function CatalogAdmin() {
               filteredElements.map((el: any) => (
                 <TableRow key={el.id}>
                   <TableCell className="font-semibold">
-                    <div>
-                      <span>{el.name}</span>
-                      {(el.kind === 'skill' || el.kind === 'attribute_upgrade') && Number(el.metadata?.baseExpCost) > 0 && (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-400 bg-amber-500/10 font-mono">
-                            <Sparkles className="size-2.5 mr-1 inline" />
-                            Base: {Number(el.metadata.baseExpCost).toLocaleString('es-ES')} EXP (Nv 1-{el.metadata?.maxLevel || (el.kind === 'attribute_upgrade' ? 10 : 5)})
-                          </Badge>
-                        </div>
-                      )}
+                    <div className="flex items-center gap-2.5">
+                      <div className="size-8 rounded bg-muted/60 border border-border flex items-center justify-center shrink-0">
+                        <ItemIcon item={el} className="size-4.5 text-primary" />
+                      </div>
+                      <div>
+                        <span>{el.name}</span>
+                        {(el.kind === 'skill' || el.kind === 'attribute_upgrade') && Number(el.metadata?.baseExpCost) > 0 && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-400 bg-amber-500/10 font-mono">
+                              <Sparkles className="size-2.5 mr-1 inline" />
+                              Base: {Number(el.metadata.baseExpCost).toLocaleString('es-ES')} EXP (Nv 1-{el.metadata?.maxLevel || (el.kind === 'attribute_upgrade' ? 10 : 5)})
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -646,6 +657,16 @@ export default function CatalogAdmin() {
                       })()}
                     </div>
                   )}
+
+                  {/* Icono del artículo (Lucide / Emoji) */}
+                  <ItemIconPicker
+                    iconType={form.iconType}
+                    iconValue={form.iconValue}
+                    kind={form.kind}
+                    itemName={form.name}
+                    onChange={(newType, newValue) => setForm({ ...form, iconType: newType, iconValue: newValue })}
+                  />
+
                   <div className="grid gap-2">
                     <Label>Descripción Narrativa</Label>
                     <Textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="h-32" placeholder="Describe qué hace esto a nivel narrativo y de rol..." />

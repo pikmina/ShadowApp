@@ -1,4 +1,5 @@
 import React from 'react';
+import { ItemIcon } from '@/components/common/ItemIcon';
 import {
   Activity,
   Heart,
@@ -687,7 +688,7 @@ export function HeroSheetView({
                 return (
                   <div key={i} className="p-3 rounded-lg bg-zinc-950/80 border border-zinc-800 hover:border-zinc-700 transition-colors flex items-start gap-3">
                     <div className="p-2 rounded bg-zinc-900 text-zinc-400 border border-zinc-800 shrink-0 mt-0.5">
-                      <Bookmark className="size-4 text-cyan-400" />
+                      <ItemIcon item={item} className="size-4 text-cyan-400" />
                     </div>
                     <div className="min-w-0 flex-1 space-y-0.5">
                       <div className="flex items-center justify-between gap-1">
