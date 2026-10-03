@@ -34,4 +34,25 @@ export const createPool = () => {
 };
 
 const pool = createPool();
+
+let ensureColsPromise: Promise<void> | null = null;
+export async function ensureSystemSchemaColumns() {
+  if (!ensureColsPromise) {
+    ensureColsPromise = (async () => {
+      try {
+        await pool.query(`
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
+        `);
+      } catch (err: any) {
+        console.warn('Notice: ensureSystemSchemaColumns:', err?.message || err);
+      }
+    })();
+  }
+  return ensureColsPromise;
+}
+
+// Automatically provision schema columns when pool initializes
+void ensureSystemSchemaColumns();
+
 export const db = drizzle(pool, { schema });

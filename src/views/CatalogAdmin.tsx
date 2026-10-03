@@ -137,7 +137,7 @@ export default function CatalogAdmin() {
   const mechanicsRule = rules?.find((r: any) => r.key === "system_mechanics") || { value: [] };
   const mechanics = Array.isArray(mechanicsRule.value) ? mechanicsRule.value : [];
 
-  const { data: rawElements, mutate } = useSWR(
+  const { data: rawElements, error: elementsError, isLoading: elementsLoading, mutate } = useSWR(
     user ? "/api/admin/elements" : null, fetcher
   );
 
@@ -391,7 +391,29 @@ export default function CatalogAdmin() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(!filteredElements || filteredElements.length === 0) ? (
+            {elementsLoading ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="size-6 animate-spin text-primary" />
+                    <span className="text-xs font-mono uppercase tracking-wider">Cargando elementos del catálogo...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : elementsError ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-10 text-destructive">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <AlertCircle className="size-6 text-destructive" />
+                    <span className="font-semibold text-sm">Error al cargar los elementos del catálogo</span>
+                    <span className="text-xs text-muted-foreground">{elementsError?.message || 'Error de conexión con la base de datos.'}</span>
+                    <Button variant="outline" size="sm" onClick={() => mutate()} className="mt-2 text-xs">
+                      Reintentar
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (!filteredElements || filteredElements.length === 0) ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
                   El catálogo está vacío. Haz clic en "Crear Elemento" para comenzar.

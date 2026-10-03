@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { AlertCircle, AlertTriangle, CheckCircle, Award, Check, Copy, Edit2, Eye, Plus, Search, Trash2, User, Users, Archive, ArchiveRestore } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle, Award, Check, Copy, Edit2, Eye, Plus, Search, Trash2, User, Users, Archive, ArchiveRestore, Loader2 } from 'lucide-react';
 import useSWR from 'swr';
 import { toast } from 'sonner';
 import AdminRewardsDialog from '@/components/character/AdminRewardsDialog';
@@ -86,7 +86,7 @@ export default function CharactersAdmin() {
   }, [location.search]);
 
   const isMod = dbUser?.role === 'moderator' || dbUser?.role === 'superadmin';
-  const { data: allCharacters, mutate: mutateAll } = useSWR(user && isMod ? '/api/admin/characters' : null, fetcher);
+  const { data: allCharacters, error: charactersError, isLoading: charactersLoading, mutate: mutateAll } = useSWR(user && isMod ? '/api/admin/characters' : null, fetcher);
   const { data: rules } = useSWR(user && isMod ? '/api/rules' : null, fetcher);
   const { data: rawElements } = useSWR(user && isMod ? '/api/elements' : null, fetcher);
   const elements = useMemo(() => Array.isArray(rawElements) ? rawElements.filter((el: any) => el.status === 'published') : [], [rawElements]);
@@ -421,7 +421,25 @@ export default function CharactersAdmin() {
         })}
       </div>
 
-      {filteredCharacters.length === 0 && (
+      {charactersLoading && (
+        <EntityPanel pattern="dots" cornerTicks className="p-12 text-center">
+          <Loader2 className="mx-auto mb-3 size-8 animate-spin text-primary" />
+          <p className="font-oxanium text-sm font-semibold text-foreground">Cargando personajes...</p>
+        </EntityPanel>
+      )}
+
+      {charactersError && !charactersLoading && (
+        <EntityPanel pattern="dots" cornerTicks className="p-8 text-center border-destructive/50 bg-destructive/5">
+          <AlertCircle className="mx-auto mb-3 size-8 text-destructive" />
+          <p className="font-oxanium text-sm font-semibold text-destructive">Error al cargar personajes</p>
+          <p className="mt-1 text-xs text-muted-foreground">{charactersError?.message || 'Error de conexión con la base de datos'}</p>
+          <Button variant="outline" size="sm" onClick={() => mutateAll()} className="mt-3 text-xs">
+            Reintentar
+          </Button>
+        </EntityPanel>
+      )}
+
+      {!charactersLoading && !charactersError && filteredCharacters.length === 0 && (
         <EntityPanel pattern="dots" cornerTicks className="p-8 text-center">
           <Users className="mx-auto mb-3 size-8 text-muted-foreground/40" />
           <p className="font-oxanium text-sm font-semibold text-foreground">No hay personajes que coincidan</p>

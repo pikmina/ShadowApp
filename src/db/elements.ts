@@ -8,30 +8,140 @@ import { requirementGroupSchema } from '../domain/requirements.ts';
 import { SYSTEM_WEAKNESSES, CORE_ALTERED_STATUSES } from '../domain/systemWeaknesses.ts';
 import { SYSTEM_TRAITS } from '../domain/systemTraits.ts';
 
-export async function getElements() {
+let ensureIconColumnsPromise: Promise<void> | null = null;
+export async function ensureElementIconColumns() {
+  if (!ensureIconColumnsPromise) {
+    ensureIconColumnsPromise = (async () => {
+      try {
+        await db.execute(sql`
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
+        `);
+      } catch (err: any) {
+        console.warn("Notice: ensureElementIconColumns:", err?.message || err);
+      }
+    })();
+  }
+  return ensureIconColumnsPromise;
+}
+
+export async function getElements(): Promise<(typeof systemElements.$inferSelect)[]> {
+  await ensureElementIconColumns();
   try {
     return await db.select().from(systemElements).orderBy(desc(systemElements.createdAt));
-  } catch (error) {
+  } catch (error: any) {
+    // If the database is missing icon columns, attempt immediate column addition or legacy projection fallback
+    if (error?.code === '42703' || String(error?.message).includes('icon_')) {
+      console.warn("Detected missing icon columns in system_elements, attempting recovery...");
+      try {
+        await db.execute(sql`
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
+        `);
+        return await db.select().from(systemElements).orderBy(desc(systemElements.createdAt));
+      } catch (recoveryErr) {
+        console.warn("Direct ALTER TABLE failed, falling back to legacy projection query:", recoveryErr);
+        const result = await db.execute(sql`
+          SELECT "id", "kind", "name", "description", "status", "effects", 
+                 "mechanical_behaviors", "requirements", "metadata", "revision", 
+                 "created_at", "updated_at" 
+          FROM "system_elements" 
+          ORDER BY "created_at" DESC
+        `);
+        return (result.rows || []).map((row: any) => ({
+          ...row,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          mechanicalBehaviors: row.mechanical_behaviors,
+          iconType: null,
+          iconValue: null,
+        }) as typeof systemElements.$inferSelect);
+      }
+    }
     console.error("Database query failed:", error);
     throw new Error("Failed to fetch elements");
   }
 }
 
-export async function getPublishedElements() {
-  return db.select().from(systemElements).where(eq(systemElements.status, 'published')).orderBy(desc(systemElements.createdAt));
+export async function getPublishedElements(): Promise<(typeof systemElements.$inferSelect)[]> {
+  await ensureElementIconColumns();
+  try {
+    return await db.select().from(systemElements).where(eq(systemElements.status, 'published')).orderBy(desc(systemElements.createdAt));
+  } catch (error: any) {
+    if (error?.code === '42703' || String(error?.message).includes('icon_')) {
+      try {
+        await db.execute(sql`
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
+        `);
+        return await db.select().from(systemElements).where(eq(systemElements.status, 'published')).orderBy(desc(systemElements.createdAt));
+      } catch (recoveryErr) {
+        console.warn("Direct ALTER TABLE failed in getPublishedElements, falling back to legacy projection query:", recoveryErr);
+        const result = await db.execute(sql`
+          SELECT "id", "kind", "name", "description", "status", "effects", 
+                 "mechanical_behaviors", "requirements", "metadata", "revision", 
+                 "created_at", "updated_at" 
+          FROM "system_elements" 
+          WHERE "status" = 'published'
+          ORDER BY "created_at" DESC
+        `);
+        return (result.rows || []).map((row: any) => ({
+          ...row,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          mechanicalBehaviors: row.mechanical_behaviors,
+          iconType: null,
+          iconValue: null,
+        }) as typeof systemElements.$inferSelect);
+      }
+    }
+    console.error("Database query failed:", error);
+    throw new Error("Failed to fetch published elements");
+  }
 }
 
-export async function getElement(id: string) {
+export async function getElement(id: string): Promise<typeof systemElements.$inferSelect | undefined> {
+  await ensureElementIconColumns();
   try {
     const results = await db.select().from(systemElements).where(eq(systemElements.id, id));
     return results[0];
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42703' || String(error?.message).includes('icon_')) {
+      try {
+        await db.execute(sql`
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
+        `);
+        const results = await db.select().from(systemElements).where(eq(systemElements.id, id));
+        return results[0];
+      } catch (recoveryErr) {
+        console.warn("Direct ALTER TABLE failed in getElement, falling back to legacy projection query:", recoveryErr);
+        const result = await db.execute(sql`
+          SELECT "id", "kind", "name", "description", "status", "effects", 
+                 "mechanical_behaviors", "requirements", "metadata", "revision", 
+                 "created_at", "updated_at" 
+          FROM "system_elements" 
+          WHERE "id" = ${id}
+        `);
+        if (!result.rows || result.rows.length === 0) return undefined;
+        const row = result.rows[0];
+        return {
+          ...row,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          mechanicalBehaviors: row.mechanical_behaviors,
+          iconType: null,
+          iconValue: null,
+        } as typeof systemElements.$inferSelect;
+      }
+    }
     console.error("Database query failed:", error);
     throw new Error("Failed to fetch element");
   }
 }
 
 export async function upsertElement(data: any, actorUid: string = 'system') {
+  await ensureElementIconColumns();
   return db.transaction(async tx => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(72643001)`);
     const [existing] = data.id ? await tx.select().from(systemElements).where(eq(systemElements.id, data.id)) : [];

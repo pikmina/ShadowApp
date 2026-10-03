@@ -380,6 +380,8 @@ export async function runMigration() {
           ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;
           ALTER TABLE "characters" ALTER COLUMN "user_id" DROP NOT NULL;
           ALTER TABLE "element_possessions" ADD COLUMN IF NOT EXISTS "equipped" boolean DEFAULT false NOT NULL;
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
+          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
         `);
 
         // Preserve canon-owned relations

@@ -1,4 +1,4 @@
-import { db } from './index.ts';
+import { db, ensureSystemSchemaColumns } from './index.ts';
 import { characters, players } from './schema.ts';
 import { eq } from 'drizzle-orm';
 
@@ -112,23 +112,67 @@ export async function getCharacterWithTechniques(characterId: number) {
 }
 
 export async function getCharacterPossessions(characterId: number) {
-  return db.select({ possession: elementPossessions, element: systemElements })
-    .from(elementPossessions)
-    .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
-    .where(eq(elementPossessions.characterId, characterId));
+  await ensureSystemSchemaColumns();
+  try {
+    return await db.select({ possession: elementPossessions, element: systemElements })
+      .from(elementPossessions)
+      .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
+      .where(eq(elementPossessions.characterId, characterId));
+  } catch (err: any) {
+    if (err?.code === '42703' || String(err?.message).includes('icon_')) {
+      const res = await db.execute(sql`
+        SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes,
+               se.id as se_id, se.kind, se.name, se.description, se.status, se.effects, se.mechanical_behaviors, se.requirements, se.metadata, se.revision
+        FROM element_possessions ep
+        INNER JOIN system_elements se ON se.id = ep.element_id
+        WHERE ep.character_id = ${characterId}
+      `);
+      return (res.rows || []).map((r: any) => ({
+        possession: { id: r.ep_id, characterId: r.character_id, elementId: r.element_id, quantity: r.quantity, equipped: r.equipped, notes: r.notes },
+        element: { id: r.se_id, kind: r.kind, name: r.name, description: r.description, status: r.status, effects: r.effects, mechanicalBehaviors: r.mechanical_behaviors, requirements: r.requirements, metadata: r.metadata, revision: r.revision, iconType: null, iconValue: null }
+      }));
+    }
+    throw err;
+  }
 }
 
 export async function getPublicCharacterById(id: number) {
+  await ensureSystemSchemaColumns();
   const character = await getCharacterById(id);
   if (!character) return null;
   const { getCharacterEmployments } = await import('./employments.ts');
   const { getCharacterEnrollment } = await import('./academicClasses.ts');
   const { getCharacterTechniquesByCharacterId } = await import('./characterTechniques.ts');
-  const [possessions, employments, enrollment, techniques] = await Promise.all([
-    db.select({ possession: elementPossessions, element: systemElements })
+
+  let possessions: any[] = [];
+  try {
+    possessions = await db.select({ possession: elementPossessions, element: systemElements })
       .from(elementPossessions)
       .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
-      .where(and(eq(elementPossessions.characterId, id), eq(systemElements.status, 'published'))),
+      .where(and(eq(elementPossessions.characterId, id), eq(systemElements.status, 'published')));
+  } catch (err: any) {
+    if (err?.code === '42703' || String(err?.message).includes('icon_')) {
+      try {
+        const res = await db.execute(sql`
+          SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes,
+                 se.id as se_id, se.kind, se.name, se.description, se.status, se.effects, se.mechanical_behaviors, se.requirements, se.metadata, se.revision
+          FROM element_possessions ep
+          INNER JOIN system_elements se ON se.id = ep.element_id
+          WHERE ep.character_id = ${id} AND se.status = 'published'
+        `);
+        possessions = (res.rows || []).map((r: any) => ({
+          possession: { id: r.ep_id, characterId: r.character_id, elementId: r.element_id, quantity: r.quantity, equipped: r.equipped, notes: r.notes },
+          element: { id: r.se_id, kind: r.kind, name: r.name, description: r.description, status: r.status, effects: r.effects, mechanicalBehaviors: r.mechanical_behaviors, requirements: r.requirements, metadata: r.metadata, revision: r.revision, iconType: null, iconValue: null }
+        }));
+      } catch (fallbackErr) {
+        console.warn("Fallback possessions in getPublicCharacterById:", fallbackErr);
+      }
+    } else {
+      console.warn("Error fetching possessions in getPublicCharacterById:", err);
+    }
+  }
+
+  const [employments, enrollment, techniques] = await Promise.all([
     getCharacterEmployments(id).catch(() => []),
     getCharacterEnrollment(id).catch(() => null),
     getCharacterTechniquesByCharacterId(id).catch(() => []),
@@ -223,6 +267,34 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
       const linked = allCharacters.find(c => c.canonCharacterId === matchedCanon.id);
       if (linked) {
         matched = linked;
+      } else {
+        // Canon character has no linked player character yet:
+        // Construct canonical public sheet so it can be viewed rather than returning 404
+        const { getOwnerEmployments } = await import('./employments.ts');
+        const { getOwnerEnrollment } = await import('./academicClasses.ts');
+        const [employments, enrollment] = await Promise.all([
+          getOwnerEmployments({ canonCharacterId: matchedCanon.id }).catch(() => []),
+          getOwnerEnrollment({ canonCharacterId: matchedCanon.id }).catch(() => null),
+        ]);
+        return {
+          id: matchedCanon.id,
+          name: matchedCanon.name,
+          canonCharacterId: matchedCanon.id,
+          profileData: {
+            ...(matchedCanon.profileData || {}),
+            basic_name: matchedCanon.firstName || matchedCanon.name,
+            last_name: matchedCanon.lastName || '',
+            summary: matchedCanon.summary,
+            biography: matchedCanon.summary,
+            alias: Array.isArray(matchedCanon.aliases) ? matchedCanon.aliases.join(', ') : '',
+          },
+          active: matchedCanon.active,
+          isCanon: true,
+          possessions: [],
+          employments,
+          enrollment,
+          techniques: [],
+        };
       }
     }
   }
@@ -232,6 +304,7 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
 }
 
 export async function getCharactersWithPossessions() {
+  await ensureSystemSchemaColumns();
   const allCharacters = await db
     .select({
       character: characters,
@@ -244,9 +317,32 @@ export async function getCharactersWithPossessions() {
     .from(characters)
     .leftJoin(players, eq(players.id, characters.playerId));
 
-  const allPossessions = await db.select({ possession: elementPossessions, element: systemElements })
-    .from(elementPossessions)
-    .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId));
+  let allPossessions: any[] = [];
+  try {
+    allPossessions = await db.select({ possession: elementPossessions, element: systemElements })
+      .from(elementPossessions)
+      .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId));
+  } catch (err: any) {
+    if (err?.code === '42703' || String(err?.message).includes('icon_')) {
+      console.warn("Recovering from missing icon columns in getCharactersWithPossessions...");
+      try {
+        const res = await db.execute(sql`
+          SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes,
+                 se.id as se_id, se.kind, se.name, se.description, se.status, se.effects, se.mechanical_behaviors, se.requirements, se.metadata, se.revision
+          FROM element_possessions ep
+          INNER JOIN system_elements se ON se.id = ep.element_id
+        `);
+        allPossessions = (res.rows || []).map((r: any) => ({
+          possession: { id: r.ep_id, characterId: r.character_id, elementId: r.element_id, quantity: r.quantity, equipped: r.equipped, notes: r.notes },
+          element: { id: r.se_id, kind: r.kind, name: r.name, description: r.description, status: r.status, effects: r.effects, mechanicalBehaviors: r.mechanical_behaviors, requirements: r.requirements, metadata: r.metadata, revision: r.revision, iconType: null, iconValue: null }
+        }));
+      } catch (fallbackErr) {
+        console.warn("Fallback possessions in getCharactersWithPossessions error:", fallbackErr);
+      }
+    } else {
+      console.error("Error fetching possessions in getCharactersWithPossessions:", err);
+    }
+  }
 
   return allCharacters.map(({ character, player }) => ({
     ...character,
