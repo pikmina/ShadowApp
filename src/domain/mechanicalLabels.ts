@@ -454,10 +454,19 @@ export const MECHANICAL_LABELS = {
   },
 
   comparisonOperators: {
-    eq: "Igual a (==)",
-    gte: "Mayor o igual (>=)",
-    lte: "Menor o igual (<=)",
-    neq: "Distinto (!=)",
+    "=": "es igual a (=)",
+    "==": "es igual a (=)",
+    ">=": "es mayor o igual que (≥)",
+    "<=": "es menor o igual que (≤)",
+    ">": "es mayor que (>)",
+    "<": "es menor que (<)",
+    "!=": "es distinto de (≠)",
+    eq: "es igual a (=)",
+    gte: "es mayor o igual que (≥)",
+    lte: "es menor o igual que (≤)",
+    gt: "es mayor que (>)",
+    lt: "es menor que (<)",
+    neq: "es distinto de (≠)",
   },
 
   itemReferenceTypes: {
@@ -904,6 +913,58 @@ export function getConditionLogicLabel(logic: string | undefined | null): string
   if (logic === "any" || logic === "or") return "Alguna (OR)";
   const dict = MECHANICAL_LABELS.conditionLogic as Record<string, string>;
   return dict[logic] || humanizeFallback(logic);
+}
+
+/**
+ * Specialized helper to get the Spanish descriptive label for comparison operators
+ */
+export function getComparisonOperatorLabel(op?: string | null): string {
+  if (!op) return "es igual a (=)";
+  const norm = op.trim();
+  const dict = MECHANICAL_LABELS.comparisonOperators as Record<string, string>;
+  if (dict[norm]) return dict[norm];
+  if (dict[norm.toLowerCase()]) return dict[norm.toLowerCase()];
+  switch (norm) {
+    case ">": return "es mayor que (>)";
+    case ">=": return "es mayor o igual que (≥)";
+    case "<": return "es menor que (<)";
+    case "<=": return "es menor o igual que (≤)";
+    case "=":
+    case "==": return "es igual a (=)";
+    case "!=": return "es distinto de (≠)";
+    default: return norm;
+  }
+}
+
+/**
+ * Universal helper to get the label of any Resource, Base Attribute, or Derived Stat
+ */
+export function getStatOrResourceLabel(key?: string | null): string {
+  if (!key) return "Recurso / Atributo";
+  const upper = String(key).trim().toUpperCase();
+
+  // Resources
+  if (upper === "ES" || upper === "ESTAMINA" || upper === "STAMINA") return "Estamina (ES)";
+  if (upper === "SA" || upper === "SALUD" || upper === "HEALTH" || upper === "HP") return "Salud (SA)";
+
+  // Base Attributes
+  if (upper === "FUE" || upper === "FUERZA") return "Fuerza (FUE)";
+  if (upper === "DES" || upper === "DESTREZA") return "Destreza (DES)";
+  if (upper === "RES" || upper === "RESISTENCIA") return "Resistencia (RES)";
+  if (upper === "INT" || upper === "INTELIGENCIA") return "Inteligencia (INT)";
+  if (upper === "VOL" || upper === "VOLUNTAD") return "Voluntad (VOL)";
+  if (upper === "VEL" || upper === "VELOCIDAD") return "Velocidad (VEL)";
+
+  // Derived Stats
+  if (upper === "EVA" || upper === "EVASION" || upper === "EVASIÓN") return "Evasión (EVA)";
+  if (upper === "COR" || upper === "CORAJE" || upper === "COURAGE") return "Coraje (COR)";
+  if (upper === "INI" || upper === "INICIATIVA" || upper === "INITIATIVE") return "Iniciativa (INI)";
+  if (upper === "RD" || upper === "RED" || upper === "REDUCCION_DANO" || upper === "REDUCCIÓN_DAÑO") return "Reducción de Daño (RD)";
+  if (upper === "SAL") return "Salud Máxima (SAL)";
+  if (upper === "EST") return "Estamina Máxima (EST)";
+  if (upper === "DB" || upper === "DANO_BASE") return "Daño Base (DB)";
+
+  return getResourceLabel(key) || getAttributeLabel(key) || getDerivedStatLabel(key) || String(key);
 }
 
 /**

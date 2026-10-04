@@ -21,7 +21,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
 import {
   Accordion,
@@ -49,6 +49,8 @@ import {
   getTagLabel,
   getCounterLabel,
   getConditionLogicLabel,
+  getComparisonOperatorLabel,
+  getStatOrResourceLabel,
   MECHANICAL_LABELS,
 } from "../../domain/mechanicalLabels.ts";
 import {
@@ -968,7 +970,9 @@ function ConditionsEditor({
                   if (val === "percentage") {
                     updateCond(i, { type: "percentage", resourceId: "SA", comparison: "<=", percent: 50, negated: cond.negated });
                   } else if (val === "resource") {
-                    updateCond(i, { type: "resource", resourceId: "ES", comparison: "<=", value: 3, negated: cond.negated });
+                    updateCond(i, { type: "resource", resourceId: "RES", comparison: ">", value: 5, negated: cond.negated });
+                  } else if (val === "attribute") {
+                    updateCond(i, { type: "attribute", attributeId: "RES", comparison: ">", value: 5, negated: cond.negated });
                   } else if (val === "status") {
                     updateCond(i, { type: "status", statusElementId: "core.status.stunned", present: true, negated: cond.negated });
                   } else if (val === "counter") {
@@ -982,16 +986,17 @@ function ConditionsEditor({
                   } else if (val === "equipped") {
                     updateCond(i, { type: "equipped", negated: cond.negated });
                   } else {
-                    updateCond(i, { type: "resource", resourceId: "ES", comparison: "<=", value: 0, negated: cond.negated });
+                    updateCond(i, { type: "resource", resourceId: "RES", comparison: ">", value: 0, negated: cond.negated });
                   }
                 }}
               >
-                <SelectTrigger className="h-7 w-38 text-xs font-semibold">
+                <SelectTrigger className="h-7 w-44 text-xs font-semibold">
                   <SelectValue>{getMechanicalLabel("conditionTypes", cond.type)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="equipped">Equipado</SelectItem>
-                  <SelectItem value="resource">Recurso (Valor)</SelectItem>
+                  <SelectItem value="resource">Valor de Recurso / Atributo</SelectItem>
+                  <SelectItem value="attribute">Atributo / Estadística</SelectItem>
                   <SelectItem value="percentage">Recurso (Porcentaje)</SelectItem>
                   <SelectItem value="status">Estado Alterado</SelectItem>
                   <SelectItem value="counter">Contador de combate</SelectItem>
@@ -1008,40 +1013,70 @@ function ConditionsEditor({
                     Requiere que el objeto esté equipado.
                   </span>
                 )}
-                {cond.type === "resource" && (
+                {(cond.type === "resource" || cond.type === "attribute") && (
                   <>
                     <Select
-                      value={cond.resourceId}
-                      onValueChange={(val) => updateCond(i, { ...cond, resourceId: val })}
+                      value={(cond.type === "resource" ? cond.resourceId : cond.attributeId) || "RES"}
+                      onValueChange={(val) => {
+                        if (cond.type === "resource") {
+                          updateCond(i, { ...cond, resourceId: val });
+                        } else {
+                          updateCond(i, { ...cond, attributeId: val });
+                        }
+                      }}
                     >
-                      <SelectTrigger className="h-7 w-20 text-xs">
-                        <SelectValue>{getResourceLabel(cond.resourceId)}</SelectValue>
+                      <SelectTrigger className="h-7 w-44 text-xs font-medium">
+                        <SelectValue>
+                          {getStatOrResourceLabel(cond.type === "resource" ? cond.resourceId : cond.attributeId)}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ES">ES</SelectItem>
-                        <SelectItem value="SA">SA</SelectItem>
+                        <SelectGroup>
+                          <SelectLabel className="text-[11px] font-bold text-muted-foreground">Recursos</SelectLabel>
+                          <SelectItem value="ES">Estamina (ES)</SelectItem>
+                          <SelectItem value="SA">Salud (SA)</SelectItem>
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel className="text-[11px] font-bold text-muted-foreground">Atributos Base</SelectLabel>
+                          <SelectItem value="FUE">Fuerza (FUE)</SelectItem>
+                          <SelectItem value="DES">Destreza (DES)</SelectItem>
+                          <SelectItem value="RES">Resistencia (RES)</SelectItem>
+                          <SelectItem value="INT">Inteligencia (INT)</SelectItem>
+                          <SelectItem value="VOL">Voluntad (VOL)</SelectItem>
+                          <SelectItem value="VEL">Velocidad (VEL)</SelectItem>
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel className="text-[11px] font-bold text-muted-foreground">Atributos Derivados</SelectLabel>
+                          <SelectItem value="EVA">Evasión (EVA)</SelectItem>
+                          <SelectItem value="COR">Coraje (COR)</SelectItem>
+                          <SelectItem value="INI">Iniciativa (INI)</SelectItem>
+                          <SelectItem value="RD">Reducción de Daño (RD)</SelectItem>
+                          <SelectItem value="SAL">Salud Máxima (SAL)</SelectItem>
+                          <SelectItem value="EST">Estamina Máxima (EST)</SelectItem>
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <Select
-                      value={cond.comparison}
+                      value={cond.comparison || "="}
                       onValueChange={(val: any) => updateCond(i, { ...cond, comparison: val })}
                     >
-                      <SelectTrigger className="h-7 w-16 text-xs">
-                        <SelectValue>{getMechanicalLabel("comparisonOperators", cond.comparison)}</SelectValue>
+                      <SelectTrigger className="h-7 w-44 text-xs">
+                        <SelectValue>{getComparisonOperatorLabel(cond.comparison)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="<">&lt;</SelectItem>
-                        <SelectItem value="<=">&le;</SelectItem>
-                        <SelectItem value="=">=</SelectItem>
-                        <SelectItem value=">=">&ge;</SelectItem>
-                        <SelectItem value=">">&gt;</SelectItem>
+                        <SelectItem value=">">si es mayor que (&gt;)</SelectItem>
+                        <SelectItem value=">=">si es mayor o igual que (&ge;)</SelectItem>
+                        <SelectItem value="<">si es menor que (&lt;)</SelectItem>
+                        <SelectItem value="<=">si es menor o igual que (&le;)</SelectItem>
+                        <SelectItem value="=">si es igual a (=)</SelectItem>
+                        <SelectItem value="!=">si es distinto de (&ne;)</SelectItem>
                       </SelectContent>
                     </Select>
                     <Input
                       type="number"
                       value={cond.value}
                       onChange={(e) => updateCond(i, { ...cond, value: parseInt(e.target.value, 10) || 0 })}
-                      className="h-7 w-20 text-xs"
+                      className="h-7 w-20 text-xs font-mono"
                     />
                   </>
                 )}
@@ -1049,10 +1084,10 @@ function ConditionsEditor({
                 {cond.type === "percentage" && (
                   <>
                     <Select
-                      value={cond.resourceId}
+                      value={cond.resourceId || "SA"}
                       onValueChange={(val) => updateCond(i, { ...cond, resourceId: val })}
                     >
-                      <SelectTrigger className="h-7 w-20 text-xs">
+                      <SelectTrigger className="h-7 w-36 text-xs">
                         <SelectValue>{getResourceLabel(cond.resourceId)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
@@ -1061,15 +1096,18 @@ function ConditionsEditor({
                       </SelectContent>
                     </Select>
                     <Select
-                      value={cond.comparison}
+                      value={cond.comparison || "<="}
                       onValueChange={(val: any) => updateCond(i, { ...cond, comparison: val })}
                     >
-                      <SelectTrigger className="h-7 w-16 text-xs">
-                        <SelectValue>{getMechanicalLabel("comparisonOperators", cond.comparison)}</SelectValue>
+                      <SelectTrigger className="h-7 w-44 text-xs">
+                        <SelectValue>{getComparisonOperatorLabel(cond.comparison)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="<=">&le;</SelectItem>
-                        <SelectItem value=">=">&ge;</SelectItem>
+                        <SelectItem value="<=">si es menor o igual que (&le;)</SelectItem>
+                        <SelectItem value="<">si es menor que (&lt;)</SelectItem>
+                        <SelectItem value=">=">si es mayor o igual que (&ge;)</SelectItem>
+                        <SelectItem value=">">si es mayor que (&gt;)</SelectItem>
+                        <SelectItem value="=">si es igual a (=)</SelectItem>
                       </SelectContent>
                     </Select>
                     <div className="flex items-center gap-1">
@@ -1079,7 +1117,7 @@ function ConditionsEditor({
                         max={100}
                         value={cond.percent}
                         onChange={(e) => updateCond(i, { ...cond, percent: Math.min(100, Math.max(0, parseInt(e.target.value, 10) || 0)) })}
-                        className="h-7 w-16 text-xs"
+                        className="h-7 w-16 text-xs font-mono"
                       />
                       <span className="text-muted-foreground">%</span>
                     </div>
@@ -1145,19 +1183,19 @@ function ConditionsEditor({
                       </SelectContent>
                     </Select>
                     <Select
-                      value={cond.comparison}
+                      value={cond.comparison || ">="}
                       onValueChange={(val: any) => updateCond(i, { ...cond, comparison: val })}
                     >
-                      <SelectTrigger className="h-7 w-16 text-xs">
-                        <SelectValue>{cond.comparison}</SelectValue>
+                      <SelectTrigger className="h-7 w-44 text-xs">
+                        <SelectValue>{getComparisonOperatorLabel(cond.comparison)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="=">=</SelectItem>
-                        <SelectItem value=">=">&ge;</SelectItem>
-                        <SelectItem value="<=">&le;</SelectItem>
-                        <SelectItem value=">">&gt;</SelectItem>
-                        <SelectItem value="<">&lt;</SelectItem>
-                        <SelectItem value="!=">&ne;</SelectItem>
+                        <SelectItem value=">=">si es mayor o igual que (&ge;)</SelectItem>
+                        <SelectItem value=">">si es mayor que (&gt;)</SelectItem>
+                        <SelectItem value="=">si es igual a (=)</SelectItem>
+                        <SelectItem value="<=">si es menor o igual que (&le;)</SelectItem>
+                        <SelectItem value="<">si es menor que (&lt;)</SelectItem>
+                        <SelectItem value="!=">si es distinto de (&ne;)</SelectItem>
                       </SelectContent>
                     </Select>
                     <Input
@@ -1186,16 +1224,19 @@ function ConditionsEditor({
                       </SelectContent>
                     </Select>
                     <Select
-                      value={cond.comparison}
+                      value={cond.comparison || "="}
                       onValueChange={(val: any) => updateCond(i, { ...cond, comparison: val })}
                     >
-                      <SelectTrigger className="h-7 w-16 text-xs">
-                        <SelectValue>{getMechanicalLabel("comparisonOperators", cond.comparison)}</SelectValue>
+                      <SelectTrigger className="h-7 w-44 text-xs">
+                        <SelectValue>{getComparisonOperatorLabel(cond.comparison)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="=">=</SelectItem>
-                        <SelectItem value=">=">&ge;</SelectItem>
-                        <SelectItem value="<=">&le;</SelectItem>
+                        <SelectItem value="=">si es igual a (=)</SelectItem>
+                        <SelectItem value=">=">si es mayor o igual que (&ge;)</SelectItem>
+                        <SelectItem value="<=">si es menor o igual que (&le;)</SelectItem>
+                        <SelectItem value=">">si es mayor que (&gt;)</SelectItem>
+                        <SelectItem value="<">si es menor que (&lt;)</SelectItem>
+                        <SelectItem value="!=">si es distinto de (&ne;)</SelectItem>
                       </SelectContent>
                     </Select>
                     <Input
@@ -3116,6 +3157,39 @@ function TargetEditor({
 // =========================================================================
 // Sub-component: Temporality Editor
 // =========================================================================
+function normalizeDurationInput(val: string, currentTurns: number = 1) {
+  if (!val) return { type: "instant" as const };
+  let raw = String(val).trim();
+  if (raw.startsWith("core.duration.")) raw = raw.slice("core.duration.".length);
+  else if (raw.startsWith("core.")) raw = raw.slice("core.".length);
+
+  const numMatch = raw.match(/^(\d+)(?:_(?:turns?|turnos?)|(?:\s*(?:turns?|turnos?)))?$/i);
+  if (numMatch) {
+    const turns = Math.max(1, Number(numMatch[1]));
+    return { type: "turns" as const, turns, value: turns };
+  }
+  if (raw === "turns" || raw === "turn" || raw === "turnos") {
+    const turns = Math.max(1, currentTurns);
+    return { type: "turns" as const, turns, value: turns };
+  }
+  if (raw === "instant" || raw === "instantaneo" || raw === "instantánea") {
+    return { type: "instant" as const };
+  }
+  if (raw === "sustained" || raw === "sostenido" || raw === "until_deactivated") {
+    return { type: "until_deactivated" as const };
+  }
+  if (raw === "1_day") {
+    return { type: "1_day" as const, unit: "day" as const, value: 1 };
+  }
+  if (raw === "1_week") {
+    return { type: "1_week" as const, unit: "week" as const, value: 1 };
+  }
+  if (raw === "1_month") {
+    return { type: "1_month" as const, unit: "month" as const, value: 1 };
+  }
+  return { type: raw as any };
+}
+
 function TemporalityEditor({
   temporality,
   onChange,
@@ -3130,6 +3204,14 @@ function TemporalityEditor({
   const periodicityMode = isInstant ? "once" : (temporality.periodicity?.mode || (temporality.frequency?.type === "each_turn" ? "each_turn" : "once"));
   const periodicityTiming = temporality.periodicity?.timing || (temporality.frequency?.type === "turn_end" ? "turn_end" : "turn_start");
 
+  const currentTurns = temporality.duration?.turns ?? temporality.duration?.value ?? 1;
+  const currentSelectValue =
+    temporality.duration?.type === "turns"
+      ? String(currentTurns)
+      : temporality.duration?.type === "until_deactivated"
+      ? (durationOptions.some(o => o.runtimeKey === "sustained") ? "sustained" : "until_deactivated")
+      : temporality.duration?.type || "instant";
+
   return (
     <div className="space-y-3 text-xs">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -3137,51 +3219,35 @@ function TemporalityEditor({
         <div className="grid gap-1.5">
           <Label className="text-xs">Duración</Label>
           <Select
-            value={
-              temporality.duration?.type === "turns" && temporality.duration?.turns
-                ? String(temporality.duration.turns)
-                : temporality.duration?.type || "instant"
-            }
+            value={currentSelectValue}
             onValueChange={(val) => {
-              if (!isNaN(Number(val)) && Number(val) > 0) {
-                const turns = Number(val);
+              const normalized = normalizeDurationInput(val, currentTurns);
+              if (normalized.type === "instant") {
                 onChange({
                   ...temporality,
-                  duration: {
-                    type: "turns",
-                    turns,
-                    value: turns,
-                  },
-                });
-              } else if (val === "instant") {
-                onChange({
-                  ...temporality,
-                  duration: { type: "instant" },
+                  duration: normalized,
                   periodicity: { mode: "once" },
                   frequency: { type: "once" },
-                });
-              } else if (val === "sustained") {
-                onChange({
-                  ...temporality,
-                  duration: { type: "until_deactivated" },
                 });
               } else {
                 onChange({
                   ...temporality,
-                  duration: { type: val },
+                  duration: normalized,
                 });
               }
             }}
           >
             <SelectTrigger className="h-8 text-xs bg-background">
-              <SelectValue>{getMechanicalLabel("durations", temporality.duration?.type || "instant")}</SelectValue>
+              <SelectValue>
+                {temporality.duration?.type === "turns"
+                  ? (currentTurns === 1 ? "1 turno" : `${currentTurns} turnos`)
+                  : getMechanicalLabel("durations", temporality.duration?.type || "instant")}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {getVisibleOptions(
                 durationOptions,
-                temporality.duration?.type === "turns" && temporality.duration?.turns
-                  ? String(temporality.duration.turns)
-                  : temporality.duration?.type || "instant"
+                currentSelectValue
               ).map((opt) => (
                 <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
                   {opt.name || getMechanicalLabel("durations", opt.runtimeKey)}
@@ -3764,13 +3830,15 @@ function ControlEditor({
                   }
                 >
                   <SelectTrigger className="h-7 text-xs">
-                    <SelectValue>{getMechanicalLabel("comparisonOperators", control.counter.resetConditionDetails?.operator || "eq")}</SelectValue>
+                    <SelectValue>{getComparisonOperatorLabel(control.counter.resetConditionDetails?.operator || "eq")}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="eq">=</SelectItem>
-                    <SelectItem value="gte">&ge;</SelectItem>
-                    <SelectItem value="lte">&le;</SelectItem>
-                    <SelectItem value="neq">!=</SelectItem>
+                    <SelectItem value="eq">es igual a (=)</SelectItem>
+                    <SelectItem value="gte">es mayor o igual que (&ge;)</SelectItem>
+                    <SelectItem value="lte">es menor o igual que (&le;)</SelectItem>
+                    <SelectItem value="gt">es mayor que (&gt;)</SelectItem>
+                    <SelectItem value="lt">es menor que (&lt;)</SelectItem>
+                    <SelectItem value="neq">es distinto de (&ne;)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

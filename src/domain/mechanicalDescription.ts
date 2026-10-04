@@ -32,6 +32,7 @@ import {
   getStatOrSkillLabel,
   getRollTypeLabel,
   getCounterLabel,
+  getStatOrResourceLabel,
 } from "./mechanicalLabels";
 
 import { createCoreCategories, getCategoryOptions } from "./coreRuleCatalog";
@@ -607,6 +608,19 @@ export interface DescribeConditionResult {
   warnings: string[];
 }
 
+function formatComparisonPhrase(comp?: string): string {
+  switch (comp) {
+    case ">": return "es mayor que";
+    case ">=": return "es mayor o igual a";
+    case "<": return "es menor que";
+    case "<=": return "es menor o igual a";
+    case "=":
+    case "==": return "es igual a";
+    case "!=": return "es distinto de";
+    default: return comp || "es igual a";
+  }
+}
+
 export function describeMechanicalCondition(
   cond: MechanicalCondition,
   options?: DescribeBehaviorOptions
@@ -617,21 +631,24 @@ export function describeMechanicalCondition(
 
   switch (cond.type) {
     case "resource": {
-      const resName = cond.resourceId === "SA" ? "Salud" : "Estamina";
-      text = `Cuando ${resName} ${cond.comparison} ${cond.value}`;
+      const resName = getStatOrResourceLabel(cond.resourceId || "SA");
+      const compPhrase = formatComparisonPhrase(cond.comparison);
+      text = `Si ${resName} ${compPhrase} ${cond.value}`;
       break;
     }
 
     case "percentage": {
-      const resName = cond.resourceId === "SA" ? "Salud" : "Estamina";
-      text = `Cuando ${resName} ${cond.comparison} ${cond.percent}%`;
+      const resName = getStatOrResourceLabel(cond.resourceId || "SA");
+      const compPhrase = formatComparisonPhrase(cond.comparison);
+      text = `Si ${resName} ${compPhrase} ${cond.percent}%`;
       break;
     }
 
     case "roll": {
       const rollLabel = getRollTypeLabel(cond.rollType);
       const rollType = rollLabel ? ` de ${rollLabel}` : cond.rollType ? ` de ${cond.rollType}` : "";
-      text = `En tiradas${rollType} ${cond.comparison} ${cond.target}`;
+      const compPhrase = formatComparisonPhrase(cond.comparison);
+      text = `En tiradas${rollType} ${compPhrase} ${cond.target}`;
       break;
     }
 
@@ -650,7 +667,8 @@ export function describeMechanicalCondition(
         text = `Si algún dado está entre ${min} y ${max}`;
       } else {
         const selLabel = getMechanicalLabel("dieSelections", cond.dieSelection) || "dado";
-        text = `Si ${selLabel} ${cond.comparison} ${cond.value ?? 0}`;
+        const compPhrase = formatComparisonPhrase(cond.comparison);
+        text = `Si ${selLabel} ${compPhrase} ${cond.value ?? 0}`;
       }
       break;
     }
@@ -663,7 +681,8 @@ export function describeMechanicalCondition(
 
     case "turn_aggregate": {
       const metricLabel = getMechanicalLabel("turnAggregateMetrics", cond.metric) || cond.metric;
-      text = `Si ${metricLabel} este turno ${cond.comparison} ${cond.value}`;
+      const compPhrase = formatComparisonPhrase(cond.comparison);
+      text = `Si ${metricLabel} este turno ${compPhrase} ${cond.value}`;
       break;
     }
 
@@ -686,13 +705,15 @@ export function describeMechanicalCondition(
 
     case "counter": {
       const counterLabel = getCounterLabel(cond.counterId) || cond.counterId;
-      text = `Si el contador ${counterLabel} ${cond.comparison} ${cond.value}`;
+      const compPhrase = formatComparisonPhrase(cond.comparison);
+      text = `Si el contador ${counterLabel} ${compPhrase} ${cond.value}`;
       break;
     }
 
     case "attribute": {
-      const attrLabel = getAttributeLabel(cond.attributeId);
-      text = `Si ${attrLabel} ${cond.comparison} ${cond.value}`;
+      const attrLabel = getStatOrResourceLabel(cond.attributeId);
+      const compPhrase = formatComparisonPhrase(cond.comparison);
+      text = `Si ${attrLabel} ${compPhrase} ${cond.value}`;
       break;
     }
 

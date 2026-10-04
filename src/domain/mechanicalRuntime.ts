@@ -539,8 +539,27 @@ export function evaluateSingleCondition(
 
   switch (condition.type) {
     case "resource": {
-      const resId = (condition.resourceId ?? "SA") as "SA" | "ES";
-      const current = ctx.entity.resources[resId]?.current ?? 0;
+      const rawKey = String(condition.resourceId ?? "SA").trim();
+      const upper = rawKey.toUpperCase();
+      const lower = rawKey.toLowerCase();
+      let current = 0;
+      if (upper === "SA" || upper === "SALUD" || upper === "HP" || upper === "SAL") {
+        current = ctx.entity.resources.SA?.current ?? (ctx.entity as any).salud ?? 0;
+      } else if (upper === "ES" || upper === "ESTAMINA" || upper === "STAMINA" || upper === "EST") {
+        current = ctx.entity.resources.ES?.current ?? (ctx.entity as any).estamina ?? 0;
+      } else if (ctx.entity.attributes[upper] !== undefined) {
+        current = ctx.entity.attributes[upper];
+      } else if (ctx.entity.attributes[lower] !== undefined) {
+        current = ctx.entity.attributes[lower];
+      } else if (ctx.entity.attributes[rawKey] !== undefined) {
+        current = ctx.entity.attributes[rawKey];
+      } else if ((ctx.participant as any)?.combatStats && ((ctx.participant as any).combatStats as any)[lower] !== undefined) {
+        current = ((ctx.participant as any).combatStats as any)[lower];
+      } else if ((ctx.entity as any).derivedStats?.[lower] !== undefined) {
+        current = (ctx.entity as any).derivedStats[lower];
+      } else {
+        current = (ctx.entity.resources as any)[rawKey]?.current ?? (ctx.entity.resources as any)[upper]?.current ?? 0;
+      }
       result = compareNumbers(current, condition.comparison, condition.value);
       break;
     }
@@ -712,7 +731,27 @@ export function evaluateSingleCondition(
     }
 
     case "attribute": {
-      const attrVal = ctx.entity.attributes[condition.attributeId] ?? 0;
+      const rawKey = String(condition.attributeId ?? "").trim();
+      const upper = rawKey.toUpperCase();
+      const lower = rawKey.toLowerCase();
+      let attrVal = 0;
+      if (ctx.entity.attributes[upper] !== undefined) {
+        attrVal = ctx.entity.attributes[upper];
+      } else if (ctx.entity.attributes[lower] !== undefined) {
+        attrVal = ctx.entity.attributes[lower];
+      } else if (ctx.entity.attributes[rawKey] !== undefined) {
+        attrVal = ctx.entity.attributes[rawKey];
+      } else if (upper === "SA" || upper === "SALUD" || upper === "HP" || upper === "SAL") {
+        attrVal = ctx.entity.resources.SA?.current ?? (ctx.entity as any).salud ?? 0;
+      } else if (upper === "ES" || upper === "ESTAMINA" || upper === "STAMINA" || upper === "EST") {
+        attrVal = ctx.entity.resources.ES?.current ?? (ctx.entity as any).estamina ?? 0;
+      } else if ((ctx.participant as any)?.combatStats && ((ctx.participant as any).combatStats as any)[lower] !== undefined) {
+        attrVal = ((ctx.participant as any).combatStats as any)[lower];
+      } else if ((ctx.entity as any).derivedStats?.[lower] !== undefined) {
+        attrVal = (ctx.entity as any).derivedStats[lower];
+      } else {
+        attrVal = ctx.entity.attributes[rawKey] ?? ctx.entity.attributes[upper] ?? 0;
+      }
       result = compareNumbers(attrVal, condition.comparison, condition.value);
       break;
     }

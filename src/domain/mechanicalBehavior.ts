@@ -478,14 +478,54 @@ export type DurationType = z.infer<typeof durationTypeSchema>;
 export const mechanicalDurationSchema = z.preprocess((val) => {
   if (val && typeof val === "object") {
     const raw = { ...(val as Record<string, any>) };
-    let t = raw.type;
-    let turns = raw.turns ?? raw.value;
+    let t: string | number | undefined = raw.type ?? raw.mode ?? raw.duration?.type ?? raw.duration?.mode;
+    let turns: number | undefined = raw.turns ?? raw.value ?? raw.duration?.turns ?? raw.duration?.value;
 
-    if (typeof t === "number" || (typeof t === "string" && !isNaN(Number(t)) && Number(t) > 0)) {
-      turns = turns ?? Number(t);
+    if (typeof t === "string") {
+      t = t.trim();
+      // Strip category prefixes if passed as raw rule ID (e.g. "core.duration.2" -> "2", "core.duration.turns" -> "turns")
+      if (t.startsWith("core.duration.")) {
+        t = t.slice("core.duration.".length);
+      } else if (t.startsWith("core.")) {
+        t = t.slice("core.".length);
+      }
+
+      // Check numeric or turn patterns (e.g. "2", "2_turns", "2_turnos", "2 turns")
+      const numMatch = t.match(/^(\d+)(?:_(?:turns?|turnos?)|(?:\s*(?:turns?|turnos?)))?$/i);
+      if (numMatch) {
+        turns = turns ?? Number(numMatch[1]);
+        t = "turns";
+      } else if (t === "turn" || t === "turns" || t === "turnos") {
+        t = "turns";
+        turns = turns ?? 1;
+      } else if (t === "sustained" || t === "sostenido") {
+        t = "until_deactivated";
+      } else if (t === "instant" || t === "instantaneo" || t === "instantáneo" || t === "instantanea" || t === "instantánea") {
+        t = "instant";
+      } else if (t === "permanent" || t === "permanente") {
+        t = "permanent";
+      } else if (t === "while_condition" || t === "mientras_se_cumpla" || t === "mientras_condicion") {
+        t = "while_condition";
+      } else if (t === "while_element_active" || t === "mientras_activo") {
+        t = "while_element_active";
+      } else if (t === "while_owned" || t === "mientras_posea") {
+        t = "while_owned";
+      } else if (t === "until_deactivated" || t === "hasta_desactivar") {
+        t = "until_deactivated";
+      } else if (t === "until_turn_end" || t === "hasta_fin_turno" || t === "fin_turno") {
+        t = "until_turn_end";
+      } else if (t === "until_next_turn" || t === "hasta_siguiente_turno" || t === "siguiente_turno") {
+        t = "until_next_turn";
+      } else if (t === "until_next_roll" || t === "hasta_siguiente_tirada") {
+        t = "until_next_roll";
+      } else if (t === "until_next_use" || t === "hasta_siguiente_uso") {
+        t = "until_next_use";
+      } else if (t === "passive_time") {
+        t = "passive_time";
+      }
+    } else if (typeof t === "number" && t > 0) {
+      turns = turns ?? t;
       t = "turns";
-    } else if (t === "sustained") {
-      t = "until_deactivated";
     }
 
     if (t !== "turns") {
@@ -496,7 +536,7 @@ export const mechanicalDurationSchema = z.preprocess((val) => {
     return {
       ...raw,
       type: t,
-      ...(turns !== undefined ? { turns, value: turns } : {}),
+      ...(t === "turns" ? { turns: turns ?? 1, value: turns ?? 1 } : {}),
     };
   }
   return val;

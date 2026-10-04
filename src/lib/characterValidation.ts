@@ -97,10 +97,100 @@ export function validateCharacter(
   return { status, messages };
 }
 
+export function evaluateBehaviorConditionsForCharacter(
+  conditions: any[] | undefined | null,
+  conditionLogic: 'all' | 'any' = 'all',
+  context: {
+    attributes?: Record<string, number>;
+    derivedStats?: Record<string, number>;
+    resources?: Record<string, number>;
+    isEquipped?: boolean;
+  }
+): boolean {
+  if (!conditions || conditions.length === 0) return true;
+
+  const evaluateOne = (c: any): boolean => {
+    if (!c || typeof c !== 'object') return true;
+    let res = true;
+
+    if (c.type === 'equipped') {
+      res = context.isEquipped !== false;
+    } else if (c.type === 'percentage') {
+      const resId = String(c.resourceId || 'SA').trim().toUpperCase();
+      const isHealth = ['SA', 'SALUD', 'SAL', 'HP'].includes(resId);
+      const current = isHealth
+        ? (context.resources?.SA ?? context.derivedStats?.salud ?? 0)
+        : (context.resources?.ES ?? context.derivedStats?.estamina ?? 0);
+      const max = isHealth
+        ? (context.derivedStats?.salud || 100)
+        : (context.derivedStats?.estamina || 100);
+      const pct = max > 0 ? (current * 100) / max : 0;
+      const targetPct = Number(c.percent ?? 0);
+      const op = c.comparison || '<=';
+
+      switch (op) {
+        case '>': res = pct > targetPct; break;
+        case '>=': case 'gte': res = pct >= targetPct; break;
+        case '<': res = pct < targetPct; break;
+        case '<=': case 'lte': res = pct <= targetPct; break;
+        case '=': case '==': case 'eq': res = pct === targetPct; break;
+        case '!=': case 'neq': res = pct !== targetPct; break;
+        default: res = pct <= targetPct;
+      }
+    } else if (c.type === 'resource' || c.type === 'attribute') {
+      const key = String(c.resourceId || c.attributeId || '').trim().toUpperCase();
+      let actualValue: number | undefined;
+
+      // Base attributes
+      if (['FUE', 'FUERZA'].includes(key)) actualValue = context.attributes?.FUE ?? 0;
+      else if (['DES', 'DESTREZA'].includes(key)) actualValue = context.attributes?.DES ?? 0;
+      else if (['RES', 'RESISTENCIA'].includes(key)) actualValue = context.attributes?.RES ?? 0;
+      else if (['INT', 'INTELIGENCIA'].includes(key)) actualValue = context.attributes?.INT ?? 0;
+      else if (['VOL', 'VOLUNTAD'].includes(key)) actualValue = context.attributes?.VOL ?? 0;
+      else if (['VEL', 'VELOCIDAD'].includes(key)) actualValue = context.attributes?.VEL ?? 0;
+      // Derived stats
+      else if (['EVA', 'EVASION', 'EVASIÓN'].includes(key)) actualValue = context.derivedStats?.evasion ?? 10;
+      else if (['COR', 'CORAJE', 'COURAGE'].includes(key)) actualValue = context.derivedStats?.coraje ?? 10;
+      else if (['INI', 'INICIATIVA', 'INITIATIVE'].includes(key)) actualValue = context.derivedStats?.iniciativa ?? 0;
+      else if (['RD', 'RED', 'REDUCCION_DANO', 'REDUCCIÓN_DAÑO'].includes(key)) actualValue = context.derivedStats?.reduccionDano ?? 0;
+      else if (['SAL', 'SALUD', 'HEALTH', 'HP', 'SA'].includes(key)) actualValue = context.resources?.SA ?? context.derivedStats?.salud ?? 0;
+      else if (['EST', 'ESTAMINA', 'STAMINA', 'ES'].includes(key)) actualValue = context.resources?.ES ?? context.derivedStats?.estamina ?? 0;
+      else {
+        actualValue = context.attributes?.[key] ?? context.resources?.[key] ?? context.derivedStats?.[key.toLowerCase()] ?? 0;
+      }
+
+      const targetValue = Number(c.value ?? 0);
+      const op = c.comparison || '=';
+
+      switch (op) {
+        case '>': res = actualValue > targetValue; break;
+        case '>=': case 'gte': res = actualValue >= targetValue; break;
+        case '<': res = actualValue < targetValue; break;
+        case '<=': case 'lte': res = actualValue <= targetValue; break;
+        case '=': case '==': case 'eq': res = actualValue === targetValue; break;
+        case '!=': case 'neq': res = actualValue !== targetValue; break;
+        default: res = actualValue >= targetValue;
+      }
+    }
+
+    return c.negated ? !res : res;
+  };
+
+  if (conditionLogic === 'any') {
+    return conditions.some(evaluateOne);
+  }
+  return conditions.every(evaluateOne);
+}
+
 export function calculateTraitAttributeBonus(
   profile: Record<string, any>,
   elements: any[] = [],
-  mechanics: SystemMechanicsConfig = []
+  mechanics: SystemMechanicsConfig = [],
+  characterContext?: {
+    attributes?: Record<string, number>;
+    derivedStats?: Record<string, number>;
+    resources?: Record<string, number>;
+  }
 ): {
   total: number;
   byAttr: Record<string, number>;
@@ -159,7 +249,12 @@ export function calculateTraitAttributeBonus(
     if (Array.isArray(el.mechanicalBehaviors)) {
       for (const b of el.mechanicalBehaviors) {
         if (b && b.mode === 'continuous' && Array.isArray(b.effects)) {
-          if (!b.conditions || b.conditions.length === 0) {
+          const passes = evaluateBehaviorConditionsForCharacter(b.conditions, b.conditionLogic || 'all', {
+            attributes: characterContext?.attributes,
+            derivedStats: characterContext?.derivedStats,
+            resources: characterContext?.resources,
+          });
+          if (passes) {
             behaviorEffects.push(...b.effects);
           }
         }
@@ -248,7 +343,12 @@ export function calculatePurchasedAttributeBonuses(
 export function calculateEquipmentBonuses(
   possessions: any[] = [],
   elements: any[] = [],
-  mechanics: SystemMechanicsConfig = []
+  mechanics: SystemMechanicsConfig = [],
+  characterContext?: {
+    attributes?: Record<string, number>;
+    derivedStats?: Record<string, number>;
+    resources?: Record<string, number>;
+  }
 ): {
   totalAttr: number;
   byAttr: Record<string, number>;
@@ -318,10 +418,11 @@ export function calculateEquipmentBonuses(
     if (Array.isArray(el.mechanicalBehaviors)) {
       for (const b of el.mechanicalBehaviors) {
         if (b && b.mode === 'continuous' && Array.isArray(b.effects)) {
-          const conditions = b.conditions || [];
-          const passes = conditions.every((c: any) => {
-            if (c.type === 'equipped') return isEquipped;
-            return true;
+          const passes = evaluateBehaviorConditionsForCharacter(b.conditions, b.conditionLogic || 'all', {
+            attributes: characterContext?.attributes,
+            derivedStats: characterContext?.derivedStats,
+            resources: characterContext?.resources,
+            isEquipped,
           });
           if (passes) {
             behaviorEffects.push(...b.effects);
@@ -425,10 +526,6 @@ export function calculateDerivedStats(
     ? possessions
     : (Array.isArray(profile.possessions) ? profile.possessions : (Array.isArray(profile.inventory) ? profile.inventory : []));
 
-  const purchasedBonuses = calculatePurchasedAttributeBonuses(activePossessions, elements);
-  const traitBonuses = calculateTraitAttributeBonus(profile, elements, mechanics);
-  const equipmentBonuses = calculateEquipmentBonuses(activePossessions, elements, mechanics);
-
   const baseFue = Number(profile['FUE'] || profile['fue'] || profile['fuerza']) || 0;
   const baseDes = Number(profile['DES'] || profile['des'] || profile['destreza']) || 0;
   const baseRes = Number(profile['RES'] || profile['res'] || profile['resistencia']) || 0;
@@ -436,12 +533,56 @@ export function calculateDerivedStats(
   const baseVol = Number(profile['VOL'] || profile['vol'] || profile['voluntad']) || 0;
   const baseVel = Number(profile['VEL'] || profile['vel'] || profile['velocidad']) || 0;
 
-  let fue = baseFue + (purchasedBonuses.byAttr.FUE || 0) + (traitBonuses.byAttr.FUE || 0) + (equipmentBonuses.byAttr.FUE || 0);
-  let des = baseDes + (purchasedBonuses.byAttr.DES || 0) + (traitBonuses.byAttr.DES || 0) + (equipmentBonuses.byAttr.DES || 0);
-  let res = baseRes + (purchasedBonuses.byAttr.RES || 0) + (traitBonuses.byAttr.RES || 0) + (equipmentBonuses.byAttr.RES || 0);
-  let int = baseInt + (purchasedBonuses.byAttr.INT || 0) + (traitBonuses.byAttr.INT || 0) + (equipmentBonuses.byAttr.INT || 0);
-  let vol = baseVol + (purchasedBonuses.byAttr.VOL || 0) + (traitBonuses.byAttr.VOL || 0) + (equipmentBonuses.byAttr.VOL || 0);
-  let vel = baseVel + (purchasedBonuses.byAttr.VEL || 0) + (traitBonuses.byAttr.VEL || 0) + (equipmentBonuses.byAttr.VEL || 0);
+  const purchasedBonuses = calculatePurchasedAttributeBonuses(activePossessions, elements);
+
+  const initialAttrs = {
+    FUE: baseFue + (purchasedBonuses.byAttr.FUE || 0),
+    DES: baseDes + (purchasedBonuses.byAttr.DES || 0),
+    RES: baseRes + (purchasedBonuses.byAttr.RES || 0),
+    INT: baseInt + (purchasedBonuses.byAttr.INT || 0),
+    VOL: baseVol + (purchasedBonuses.byAttr.VOL || 0),
+    VEL: baseVel + (purchasedBonuses.byAttr.VEL || 0),
+  };
+
+  const traitBonuses = calculateTraitAttributeBonus(profile, elements, mechanics, {
+    attributes: initialAttrs,
+    resources: {
+      SA: profile.salud_actual ?? ((stage?.baseHealth || 0) + initialAttrs.RES),
+      ES: profile.estamina_actual ?? ((stage?.baseStamina || 0) + initialAttrs.DES),
+    }
+  });
+
+  const totalAttrsWithTraits = {
+    FUE: initialAttrs.FUE + (traitBonuses.byAttr.FUE || 0),
+    DES: initialAttrs.DES + (traitBonuses.byAttr.DES || 0),
+    RES: initialAttrs.RES + (traitBonuses.byAttr.RES || 0),
+    INT: initialAttrs.INT + (traitBonuses.byAttr.INT || 0),
+    VOL: initialAttrs.VOL + (traitBonuses.byAttr.VOL || 0),
+    VEL: initialAttrs.VEL + (traitBonuses.byAttr.VEL || 0),
+  };
+
+  const equipmentBonuses = calculateEquipmentBonuses(activePossessions, elements, mechanics, {
+    attributes: totalAttrsWithTraits,
+    derivedStats: {
+      salud: (stage?.baseHealth || 0) + totalAttrsWithTraits.RES,
+      estamina: (stage?.baseStamina || 0) + totalAttrsWithTraits.DES,
+      evasion: 10 + totalAttrsWithTraits.VEL,
+      coraje: 10 + totalAttrsWithTraits.VOL,
+      iniciativa: calculateBaseInitiative(totalAttrsWithTraits.INT, totalAttrsWithTraits.VEL),
+      reduccionDano: 0,
+    },
+    resources: {
+      SA: profile.salud_actual ?? ((stage?.baseHealth || 0) + totalAttrsWithTraits.RES),
+      ES: profile.estamina_actual ?? ((stage?.baseStamina || 0) + totalAttrsWithTraits.DES),
+    }
+  });
+
+  let fue = totalAttrsWithTraits.FUE + (equipmentBonuses.byAttr.FUE || 0);
+  let des = totalAttrsWithTraits.DES + (equipmentBonuses.byAttr.DES || 0);
+  let res = totalAttrsWithTraits.RES + (equipmentBonuses.byAttr.RES || 0);
+  let int = totalAttrsWithTraits.INT + (equipmentBonuses.byAttr.INT || 0);
+  let vol = totalAttrsWithTraits.VOL + (equipmentBonuses.byAttr.VOL || 0);
+  let vel = totalAttrsWithTraits.VEL + (equipmentBonuses.byAttr.VEL || 0);
 
   let extraIni = equipmentBonuses.byDerived.iniciativa || 0;
   let extraEvasion = equipmentBonuses.byDerived.evasion || 0;
@@ -508,7 +649,22 @@ export function calculateDerivedStats(
     if (Array.isArray(el.mechanicalBehaviors)) {
       for (const b of el.mechanicalBehaviors) {
         if (b && b.mode === 'continuous' && Array.isArray(b.effects)) {
-          if (!b.conditions || b.conditions.length === 0) {
+          const passes = evaluateBehaviorConditionsForCharacter(b.conditions, b.conditionLogic || 'all', {
+            attributes: { FUE: fue, DES: des, RES: res, INT: int, VOL: vol, VEL: vel },
+            derivedStats: {
+              salud: (stage?.baseHealth || 0) + res,
+              estamina: (stage?.baseStamina || 0) + des,
+              evasion: 10 + vel,
+              coraje: 10 + vol,
+              iniciativa: calculateBaseInitiative(int, vel),
+              reduccionDano: extraRed,
+            },
+            resources: {
+              SA: profile.salud_actual ?? ((stage?.baseHealth || 0) + res),
+              ES: profile.estamina_actual ?? ((stage?.baseStamina || 0) + des),
+            }
+          });
+          if (passes) {
             behaviorEffects.push(...b.effects);
           }
         }

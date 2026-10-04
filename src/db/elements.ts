@@ -13,7 +13,12 @@ let columnsExist = true;
 
 export async function ensureElementIconColumns() {
   if (checkedColumns) return;
-  if (!pool || typeof pool.query !== 'function') {
+  try {
+    if (typeof pool === 'undefined' || !pool || typeof pool.query !== 'function') {
+      checkedColumns = true;
+      return;
+    }
+  } catch {
     checkedColumns = true;
     return;
   }
