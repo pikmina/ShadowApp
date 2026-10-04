@@ -64,6 +64,7 @@ import {
 } from '@/domain/characterTechnique';
 import {
   calculateTechniqueStructuralCost,
+  getComplexityAdjustmentCost,
   findHealingOption,
   type SystemMechanicsConfig,
 } from '@/domain/systemMechanics';
@@ -527,8 +528,12 @@ export function CharacterTechniqueDialog({
                   staminaCosts
                 );
                 const lvlInfo = deriveTechniqueLevelFromCost(structCost);
+                const compAdj = getComplexityAdjustmentCost(
+                  editingTechnique.mechanicalBehaviors?.length || 0,
+                  effectiveMechanics
+                );
                 return (
-                  <div className="flex items-center gap-2 p-2 rounded-md bg-muted/40 border text-xs font-medium h-10">
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-muted/40 border text-xs font-medium h-10 flex-wrap">
                     <Badge
                       variant="outline"
                       className="bg-primary/10 text-primary border-primary/30 font-semibold"
@@ -538,6 +543,15 @@ export function CharacterTechniqueDialog({
                     <span className="font-mono text-[11px] text-muted-foreground">
                       ({structCost} ES)
                     </span>
+                    {compAdj.cost > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/20 font-mono"
+                        title={`Ajuste por Complejidad: +${compAdj.cost} CE (${editingTechnique.mechanicalBehaviors.length} comportamientos)`}
+                      >
+                        +{compAdj.cost} CE comp.
+                      </Badge>
+                    )}
                   </div>
                 );
               })()}

@@ -99,6 +99,7 @@ export const CORE_CATEGORIES = {
   caps: 'Límites / caps',
   transformation: 'Transformación',
   object_manipulation: 'Manipulación de objetos',
+  complexity_adjustment: 'Ajuste por Complejidad',
 } as const;
 export type CoreCategoryKey = keyof typeof CORE_CATEGORIES;
 
@@ -253,6 +254,7 @@ export const CORE_CATEGORY_CONTRACTS: Record<CoreCategoryKey, CoreCategoryContra
   self_damage: { coreKey: 'self_damage', kind: 'ce_adjustment', ruleClass: 'cost_modifier', ruleClassLabel: 'Ajuste de CE', editorMode: 'parameter' },
   consequence: { coreKey: 'consequence', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
   caps: { coreKey: 'caps', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  complexity_adjustment: { coreKey: 'complexity_adjustment', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
 };
 
 export function getCoreCategoryContract(category: { coreKey?: string; id?: string } | null | undefined): CoreCategoryContract | undefined {
@@ -686,6 +688,13 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('consequence', 'while_active_des2', '-2 Destreza mientras el efecto está activo', { kind: 'consequence', role: 'consequence', when: 'activation', consequence: { kind: 'attribute', attributeId: 'DES', amount: -2, turns: 1, untilEnd: true } }, 'while_active_des2', -2);
   option('consequence', 'int2_per_active_turn', '-2 INT cada turno activo (Pendiente por ambigüedad)', { kind: 'consequence', role: 'consequence', when: 'each_turn', consequence: { kind: 'attribute', attributeId: 'INT', amount: -2, turns: 1 } }, 'int2_per_active_turn', -1, false);
   option('consequence', 'overheated_threshold', 'Si queda en 5 de EST o menos: adquiere Sobrecalentado', { kind: 'consequence', role: 'consequence', when: 'activation', consequence: { kind: 'status', statusElementId: 'core.status.sobrecalentado', turns: 1 } }, 'overheated_threshold', -3);
+
+  // Complexity Adjustment (Canonical Core Category core.complexity_adjustment)
+  option('complexity_adjustment', 'behaviors_1', '1 Comportamiento', { kind: 'complexity_adjustment', count: 1 }, 'behaviors_1', 0);
+  option('complexity_adjustment', 'behaviors_2', '2 Comportamientos', { kind: 'complexity_adjustment', count: 2 }, 'behaviors_2', 2);
+  option('complexity_adjustment', 'behaviors_3', '3 Comportamientos', { kind: 'complexity_adjustment', count: 3 }, 'behaviors_3', 4);
+  option('complexity_adjustment', 'behaviors_4', '4 Comportamientos', { kind: 'complexity_adjustment', count: 4 }, 'behaviors_4', 6);
+  option('complexity_adjustment', 'behaviors_5', '5+ Comportamientos', { kind: 'complexity_adjustment', count: 5 }, 'behaviors_5', 8);
 
   return systemMechanicsConfigSchema.parse(categories);
 }

@@ -61,6 +61,7 @@ import {
 } from '../domain/characterTechnique';
 import {
   calculateTechniqueStructuralCost,
+  getComplexityAdjustmentCost,
   type SystemMechanicsConfig,
 } from '../domain/systemMechanics';
 import { createCoreCategories } from '../domain/coreRuleCatalog';
@@ -455,6 +456,24 @@ export default function TechniquesAdmin() {
                           <span className="font-mono text-[11px] text-muted-foreground">
                             ({structuralCost} ES)
                           </span>
+                          {(() => {
+                            const compAdj = getComplexityAdjustmentCost(
+                              tech.mechanicalBehaviors?.length || 0,
+                              effectiveMechanics
+                            );
+                            if (compAdj.cost > 0) {
+                              return (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/20 font-mono"
+                                  title={`Ajuste por Complejidad: +${compAdj.cost} CE (${tech.mechanicalBehaviors.length} comportamientos)`}
+                                >
+                                  +{compAdj.cost} CE comp.
+                                </Badge>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </TableCell>
 

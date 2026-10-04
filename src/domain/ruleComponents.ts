@@ -44,6 +44,7 @@ export const ruleComponentSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('consequence'), role: z.enum(['cost', 'consequence']), when: z.enum(['activation', 'each_turn', 'end', 'after_damage']), consequence: consequenceSchema }),
   z.strictObject({ kind: z.literal('cap'), subject: z.enum(['stamina_cost', 'damage', 'healing', 'barrier', 'attribute_modifier']), min: z.number(), max: z.number() }),
   z.strictObject({ kind: z.literal('damage_type'), damageType: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('complexity_adjustment'), count: z.number().int().positive() }),
 ]).superRefine((component, ctx) => {
   if (component.kind === 'cap' && component.subject !== 'attribute_modifier' && component.min < 0) ctx.addIssue({ code: 'custom', message: 'Este límite no admite valores negativos' });
   if ((component.kind === 'cap' || component.kind === 'target_count') && component.min > component.max) ctx.addIssue({ code: 'custom', message: 'El mínimo supera al máximo' });

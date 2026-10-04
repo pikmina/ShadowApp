@@ -1589,6 +1589,60 @@ export function validateBehaviorMechanicalValues(
 }
 
 /**
+ * Helper to calculate the Complexity Adjustment CE cost based on the number of behaviors in a technique.
+ * Values are retrieved dynamically from the complexity_adjustment category in System Rules.
+ */
+export function getComplexityAdjustmentCost(
+  behaviorCount: number,
+  categories: SystemMechanicsConfig = []
+): { cost: number; ruleName?: string } {
+  if (behaviorCount <= 0) return { cost: 0 };
+  const effectiveCats = (!categories || categories.length === 0) ? createCoreCategories() : categories;
+  const cat = effectiveCats.find(c => c.id === 'complexity_adjustment' || c.coreKey === 'complexity_adjustment' || c.id === 'core.complexity_adjustment' || c.category === 'Ajuste por Complejidad');
+  if (!cat || !cat.rules || cat.rules.length === 0) {
+    if (behaviorCount === 1) return { cost: 0, ruleName: '1 Comportamiento' };
+    if (behaviorCount === 2) return { cost: 2, ruleName: '2 Comportamientos' };
+    if (behaviorCount === 3) return { cost: 4, ruleName: '3 Comportamientos' };
+    if (behaviorCount === 4) return { cost: 6, ruleName: '4 Comportamientos' };
+    return { cost: 8, ruleName: '5+ Comportamientos' };
+  }
+
+  // Look for exact rule matching count
+  const exact = cat.rules.find(r => 
+    r.isAvailable !== false &&
+    ((r as any).runtimeKey === `behaviors_${behaviorCount}` ||
+    (r as any).component?.count === behaviorCount ||
+    r.id.endsWith(`_${behaviorCount}`) ||
+    r.name.toLowerCase().startsWith(`${behaviorCount} `) ||
+    r.name.toLowerCase() === `${behaviorCount} comportamientos` ||
+    r.name.toLowerCase() === `${behaviorCount} comportamiento`)
+  );
+  if (exact && typeof exact.cost === 'number') {
+    return { cost: exact.cost, ruleName: exact.name };
+  }
+
+  // Look for all tier rules and find the closest applicable (<= behaviorCount) or fallback to highest
+  const countRules = cat.rules
+    .filter(r => r.isAvailable !== false && typeof r.cost === 'number')
+    .map(r => {
+      const match = r.name.match(/^(\d+)/) || r.id.match(/_(\d+)$/);
+      const c = (r as any).component?.count ?? (match ? parseInt(match[1], 10) : undefined);
+      return { rule: r, count: c };
+    })
+    .filter((entry): entry is { rule: any; count: number } => typeof entry.count === 'number')
+    .sort((a, b) => b.count - a.count);
+
+  if (countRules.length > 0) {
+    const match = countRules.find(entry => entry.count <= behaviorCount);
+    if (match) {
+      return { cost: match.rule.cost, ruleName: match.rule.name };
+    }
+  }
+
+  return { cost: 0 };
+}
+
+/**
  * Pure canonical helper: calculates the intrinsic structural stamina cost of a technique
  * based on its level minimum and configured mechanics (WITHOUT character-specific modifiers).
  */
@@ -1619,6 +1673,7 @@ export function calculateTechniqueStructuralCost(
       ((r as any).component?.kind === 'condition' && (r as any).component?.predicates?.some((p: any) => p.signalId === strKey || p.kind === strKey)) ||
       ((r as any).component?.kind === 'cooldown' && (r as any).component?.turns === Number(optionKey)) ||
       ((r as any).component?.kind === 'activation' && (r as any).component?.turns === Number(optionKey)) ||
+      ((r as any).component?.kind === 'complexity_adjustment' && (r as any).component?.count === Number(optionKey)) ||
       ((r as any).component?.kind === 'usage' && ((r as any).component?.period === strKey || (r as any).component?.scope === strKey)) ||
       (r as any).component?.turns === Number(optionKey) ||
       (r as any).effect?.dice?.toLowerCase() === strKey.toLowerCase() ||
@@ -2072,6 +2127,12 @@ export function calculateTechniqueStructuralCost(
         }
       }
     }
+  }
+
+  // 10. Complexity Adjustment for Multi-Behavior Techniques
+  if (behaviors.length > 0) {
+    const complexityAdj = getComplexityAdjustmentCost(behaviors.length, effectiveCats);
+    mechanicCostSum += complexityAdj.cost;
   }
 
   return Math.max(0, Math.max(levelBase, mechanicCostSum));

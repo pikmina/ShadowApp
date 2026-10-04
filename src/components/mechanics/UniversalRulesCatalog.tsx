@@ -56,6 +56,7 @@ const CoreKeyIcon = ({ coreKey, className }: { coreKey?: string, className?: str
     case 'health_cost': return <HeartPulse className={className} />;
     case 'self_damage': return <Flame className={className} />;
     case 'caps': return <Ban className={className} />;
+    case 'complexity_adjustment': return <Sliders className={className} />;
     default: return <Package className={className} />;
   }
 };
@@ -141,9 +142,9 @@ export const MECHANICAL_BEHAVIOR_GROUPS: CategoryGroupDef[] = [
   {
     key: 'conditions',
     title: 'Condiciones y Requisitos',
-    subtitle: 'Condiciones manuales contextuales, umbrales de recursos y requisitos',
+    subtitle: 'Condiciones manuales contextuales, umbrales de recursos, requisitos y ajuste por complejidad',
     icon: Handshake,
-    coreKeys: ['manual_condition', 'additional_requirement', 'resource_threshold', 'die_condition']
+    coreKeys: ['manual_condition', 'additional_requirement', 'resource_threshold', 'die_condition', 'complexity_adjustment']
   },
   {
     key: 'temporality',
