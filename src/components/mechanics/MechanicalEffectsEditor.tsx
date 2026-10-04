@@ -22,8 +22,9 @@ export function MechanicalEffectsEditor({ effects, mechanics, onChange, hideCost
   const [ruleId, setRuleId] = useState("");
   const [selectedMinLevel, setSelectedMinLevel] = useState<number>(1);
 
-  const applied = useMemo(() => effects.flatMap(effect => { const result = appliedMechanicReferenceSchema.safeParse(effect); return result.success ? [result.data] : []; }), [effects]);
-  const preserved = effects.filter(effect => !appliedMechanicReferenceSchema.safeParse(effect).success);
+  const safeEffects = Array.isArray(effects) ? effects : [];
+  const applied = useMemo(() => safeEffects.flatMap(effect => { const result = appliedMechanicReferenceSchema.safeParse(effect); return result.success ? [result.data] : []; }), [safeEffects]);
+  const preserved = safeEffects.filter(effect => !appliedMechanicReferenceSchema.safeParse(effect).success);
   const resolution = resolveAppliedMechanics(applied, mechanics);
   const category = mechanics.find(item => item.id === categoryId);
   const availableRules = (category?.rules ?? []).filter(rule => rule.ruleType === "effect" || rule.ruleType === "component" || !hideCosts);

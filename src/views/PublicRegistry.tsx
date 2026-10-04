@@ -10,7 +10,7 @@ import { Search, Library, Shield, Users, Clock, UserCheck } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function PublicRegistry() {
-  const [activeTab, setActiveTab] = useState<'canon' | 'employments' | 'classes' | 'players'>('canon');
+  const [activeTab, setActiveTab] = useState<'characters' | 'canon' | 'employments' | 'classes' | 'players'>('characters');
   const { data: canonCharacters, error } = useSWR('/api/public/canon-characters', fetcher);
   const { data: fields } = useSWR('/api/sheet-fields', fetcher);
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,30 +39,21 @@ export default function PublicRegistry() {
     }
     return readProfile(profileData, [coreKey, ...fallbacks]);
   };
+  const canonList = React.useMemo(() => Array.isArray(canonCharacters) ? canonCharacters : [], [canonCharacters]);
+
   const affiliations = React.useMemo(() => {
-    if (!canonCharacters) return [];
-    return Array.from(new Set(canonCharacters.map((c: any) => getProfileValueByCoreKey(c.profileData, 'faction_group', ['group', 'grupo', 'faccion', 'facción', 'affiliation']) || c.affiliation).filter(Boolean)));
-  }, [canonCharacters, fields]);
+    return Array.from(new Set(canonList.map((c: any) => getProfileValueByCoreKey(c.profileData, 'faction_group', ['group', 'grupo', 'faccion', 'facción', 'affiliation']) || c.affiliation).filter(Boolean)));
+  }, [canonList, fields]);
 
   const employments = React.useMemo(() => {
-    if (!canonCharacters) return [];
-    return Array.from(new Set(canonCharacters.flatMap((c: any) => c.employments?.map((e: any) => `${e.position.name} · ${e.institution.name}`) || []).filter(Boolean)));
-  }, [canonCharacters]);
+    return Array.from(new Set(canonList.flatMap((c: any) => c.employments?.map((e: any) => `${e.position.name} · ${e.institution.name}`) || []).filter(Boolean)));
+  }, [canonList]);
 
   const classes = React.useMemo(() => {
-    if (!canonCharacters) return [];
-    return Array.from(new Set(canonCharacters.map((c: any) => c.enrollment ? `${c.enrollment.academicYear.name} · ${c.enrollment.classGroup.name}` : null).filter(Boolean)));
-  }, [canonCharacters]);
+    return Array.from(new Set(canonList.map((c: any) => c.enrollment ? `${c.enrollment.academicYear.name} · ${c.enrollment.classGroup.name}` : null).filter(Boolean)));
+  }, [canonList]);
 
-  if (error) {
-    return <div className="p-8 text-center text-red-500">Error al cargar el registro: {error?.message || String(error)}</div>;
-  }
-
-  if (!canonCharacters) {
-    return <div className="p-8 text-center text-muted-foreground">Cargando registro...</div>;
-  }
-
-  const filtered = canonCharacters.filter((c: any) => {
+  const filtered = canonList.filter((c: any) => {
     if (c.active === false) return false;
     if (searchTerm && !c.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     if (statusFilter !== 'all' && c.status !== statusFilter) return false;
@@ -83,6 +74,7 @@ export default function PublicRegistry() {
       <div className="flex justify-center mb-6">
         <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)}>
           <TabsList className="flex-wrap justify-center">
+            <TabsTrigger value="characters">Personajes</TabsTrigger>
             <TabsTrigger value="canon">Personajes Canon</TabsTrigger>
             <TabsTrigger value="players">Jugadores</TabsTrigger>
             <TabsTrigger value="employments">Empleos</TabsTrigger>
@@ -93,11 +85,17 @@ export default function PublicRegistry() {
       <div className="flex flex-col items-center justify-center text-center py-10">
         <Shield className="size-12 text-primary mb-4" />
         <h1 className="font-oxanium text-3xl font-bold uppercase tracking-widest text-foreground">Registro de Héroes y Villanos</h1>
-        <p className="mt-2 text-sm text-muted-foreground max-w-md">Consulta la disponibilidad de personajes oficiales en el universo.</p>
+        <p className="mt-2 text-sm text-muted-foreground max-w-md">Consulta la disponibilidad de personajes oficiales y registrados en el universo.</p>
       </div>
 
       {activeTab === 'canon' && (
         <>
+          {error ? (
+            <div className="p-8 text-center text-red-500 font-oxanium">Error al cargar el registro canon: {error?.message || String(error)}</div>
+          ) : !canonCharacters ? (
+            <div className="p-8 text-center text-muted-foreground font-oxanium">Cargando personajes canon...</div>
+          ) : (
+            <>
           <div className="p-4 sm:p-5 bg-card/60 border border-border/80 rounded-lg space-y-3 mb-6">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -214,13 +212,14 @@ export default function PublicRegistry() {
                     </div>
                   </div>
                   
-                  {c.status === 'occupied' && c.linkedCharacterId && (
-                    <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-end">
-                      <Link to={`/sheet/${c.linkedCharacterId}`} target="_blank" rel="noopener noreferrer" className="text-xs font-oxanium text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-widest inline-flex items-center gap-1 font-bold">
-                        Ver Ficha <span aria-hidden="true">&rarr;</span>
-                      </Link>
-                    </div>
-                  )}
+                  <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-zinc-400">
+                      {c.status === 'occupied' ? 'OCUPADO' : c.status === 'reserved' ? 'RESERVADO' : 'DISPONIBLE'}
+                    </span>
+                    <Link to={`/sheet/${c.linkedCharacterId || c.id}`} target="_blank" rel="noopener noreferrer" className="text-xs font-oxanium text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-widest inline-flex items-center gap-1 font-bold">
+                      Ver Ficha <span aria-hidden="true">&rarr;</span>
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))}
@@ -232,9 +231,157 @@ export default function PublicRegistry() {
           </div>
         </>
       )}
+      </>
+    )}
+      {activeTab === 'characters' && <PublicCharacters />}
       {activeTab === 'players' && <PublicPlayers />}
       {activeTab === 'employments' && <PublicEmployments />}
       {activeTab === 'classes' && <PublicClasses />}
+    </div>
+  );
+}
+
+function PublicCharacters() {
+  const { data: rawCharacters, error, isLoading } = useSWR<any[]>('/api/public/characters', fetcher);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState('all');
+
+  const charactersList = React.useMemo(() => Array.isArray(rawCharacters) ? rawCharacters : [], [rawCharacters]);
+
+  const groups = React.useMemo(() => {
+    const values = charactersList
+      .map((c: any) => c.profileData?.faction_group || c.profileData?.group || c.profileData?.grupo || c.profileData?.faccion || c.profileData?.affiliation)
+      .filter(Boolean);
+    return Array.from(new Set(values)).sort((a: any, b: any) => String(a).localeCompare(String(b), 'es'));
+  }, [charactersList]);
+
+  if (isLoading) return <div className="text-center p-8 text-muted-foreground font-oxanium">Cargando personajes...</div>;
+  if (error) return <div className="text-center p-8 text-red-500 font-oxanium">Error al cargar personajes: {error?.message || String(error)}</div>;
+
+  const filtered = charactersList.filter((c: any) => {
+    if (c.active === false) return false;
+    const prof = c.profileData || {};
+    const name = String(prof.basic_name || prof.name || prof.nombre || c.name || '').toLowerCase();
+    const lastName = String(prof.last_name || prof.lastName || prof.apellido || '').toLowerCase();
+    const alias = String(prof.alias || prof.hero_name || prof.apodo || '').toLowerCase();
+    const quirk = String(prof.quirk_name || prof.quirkName || prof.don_name || prof.don || '').toLowerCase();
+    const group = String(prof.faction_group || prof.group || prof.grupo || prof.faccion || prof.affiliation || 'Sin facción');
+
+    if (selectedGroup !== 'all' && group !== selectedGroup) return false;
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      const match = name.includes(q) || lastName.includes(q) || alias.includes(q) || quirk.includes(q) || c.name.toLowerCase().includes(q) || (c.player?.name || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="p-4 sm:p-5 bg-card/60 border border-border/80 rounded-lg space-y-3 mb-6">
+        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+          <div className="relative flex-1 min-w-[50%] w-full">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nombre, alias, quirk o jugador..."
+              className="pl-9 bg-background/70 border-border/50 focus:border-primary/50 text-xs h-9 w-full"
+            />
+          </div>
+          {groups.length > 0 && (
+            <div className="w-full sm:w-56 shrink-0">
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger className="w-full h-9 text-xs font-oxanium bg-background/70 border-border/50">
+                  <SelectValue placeholder="Facción / Grupo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las facciones</SelectItem>
+                  {groups.map((grp: any) => (
+                    <SelectItem key={grp} value={grp}>{grp}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map((c: any) => {
+          const prof = c.profileData || {};
+          const fullName = [prof.basic_name || c.name, prof.last_name].filter(Boolean).join(' ');
+          const alias = prof.alias || prof.hero_name || prof.apodo;
+          const quirk = prof.quirk_name || prof.quirkName || prof.don_name || prof.don;
+          const quirkType = prof.quirk_type || prof.tipo_de_quirk;
+          const group = prof.faction_group || prof.group || prof.grupo || prof.faccion || prof.affiliation || 'Civil';
+          const stage = prof.basic_stage || prof.stage || prof.etapa || 'Novato';
+          const avatarUrl = prof.avatar_url || prof.avatarUrl || prof.enlace_al_avatar;
+
+          return (
+            <EntityPanel key={c.id} pattern="dots" className="p-4 bg-black/40 h-full flex flex-col justify-between hover:border-primary/40 transition-all">
+              <div>
+                <div className="flex items-start justify-between gap-3 border-b border-border/50 pb-3 mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={fullName} className="size-11 rounded-lg object-cover border border-border/60 shrink-0" />
+                    ) : (
+                      <div className="size-11 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                        <Shield className="size-5 text-primary" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <h3 className="font-oxanium font-bold text-base text-foreground truncate leading-tight">{fullName}</h3>
+                      {alias && <p className="text-xs text-cyan-400 font-medium truncate mt-0.5">{alias}</p>}
+                      <span className="text-[10px] font-mono text-muted-foreground uppercase">{group}</span>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] font-oxanium uppercase tracking-wider shrink-0 bg-secondary/30">
+                    {stage}
+                  </Badge>
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  {quirk && (
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="font-mono text-[10px] uppercase text-zinc-400">Don:</span>
+                      <span className="font-medium text-zinc-200 truncate max-w-[180px]">{quirk} {quirkType ? `(${quirkType})` : ''}</span>
+                    </div>
+                  )}
+                  {c.player?.name && (
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="font-mono text-[10px] uppercase text-zinc-400">Jugador:</span>
+                      <span className="font-medium text-zinc-300 truncate">{c.player.name}</span>
+                    </div>
+                  )}
+                  {c.canonCharacterId && (
+                    <div className="pt-1">
+                      <Badge variant="secondary" className="text-[9px] font-oxanium uppercase">Personaje Canon</Badge>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-end">
+                <Link
+                  to={`/sheet/${c.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-oxanium text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-widest inline-flex items-center gap-1 font-bold"
+                >
+                  Ver Ficha <span aria-hidden="true">&rarr;</span>
+                </Link>
+              </div>
+            </EntityPanel>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="col-span-full py-12 text-center text-muted-foreground text-sm font-oxanium border border-border/40 rounded-lg bg-card/20">
+            No se encontraron personajes activos con los filtros seleccionados.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -247,8 +394,8 @@ function PublicPlayers() {
   if (isLoading) return <div className="text-center p-8 text-muted-foreground font-oxanium">Cargando jugadores...</div>;
   if (error) return <div className="text-center p-8 text-red-500 font-oxanium">Error al cargar jugadores: {error?.message || String(error)}</div>;
 
-  const filtered = (data || []).filter((player: any) => {
-    const activeChars = (player.characters || []).filter((c: any) => c.active !== false);
+  const filtered = (Array.isArray(data) ? data : []).filter((player: any) => {
+    const activeChars = (Array.isArray(player.characters) ? player.characters : []).filter((c: any) => c.active !== false);
     if (activeChars.length === 0) return false;
 
     if (statusFilter !== 'all' && player.status !== statusFilter) return false;
@@ -298,7 +445,7 @@ function PublicPlayers() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((player: any) => {
-            const activeChars = (player.characters || []).filter((c: any) => c.active !== false);
+            const activeChars = (Array.isArray(player.characters) ? player.characters : []).filter((c: any) => c.active !== false);
             const isAbsent = player.status === 'absent';
             return (
               <EntityPanel key={player.id} pattern="dots" className="p-4 bg-black/40 h-full flex flex-col justify-between">
@@ -396,8 +543,8 @@ function PublicEmployments() {
                         </Badge>
                       </div>
                       <div className="space-y-1 mt-3 text-sm">
-                        {pos.occupants.length === 0 && <span className="text-muted-foreground text-xs italic">Vacante</span>}
-                        {pos.occupants.map((occ: any) => (
+                        {(Array.isArray(pos.occupants) ? pos.occupants : []).length === 0 && <span className="text-muted-foreground text-xs italic">Vacante</span>}
+                        {(Array.isArray(pos.occupants) ? pos.occupants : []).map((occ: any) => (
                           <div key={occ.employmentId} className="flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary/70"></span>
                             {occ.characterId ? (
@@ -463,8 +610,8 @@ function PublicClasses() {
                     </Badge>
                   </div>
                   <div className="space-y-2 mt-2 flex-1">
-                    {cls.students.length === 0 && <span className="text-muted-foreground text-xs italic">Sin alumnos inscritos</span>}
-                    {cls.students.map((student: any) => (
+                    {(Array.isArray(cls.students) ? cls.students : []).length === 0 && <span className="text-muted-foreground text-xs italic">Sin alumnos inscritos</span>}
+                    {(Array.isArray(cls.students) ? cls.students : []).map((student: any) => (
                       <div key={student.enrollmentId} className="flex items-center justify-between text-sm bg-muted/20 p-2 rounded">
                         {student.characterId ? <Link to={`/sheet/${student.characterId}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors text-foreground truncate mr-2">{student.name}</Link> : <span className="truncate mr-2 text-foreground">{student.name}</span>}
                         {student.canon && <Badge variant="secondary" className="text-[9px] shrink-0">Canon</Badge>}

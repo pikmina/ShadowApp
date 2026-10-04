@@ -106,6 +106,42 @@ export default function PublicSheet() {
 
   const storedProfile = character?.profileData || {};
   const possessionRows = Array.isArray(character?.possessions) ? character.possessions : [];
+
+  const getElement = (idOrItem: any): { id: string; name: string; description: string; kind?: string; element?: any } => {
+    if (!idOrItem) return { id: '', name: '', description: '' };
+    if (typeof idOrItem === 'object') {
+      return {
+        id: idOrItem.id || idOrItem.elementId || '',
+        name: idOrItem.name || idOrItem.title || idOrItem.id || '',
+        description: idOrItem.description || idOrItem.desc || '',
+        kind: idOrItem.kind || 'Licencia / Activo',
+        element: idOrItem
+      };
+    }
+    const id = String(idOrItem);
+    const found = elements.find(el => el.id === id || el.name?.toLowerCase() === id.toLowerCase());
+    if (found) {
+      return {
+        id: found.id || id,
+        name: found.name || id,
+        description: found.description || '',
+        kind: found.kind || 'Licencia / Activo',
+        element: found
+      };
+    }
+    const fromPossessions = possessionRows.find((row: any) => row?.element?.id === id || row?.element?.name?.toLowerCase() === id.toLowerCase())?.element;
+    if (fromPossessions) {
+      return {
+        id: fromPossessions.id || id,
+        name: fromPossessions.name || id,
+        description: fromPossessions.description || '',
+        kind: fromPossessions.kind || 'Licencia / Activo',
+        element: fromPossessions
+      };
+    }
+    return { id, name: id, description: '', kind: 'Licencia / Activo' };
+  };
+
   const relationalTraits = possessionRows.filter((row: any) => row?.element?.kind === 'trait').map((row: any) => row.element.id);
   const relationalWeaknesses = possessionRows.filter((row: any) => row?.element?.kind === 'weakness').map((row: any) => row.element.id);
   const relationalCredentials = possessionRows
@@ -219,35 +255,6 @@ export default function PublicSheet() {
   const maxStamina = derived ? derived.estamina : Number(readValue(profile, ['maxStamina', 'max_stamina', 'estamina_maxima']) || 20);
   const currentHealth = maxHealth;
   const currentStamina = maxStamina;
-
-  const getElement = (idOrItem: any): { id: string; name: string; description: string } => {
-    if (!idOrItem) return { id: '', name: '', description: '' };
-    if (typeof idOrItem === 'object') {
-      return {
-        id: idOrItem.id || idOrItem.elementId || '',
-        name: idOrItem.name || idOrItem.title || idOrItem.id || '',
-        description: idOrItem.description || idOrItem.desc || ''
-      };
-    }
-    const id = String(idOrItem);
-    const found = elements.find(el => el.id === id || el.name?.toLowerCase() === id.toLowerCase());
-    if (found) {
-      return {
-        id: found.id || id,
-        name: found.name || id,
-        description: found.description || ''
-      };
-    }
-    const fromPossessions = possessionRows.find((row: any) => row?.element?.id === id || row?.element?.name?.toLowerCase() === id.toLowerCase())?.element;
-    if (fromPossessions) {
-      return {
-        id: fromPossessions.id || id,
-        name: fromPossessions.name || id,
-        description: fromPossessions.description || ''
-      };
-    }
-    return { id, name: id, description: '' };
-  };
 
   const traits = Array.isArray(profile.traits) ? profile.traits : [];
   const weaknesses = Array.isArray(profile.weaknesses) ? profile.weaknesses : [];

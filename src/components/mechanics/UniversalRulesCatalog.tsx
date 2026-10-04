@@ -422,7 +422,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
               className={`px-2.5 py-1 rounded-sm font-medium transition-colors ${ruleFilter === 'unavailable' ? 'bg-background shadow-xs text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={() => setRuleFilter('unavailable')}
             >
-              No disponibles ({draft.rules.filter(r => r.isAvailable === false).length})
+              No disponibles ({(draft.rules ?? []).filter(r => r.isAvailable === false).length})
             </button>
           </div>
         </div>
@@ -684,7 +684,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                   className="text-destructive hover:bg-destructive/10 hover:text-destructive" 
                   disabled={saving} 
                   onClick={async () => {
-                    const newRules = draft.rules.filter((_, j) => j !== editingIndex);
+                    const newRules = (draft.rules ?? []).filter((_, j) => j !== editingIndex);
                     const newDraft = { ...draft, rules: newRules } as Category;
                     setDraft(newDraft);
                     const ok = await saveWithoutClosing(newDraft);
@@ -769,7 +769,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                   </Button>
                   <Button variant="ghost" size="icon" disabled={saving} onClick={async () => {
                      const originalDraft = draft;
-                     const newDraft = { ...draft, rules: draft.rules.filter((rule) => rule.id !== r.id) } as Category;
+                     const newDraft = { ...draft, rules: (draft.rules ?? []).filter((rule) => rule.id !== r.id) } as Category;
                      setDraft(newDraft);
                      const ok = await saveWithoutClosing(newDraft);
                      if (!ok) {
@@ -782,13 +782,13 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
               </div>
             );
           })}
-        {draft.rules.filter(r => {
+        {(draft.rules ?? []).filter(r => {
           if (ruleFilter === 'available') return r.isAvailable !== false;
           if (ruleFilter === 'unavailable') return r.isAvailable === false;
           return true;
         }).length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-6 border rounded-lg border-dashed">
-            {draft.rules.length === 0 
+            {(draft.rules ?? []).length === 0 
               ? "No hay opciones configuradas."
               : `No hay opciones ${ruleFilter === 'available' ? 'disponibles' : 'no disponibles'} en esta categoría.`}
           </p>

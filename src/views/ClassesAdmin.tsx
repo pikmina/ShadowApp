@@ -385,7 +385,7 @@ function ClassGroupDialog({ cls, yearId, years = [], mutate, customButton }: any
       <DialogContent>
         <DialogHeader><DialogTitle>{cls ? "Editar" : "Nuevo"} Grupo / Clase</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          {!cls && <div className="space-y-2"><Label>Año académico</Label><Select value={academicYearId} onValueChange={setAcademicYearId}><SelectTrigger><SelectValue placeholder="Selecciona un año">{years.find((item: any) => item.id === academicYearId)?.name ?? 'Selecciona un año'}</SelectValue></SelectTrigger><SelectContent>{years.filter((item: any) => item.active).map((item: any) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>}
+          {!cls && <div className="space-y-2"><Label>Año académico</Label><Select value={academicYearId} onValueChange={setAcademicYearId}><SelectTrigger><SelectValue placeholder="Selecciona un año">{(Array.isArray(years) ? years : []).find((item: any) => item.id === academicYearId)?.name ?? 'Selecciona un año'}</SelectValue></SelectTrigger><SelectContent>{(Array.isArray(years) ? years : []).filter((item: any) => item.active).map((item: any) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>}
           
           <div className="space-y-2">
             <Label>Curso / Departamento</Label>
@@ -436,9 +436,9 @@ function EnrollmentDialog({ cls, mutate }: any) {
   const { data: characters } = useSWR(open ? '/api/admin/characters' : null, fetcher);
   const { data: canonCharacters } = useSWR(open ? '/api/admin/canon-characters' : null, fetcher);
   const options = [
-    ...(characters ?? []).filter((item: any) => !item.canonCharacterId).map((item: any) => ({ value: `character:${item.id}`, label: item.name })),
-    ...(canonCharacters ?? []).map((item: any) => ({ value: `canon:${item.id}`, label: `${item.name} (canon)` })),
-  ].filter(option => !(cls.students ?? []).some((student: any) => option.value === `character:${student.characterId}` || option.value === `canon:${student.canonCharacterId}`));
+    ...(Array.isArray(characters) ? characters : []).filter((item: any) => !item.canonCharacterId).map((item: any) => ({ value: `character:${item.id}`, label: item.name })),
+    ...(Array.isArray(canonCharacters) ? canonCharacters : []).map((item: any) => ({ value: `canon:${item.id}`, label: `${item.name} (canon)` })),
+  ].filter(option => !(Array.isArray(cls.students) ? cls.students : []).some((student: any) => option.value === `character:${student.characterId}` || option.value === `canon:${student.canonCharacterId}`));
 
   const enroll = async () => {
     const [kind, id] = selection.split(':');

@@ -1376,6 +1376,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     }
   });
 
+  app.get("/api/public/characters", async (_req, res) => {
+    try {
+      const { getPublicCharacters } = await import("./src/db/characters.ts");
+      res.json(await getPublicCharacters());
+    } catch (error: any) {
+      console.error("public characters fetch error:", error);
+      res.status(500).json({ error: error?.message || "Failed to fetch public characters" });
+    }
+  });
+
   app.get("/api/admin/characters", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { getCharactersWithPossessions } = await import("./src/db/characters.ts");

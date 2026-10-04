@@ -33,19 +33,65 @@ export const createPool = () => {
   return global._postgresPool;
 };
 
-const pool = createPool();
+export const pool = createPool();
+
+export let hasElementIconColumns = true;
 
 let ensureColsPromise: Promise<void> | null = null;
 export async function ensureSystemSchemaColumns() {
   if (!ensureColsPromise) {
     ensureColsPromise = (async () => {
       try {
-        await pool.query(`
-          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
-          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
+        const check = await pool.query(`
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'system_elements' AND column_name = 'icon_type'
+          LIMIT 1;
         `);
-      } catch (err: any) {
-        console.warn('Notice: ensureSystemSchemaColumns:', err?.message || err);
+        if (check.rows.length === 0) {
+          hasElementIconColumns = false;
+          try {
+            await pool.query('ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;');
+            await pool.query('ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;');
+            hasElementIconColumns = true;
+          } catch {
+            // Alter permission not granted; legacy fallback projection will be used
+            hasElementIconColumns = false;
+          }
+        } else {
+          hasElementIconColumns = true;
+        }
+
+        // Safely attempt to ensure players and character extension columns
+        try {
+          await pool.query(`
+            DO $$
+            BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'player_status') THEN
+                CREATE TYPE "player_status" AS ENUM('active', 'absent', 'inactive');
+              END IF;
+            END $$;
+          `);
+          await pool.query(`
+            CREATE TABLE IF NOT EXISTS "players" (
+              "id" serial PRIMARY KEY NOT NULL,
+              "name" text NOT NULL,
+              "status" "player_status" DEFAULT 'active' NOT NULL,
+              "user_id" integer,
+              "identity" text,
+              "discord" text,
+              "notes" text,
+              "created_at" timestamp DEFAULT now(),
+              "updated_at" timestamp DEFAULT now()
+            );
+          `);
+          await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "player_id" integer;');
+          await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;');
+          await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "canon_character_id" text;');
+        } catch {
+          // Schema additions skipped if user lacks DDL permissions
+        }
+      } catch {
+        // Safe check
       }
     })();
   }

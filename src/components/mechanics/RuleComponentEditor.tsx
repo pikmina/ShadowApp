@@ -44,7 +44,7 @@ function Fields({ value, onChange, templates, elements }: { value: Record<string
       const enums = key === 'role' ? value.kind === 'condition' ? ['condition', 'requirement', 'limiter'] : ['cost', 'consequence'] : choices[key];
       const isElementId = key === 'elementId' || key === 'statusElementId' || key === 'abilityId';
 
-      let elementOptions = elements || [];
+      let elementOptions = Array.isArray(elements) ? elements : [];
       if (key === 'elementId' && (value.kind === 'consume' || value.kind === 'consumable')) elementOptions = elementOptions.filter(e => e.kind === 'consumable');
       if (key === 'statusElementId') elementOptions = elementOptions.filter(e => e.kind === 'altered_status');
 

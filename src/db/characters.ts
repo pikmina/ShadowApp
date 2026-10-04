@@ -1,6 +1,6 @@
-import { db, ensureSystemSchemaColumns } from './index.ts';
+import { db, ensureSystemSchemaColumns, pool } from './index.ts';
 import { characters, players } from './schema.ts';
-import { eq } from 'drizzle-orm';
+import { eq, or, and, isNull, sql, inArray } from 'drizzle-orm';
 
 export async function getCharacterByUserId(userId: number) {
   const [character] = await db.select().from(characters).where(eq(characters.userId, userId));
@@ -9,8 +9,27 @@ export async function getCharacterByUserId(userId: number) {
 }
 
 export async function getCharacterById(id: number) {
-  const [character] = await db.select().from(characters).where(eq(characters.id, id));
-  return character || null;
+  try {
+    const [character] = await db.select().from(characters).where(eq(characters.id, id));
+    return character || null;
+  } catch {
+    try {
+      const res = await pool.query(`SELECT * FROM characters WHERE id = $1`, [id]);
+      if (!res.rows || res.rows.length === 0) return null;
+      const r = res.rows[0];
+      return {
+        ...r,
+        canonCharacterId: r.canon_character_id || null,
+        playerId: r.player_id || null,
+        userId: r.user_id || null,
+        profileData: r.profile_data || {},
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      };
+    } catch {
+      return null;
+    }
+  }
 }
 
 export async function createCharacter(userId: number | null, name: string, profileData: any, canonCharacterId?: string | null, playerId?: number | null, active: boolean = true) {
@@ -95,7 +114,6 @@ export async function deleteCharacter(characterId: number, actorUid?: string) {
 
 import { elementPossessions, auditLogs, systemElements, characterEmployments, characterEnrollments, characterTechniques } from './schema.ts';
 import { systemRules } from './schema.ts';
-import { sql, and, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { evaluateRequirements, requirementGroupSchema } from '../domain/requirements.ts';
 import { getCharacterTechniquesByCharacterId } from './characterTechniques.ts';
@@ -119,7 +137,8 @@ export async function getCharacterPossessions(characterId: number) {
       .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
       .where(eq(elementPossessions.characterId, characterId));
   } catch (err: any) {
-    if (err?.code === '42703' || String(err?.message).includes('icon_')) {
+    const isMissingCol = err?.code === '42703' || err?.cause?.code === '42703' || String(err?.message).includes('icon_') || String(err?.cause?.message).includes('icon_');
+    if (isMissingCol) {
       const res = await db.execute(sql`
         SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes,
                se.id as se_id, se.kind, se.name, se.description, se.status, se.effects, se.mechanical_behaviors, se.requirements, se.metadata, se.revision
@@ -151,24 +170,34 @@ export async function getPublicCharacterById(id: number) {
       .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
       .where(and(eq(elementPossessions.characterId, id), eq(systemElements.status, 'published')));
   } catch (err: any) {
-    if (err?.code === '42703' || String(err?.message).includes('icon_')) {
-      try {
-        const res = await db.execute(sql`
-          SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes,
-                 se.id as se_id, se.kind, se.name, se.description, se.status, se.effects, se.mechanical_behaviors, se.requirements, se.metadata, se.revision
-          FROM element_possessions ep
-          INNER JOIN system_elements se ON se.id = ep.element_id
-          WHERE ep.character_id = ${id} AND se.status = 'published'
-        `);
-        possessions = (res.rows || []).map((r: any) => ({
-          possession: { id: r.ep_id, characterId: r.character_id, elementId: r.element_id, quantity: r.quantity, equipped: r.equipped, notes: r.notes },
-          element: { id: r.se_id, kind: r.kind, name: r.name, description: r.description, status: r.status, effects: r.effects, mechanicalBehaviors: r.mechanical_behaviors, requirements: r.requirements, metadata: r.metadata, revision: r.revision, iconType: null, iconValue: null }
-        }));
-      } catch (fallbackErr) {
-        console.warn("Fallback possessions in getPublicCharacterById:", fallbackErr);
-      }
-    } else {
-      console.warn("Error fetching possessions in getPublicCharacterById:", err);
+    try {
+      const res = await pool.query(`
+        SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes,
+               se.*
+        FROM element_possessions ep
+        INNER JOIN system_elements se ON se.id = ep.element_id
+        WHERE ep.character_id = $1 AND se.status = 'published'
+      `, [id]);
+      possessions = (res.rows || []).map((r: any) => ({
+        possession: { id: r.ep_id, characterId: r.character_id, elementId: r.element_id, quantity: r.quantity, equipped: r.equipped, notes: r.notes },
+        element: {
+          ...r,
+          id: r.element_id || r.id,
+          kind: r.kind,
+          name: r.name,
+          description: r.description,
+          status: r.status,
+          effects: r.effects || [],
+          mechanicalBehaviors: r.mechanical_behaviors || [],
+          requirements: r.requirements || { operator: 'all', requirements: [] },
+          metadata: r.metadata || {},
+          revision: r.revision || 1,
+          iconType: r.icon_type || null,
+          iconValue: r.icon_value || null,
+        }
+      }));
+    } catch (fallbackErr) {
+      console.warn("Fallback possessions in getPublicCharacterById error:", fallbackErr);
     }
   }
 
@@ -192,7 +221,25 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
   }
 
   // 2. Search all characters by name, last_name, canonCharacterId, or alias
-  const allCharacters = await db.select().from(characters);
+  let allCharacters: any[] = [];
+  try {
+    allCharacters = await db.select().from(characters);
+  } catch {
+    try {
+      const res = await pool.query(`SELECT * FROM characters`);
+      allCharacters = (res.rows || []).map((r: any) => ({
+        ...r,
+        canonCharacterId: r.canon_character_id || null,
+        playerId: r.player_id || null,
+        userId: r.user_id || null,
+        profileData: r.profile_data || {},
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      }));
+    } catch {
+      allCharacters = [];
+    }
+  }
   const normalizedSearch = decoded.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
   // Exact match
@@ -252,8 +299,24 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
 
   // Also check canon characters if still not matched
   if (!matched) {
-    const { canonCharacters } = await import('./schema.ts');
-    const allCanons = await db.select().from(canonCharacters);
+    let allCanons: any[] = [];
+    try {
+      const { canonCharacters } = await import('./schema.ts');
+      allCanons = await db.select().from(canonCharacters);
+    } catch {
+      try {
+        const res = await pool.query(`SELECT * FROM canon_characters`);
+        allCanons = (res.rows || []).map((r: any) => ({
+          ...r,
+          firstName: r.first_name,
+          lastName: r.last_name,
+          profileData: r.profile_data || {},
+        }));
+      } catch {
+        allCanons = [];
+      }
+    }
+
     const matchedCanon = allCanons.find(cc => {
       const idMatch = cc.id.toLowerCase() === decoded.toLowerCase();
       const nameMatch = cc.name.toLowerCase().includes(decoded.toLowerCase());
@@ -280,6 +343,9 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
           id: matchedCanon.id,
           name: matchedCanon.name,
           canonCharacterId: matchedCanon.id,
+          exp: 0,
+          yen: 0,
+          plus_ultra: 0,
           profileData: {
             ...(matchedCanon.profileData || {}),
             basic_name: matchedCanon.firstName || matchedCanon.name,
@@ -303,19 +369,94 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
   return getPublicCharacterById(matched.id);
 }
 
+export async function getPublicCharacters() {
+  await ensureSystemSchemaColumns();
+  try {
+    const allCharacters = await db
+      .select({
+        character: characters,
+        player: {
+          id: players.id,
+          name: players.name,
+          status: players.status,
+        }
+      })
+      .from(characters)
+      .leftJoin(players, eq(players.id, characters.playerId))
+      .where(or(eq(characters.active, true), isNull(characters.active)));
+
+    return allCharacters.map(({ character, player }) => ({
+      id: character.id,
+      name: character.name,
+      canonCharacterId: character.canonCharacterId,
+      exp: character.exp,
+      yen: character.yen,
+      active: character.active ?? true,
+      profileData: (character.profileData as any) || {},
+      player: player?.id ? player : null,
+      createdAt: character.createdAt,
+      updatedAt: character.updatedAt,
+    }));
+  } catch (err: any) {
+    console.warn("getPublicCharacters standard query failed, using direct characters query fallback:", err?.message || err);
+    try {
+      const res = await pool.query(`SELECT * FROM characters`);
+      return (res.rows || [])
+        .filter((r: any) => r.active !== false)
+        .map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          canonCharacterId: r.canon_character_id || null,
+          exp: r.exp ?? 0,
+          yen: r.yen ?? 0,
+          active: r.active ?? true,
+          profileData: r.profile_data || {},
+          player: null,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+        }));
+    } catch (fallbackErr) {
+      console.error("Fallback query in getPublicCharacters failed:", fallbackErr);
+      return [];
+    }
+  }
+}
+
 export async function getCharactersWithPossessions() {
   await ensureSystemSchemaColumns();
-  const allCharacters = await db
-    .select({
-      character: characters,
-      player: {
-        id: players.id,
-        name: players.name,
-        status: players.status,
-      }
-    })
-    .from(characters)
-    .leftJoin(players, eq(players.id, characters.playerId));
+  let allCharacters: any[] = [];
+  try {
+    allCharacters = await db
+      .select({
+        character: characters,
+        player: {
+          id: players.id,
+          name: players.name,
+          status: players.status,
+        }
+      })
+      .from(characters)
+      .leftJoin(players, eq(players.id, characters.playerId));
+  } catch (charErr) {
+    console.warn("getCharactersWithPossessions characters query failed, using direct query:", charErr);
+    try {
+      const res = await pool.query(`SELECT * FROM characters`);
+      allCharacters = (res.rows || []).map((r: any) => ({
+        character: {
+          ...r,
+          canonCharacterId: r.canon_character_id,
+          playerId: r.player_id,
+          userId: r.user_id,
+          profileData: r.profile_data || {},
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+        },
+        player: null
+      }));
+    } catch {
+      allCharacters = [];
+    }
+  }
 
   let allPossessions: any[] = [];
   try {
@@ -323,24 +464,33 @@ export async function getCharactersWithPossessions() {
       .from(elementPossessions)
       .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId));
   } catch (err: any) {
-    if (err?.code === '42703' || String(err?.message).includes('icon_')) {
-      console.warn("Recovering from missing icon columns in getCharactersWithPossessions...");
-      try {
-        const res = await db.execute(sql`
-          SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes,
-                 se.id as se_id, se.kind, se.name, se.description, se.status, se.effects, se.mechanical_behaviors, se.requirements, se.metadata, se.revision
-          FROM element_possessions ep
-          INNER JOIN system_elements se ON se.id = ep.element_id
-        `);
-        allPossessions = (res.rows || []).map((r: any) => ({
-          possession: { id: r.ep_id, characterId: r.character_id, elementId: r.element_id, quantity: r.quantity, equipped: r.equipped, notes: r.notes },
-          element: { id: r.se_id, kind: r.kind, name: r.name, description: r.description, status: r.status, effects: r.effects, mechanicalBehaviors: r.mechanical_behaviors, requirements: r.requirements, metadata: r.metadata, revision: r.revision, iconType: null, iconValue: null }
-        }));
-      } catch (fallbackErr) {
-        console.warn("Fallback possessions in getCharactersWithPossessions error:", fallbackErr);
-      }
-    } else {
-      console.error("Error fetching possessions in getCharactersWithPossessions:", err);
+    try {
+      const res = await pool.query(`
+        SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes,
+               se.*
+        FROM element_possessions ep
+        INNER JOIN system_elements se ON se.id = ep.element_id
+      `);
+      allPossessions = (res.rows || []).map((r: any) => ({
+        possession: { id: r.ep_id, characterId: r.character_id, elementId: r.element_id, quantity: r.quantity, equipped: r.equipped, notes: r.notes },
+        element: {
+          ...r,
+          id: r.element_id || r.id,
+          kind: r.kind,
+          name: r.name,
+          description: r.description,
+          status: r.status,
+          effects: r.effects || [],
+          mechanicalBehaviors: r.mechanical_behaviors || [],
+          requirements: r.requirements || { operator: 'all', requirements: [] },
+          metadata: r.metadata || {},
+          revision: r.revision || 1,
+          iconType: r.icon_type || null,
+          iconValue: r.icon_value || null,
+        }
+      }));
+    } catch (fallbackErr) {
+      console.warn("Fallback possessions in getCharactersWithPossessions error:", fallbackErr);
     }
   }
 

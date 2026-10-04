@@ -1,6 +1,6 @@
 import { assertElementMechanics } from "../domain/elementMechanics.ts";
 import { systemMechanicsConfigSchema } from "../domain/systemMechanics.ts";
-import { db } from './index.ts';
+import { db, pool } from './index.ts';
 import { systemElements, elementPossessions, shopOffers, systemRules, auditLogs } from './schema.ts';
 import { eq, desc, sql, or, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
@@ -8,135 +8,135 @@ import { requirementGroupSchema } from '../domain/requirements.ts';
 import { SYSTEM_WEAKNESSES, CORE_ALTERED_STATUSES } from '../domain/systemWeaknesses.ts';
 import { SYSTEM_TRAITS } from '../domain/systemTraits.ts';
 
-let ensureIconColumnsPromise: Promise<void> | null = null;
+let checkedColumns = false;
+let columnsExist = true;
+
 export async function ensureElementIconColumns() {
-  if (!ensureIconColumnsPromise) {
-    ensureIconColumnsPromise = (async () => {
-      try {
-        await db.execute(sql`
-          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
-          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
-        `);
-      } catch (err: any) {
-        console.warn("Notice: ensureElementIconColumns:", err?.message || err);
-      }
-    })();
+  if (checkedColumns) return;
+  if (!pool || typeof pool.query !== 'function') {
+    checkedColumns = true;
+    return;
   }
-  return ensureIconColumnsPromise;
+  try {
+    const check = await pool.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'system_elements' AND column_name IN ('icon_type', 'icon_value');
+    `);
+    const existing = new Set((check?.rows || []).map((r: any) => r.column_name));
+    if (!existing.has('icon_type') || !existing.has('icon_value')) {
+      try {
+        if (!existing.has('icon_type')) {
+          await pool.query('ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;');
+        }
+        if (!existing.has('icon_value')) {
+          await pool.query('ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;');
+        }
+        columnsExist = true;
+      } catch {
+        // Safe fallback if user has no ALTER TABLE permission on Namecheap
+        columnsExist = false;
+      }
+    } else {
+      columnsExist = true;
+    }
+  } catch {
+    columnsExist = false;
+  } finally {
+    checkedColumns = true;
+  }
+}
+
+async function queryElementsFallback(whereStatus?: string): Promise<(typeof systemElements.$inferSelect)[]> {
+  try {
+    let result;
+    try {
+      const sqlText = whereStatus
+        ? `SELECT * FROM system_elements WHERE status = $1 ORDER BY created_at DESC`
+        : `SELECT * FROM system_elements ORDER BY created_at DESC`;
+      const params = whereStatus ? [whereStatus] : [];
+      result = await pool.query(sqlText, params);
+    } catch {
+      // In case created_at column is missing or named differently
+      const sqlText = whereStatus
+        ? `SELECT * FROM system_elements WHERE status = $1`
+        : `SELECT * FROM system_elements`;
+      const params = whereStatus ? [whereStatus] : [];
+      result = await pool.query(sqlText, params);
+    }
+
+    return (result.rows || []).map((row: any) => ({
+      ...row,
+      createdAt: row.created_at || row.createdAt || new Date(),
+      updatedAt: row.updated_at || row.updatedAt || new Date(),
+      mechanicalBehaviors: row.mechanical_behaviors ?? row.mechanicalBehaviors ?? [],
+      requirements: row.requirements ?? { operator: 'all', requirements: [] },
+      effects: row.effects ?? [],
+      metadata: row.metadata ?? {},
+      revision: row.revision ?? 1,
+      iconType: row.icon_type ?? row.iconType ?? null,
+      iconValue: row.icon_value ?? row.iconValue ?? null,
+    }) as typeof systemElements.$inferSelect);
+  } catch (err) {
+    console.error("queryElementsFallback query failed:", err);
+    return [];
+  }
 }
 
 export async function getElements(): Promise<(typeof systemElements.$inferSelect)[]> {
   await ensureElementIconColumns();
-  try {
-    return await db.select().from(systemElements).orderBy(desc(systemElements.createdAt));
-  } catch (error: any) {
-    // If the database is missing icon columns, attempt immediate column addition or legacy projection fallback
-    if (error?.code === '42703' || String(error?.message).includes('icon_')) {
-      console.warn("Detected missing icon columns in system_elements, attempting recovery...");
-      try {
-        await db.execute(sql`
-          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
-          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
-        `);
-        return await db.select().from(systemElements).orderBy(desc(systemElements.createdAt));
-      } catch (recoveryErr) {
-        console.warn("Direct ALTER TABLE failed, falling back to legacy projection query:", recoveryErr);
-        const result = await db.execute(sql`
-          SELECT "id", "kind", "name", "description", "status", "effects", 
-                 "mechanical_behaviors", "requirements", "metadata", "revision", 
-                 "created_at", "updated_at" 
-          FROM "system_elements" 
-          ORDER BY "created_at" DESC
-        `);
-        return (result.rows || []).map((row: any) => ({
-          ...row,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-          mechanicalBehaviors: row.mechanical_behaviors,
-          iconType: null,
-          iconValue: null,
-        }) as typeof systemElements.$inferSelect);
-      }
+  if (columnsExist) {
+    try {
+      return await db.select().from(systemElements).orderBy(desc(systemElements.createdAt));
+    } catch (error) {
+      console.warn("db.select in getElements failed, using fallback query:", error);
     }
-    console.error("Database query failed:", error);
-    throw new Error("Failed to fetch elements");
   }
+  return queryElementsFallback();
 }
 
 export async function getPublishedElements(): Promise<(typeof systemElements.$inferSelect)[]> {
   await ensureElementIconColumns();
-  try {
-    return await db.select().from(systemElements).where(eq(systemElements.status, 'published')).orderBy(desc(systemElements.createdAt));
-  } catch (error: any) {
-    if (error?.code === '42703' || String(error?.message).includes('icon_')) {
-      try {
-        await db.execute(sql`
-          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
-          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
-        `);
-        return await db.select().from(systemElements).where(eq(systemElements.status, 'published')).orderBy(desc(systemElements.createdAt));
-      } catch (recoveryErr) {
-        console.warn("Direct ALTER TABLE failed in getPublishedElements, falling back to legacy projection query:", recoveryErr);
-        const result = await db.execute(sql`
-          SELECT "id", "kind", "name", "description", "status", "effects", 
-                 "mechanical_behaviors", "requirements", "metadata", "revision", 
-                 "created_at", "updated_at" 
-          FROM "system_elements" 
-          WHERE "status" = 'published'
-          ORDER BY "created_at" DESC
-        `);
-        return (result.rows || []).map((row: any) => ({
-          ...row,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-          mechanicalBehaviors: row.mechanical_behaviors,
-          iconType: null,
-          iconValue: null,
-        }) as typeof systemElements.$inferSelect);
-      }
+  if (columnsExist) {
+    try {
+      return await db.select().from(systemElements).where(eq(systemElements.status, 'published')).orderBy(desc(systemElements.createdAt));
+    } catch (error) {
+      console.warn("db.select in getPublishedElements failed, using fallback query:", error);
     }
-    console.error("Database query failed:", error);
-    throw new Error("Failed to fetch published elements");
   }
+  return queryElementsFallback('published');
 }
 
 export async function getElement(id: string): Promise<typeof systemElements.$inferSelect | undefined> {
   await ensureElementIconColumns();
-  try {
-    const results = await db.select().from(systemElements).where(eq(systemElements.id, id));
-    return results[0];
-  } catch (error: any) {
-    if (error?.code === '42703' || String(error?.message).includes('icon_')) {
-      try {
-        await db.execute(sql`
-          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
-          ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
-        `);
-        const results = await db.select().from(systemElements).where(eq(systemElements.id, id));
-        return results[0];
-      } catch (recoveryErr) {
-        console.warn("Direct ALTER TABLE failed in getElement, falling back to legacy projection query:", recoveryErr);
-        const result = await db.execute(sql`
-          SELECT "id", "kind", "name", "description", "status", "effects", 
-                 "mechanical_behaviors", "requirements", "metadata", "revision", 
-                 "created_at", "updated_at" 
-          FROM "system_elements" 
-          WHERE "id" = ${id}
-        `);
-        if (!result.rows || result.rows.length === 0) return undefined;
-        const row = result.rows[0];
-        return {
-          ...row,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-          mechanicalBehaviors: row.mechanical_behaviors,
-          iconType: null,
-          iconValue: null,
-        } as typeof systemElements.$inferSelect;
-      }
+  if (columnsExist) {
+    try {
+      const results = await db.select().from(systemElements).where(eq(systemElements.id, id));
+      if (results && results.length > 0) return results[0];
+    } catch {
+      // Fall through to query fallback
     }
-    console.error("Database query failed:", error);
-    throw new Error("Failed to fetch element");
+  }
+  try {
+    const result = await pool.query(
+      `SELECT * FROM system_elements WHERE id = $1`,
+      [id]
+    );
+    if (!result.rows || result.rows.length === 0) return undefined;
+    const row = result.rows[0];
+    return {
+      ...row,
+      createdAt: row.created_at || row.createdAt || new Date(),
+      updatedAt: row.updated_at || row.updatedAt || new Date(),
+      mechanicalBehaviors: row.mechanical_behaviors ?? row.mechanicalBehaviors ?? [],
+      requirements: row.requirements ?? { operator: 'all', requirements: [] },
+      effects: row.effects ?? [],
+      metadata: row.metadata ?? {},
+      revision: row.revision ?? 1,
+      iconType: row.icon_type ?? row.iconType ?? null,
+      iconValue: row.icon_value ?? row.iconValue ?? null,
+    } as typeof systemElements.$inferSelect;
+  } catch {
+    return undefined;
   }
 }
 

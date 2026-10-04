@@ -739,6 +739,7 @@ export function getVisibleOptions<T extends { runtimeKey?: string; id?: string; 
   options: T[],
   currentValue?: string | number | null
 ): T[] {
+  if (!Array.isArray(options)) return [];
   const currentStr = currentValue !== undefined && currentValue !== null ? String(currentValue) : undefined;
 
   return options.filter((opt) => {

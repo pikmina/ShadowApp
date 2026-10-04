@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { icons, LucideIcon, Search, Smile, Sparkles, X, ChevronDown, Check } from 'lucide-react';
 import { Picker } from 'emoji-mart';
+import emojiData from '@emoji-mart/data';
 import { ItemIcon, resolveLucideIcon, getCategoryFallbackIcon } from './ItemIcon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +26,80 @@ const POPULAR_ITEM_EMOJIS = [
   '🚗', '🏍️', '🚁', '🏠', '🏢', '🏰', '📦', '🎒', '🧭', '💼',
 ];
 
+// Curated popular RPG & item Lucide icons shown by default
+const POPULAR_LUCIDE_KEYS = [
+  'swords', 'sword', 'shield', 'shield-alert', 'shield-check', 'shield-user',
+  'crosshair', 'target', 'bomb', 'axe', 'hammer', 'wrench',
+  'flask-conical', 'pill', 'syringe', 'heart-pulse', 'heart', 'activity',
+  'sparkles', 'flame', 'zap', 'snowflake', 'skull', 'eye',
+  'scroll', 'book-open', 'book', 'file-text', 'award', 'trophy',
+  'coins', 'gem', 'crown', 'key', 'lock', 'package', 'box',
+  'backpack', 'briefcase', 'compass', 'map', 'car', 'building',
+  'user', 'user-shield', 'clock', 'hourglass', 'wand', 'apple',
+];
+
+// Spanish keyword mapping to Lucide icon search terms
+const SPANISH_LUCIDE_KEYWORDS: Record<string, string[]> = {
+  espada: ['sword', 'swords'],
+  espadas: ['sword', 'swords'],
+  escudo: ['shield'],
+  escudos: ['shield'],
+  pocion: ['flask', 'pill', 'syringe'],
+  poción: ['flask', 'pill', 'syringe'],
+  pociones: ['flask', 'pill'],
+  medicina: ['pill', 'syringe', 'heart-pulse'],
+  cura: ['heart', 'pill', 'heart-pulse', 'activity'],
+  salud: ['heart', 'heart-pulse', 'activity'],
+  vida: ['heart', 'heart-pulse', 'activity'],
+  arma: ['sword', 'swords', 'crosshair', 'target', 'bomb', 'axe'],
+  armas: ['sword', 'swords', 'crosshair', 'target', 'bomb', 'axe'],
+  pistola: ['crosshair', 'target'],
+  arco: ['target', 'crosshair', 'arrow'],
+  flecha: ['target', 'crosshair', 'arrow'],
+  fuego: ['flame', 'sparkles'],
+  hielo: ['snowflake', 'ice'],
+  rayo: ['zap', 'battery'],
+  trueno: ['zap'],
+  electricidad: ['zap', 'plug', 'battery'],
+  magia: ['sparkles', 'wand', 'star'],
+  don: ['sparkles', 'zap', 'flame', 'brain', 'activity'],
+  quirk: ['sparkles', 'zap', 'flame', 'activity'],
+  libro: ['book', 'book-open', 'library'],
+  pergamino: ['scroll', 'file-text'],
+  dinero: ['coins', 'circle-dollar-sign', 'banknote', 'wallet'],
+  moneda: ['coins', 'circle-dollar-sign'],
+  oro: ['coins', 'crown', 'gem'],
+  gema: ['gem', 'crown'],
+  joya: ['gem', 'crown'],
+  corona: ['crown', 'trophy', 'award'],
+  hacha: ['axe'],
+  martillo: ['hammer'],
+  llave: ['key'],
+  candado: ['lock'],
+  cerradura: ['lock', 'key'],
+  ojo: ['eye'],
+  calavera: ['skull'],
+  veneno: ['skull', 'flask-conical', 'biohazard'],
+  comida: ['apple', 'beef', 'pizza', 'utensils'],
+  fruta: ['apple'],
+  manzana: ['apple'],
+  bebida: ['coffee', 'wine', 'cup-soda'],
+  vehiculo: ['car', 'truck', 'bike', 'plane'],
+  vehículo: ['car', 'truck', 'bike', 'plane'],
+  coche: ['car'],
+  auto: ['car'],
+  mochila: ['backpack', 'package', 'box'],
+  maletin: ['briefcase', 'box'],
+  maletín: ['briefcase', 'box'],
+  caja: ['box', 'package'],
+  paquete: ['package', 'box'],
+  reloj: ['clock', 'timer', 'hourglass'],
+  tiempo: ['clock', 'hourglass'],
+  herramienta: ['wrench', 'hammer'],
+  armadura: ['shield', 'shield-user', 'shirt'],
+  casco: ['hard-hat', 'shield'],
+};
+
 // Convert PascalCase to kebab-case
 const toKebab = (str: string) =>
   str.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
@@ -36,7 +111,13 @@ const ALL_LUCIDE_ICONS: Array<{ pascal: string; kebab: string; Icon: LucideIcon 
     kebab: toKebab(key),
     Icon: (icons as Record<string, LucideIcon>)[key],
   }))
-  .filter((i) => typeof i.Icon === 'function');
+  .filter((i) => Boolean(i.Icon));
+
+const ALL_LUCIDE_MAP = new Map<string, { pascal: string; kebab: string; Icon: LucideIcon }>();
+for (const item of ALL_LUCIDE_ICONS) {
+  ALL_LUCIDE_MAP.set(item.kebab, item);
+  ALL_LUCIDE_MAP.set(item.pascal.toLowerCase(), item);
+}
 
 /**
  * Visual Emoji Picker container wrapping Emoji Mart web component.
@@ -51,7 +132,7 @@ function EmojiMartPickerBox({ onSelect }: { onSelect: (unicodeEmoji: string) => 
 
     try {
       const picker = new Picker({
-        data: 'https://cdn.jsdelivr.net/npm/@emoji-mart/data',
+        data: emojiData,
         locale: 'es',
         theme: 'dark',
         previewPosition: 'none',
@@ -64,7 +145,9 @@ function EmojiMartPickerBox({ onSelect }: { onSelect: (unicodeEmoji: string) => 
         },
       });
 
-      containerRef.current.appendChild(picker as unknown as HTMLElement);
+      if (containerRef.current) {
+        containerRef.current.appendChild(picker as unknown as HTMLElement);
+      }
     } catch (err) {
       console.error('Error al inicializar Emoji Mart:', err);
       setLoadError(true);
@@ -102,15 +185,74 @@ export function ItemIconPicker({
   const [lucideSearch, setLucideSearch] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
 
-  // Filter Lucide icons
+  // Filter Lucide icons with Spanish synonyms and smart ranking
   const filteredLucideIcons = useMemo(() => {
     if (!lucideSearch.trim()) {
-      return ALL_LUCIDE_ICONS.slice(0, 48);
+      // Default: show popular RPG and utility icons first, then alphabetical
+      const popularItems: Array<{ pascal: string; kebab: string; Icon: LucideIcon }> = [];
+      const seen = new Set<string>();
+
+      for (const key of POPULAR_LUCIDE_KEYS) {
+        const found = ALL_LUCIDE_MAP.get(key);
+        if (found && !seen.has(found.kebab)) {
+          popularItems.push(found);
+          seen.add(found.kebab);
+        }
+      }
+
+      for (const item of ALL_LUCIDE_ICONS) {
+        if (!seen.has(item.kebab)) {
+          popularItems.push(item);
+          seen.add(item.kebab);
+        }
+        if (popularItems.length >= 64) break;
+      }
+
+      return popularItems;
     }
-    const q = lucideSearch.trim().toLowerCase();
-    return ALL_LUCIDE_ICONS.filter(
-      (item) => item.kebab.includes(q) || item.pascal.toLowerCase().includes(q)
-    ).slice(0, 72);
+
+    const rawQuery = lucideSearch.trim().toLowerCase();
+    const cleanQuery = rawQuery.replace(/[^a-z0-9áéíóúñ]/gi, '');
+    const tokens = rawQuery.split(/[\s-_]+/).filter(Boolean);
+
+    // Expand Spanish synonyms
+    const expandedTerms = new Set<string>([rawQuery, cleanQuery, ...tokens]);
+    for (const token of [rawQuery, cleanQuery, ...tokens]) {
+      const syns = SPANISH_LUCIDE_KEYWORDS[token];
+      if (syns) {
+        syns.forEach(s => expandedTerms.add(s.toLowerCase()));
+      }
+    }
+
+    const searchTerms = Array.from(expandedTerms).filter(Boolean);
+
+    const matches: Array<{ item: { pascal: string; kebab: string; Icon: LucideIcon }; score: number }> = [];
+
+    for (const item of ALL_LUCIDE_ICONS) {
+      const kebab = item.kebab;
+      const pascal = item.pascal.toLowerCase();
+
+      let bestScore = 0;
+
+      for (const term of searchTerms) {
+        if (kebab === term || pascal === term) {
+          bestScore = Math.max(bestScore, 100); // Exact match
+        } else if (kebab.startsWith(term) || pascal.startsWith(term)) {
+          bestScore = Math.max(bestScore, 80); // Prefix match
+        } else if (kebab.includes(term) || pascal.includes(term)) {
+          bestScore = Math.max(bestScore, 50); // Substring match
+        }
+      }
+
+      if (bestScore > 0) {
+        matches.push({ item, score: bestScore });
+      }
+    }
+
+    // Sort by relevance score descending, then shorter kebab name
+    matches.sort((a, b) => b.score - a.score || a.item.kebab.length - b.item.kebab.length);
+
+    return matches.slice(0, 96).map(m => m.item);
   }, [lucideSearch]);
 
   const handleModeChange = (newMode: 'none' | 'lucide' | 'emoji') => {
@@ -291,6 +433,11 @@ export function ItemIconPicker({
                 </button>
               );
             })}
+            {filteredLucideIcons.length === 0 && (
+              <div className="col-span-full py-6 text-center text-xs text-muted-foreground font-oxanium">
+                No se encontraron iconos para &ldquo;{lucideSearch}&rdquo;. Prueba con términos como <em>sword, escudo, pocion, flame, zap</em>.
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">

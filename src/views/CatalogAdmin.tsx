@@ -141,7 +141,11 @@ export default function CatalogAdmin() {
     user ? "/api/admin/elements" : null, fetcher
   );
 
-  const elements = rawElements?.filter((el: any) => el.kind !== "technique" && el.kind !== "technique_entitlement");
+  const elements = useMemo(() => {
+    return Array.isArray(rawElements)
+      ? rawElements.filter((el: any) => el.kind !== "technique" && el.kind !== "technique_entitlement")
+      : [];
+  }, [rawElements]);
   
   const filteredElements = useMemo(() => {
     if (!elements) return [];
