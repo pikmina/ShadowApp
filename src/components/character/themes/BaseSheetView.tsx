@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ItemIcon } from '@/components/common/ItemIcon';
 import {
   Heart,
@@ -289,6 +289,12 @@ export function BaseSheetView({
     profile?.face_claim ||
     profile?.pb ||
     (alias && alias !== 'Sin alias' ? `${fullName} - ${alias}` : `${fullName} - MHA`);
+
+  useEffect(() => {
+    if (fullName) {
+      document.title = `${fullName} ✦ MHA:OFA`;
+    }
+  }, [fullName]);
 
   return (
     <main className="max-w-6xl mx-auto px-3 sm:px-6 py-6 space-y-4 font-oxanium text-zinc-100 selection:bg-emerald-500 selection:text-black">

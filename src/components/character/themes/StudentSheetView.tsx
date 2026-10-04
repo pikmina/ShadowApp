@@ -140,6 +140,13 @@ export function StudentSheetView({
   const desStat = attrWithMods.find(a => (a as any).key === 'DES' || a.label?.toLowerCase().includes('destreza'));
   const modFue = fueStat?.mod ?? 0;
   const modDes = desStat?.mod ?? 0;
+
+  React.useEffect(() => {
+    if (fullName) {
+      document.title = `${fullName} ✦ MHA:OFA`;
+    }
+  }, [fullName]);
+
   return (
     <div className="min-h-screen bg-[#f3efe3] text-slate-900 font-sans selection:bg-blue-500/20 p-2 sm:p-6 space-y-6 max-w-6xl mx-auto rounded-3xl border-2 border-stone-300 shadow-2xl relative my-4 overflow-hidden bg-[linear-gradient(transparent_27px,rgba(59,130,246,0.07)_28px)] [background-size:100%_28px]">
       {/* Decorative binder holes along left side */}

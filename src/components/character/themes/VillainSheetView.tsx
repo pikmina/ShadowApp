@@ -238,6 +238,12 @@ export function VillainSheetView({
   // Character quote if explicitly present in profile
   const characterQuote = profile?.quote || profile?.frase || profile?.lema || null;
 
+  React.useEffect(() => {
+    if (fullName) {
+      document.title = `${fullName} ✦ MHA:OFA`;
+    }
+  }, [fullName]);
+
   return (
     <main
       className="max-w-6xl mx-auto px-3 sm:px-4 pt-4 sm:pt-6 pb-16 space-y-6 text-zinc-100 font-sans selection:bg-zinc-800 selection:text-white"

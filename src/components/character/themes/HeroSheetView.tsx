@@ -128,6 +128,12 @@ export function HeroSheetView({
   const modFue = Math.floor((fueStat?.value || 0) / 2);
   const modDes = Math.floor((desStat?.value || 0) / 2);
 
+  React.useEffect(() => {
+    if (fullName) {
+      document.title = `${fullName} ✦ MHA:OFA`;
+    }
+  }, [fullName]);
+
   return (
     <main className="max-w-6xl mx-auto px-4 pt-6 space-y-6">
       {/* =========================================================================

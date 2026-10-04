@@ -536,6 +536,19 @@ export default function PublicSheet() {
       iconValue: r?.element?.iconValue ?? null,
     }));
 
+  useEffect(() => {
+    if (character) {
+      const charName = fullName || character.name;
+      const title = charName && charName !== 'Sin nombre' && charName !== 'Personaje sin nombre'
+        ? `${charName} ✦ MHA:OFA`
+        : 'Ficha de Personaje ✦ MHA:OFA';
+      document.title = title;
+    }
+    return () => {
+      document.title = 'Shadowmore';
+    };
+  }, [character, fullName]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#08080a] font-oxanium text-sm text-zinc-400">
@@ -558,12 +571,14 @@ export default function PublicSheet() {
       <header className="sticky top-0 z-50 border-b border-zinc-800 bg-[#0a0a0e]/95 px-3 py-2.5 backdrop-blur-md sm:px-6 shadow-[0_4px_20px_rgba(0,0,0,0.6)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <div className="min-w-0">
-            <p className="flex items-center gap-2 truncate text-xs font-black tracking-widest text-zinc-300">
-              <span className="rounded bg-cyan-600 px-1.5 py-0.5 text-[9px] text-white">S</span>
-              SHADOWMORE OS <span className="text-[10px] font-normal text-cyan-400">4.1.2</span>
+            <p className="flex items-center gap-2 truncate text-xs font-black tracking-widest text-zinc-100">
+              <span className="rounded bg-cyan-600 px-1.5 py-0.5 text-[9px] text-white font-mono">FICHA</span>
+              <span className="text-white font-bold truncate">{fullName || 'Personaje'}</span>
+              <span className="text-cyan-400 font-normal">✦</span>
+              <span className="text-[11px] font-mono font-bold text-cyan-400">MHA:OFA</span>
             </p>
             <p className="mt-0.5 truncate text-[9px] uppercase tracking-[0.16em] text-zinc-500">
-              Expediente público de personaje
+              Expediente público de personaje • SHADOWMORE OS
             </p>
           </div>
           <nav className="flex shrink-0 items-center gap-2">

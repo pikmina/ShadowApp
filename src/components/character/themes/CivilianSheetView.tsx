@@ -292,6 +292,12 @@ export function CivilianSheetView({
     ];
   }, [personalDataList, profile, group, employments]);
 
+  React.useEffect(() => {
+    if (fullName) {
+      document.title = `${fullName} ✦ MHA:OFA`;
+    }
+  }, [fullName]);
+
   return (
     <main className="max-w-5xl mx-auto px-2 sm:px-4 py-6 font-serif selection:bg-amber-200 selection:text-stone-900">
       {/* Official Government Dossier Container - Light archival paper background */}
