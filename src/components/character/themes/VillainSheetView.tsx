@@ -813,38 +813,44 @@ export function VillainSheetView({
           </p>
 
           {/* 3-Column Quirk Evolution Levels */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 items-stretch">
             {/* NIVEL 1 · DESPERTAR */}
-            <div className="p-3 rounded bg-[#141218] border-2 border-zinc-800 space-y-1 shadow-[2px_2px_0px_#000]">
-              <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-200">
+            <div className="p-3 rounded bg-[#141218] border-2 border-zinc-800 space-y-1 shadow-[2px_2px_0px_#000] flex flex-col justify-start">
+              <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-200 shrink-0">
                 <span className="size-2 rounded-full inline-block" style={{ backgroundColor: 'var(--villain-accent, var(--villanos, #e11d48))' }} />
                 <span>NIVEL 1 · DESPERTAR</span>
               </div>
-              <p className="text-[11px] text-zinc-300 font-sans leading-relaxed">
-                {qLevelOne}
-              </p>
+              <div className="max-h-48 overflow-y-auto pr-1.5 custom-scrollbar">
+                <p className="text-[11px] text-zinc-300 font-sans leading-relaxed">
+                  {qLevelOne}
+                </p>
+              </div>
             </div>
 
             {/* NIVEL 2 · DOMINIO */}
-            <div className="p-3 rounded bg-[#141218] border-2 border-zinc-800 space-y-1 shadow-[2px_2px_0px_#000]">
-              <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-200">
+            <div className="p-3 rounded bg-[#141218] border-2 border-zinc-800 space-y-1 shadow-[2px_2px_0px_#000] flex flex-col justify-start">
+              <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-200 shrink-0">
                 <span className="size-2 rounded-full inline-block" style={{ backgroundColor: 'var(--villain-accent, var(--villanos, #e11d48))' }} />
                 <span>NIVEL 2 · DOMINIO</span>
               </div>
-              <p className="text-[11px] text-zinc-300 font-sans leading-relaxed">
-                {qLevelTwo || 'En desarrollo / No alcanzado'}
-              </p>
+              <div className="max-h-48 overflow-y-auto pr-1.5 custom-scrollbar">
+                <p className="text-[11px] text-zinc-300 font-sans leading-relaxed">
+                  {qLevelTwo || 'En desarrollo / No alcanzado'}
+                </p>
+              </div>
             </div>
 
             {/* NIVEL 3 · PLUS ULTRA */}
-            <div className="p-3 rounded bg-[#141218] border-2 border-zinc-800 space-y-1 shadow-[2px_2px_0px_#000]">
-              <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-200">
+            <div className="p-3 rounded bg-[#141218] border-2 border-zinc-800 space-y-1 shadow-[2px_2px_0px_#000] flex flex-col justify-start">
+              <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-200 shrink-0">
                 <span className="size-2 rounded-full inline-block" style={{ backgroundColor: 'var(--villain-accent, var(--villanos, #e11d48))' }} />
                 <span>NIVEL 3 · TRASCENDENCIA</span>
               </div>
-              <p className="text-[11px] text-zinc-300 font-sans leading-relaxed">
-                {qLevelThree || 'Sin despertar / No alcanzado'}
-              </p>
+              <div className="max-h-48 overflow-y-auto pr-1.5 custom-scrollbar">
+                <p className="text-[11px] text-zinc-300 font-sans leading-relaxed">
+                  {qLevelThree || 'Sin despertar / No alcanzado'}
+                </p>
+              </div>
             </div>
           </div>
         </div>

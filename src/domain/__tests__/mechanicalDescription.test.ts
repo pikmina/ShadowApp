@@ -432,7 +432,7 @@ describe("Mechanical Description Renderer (Task 23)", () => {
       };
       const res = describeMechanicalBehavior(mb);
       expect(res.text).toBe(
-        "Otorga -1 a Evasión. Si Resistencia (RES) >= 5 y Resistencia (RES) < 7."
+        "Otorga -1 a Evasión. Si Resistencia (RES) es mayor o igual a 5 y Resistencia (RES) es menor que 7."
       );
     });
 

@@ -492,35 +492,41 @@ export function CivilianSheetView({
 
             {/* Niveles de Desarrollo de Don */}
             {(quirkLevelOne || quirkLevelTwo || quirkLevelThree) && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-2 border-t border-stone-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-2 border-t border-stone-200 items-stretch">
                 {quirkLevelOne && (
-                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded space-y-1">
-                    <span className="text-[10px] font-sans font-bold text-stone-600 uppercase block">
+                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded space-y-1 flex flex-col justify-start">
+                    <span className="text-[10px] font-sans font-bold text-stone-600 uppercase block shrink-0">
                       Nivel 1 • Despertar
                     </span>
-                    <p className="text-xs text-stone-800 font-serif leading-relaxed">
-                      {quirkLevelOne}
-                    </p>
+                    <div className="max-h-48 overflow-y-auto pr-1.5 civilian-scrollbar">
+                      <p className="text-xs text-stone-800 font-serif leading-relaxed">
+                        {quirkLevelOne}
+                      </p>
+                    </div>
                   </div>
                 )}
                 {quirkLevelTwo && (
-                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded space-y-1">
-                    <span className="text-[10px] font-sans font-bold text-stone-600 uppercase block">
+                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded space-y-1 flex flex-col justify-start">
+                    <span className="text-[10px] font-sans font-bold text-stone-600 uppercase block shrink-0">
                       Nivel 2 • Dominio
                     </span>
-                    <p className="text-xs text-stone-800 font-serif leading-relaxed">
-                      {quirkLevelTwo}
-                    </p>
+                    <div className="max-h-48 overflow-y-auto pr-1.5 civilian-scrollbar">
+                      <p className="text-xs text-stone-800 font-serif leading-relaxed">
+                        {quirkLevelTwo}
+                      </p>
+                    </div>
                   </div>
                 )}
                 {quirkLevelThree && (
-                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded space-y-1">
-                    <span className="text-[10px] font-sans font-bold text-stone-600 uppercase block">
-                      Nivel 3 • Plus Ultra
+                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded space-y-1 flex flex-col justify-start">
+                    <span className="text-[10px] font-sans font-bold text-stone-600 uppercase block shrink-0">
+                      Nivel 3 • Trascendencia
                     </span>
-                    <p className="text-xs text-stone-800 font-serif leading-relaxed">
-                      {quirkLevelThree}
-                    </p>
+                    <div className="max-h-48 overflow-y-auto pr-1.5 civilian-scrollbar">
+                      <p className="text-xs text-stone-800 font-serif leading-relaxed">
+                        {quirkLevelThree}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

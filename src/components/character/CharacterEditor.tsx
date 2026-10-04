@@ -656,15 +656,15 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
               <Textarea value={formData[`${field.id}_desc`] || ''} onChange={e => updateField(`${field.id}_desc`, e.target.value)} />
             </div>
             <div className="space-y-2 border-t border-border pt-2">
-              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 1</Label>
+              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 1 · Despertar</Label>
               <Textarea value={formData[`${field.id}_lvl1`] || ''} onChange={e => updateField(`${field.id}_lvl1`, e.target.value)} />
             </div>
             <div className="space-y-2 border-t border-border pt-2">
-              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 2</Label>
+              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 2 · Dominio</Label>
               <Textarea value={formData[`${field.id}_lvl2`] || ''} onChange={e => updateField(`${field.id}_lvl2`, e.target.value)} />
             </div>
             <div className="space-y-2 border-t border-border pt-2">
-              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 3</Label>
+              <Label className="text-xs block text-foreground uppercase tracking-widest">Nivel 3 · Trascendencia</Label>
               <Textarea value={formData[`${field.id}_lvl3`] || ''} onChange={e => updateField(`${field.id}_lvl3`, e.target.value)} />
             </div>
           </div>

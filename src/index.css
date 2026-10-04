@@ -382,6 +382,46 @@
   .custom-scrollbar::-webkit-scrollbar-corner {
     background: transparent;
   }
+
+  /* Notebook / Student theme subtle scrollbar */
+  .student-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(217, 119, 6, 0.35) transparent;
+  }
+  .student-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  .student-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .student-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(217, 119, 6, 0.25);
+    border-radius: 9999px;
+  }
+  .student-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(217, 119, 6, 0.5);
+  }
+
+  /* Civilian formal theme subtle scrollbar */
+  .civilian-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(168, 162, 158, 0.5) transparent;
+  }
+  .civilian-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  .civilian-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .civilian-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(168, 162, 158, 0.35);
+    border-radius: 9999px;
+  }
+  .civilian-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(120, 113, 108, 0.7);
+  }
 }
 
 /* Global scrollbars */

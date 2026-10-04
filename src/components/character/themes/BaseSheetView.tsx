@@ -815,7 +815,7 @@ export function BaseSheetView({
                   className="w-full p-2.5 flex items-center justify-between text-left text-xs font-oxanium font-bold text-zinc-200 hover:text-white transition-colors"
                 >
                   <span className="flex items-center gap-1.5 text-emerald-400">
-                    ✦ <span>NIVEL 1</span>
+                    ✦ <span>NIVEL 1 · DESPERTAR</span>
                   </span>
                   {openLevels.includes(1) ? (
                     <ChevronUp className="size-3.5 text-zinc-400" />
@@ -825,7 +825,7 @@ export function BaseSheetView({
                 </button>
                 <div
                   className={cn(
-                    "px-3 pb-3 text-xs font-poppins text-zinc-300 leading-relaxed border-t border-zinc-800/40 pt-2",
+                    "px-3 pb-3 text-xs font-poppins text-zinc-300 leading-relaxed border-t border-zinc-800/40 pt-2 max-h-48 overflow-y-auto pr-1.5 custom-scrollbar",
                     !openLevels.includes(1) && "hidden"
                   )}
                 >
@@ -843,7 +843,7 @@ export function BaseSheetView({
                   className="w-full p-2.5 flex items-center justify-between text-left text-xs font-oxanium font-bold text-zinc-200 hover:text-white transition-colors"
                 >
                   <span className="flex items-center gap-1.5 text-emerald-400">
-                    ✦ <span>NIVEL 2</span>
+                    ✦ <span>NIVEL 2 · DOMINIO</span>
                   </span>
                   {openLevels.includes(2) ? (
                     <ChevronUp className="size-3.5 text-zinc-400" />
@@ -853,7 +853,7 @@ export function BaseSheetView({
                 </button>
                 <div
                   className={cn(
-                    "px-3 pb-3 text-xs font-poppins text-zinc-300 leading-relaxed border-t border-zinc-800/40 pt-2",
+                    "px-3 pb-3 text-xs font-poppins text-zinc-300 leading-relaxed border-t border-zinc-800/40 pt-2 max-h-48 overflow-y-auto pr-1.5 custom-scrollbar",
                     !openLevels.includes(2) && "hidden"
                   )}
                 >
@@ -871,7 +871,7 @@ export function BaseSheetView({
                   className="w-full p-2.5 flex items-center justify-between text-left text-xs font-oxanium font-bold text-zinc-200 hover:text-white transition-colors"
                 >
                   <span className="flex items-center gap-1.5 text-emerald-400">
-                    ✦ <span>NIVEL 3</span>
+                    ✦ <span>NIVEL 3 · TRASCENDENCIA</span>
                   </span>
                   {openLevels.includes(3) ? (
                     <ChevronUp className="size-3.5 text-zinc-400" />
@@ -881,7 +881,7 @@ export function BaseSheetView({
                 </button>
                 <div
                   className={cn(
-                    "px-3 pb-3 text-xs font-poppins text-zinc-300 leading-relaxed border-t border-zinc-800/40 pt-2",
+                    "px-3 pb-3 text-xs font-poppins text-zinc-300 leading-relaxed border-t border-zinc-800/40 pt-2 max-h-48 overflow-y-auto pr-1.5 custom-scrollbar",
                     !openLevels.includes(3) && "hidden"
                   )}
                 >

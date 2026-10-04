@@ -94,8 +94,8 @@ export function TarjetaFicha({ character }) {
           
           <div className="space-y-1 text-xs bg-muted/20 p-3 rounded">
             <p><strong className="text-foreground">Nivel 1 (Despertar):</strong> {quirkLvl1}</p>
-            <p><strong className="text-foreground">Nivel 2 (Desarrollo):</strong> {quirkLvl2}</p>
-            <p><strong className="text-foreground">Nivel 3 (Maestría):</strong> {quirkLvl3}</p>
+            <p><strong className="text-foreground">Nivel 2 (Dominio):</strong> {quirkLvl2}</p>
+            <p><strong className="text-foreground">Nivel 3 (Trascendencia):</strong> {quirkLvl3}</p>
           </div>
         </div>
       </div>

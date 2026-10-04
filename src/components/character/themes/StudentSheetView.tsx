@@ -398,35 +398,41 @@ export function StudentSheetView({
           </div>
 
           {/* Evolution Levels */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-xl bg-white border border-amber-300 shadow-xs space-y-2">
-              <span className="text-xs font-bold text-amber-800 block uppercase font-mono">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
+            <div className="p-3.5 rounded-xl bg-white border border-amber-300 shadow-xs space-y-2 flex flex-col justify-start">
+              <span className="text-xs font-bold text-amber-800 block uppercase font-mono shrink-0">
                 NIVEL 1 • DESPERTAR
               </span>
-              <p className="text-xs text-slate-700 leading-relaxed">
-                {quirkLevelOne}
-              </p>
+              <div className="max-h-48 overflow-y-auto pr-1.5 student-scrollbar">
+                <p className="text-xs text-slate-700 leading-relaxed">
+                  {quirkLevelOne}
+                </p>
+              </div>
             </div>
 
             {quirkLevelTwo && (
-              <div className="p-3.5 rounded-xl bg-white border border-blue-300 shadow-xs space-y-2">
-                <span className="text-xs font-bold text-blue-800 block uppercase font-mono">
+              <div className="p-3.5 rounded-xl bg-white border border-blue-300 shadow-xs space-y-2 flex flex-col justify-start">
+                <span className="text-xs font-bold text-blue-800 block uppercase font-mono shrink-0">
                   NIVEL 2 • DOMINIO
                 </span>
-                <p className="text-xs text-slate-700 leading-relaxed">
-                  {quirkLevelTwo}
-                </p>
+                <div className="max-h-48 overflow-y-auto pr-1.5 student-scrollbar">
+                  <p className="text-xs text-slate-700 leading-relaxed">
+                    {quirkLevelTwo}
+                  </p>
+                </div>
               </div>
             )}
 
             {quirkLevelThree && (
-              <div className="p-3.5 rounded-xl bg-white border border-purple-300 shadow-xs space-y-2">
-                <span className="text-xs font-bold text-purple-800 block uppercase font-mono">
-                  NIVEL 3 • PLUS ULTRA
+              <div className="p-3.5 rounded-xl bg-white border border-purple-300 shadow-xs space-y-2 flex flex-col justify-start">
+                <span className="text-xs font-bold text-purple-800 block uppercase font-mono shrink-0">
+                  NIVEL 3 • TRASCENDENCIA
                 </span>
-                <p className="text-xs text-slate-700 leading-relaxed">
-                  {quirkLevelThree}
-                </p>
+                <div className="max-h-48 overflow-y-auto pr-1.5 student-scrollbar">
+                  <p className="text-xs text-slate-700 leading-relaxed">
+                    {quirkLevelThree}
+                  </p>
+                </div>
               </div>
             )}
           </div>

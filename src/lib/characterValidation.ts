@@ -115,6 +115,9 @@ export function evaluateBehaviorConditionsForCharacter(
 
     if (c.type === 'equipped') {
       res = context.isEquipped !== false;
+    } else if (c.type === 'manual' || c.type === 'die' || c.type === 'roll' || c.type === 'turn_aggregate' || c.type === 'turn_history') {
+      // Dynamic situational/combat conditions are evaluated in combat runtime, not on static profile sheet
+      res = false;
     } else if (c.type === 'percentage') {
       const resId = String(c.resourceId || 'SA').trim().toUpperCase();
       const isHealth = ['SA', 'SALUD', 'SAL', 'HP'].includes(resId);

@@ -475,9 +475,11 @@ export function HeroSheetView({
                       <span className="text-[10px] font-mono font-bold text-amber-300 block uppercase tracking-wider">
                         NIVEL 1 • DESPERTAR
                       </span>
-                      <p className="text-xs text-zinc-300 leading-relaxed font-sans">
-                        {quirkLevelOne}
-                      </p>
+                      <div className="max-h-40 overflow-y-auto pr-1.5 custom-scrollbar">
+                        <p className="text-xs text-zinc-300 leading-relaxed font-sans">
+                          {quirkLevelOne}
+                        </p>
+                      </div>
                     </div>
                   )}
                   {quirkLevelTwo && (
@@ -485,19 +487,23 @@ export function HeroSheetView({
                       <span className="text-[10px] font-mono font-bold text-cyan-300 block uppercase tracking-wider">
                         NIVEL 2 • DOMINIO
                       </span>
-                      <p className="text-xs text-zinc-300 leading-relaxed font-sans">
-                        {quirkLevelTwo}
-                      </p>
+                      <div className="max-h-40 overflow-y-auto pr-1.5 custom-scrollbar">
+                        <p className="text-xs text-zinc-300 leading-relaxed font-sans">
+                          {quirkLevelTwo}
+                        </p>
+                      </div>
                     </div>
                   )}
                   {quirkLevelThree && (
                     <div className="p-3 rounded-lg bg-zinc-950/80 border border-rose-500/30 space-y-1">
                       <span className="text-[10px] font-mono font-bold text-rose-300 block uppercase tracking-wider">
-                        NIVEL 3 • PLUS ULTRA
+                        NIVEL 3 • TRASCENDENCIA
                       </span>
-                      <p className="text-xs text-zinc-300 leading-relaxed font-sans">
-                        {quirkLevelThree}
-                      </p>
+                      <div className="max-h-40 overflow-y-auto pr-1.5 custom-scrollbar">
+                        <p className="text-xs text-zinc-300 leading-relaxed font-sans">
+                          {quirkLevelThree}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
