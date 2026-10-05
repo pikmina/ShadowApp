@@ -398,6 +398,18 @@ export default function PublicSheet() {
   const rawAlignment = readValue(profile, ['basic_alignment', 'alignment', 'alineacion', 'alineación', 'alineamiento']);
   const rawNationality = readValue(profile, ['nationality', 'nacionalidad']);
 
+  const classNameResolved = enrollment?.classGroup?.name 
+    || readValue(profile, ['class_group', 'clase_grupo', 'clase', 'aula', 'seccion', 'sección']) 
+    || 'Clase 1-A';
+
+  const courseNameResolved = enrollment?.academicYear?.name 
+    || readValue(profile, ['course', 'curso', 'especialidad', 'carrera', 'formacion', 'formación']) 
+    || (basicStage && basicStage !== 'Estudiante Básica' ? basicStage : 'Curso de Héroes');
+
+  const schoolNameResolved = enrollment?.school?.name 
+    || readValue(profile, ['school', 'escuela', 'academia', 'institucion', 'institución']) 
+    || 'Academia UA';
+
   const occupationOrClass = (() => {
     if (employmentsList.length > 0) {
       return employmentsList.map((e: any) => `${e.position?.name || 'Empleado'} (${e.institution?.name || 'Entidad'})`).join(', ');
@@ -507,18 +519,6 @@ export default function PublicSheet() {
         : (tech.autoDescription || generateAutoDescription(tech, mechanicsList, staminaCosts, finalCost)),
     };
   });
-
-  const classNameResolved = enrollment?.classGroup?.name 
-    || readValue(profile, ['class_group', 'clase_grupo', 'clase', 'aula', 'seccion', 'sección']) 
-    || 'Clase 1-A';
-
-  const courseNameResolved = enrollment?.academicYear?.name 
-    || readValue(profile, ['course', 'curso', 'especialidad', 'carrera', 'formacion', 'formación']) 
-    || (basicStage && basicStage !== 'Estudiante Básica' ? basicStage : 'Curso de Héroes');
-
-  const schoolNameResolved = enrollment?.school?.name 
-    || readValue(profile, ['school', 'escuela', 'academia', 'institucion', 'institución']) 
-    || 'Academia UA';
 
   const inventoryItemsOnly = possessionRows
     .filter((r: any) => {

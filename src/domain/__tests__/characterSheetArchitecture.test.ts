@@ -205,5 +205,24 @@ describe('Character Sheet Architecture & Group Theme Resolution', () => {
 
       expect(vm.detectedTheme).toBe('base');
     });
+
+    it('Resolves student occupationOrClass cleanly without TDZ when student has no manual occupation', () => {
+      const mockStudent = {
+        id: 101,
+        name: 'Taro',
+        group: 'Estudiantes',
+        profileData: {
+          basic_name: 'Taro',
+        },
+      };
+
+      const vm = buildCharacterSheetViewModel({
+        character: mockStudent,
+      });
+
+      expect(vm.detectedTheme).toBe('student');
+      const occItem = vm.personalDataList.find(d => d.label === 'Ocupación / Clase');
+      expect(occItem?.value).toBe('Clase 1-A (Novato)');
+    });
   });
 });
