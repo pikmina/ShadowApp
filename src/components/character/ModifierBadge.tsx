@@ -6,9 +6,11 @@ import {
   Crosshair,
   FlaskConical,
   ChevronsDown,
-  ChevronsUp
+  ChevronsUp,
+  Flame
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getAlteredStatusLabel } from '../../domain/mechanicalLabels';
 
 export interface ModifierSource {
   name: string;
@@ -132,6 +134,60 @@ export const ModifierNotesLegend: React.FC<ModifierNotesLegendProps> = ({ classN
           );
         })}
       </div>
+    </div>
+  );
+};
+
+export interface ActiveStatusItem {
+  statusElementId: string;
+  name?: string;
+  tier?: string;
+  remainingTurns?: number;
+  expiresAt?: number;
+}
+
+export function getStatusDamageTypeColor(statusId: string = '') {
+  const st = statusId.toLowerCase();
+  if (st.includes('fuego') || st.includes('quemadura')) return 'bg-orange-500/20 text-orange-400 border-orange-500/40';
+  if (st.includes('hielo') || st.includes('congelado')) return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40';
+  if (st.includes('electro')) return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40';
+  if (st.includes('acido') || st.includes('veneno')) return 'bg-lime-500/20 text-lime-400 border-lime-500/40';
+  if (st.includes('psiquico') || st.includes('mental') || st.includes('berserker') || st.includes('miedo') || st.includes('locura')) return 'bg-purple-500/20 text-purple-400 border-purple-500/40';
+  if (st.includes('sensorial') || st.includes('stun') || st.includes('aturdido') || st.includes('conmocion')) return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+  if (st.includes('motor') || st.includes('inmovilizado') || st.includes('ralentizado') || st.includes('paralyzed')) return 'bg-blue-500/20 text-blue-400 border-blue-500/40';
+  if (st.includes('anomalia') || st.includes('unstable') || st.includes('inestable')) return 'bg-pink-500/20 text-pink-400 border-pink-500/40';
+  if (st.includes('cortante') || st.includes('hemorragia')) return 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+  return 'bg-red-500/20 text-red-400 border-red-500/30';
+}
+
+export const AlteredStatusBadge: React.FC<{ status: ActiveStatusItem; className?: string }> = ({ status, className }) => {
+  const label = status.name || getAlteredStatusLabel(status.tier ? `${status.statusElementId}_${status.tier}` : status.statusElementId);
+  const colorClass = getStatusDamageTypeColor(status.statusElementId);
+  const tierLabel = status.tier ? ` (${status.tier.charAt(0).toUpperCase() + status.tier.slice(1)})` : '';
+  const turnsStr = status.remainingTurns ? ` · ${status.remainingTurns}t` : status.expiresAt ? ` · ${status.expiresAt}t` : '';
+
+  return (
+    <span
+      title={`Estado Alterado: ${label}${tierLabel}${turnsStr}`}
+      className={cn(
+        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold leading-none border transition-colors shrink-0 select-none",
+        colorClass,
+        className
+      )}
+    >
+      <Flame className="size-3 shrink-0" aria-hidden="true" />
+      <span>{label}{tierLabel}{turnsStr}</span>
+    </span>
+  );
+};
+
+export const AlteredStatusBadgeGroup: React.FC<{ statuses?: ActiveStatusItem[]; className?: string }> = ({ statuses = [], className }) => {
+  if (!statuses || statuses.length === 0) return null;
+  return (
+    <div className={cn("inline-flex items-center gap-1 flex-wrap", className)}>
+      {statuses.map((st, idx) => (
+        <AlteredStatusBadge key={`${st.statusElementId}-${idx}`} status={st} />
+      ))}
     </div>
   );
 };

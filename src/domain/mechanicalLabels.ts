@@ -620,6 +620,7 @@ export const MECHANICAL_LABELS = {
     "core.status.electrocutado": "Electrocutado",
     electrocutado: "Electrocutado",
     electrocuted: "Electrocutado",
+    "core.status.hemorragia": "Hemorragia",
     "core.status.hemorragia_grave": "Hemorragia Grave",
     hemorragia_grave: "Hemorragia Grave",
     bleeding_severe: "Hemorragia Grave",
@@ -639,6 +640,7 @@ export const MECHANICAL_LABELS = {
     "core.status.nulificacion_don": "Nulificación de Don",
     nulificacion_don: "Nulificación de Don",
     quirk_nullification: "Nulificación de Don",
+    "core.status.quemadura": "Quemadura",
     "core.status.quemadura_grave": "Quemadura Grave",
     quemadura_grave: "Quemadura Grave",
     burn_severe: "Quemadura Grave",
@@ -652,6 +654,7 @@ export const MECHANICAL_LABELS = {
     "core.status.sobrecalentado": "Sobrecalentado",
     sobrecalentado: "Sobrecalentado",
     overheated: "Sobrecalentado",
+    "core.status.veneno": "Veneno",
     "core.status.veneno_grave": "Veneno Grave",
     veneno_grave: "Veneno Grave",
     poison_severe: "Veneno Grave",
@@ -698,10 +701,13 @@ export const MECHANICAL_LABELS = {
     electrico: "Eléctrico",
     acido: "Ácido",
     psiquico: "Psíquico / Mental",
-    sonoro: "Sonoro",
+    sensorial: "Sensorial",
+    motor: "Motor",
+    anomalia_don: "Anomalía de Don",
     cortante: "Cortante",
     perforante: "Perforante",
     contundente: "Contundente",
+    sonoro: "Sensorial", // Retrocompatibilidad para registros existentes
   },
   // 16. ATTACK TYPES & OPPOSITION
   attackTypes: {

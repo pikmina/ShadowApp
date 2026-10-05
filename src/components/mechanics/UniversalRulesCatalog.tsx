@@ -35,6 +35,7 @@ const CoreKeyIcon = ({ coreKey, className }: { coreKey?: string, className?: str
     case 'bonus': return <UserRoundPlus className={className} />;
     case 'penalty': return <UserRoundMinus className={className} />;
     case 'status': return <BugOff className={className} />;
+    case 'status_remove': return <Sparkles className={className} />;
     case 'cost_adjustment': return <MessageSquareDiff className={className} />;
     case 'manual_resolution': return <Handshake className={className} />;
     case 'target': return <Target className={className} />;
@@ -112,7 +113,7 @@ export const MECHANICAL_BEHAVIOR_GROUPS: CategoryGroupDef[] = [
     title: 'Efectos y Magnitudes',
     subtitle: 'Daño, curación, barreras, modificadores numéricos, estados alterados, transformaciones y habilidades',
     icon: Swords,
-    coreKeys: ['damage', 'damage_type', 'healing', 'barrier', 'numeric_modifier', 'status', 'transformation', 'object_manipulation', 'cost_adjustment', 'skill']
+    coreKeys: ['damage', 'damage_type', 'healing', 'barrier', 'numeric_modifier', 'status', 'status_remove', 'transformation', 'object_manipulation', 'cost_adjustment', 'skill']
   },
   {
     key: 'consequences',
@@ -196,6 +197,9 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
   const { data: elementsData } = useSWR('/api/elements', fetcher);
   const catalogSkills = useMemo(() => {
     return Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'skill') : [];
+  }, [elementsData]);
+  const catalogAlteredStatuses = useMemo(() => {
+    return Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'altered_status') : [];
   }, [elementsData]);
 
   const save = async (next: SystemMechanicsConfig) => {
@@ -375,58 +379,168 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
   const editingRule = editingIndex !== -1 ? draft.rules[editingIndex] : null;
 
   const isSkillCategory = draft.coreKey === 'skill' || draft.id === 'core.skill' || draft.name.toLowerCase() === 'habilidad';
+  const isStatusCategory = draft.coreKey === 'status' || draft.id === 'core.status' || draft.name.toLowerCase() === 'estado alterado' || draft.name.toLowerCase().includes('estado alterado');
   const baseSkillRule = isSkillCategory
     ? draft.rules.find(r => (r as any).runtimeKey === 'base' || r.id === 'core.skill.base' || r.id.endsWith('.base') || r.name.toLowerCase().includes('base'))
     : null;
   const baseCost = typeof baseSkillRule?.cost === 'number' ? baseSkillRule.cost : 3;
 
   const effectiveRulesList = (() => {
-    if (!isSkillCategory) {
-      return (draft.rules || []).map(r => ({
-        ...r,
-        isBaseRule: false,
-        isFromCatalog: false,
-        isCustomized: false,
-        catalogSkill: null as any,
-      }));
+    if (isSkillCategory) {
+      const explicit = (draft.rules || []).map(r => {
+        const isBase = (r as any).runtimeKey === 'base' || r.id === 'core.skill.base' || r.id.endsWith('.base') || r.name.toLowerCase().includes('base');
+        const matchedSkill = catalogSkills.find((sk: any) =>
+          (r as any).runtimeKey === sk.id ||
+          r.id === `core.skill.${sk.id}` ||
+          r.name.toLowerCase() === sk.name.toLowerCase()
+        );
+        return {
+          ...r,
+          isBaseRule: isBase,
+          isFromCatalog: Boolean(matchedSkill),
+          isCustomized: Boolean(matchedSkill),
+          catalogSkill: matchedSkill || null,
+        };
+      });
+
+      const projected = catalogSkills
+        .filter((sk: any) => !draft.rules.some((r) =>
+          (r as any).runtimeKey === sk.id ||
+          r.id === `core.skill.${sk.id}` ||
+          r.name.toLowerCase() === sk.name.toLowerCase()
+        ))
+        .map((sk: any) => ({
+          id: `core.skill.${sk.id}`,
+          name: sk.name,
+          cost: baseCost,
+          ruleType: 'cost_modifier' as const,
+          runtimeKey: sk.id,
+          isAvailable: sk.status !== 'draft',
+          isBaseRule: false,
+          isFromCatalog: true,
+          isCustomized: false,
+          catalogSkill: sk,
+        }));
+
+      return [...explicit, ...projected];
     }
 
-    const explicit = (draft.rules || []).map(r => {
-      const isBase = (r as any).runtimeKey === 'base' || r.id === 'core.skill.base' || r.id.endsWith('.base') || r.name.toLowerCase().includes('base');
-      const matchedSkill = catalogSkills.find((sk: any) =>
-        (r as any).runtimeKey === sk.id ||
-        r.id === `core.skill.${sk.id}` ||
-        r.name.toLowerCase() === sk.name.toLowerCase()
+    if (isStatusCategory) {
+      // 1. Filter out legacy non-canonical options (vulnerable, paralyzed)
+      const cleanRules = (draft.rules || []).filter(r =>
+        !['core.status.vulnerable', 'core.status.paralyzed', 'vulnerable', 'paralyzed'].includes(r.id) &&
+        !['vulnerable', 'paralyzed'].includes((r as any).runtimeKey)
       );
-      return {
-        ...r,
-        isBaseRule: isBase,
-        isFromCatalog: Boolean(matchedSkill),
-        isCustomized: Boolean(matchedSkill),
-        catalogSkill: matchedSkill || null,
-      };
-    });
 
-    const projected = catalogSkills
-      .filter((sk: any) => !draft.rules.some((r) =>
-        (r as any).runtimeKey === sk.id ||
-        r.id === `core.skill.${sk.id}` ||
-        r.name.toLowerCase() === sk.name.toLowerCase()
-      ))
-      .map((sk: any) => ({
-        id: `core.skill.${sk.id}`,
-        name: sk.name,
-        cost: baseCost,
-        ruleType: 'cost_modifier' as const,
-        runtimeKey: sk.id,
-        isAvailable: sk.status !== 'draft',
-        isBaseRule: false,
-        isFromCatalog: true,
-        isCustomized: false,
-        catalogSkill: sk,
-      }));
+      const explicit = cleanRules.map(r => {
+        const matchedStatus = catalogAlteredStatuses.find((st: any) =>
+          r.id === st.id ||
+          r.id === `core.status.${st.id}` ||
+          (r as any).runtimeKey === st.id.replace('core.status.', '') ||
+          r.name.toLowerCase().includes(st.name.toLowerCase()) ||
+          st.name.toLowerCase().includes(r.name.toLowerCase())
+        );
+        return {
+          ...r,
+          isBaseRule: false,
+          isFromCatalog: Boolean(matchedStatus),
+          isCustomized: true,
+          catalogSkill: null as any,
+        };
+      });
 
-    return [...explicit, ...projected];
+      // 2. Project any catalog altered statuses (or their tiered variants) not yet explicit in rules
+      const projected: any[] = [];
+      for (const st of catalogAlteredStatuses) {
+        if (st.metadata?.hasTiers) {
+          const variants = [
+            {
+              id: st.id,
+              name: `${st.name} (Familia)`,
+              runtimeKey: st.id.replace('core.status.', ''),
+              cost: st.metadata?.damageTypeId === 'cortante' || st.name.toLowerCase().includes('berserker') ? 3 : 2,
+            },
+            {
+              id: `${st.id}_leve`,
+              name: `${st.name} Leve`,
+              runtimeKey: `${st.id.replace('core.status.', '')}_leve`,
+              cost: st.name.toLowerCase().includes('hemorragia') || st.name.toLowerCase().includes('berserker') ? 3 : 2,
+            },
+            {
+              id: `${st.id}_grave`,
+              name: `${st.name} Grave`,
+              runtimeKey: `${st.id.replace('core.status.', '')}_grave`,
+              cost: st.name.toLowerCase().includes('hemorragia') ? 6 : 5,
+            },
+          ];
+          for (const v of variants) {
+            const exists = explicit.some(r =>
+              r.id === v.id ||
+              (r as any).runtimeKey === v.runtimeKey ||
+              r.name.toLowerCase().trim() === v.name.toLowerCase().trim()
+            );
+            if (!exists) {
+              projected.push({
+                id: v.id,
+                name: v.name,
+                cost: v.cost,
+                ruleType: 'effect' as const,
+                runtimeKey: v.runtimeKey,
+                isAvailable: true,
+                isBaseRule: false,
+                isFromCatalog: true,
+                isCustomized: false,
+                catalogSkill: null as any,
+                effect: {
+                  type: 'status',
+                  timing: 'on_activation',
+                  statusElementId: v.id,
+                },
+              });
+            }
+          }
+        } else {
+          const exists = explicit.some(r =>
+            r.id === st.id ||
+            (r as any).runtimeKey === st.id.replace('core.status.', '') ||
+            r.name.toLowerCase().trim() === st.name.toLowerCase().trim()
+          );
+          if (!exists) {
+            const isHighCost = st.name.toLowerCase().includes('nulificacion');
+            const isMidCost = st.name.toLowerCase().includes('coma');
+            const isLowCost = st.name.toLowerCase().includes('ralentizado');
+            const cost = isHighCost ? 5 : isMidCost ? 4 : isLowCost ? 2 : 3;
+            projected.push({
+              id: st.id,
+              name: st.name,
+              cost,
+              ruleType: 'effect' as const,
+              runtimeKey: st.id.replace('core.status.', ''),
+              isAvailable: true,
+              isBaseRule: false,
+              isFromCatalog: true,
+              isCustomized: false,
+              catalogSkill: null as any,
+              effect: {
+                type: 'status',
+                timing: 'on_activation',
+                statusElementId: st.id,
+              },
+            });
+          }
+        }
+      }
+
+      return [...explicit, ...projected];
+    }
+
+    return (draft.rules || []).map(r => ({
+      ...r,
+      isBaseRule: false,
+      isFromCatalog: false,
+      isCustomized: false,
+      catalogSkill: null as any,
+    }));
   })();
 
   return <div className="space-y-6">
@@ -1031,7 +1145,19 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const newRule = {
+                        const newRule = isStatusCategory ? {
+                          id: r.id,
+                          name: r.name,
+                          cost: r.cost,
+                          ruleType: 'effect' as const,
+                          runtimeKey: r.runtimeKey,
+                          isAvailable: true,
+                          effect: (r as any).effect || {
+                            type: 'status' as const,
+                            timing: 'on_activation' as const,
+                            statusElementId: r.id,
+                          },
+                        } : {
                           id: `core.skill.${r.runtimeKey}`,
                           name: r.name,
                           cost: r.cost,

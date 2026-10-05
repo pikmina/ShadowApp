@@ -244,7 +244,17 @@ export async function deleteElement(id: string, actorUid: string = 'system') {
 
 export async function seedCoreWeaknesses(actorUid: string = 'system') {
   return db.transaction(async (tx) => {
-    // 1. Seed Core Altered Statuses (only if not already present or deleted)
+    // 1. Prune non-canonical altered statuses from the catalog (ensuring only the 25 canonical statuses remain)
+    const canonicalStatusIds = new Set(CORE_ALTERED_STATUSES.map(s => s.id));
+    const canonicalStatusNames = new Set(CORE_ALTERED_STATUSES.map(s => s.name.toLowerCase().trim()));
+    const allAlteredStatuses = await tx.select().from(systemElements).where(eq(systemElements.kind, 'altered_status'));
+    for (const st of allAlteredStatuses) {
+      if (!canonicalStatusIds.has(st.id) && !canonicalStatusNames.has(st.name.toLowerCase().trim())) {
+        await tx.delete(systemElements).where(eq(systemElements.id, st.id));
+      }
+    }
+
+    // 2. Seed / Synchronize Core Altered Statuses
     for (const status of CORE_ALTERED_STATUSES) {
       const existing = await tx.select().from(systemElements).where(
         or(
@@ -252,7 +262,15 @@ export async function seedCoreWeaknesses(actorUid: string = 'system') {
           and(eq(systemElements.kind, 'altered_status'), eq(systemElements.name, status.name))
         )
       );
-      if (existing.length > 0) continue;
+      if (existing.length > 0) {
+        await tx.update(systemElements).set({
+          name: status.name,
+          description: status.description,
+          mechanicalBehaviors: status.mechanicalBehaviors,
+          metadata: (status as any).metadata || {},
+        }).where(eq(systemElements.id, existing[0].id));
+        continue;
+      }
 
       const deletedLog = await tx.select({ id: auditLogs.id }).from(auditLogs).where(
         and(
@@ -274,7 +292,7 @@ export async function seedCoreWeaknesses(actorUid: string = 'system') {
           effects: [],
           mechanicalBehaviors: status.mechanicalBehaviors,
           requirements: { operator: 'all', requirements: [] },
-          metadata: {},
+          metadata: (status as any).metadata || {},
         });
       }
     }

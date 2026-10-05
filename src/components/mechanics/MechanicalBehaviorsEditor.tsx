@@ -62,6 +62,7 @@ import { MechanicalEffectsEditor } from "./MechanicalEffectsEditor.tsx";
 import { MechanicalDescriptionPreview } from "./MechanicalDescriptionPreview.tsx";
 import type { SystemMechanicsConfig, SupportDifficultyTier } from "../../domain/systemMechanics.ts";
 import { getCategoryOptions, findHealingOption, getValidHealingOptions, getBarrierAmount, createCoreCategories, getVisibleOptions } from "../../domain/coreRuleCatalog.ts";
+import { CANONICAL_STATUS_LIST } from "./MechanicalEffectDefinitionEditor.tsx";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -94,6 +95,9 @@ export function MechanicalBehaviorsEditor({
   const { data: elementsData } = useSWR('/api/elements', fetcher);
   const catalogSkills = React.useMemo(() => {
     return Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'skill') : [];
+  }, [elementsData]);
+  const catalogAlteredStatuses = React.useMemo(() => {
+    return Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'altered_status') : [];
   }, [elementsData]);
 
   // If element has legacy effects and no modern behaviors, allow viewing legacy editor
@@ -1136,7 +1140,7 @@ function ConditionsEditor({
                   <>
                     <Select
                       value={
-                        ["core.status.stunned", "core.status.vulnerable", "core.status.berserker", "core.status.paralyzed", "support_blocked"].includes(cond.statusElementId)
+                        CANONICAL_STATUS_LIST.some((s) => s.id === cond.statusElementId) || cond.statusElementId === "support_blocked"
                           ? cond.statusElementId
                           : "custom"
                       }
@@ -1146,21 +1150,25 @@ function ConditionsEditor({
                         }
                       }}
                     >
-                      <SelectTrigger className="h-7 w-40 text-xs">
+                      <SelectTrigger className="h-7 w-48 text-xs">
                         <SelectValue placeholder="Seleccionar estado...">
                           {getAlteredStatusLabel(cond.statusElementId)}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="core.status.stunned">Aturdido</SelectItem>
-                        <SelectItem value="core.status.vulnerable">Vulnerable</SelectItem>
-                        <SelectItem value="core.status.berserker">Berserker</SelectItem>
-                        <SelectItem value="core.status.paralyzed">Paralizado</SelectItem>
+                        <SelectGroup>
+                          <SelectLabel className="text-[10px] uppercase font-bold text-muted-foreground">Estados Canónicos</SelectLabel>
+                          {CANONICAL_STATUS_LIST.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                         <SelectItem value="support_blocked">Soporte Bloqueado</SelectItem>
                         <SelectItem value="custom">Otro (ID manual)...</SelectItem>
                       </SelectContent>
                     </Select>
-                    {(!["core.status.stunned", "core.status.vulnerable", "core.status.berserker", "core.status.paralyzed", "support_blocked"].includes(cond.statusElementId)) && (
+                    {(!CANONICAL_STATUS_LIST.some((s) => s.id === cond.statusElementId) && cond.statusElementId !== "support_blocked") && (
                       <Input
                         value={cond.statusElementId || ""}
                         onChange={(e) => updateCond(i, { ...cond, statusElementId: e.target.value })}
@@ -1831,6 +1839,9 @@ function EffectsListEditor({
   const catalogSkills = React.useMemo(() => {
     return Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'skill') : [];
   }, [elementsData]);
+  const catalogAlteredStatuses = React.useMemo(() => {
+    return Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'altered_status') : [];
+  }, [elementsData]);
   const damageOptions = getCategoryOptions(mechanics, "damage");
   const knownDamageDice = damageOptions.map((opt) => opt.runtimeKey);
   const damageTypeOptions = getCategoryOptions(mechanics, "damage_type");
@@ -1920,6 +1931,7 @@ function EffectsListEditor({
                       <SelectItem value="outgoing_damage_modifier">⚔️ {MECHANICAL_LABELS.effectTypes.outgoing_damage_modifier}</SelectItem>
                       <SelectItem value="roll_modifier">🎲 {MECHANICAL_LABELS.effectTypes.roll_modifier}</SelectItem>
                       <SelectItem value="status_apply">🌀 {MECHANICAL_LABELS.effectTypes.status_apply}</SelectItem>
+                      <SelectItem value="status_remove">✨ {MECHANICAL_LABELS.effectTypes.status_remove || "Eliminar / Curar Estado Alterado"}</SelectItem>
                       <SelectItem value="turn_loss">🛑 {MECHANICAL_LABELS.effectTypes.turn_loss}</SelectItem>
                       <SelectItem value="action_block">🔒 {MECHANICAL_LABELS.effectTypes.action_block}</SelectItem>
                       <SelectItem value="counter_modifier">🔢 {MECHANICAL_LABELS.effectTypes.counter_modifier}</SelectItem>
@@ -2585,7 +2597,7 @@ function EffectsListEditor({
                         <Select
                           value={eff.statusElementId}
                           onValueChange={(val) => {
-                            const matched = statusOptions.find((s) => s.id === val || s.runtimeKey === val);
+                            const matched = statusOptions.find((s) => s.id === val || s.runtimeKey === val || (s as any).effect?.statusElementId === val);
                             updateEffect(i, {
                               ...eff,
                               statusElementId: val,
@@ -2596,19 +2608,34 @@ function EffectsListEditor({
                         >
                           <SelectTrigger className="h-7 w-48 text-xs font-medium">
                             <SelectValue placeholder="Seleccionar estado...">
-                              {statusOptions.find((s) => s.id === eff.statusElementId || s.runtimeKey === eff.statusElementId)?.name ||
+                              {statusOptions.find((s) => s.id === eff.statusElementId || s.runtimeKey === eff.statusElementId || (s as any).effect?.statusElementId === eff.statusElementId)?.name ||
+                                catalogAlteredStatuses.find((el: any) => el.id === eff.statusElementId)?.name ||
                                 getAlteredStatusLabel(eff.statusElementId)}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            {getVisibleOptions(statusOptions, eff.statusElementId).map((s) => (
-                              <SelectItem key={s.id} value={s.id}>
-                                {s.name}
-                                {s.cost > 0 ? ` (+${s.cost} CE)` : s.cost < 0 ? ` (${s.cost} CE)` : ""}
-                                {s.isAvailable === false ? " · No disponible" : ""}
-                              </SelectItem>
-                            ))}
-                            {!statusOptions.some((s) => s.id === eff.statusElementId || s.runtimeKey === eff.statusElementId) &&
+                            <SelectGroup>
+                              <SelectLabel className="text-[10px] uppercase font-bold text-muted-foreground">Reglas Canónicas (CE)</SelectLabel>
+                              {getVisibleOptions(statusOptions, eff.statusElementId).map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name}
+                                  {s.cost > 0 ? ` (+${s.cost} CE)` : s.cost < 0 ? ` (${s.cost} CE)` : ""}
+                                  {s.isAvailable === false ? " · No disponible" : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                            {catalogAlteredStatuses.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel className="text-[10px] uppercase font-bold text-purple-400">Catálogo de Estados Alterados</SelectLabel>
+                                {catalogAlteredStatuses.map((el: any) => (
+                                  <SelectItem key={el.id} value={el.id}>
+                                    {el.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            {!statusOptions.some((s) => s.id === eff.statusElementId || s.runtimeKey === eff.statusElementId || (s as any).effect?.statusElementId === eff.statusElementId) &&
+                              !catalogAlteredStatuses.some((el: any) => el.id === eff.statusElementId) &&
                               eff.statusElementId && (
                                 <SelectItem key="custom" value={eff.statusElementId}>
                                   {getAlteredStatusLabel(eff.statusElementId)}
@@ -2628,6 +2655,70 @@ function EffectsListEditor({
                         />
                       </div>
                     </>
+                  );
+                })()}
+
+                {eff.type === "status_remove" && (() => {
+                  const removeOptions = getCategoryOptions(mechanics, "status_remove");
+                  const statusOptions = getCategoryOptions(mechanics, "status");
+                  const allOptions = removeOptions.length > 0 ? removeOptions : statusOptions;
+                  return (
+                    <div className="grid gap-1">
+                      <Label className="text-[11px]">Estado Alterado a Eliminar / Curar</Label>
+                      <Select
+                        value={eff.statusElementId}
+                        onValueChange={(val) => {
+                          const matched = allOptions.find((s) => s.id === val || s.runtimeKey === val || (s as any).effect?.statusElementId === val);
+                          updateEffect(i, {
+                            ...eff,
+                            statusElementId: val,
+                            ruleId: matched?.id,
+                            runtimeKey: matched?.runtimeKey,
+                          } as any);
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-56 text-xs font-medium">
+                          <SelectValue placeholder="Seleccionar curación...">
+                            {eff.statusElementId === "all"
+                              ? "Todos los Estados Alterados"
+                              : allOptions.find((s) => s.id === eff.statusElementId || s.runtimeKey === eff.statusElementId || (s as any).effect?.statusElementId === eff.statusElementId)?.name ||
+                                catalogAlteredStatuses.find((el: any) => el.id === eff.statusElementId)?.name ||
+                                getAlteredStatusLabel(eff.statusElementId)}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">🌐 Todos los Estados Alterados</SelectItem>
+                          <SelectGroup>
+                            <SelectLabel className="text-[10px] uppercase font-bold text-muted-foreground">Opciones Canónicas de Curación</SelectLabel>
+                            {getVisibleOptions(allOptions, eff.statusElementId).map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.name}
+                                {s.cost > 0 ? ` (+${s.cost} CE)` : s.cost < 0 ? ` (${s.cost} CE)` : ""}
+                                {s.isAvailable === false ? " · No disponible" : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                          {catalogAlteredStatuses.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel className="text-[10px] uppercase font-bold text-purple-400">Catálogo de Estados Alterados</SelectLabel>
+                              {catalogAlteredStatuses.map((el: any) => (
+                                <SelectItem key={el.id} value={el.id}>
+                                  {el.name}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                          {!allOptions.some((s) => s.id === eff.statusElementId || s.runtimeKey === eff.statusElementId || (s as any).effect?.statusElementId === eff.statusElementId) &&
+                            !catalogAlteredStatuses.some((el: any) => el.id === eff.statusElementId) &&
+                            eff.statusElementId &&
+                            eff.statusElementId !== "all" && (
+                              <SelectItem key="custom" value={eff.statusElementId}>
+                                {getAlteredStatusLabel(eff.statusElementId)}
+                              </SelectItem>
+                            )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   );
                 })()}
 

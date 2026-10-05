@@ -1384,6 +1384,8 @@ export function createDefaultMechanicalEffect(
       return { ...base, type: "roll_modifier", rollType: "action", amount: -2, operation: "add" };
     case "status_apply":
       return { ...base, type: "status_apply", statusElementId: "core.status.stunned", turns: 1 };
+    case "status_remove":
+      return { ...base, type: "status_remove", statusElementId: "core.status.stunned" };
     case "turn_loss":
       return { ...base, type: "turn_loss", turns: 1 };
     case "action_block":

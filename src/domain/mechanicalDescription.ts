@@ -473,15 +473,31 @@ export function describeMechanicalEffect(
     }
 
     case "status_apply": {
+      const tierStr = (eff as any).tier ? ` (${String((eff as any).tier).charAt(0).toUpperCase() + String((eff as any).tier).slice(1)})` : "";
       const stName = getAlteredStatusLabel(eff.statusElementId);
       const turnsStr = eff.turns ? ` durante ${pluralize(eff.turns, "turno", "turnos")}` : "";
-      text = `Aplica ${stName}${turnsStr}`;
+      text = `Aplica ${stName}${tierStr}${turnsStr}`;
       break;
     }
 
     case "status_remove": {
-      const stName = getAlteredStatusLabel(eff.statusElementId);
-      text = `Elimina el estado ${stName}`;
+      const raw = (eff.statusElementId || '').toLowerCase().trim();
+      if (raw === 'all' || raw === 'all_status' || raw === 'todos') {
+        text = `Cura o retira todos los estados alterados`;
+      } else if (raw === 'leve') {
+        text = `Cura o retira cualquier estado alterado leve`;
+      } else if (raw === 'moderado') {
+        text = `Cura o retira cualquier estado alterado moderado`;
+      } else if (raw === 'grave') {
+        text = `Cura o retira cualquier estado alterado grave`;
+      } else if (raw === 'aturdido') {
+        text = `Retira el estado de aturdido o conmoción`;
+      } else if (raw === 'inmovilizado') {
+        text = `Retira el estado de inmovilizado o ralentizado`;
+      } else {
+        const stName = getAlteredStatusLabel(eff.statusElementId);
+        text = `Cura o retira el estado alterado ${stName}`;
+      }
       break;
     }
 

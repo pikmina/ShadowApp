@@ -155,7 +155,9 @@ describe('Tarea 33.2 — Resolución de Técnicas, Cooldown, Tipo de Daño y Des
       expect(runtimeKeys).toContain('electrico');
       expect(runtimeKeys).toContain('psiquico');
       expect(runtimeKeys).toContain('acido');
-      expect(runtimeKeys).toContain('sonoro');
+      expect(runtimeKeys).toContain('sensorial');
+      expect(runtimeKeys).toContain('motor');
+      expect(runtimeKeys).toContain('anomalia_don');
       expect(runtimeKeys).toContain('cortante');
       expect(runtimeKeys).toContain('perforante');
       expect(runtimeKeys).toContain('contundente');

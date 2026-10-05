@@ -13,7 +13,15 @@ export type RuleEntityState = {
   barriers?: Array<{ sourceId: string; amount: number; expiresAt?: number; cap?: { min: number; max: number } }>;
   attributes: Record<string, number>;
   modifiers: Array<{ sourceId: string; statId: string; amount: number; expiresAt?: number; cap?: { min: number; max: number } }>;
-  statuses: Array<{ sourceId: string; statusElementId: string; expiresAt?: number }>;
+  statuses: Array<{
+    sourceId: string;
+    statusElementId: string;
+    tier?: string;
+    remainingTurns?: number;
+    appliedAtTurn?: number;
+    expiresAt?: number;
+    dotDamageFormula?: string;
+  }>;
   inventory: Record<string, number>;
   equippedItems?: Record<string, boolean> | string[];
 };

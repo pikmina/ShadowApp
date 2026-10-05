@@ -256,6 +256,108 @@ export function getOrCreateParticipantState(
   return encounter.participants[entityId];
 }
 
+export function shouldRemoveStatus(
+  status: { statusElementId: string; tier?: string },
+  removeElementId: string
+): boolean {
+  if (!removeElementId) return false;
+  const rem = removeElementId.toLowerCase().trim();
+  const st = (status.statusElementId || '').toLowerCase().trim();
+  const tier = (status.tier || '').toLowerCase().trim();
+
+  if (rem === 'all' || rem === 'all_status' || rem === 'todos') {
+    return true;
+  }
+  if (rem === 'leve') {
+    return tier === 'leve' || st.endsWith('_leve') || st.includes('.leve') || st.includes('_leve_') || st.includes('leve');
+  }
+  if (rem === 'moderado') {
+    return tier === 'moderado' || st.endsWith('_moderado') || st.includes('.moderado') || st.includes('moderado');
+  }
+  if (rem === 'grave') {
+    return tier === 'grave' || st.endsWith('_grave') || st.includes('.grave') || st.includes('_grave_') || st.includes('grave');
+  }
+  if (rem === 'aturdido') {
+    return st.includes('aturdido') || st.includes('stunned') || st.includes('conmocion');
+  }
+  if (rem === 'inmovilizado') {
+    return st.includes('inmovilizado') || st.includes('ralentizado') || st.includes('paralyzed') || st.includes('paralizado');
+  }
+  if (rem === 'veneno') {
+    return st.includes('veneno') || st.includes('poison');
+  }
+  if (rem === 'hemorragia') {
+    return st.includes('hemorragia') || st.includes('bleed');
+  }
+  if (rem === 'quemadura') {
+    return st.includes('quemadura') || st.includes('burn');
+  }
+
+  // Exact or substring match (e.g. core.status.paralyzed matching paralyzed)
+  const normRem = rem.replace(/^core\.(status_remove|status)\./, '');
+  const normSt = st.replace(/^core\.(status_remove|status)\./, '');
+  return st === rem || normSt === normRem || st.includes(normRem) || rem.includes(normSt);
+}
+
+function parseDiceFormulaOrNumber(formula?: string | number): number {
+  if (typeof formula === 'number') return formula;
+  if (!formula || typeof formula !== 'string') return 0;
+  const match = /^(\d+)[dD](\d+)$/.exec(formula.trim());
+  if (match) {
+    return parseInt(match[1], 10) * Math.ceil(parseInt(match[2], 10) / 2);
+  }
+  return parseInt(formula, 10) || 0;
+}
+
+function resolveStatusDamageType(stId: string): string {
+  if (stId.includes('veneno')) return 'acido';
+  if (stId.includes('quemadura')) return 'fuego';
+  if (stId.includes('hemorragia')) return 'cortante';
+  if (stId.includes('electro')) return 'electrico';
+  if (stId.includes('asfixia')) return 'motor';
+  if (stId.includes('congelado')) return 'hielo';
+  if (stId.includes('mental') || stId.includes('psiquico') || stId.includes('berserker') || stId.includes('miedo')) return 'psiquico';
+  if (stId.includes('stun') || stId.includes('aturdido') || stId.includes('sensorial')) return 'sensorial';
+  if (stId.includes('unstable') || stId.includes('inestable')) return 'anomalia_don';
+  return 'fisico';
+}
+
+export function resolveStatusDoT(status: {
+  statusElementId: string;
+  tier?: string;
+  dotDamageFormula?: string;
+}): { tickDamage: number; damageType: string } | null {
+  const stId = (status.statusElementId || '').toLowerCase().trim();
+  const tier = (status.tier || '').toLowerCase().trim();
+  const isGrave = tier === 'grave' || stId.includes('grave');
+
+  // Check custom formula on status if present
+  if (status.dotDamageFormula) {
+    const tickDamage = parseDiceFormulaOrNumber(status.dotDamageFormula);
+    const damageType = resolveStatusDamageType(stId);
+    return { tickDamage, damageType };
+  }
+
+  // Canonical DoT altered statuses
+  if (stId.includes('veneno') || stId.includes('poison')) {
+    return { tickDamage: isGrave ? 7 : 2, damageType: 'acido' };
+  }
+  if (stId.includes('quemadura') || stId.includes('burn')) {
+    return { tickDamage: isGrave ? 7 : 2, damageType: 'fuego' };
+  }
+  if (stId.includes('hemorragia') || stId.includes('bleed')) {
+    return { tickDamage: isGrave ? 7 : 2, damageType: 'cortante' };
+  }
+  if (stId.includes('electrocutado') || stId.includes('shock')) {
+    return { tickDamage: 4, damageType: 'electrico' };
+  }
+  if (stId.includes('asfixia') || stId.includes('suffocat')) {
+    return { tickDamage: 4, damageType: 'motor' };
+  }
+
+  return null;
+}
+
 // ============================================================================
 // 4. RESET DE TURNO (advanceTurn)
 // ============================================================================
@@ -491,6 +593,59 @@ export function advanceTurn(
           next
         );
         next.participants[entityId] = synced.participants[entityId];
+      }
+    }
+
+    // Process active statuses on this entity (expiration & DoT damage tick)
+    if (world && world[entityId] && Array.isArray(world[entityId].statuses)) {
+      const retainedStatuses: any[] = [];
+      for (const st of world[entityId].statuses) {
+        let isExpired = false;
+        if (st.expiresAt !== undefined && next.turn > st.expiresAt) {
+          isExpired = true;
+        } else if (st.remainingTurns !== undefined) {
+          st.remainingTurns -= 1;
+          if (st.remainingTurns <= 0) {
+            isExpired = true;
+          }
+        }
+
+        if (isExpired) {
+          continue;
+        }
+
+        const isNewApplication = st.appliedAtTurn !== undefined && participant.currentTurn <= st.appliedAtTurn;
+        if (!isNewApplication) {
+          const dotInfo = resolveStatusDoT(st);
+          if (dotInfo && dotInfo.tickDamage > 0) {
+            const res = processDamagePipeline({
+              baseDamage: dotInfo.tickDamage,
+              attackerId: st.sourceId ?? entityId,
+              targetId: entityId,
+              tags: [dotInfo.damageType, "status_dot"],
+              world,
+              encounter: next,
+            });
+            if (res.newWorld[entityId]) {
+              Object.assign(world[entityId], res.newWorld[entityId]);
+            }
+          }
+        }
+
+        retainedStatuses.push(st);
+      }
+      world[entityId].statuses = retainedStatuses;
+    }
+  }
+
+  if (world) {
+    for (const [entId, ent] of Object.entries(world)) {
+      if (!next.participants[entId] && Array.isArray(ent.statuses)) {
+        ent.statuses = ent.statuses.filter((st: any) => {
+          if (st.expiresAt !== undefined && next.turn > st.expiresAt) return false;
+          if (st.remainingTurns !== undefined && st.remainingTurns <= 0) return false;
+          return true;
+        });
       }
     }
   }
@@ -984,6 +1139,7 @@ export function processDamagePipeline(input: DamagePipelineInput): DamagePipelin
   const damageAfterModifiers = applyModifierMath(modifiedDamage, applicableIncoming, 0);
 
   // 3. Barrier / Mitigation
+  targetEntity.barrier = targetEntity.barrier ?? 0;
   const absorbedByBarrier = Math.min(targetEntity.barrier, damageAfterModifiers);
   targetEntity.barrier -= absorbedByBarrier;
 
@@ -2284,9 +2440,13 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
 
       case "status_apply": {
         if (actualTarget) {
+          if (!actualTarget.statuses) actualTarget.statuses = [];
           actualTarget.statuses.push({
             sourceId: behavior.id,
             statusElementId: eff.statusElementId,
+            tier: (eff as any).tier,
+            remainingTurns: eff.turns,
+            appliedAtTurn: newEncounter.turn,
             expiresAt: eff.turns ? newEncounter.turn + eff.turns : undefined,
           });
         }
@@ -2294,10 +2454,8 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
       }
 
       case "status_remove": {
-        if (actualTarget) {
-          actualTarget.statuses = actualTarget.statuses.filter(
-            (s) => s.statusElementId !== eff.statusElementId
-          );
+        if (actualTarget && Array.isArray(actualTarget.statuses)) {
+          actualTarget.statuses = actualTarget.statuses.filter((s) => !shouldRemoveStatus(s, eff.statusElementId));
         }
         break;
       }
@@ -4076,18 +4234,22 @@ export function executeMultiTargetBehavior(
         }
 
         case "status_apply": {
+          if (!currentTargetEntity.statuses) currentTargetEntity.statuses = [];
           currentTargetEntity.statuses.push({
             sourceId: behavior.id,
             statusElementId: eff.statusElementId,
+            tier: (eff as any).tier,
+            remainingTurns: eff.turns,
+            appliedAtTurn: newEncounter.turn,
             expiresAt: eff.turns ? newEncounter.turn + eff.turns : undefined,
           });
           break;
         }
 
         case "status_remove": {
-          currentTargetEntity.statuses = currentTargetEntity.statuses.filter(
-            (s) => s.statusElementId !== eff.statusElementId
-          );
+          if (currentTargetEntity && Array.isArray(currentTargetEntity.statuses)) {
+            currentTargetEntity.statuses = currentTargetEntity.statuses.filter((s) => !shouldRemoveStatus(s, eff.statusElementId));
+          }
           break;
         }
 

@@ -37,7 +37,7 @@ import {
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { Switch } from "../components/ui/switch";
-import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff, Sparkles, Layers, Copy, AlertCircle, Loader2 } from "lucide-react";
+import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff, Sparkles, Layers, Copy, AlertCircle, Loader2, Flame } from "lucide-react";
 import { useMemo } from "react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -52,6 +52,22 @@ const ATTRIBUTE_OPTIONS = [
   { id: "INT", name: "Inteligencia (INT)" },
   { id: "VOL", name: "Voluntad (VOL)" },
   { id: "VEL", name: "Velocidad (VEL)" },
+];
+
+const DAMAGE_TYPE_OPTIONS = [
+  { id: "fuego", name: "Fuego" },
+  { id: "hielo", name: "Hielo" },
+  { id: "electrico", name: "Eléctrico" },
+  { id: "acido", name: "Ácido" },
+  { id: "psiquico", name: "Psíquico / Mental" },
+  { id: "sensorial", name: "Sensorial" },
+  { id: "motor", name: "Motor" },
+  { id: "anomalia_don", name: "Anomalía de Don" },
+  { id: "fisico", name: "Físico" },
+  { id: "cinetico", name: "Cinético" },
+  { id: "cortante", name: "Cortante" },
+  { id: "perforante", name: "Perforante" },
+  { id: "contundente", name: "Contundente" },
 ];
 
 const defaultForm = {
@@ -224,6 +240,10 @@ export default function CatalogAdmin() {
           baseExpCost: el.metadata?.baseExpCost ?? (el.kind === 'attribute_upgrade' ? 200 : el.kind === 'skill' ? 100 : undefined),
           maxLevel: el.metadata?.maxLevel ?? (el.kind === 'attribute_upgrade' ? 10 : el.kind === 'skill' ? 5 : 5),
           attributeId: el.metadata?.attributeId ?? 'FUE',
+          damageTypeId: el.metadata?.damageTypeId ?? (el.kind === 'altered_status' ? 'fuego' : undefined),
+          effectType: el.metadata?.effectType ?? (el.kind === 'altered_status' ? 'dot' : undefined),
+          defaultDurationTurns: el.metadata?.defaultDurationTurns ?? (el.kind === 'altered_status' ? 2 : undefined),
+          hasTiers: el.metadata?.hasTiers ?? (el.kind === 'altered_status' ? false : undefined),
           ...el.metadata
         }
       });
@@ -233,7 +253,11 @@ export default function CatalogAdmin() {
         metadata: {
           baseExpCost: 100,
           maxLevel: 5,
-          attributeId: "FUE"
+          attributeId: "FUE",
+          damageTypeId: "fuego",
+          effectType: "dot",
+          defaultDurationTurns: 2,
+          hasTiers: false,
         }
       });
     }
@@ -439,6 +463,60 @@ export default function CatalogAdmin() {
                               <Sparkles className="size-2.5 mr-1 inline" />
                               Base: {Number(el.metadata.baseExpCost).toLocaleString('es-ES')} EXP (Nv 1-{el.metadata?.maxLevel || (el.kind === 'attribute_upgrade' ? 10 : 5)})
                             </Badge>
+                          </div>
+                        )}
+                        {el.kind === 'altered_status' && (
+                          <div className="flex flex-col gap-1 mt-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {el.metadata?.damageTypeId && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-purple-500/30 text-purple-400 bg-purple-500/10">
+                                  {DAMAGE_TYPE_OPTIONS.find(d => d.id === el.metadata.damageTypeId)?.name || el.metadata.damageTypeId}
+                                </Badge>
+                              )}
+                              {el.metadata?.effectType && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-500/30 text-blue-400 bg-blue-500/10">
+                                  {el.metadata.effectType === 'dot' ? '🩸 Daño Continuo' : el.metadata.effectType === 'control' ? '🔒 Control' : el.metadata.effectType === 'buff' ? '✨ Beneficio' : '⚔️ Híbrido'}
+                                </Badge>
+                              )}
+                              {el.metadata?.hasTiers && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/40 text-amber-400 bg-amber-500/10 font-semibold">
+                                  ⭐ Familia con Niveles (Leve / Grave)
+                                </Badge>
+                              )}
+                              {!el.metadata?.hasTiers && el.metadata?.defaultDurationTurns ? (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-border text-muted-foreground">
+                                  ⏱️ {el.metadata.defaultDurationTurns} {el.metadata.defaultDurationTurns === 1 ? 'turno' : 'turnos'}
+                                </Badge>
+                              ) : null}
+                              {!el.metadata?.hasTiers && el.metadata?.resistanceDifficulty && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-400 bg-amber-500/10">
+                                  🛡️ {el.metadata.resistanceDifficulty}
+                                </Badge>
+                              )}
+                              {!el.metadata?.hasTiers && el.metadata?.cureMethods && (
+                                <span className="text-[10px] text-muted-foreground/80 italic">
+                                  Curación: {el.metadata.cureMethods}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Detalle de niveles para familias agrupadas (Quemadura, Veneno, Hemorragia, Berserker) */}
+                            {el.metadata?.hasTiers && el.metadata?.tiers && (
+                              <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px]">
+                                {el.metadata.tiers.leve && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                                    <strong className="font-semibold text-emerald-400">Leve:</strong>
+                                    {el.metadata.tiers.leve.combatEffect || el.metadata.tiers.leve.damageFormula} · ⏱️ {el.metadata.tiers.leve.durationTurns}t · 🛡️ {el.metadata.tiers.leve.resistanceDifficulty}
+                                  </span>
+                                )}
+                                {el.metadata.tiers.grave && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20">
+                                    <strong className="font-semibold text-rose-400">Grave:</strong>
+                                    {el.metadata.tiers.grave.combatEffect || el.metadata.tiers.grave.damageFormula} · ⏱️ {el.metadata.tiers.grave.durationTurns}t · 🛡️ {el.metadata.tiers.grave.resistanceDifficulty}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -681,6 +759,232 @@ export default function CatalogAdmin() {
                           </div>
                         );
                       })()}
+                    </div>
+                  )}
+
+                  {/* Configuración de Estado Alterado */}
+                  {form.kind === 'altered_status' && (
+                    <div className="rounded-lg border border-purple-500/30 bg-purple-500/5 p-4 space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-purple-400">
+                          <Flame className="size-4" />
+                          <h4 className="text-xs font-bold uppercase tracking-wider">Parámetros del Estado Alterado</h4>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] border-purple-500/30 text-purple-400 bg-purple-500/10">
+                          Costes en CE gestionados en Reglas del Sistema
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-foreground font-medium">Familia Temática / Daño</Label>
+                          <Select
+                            value={form.metadata?.damageTypeId || "fuego"}
+                            onValueChange={v => setForm({
+                              ...form,
+                              metadata: { ...form.metadata, damageTypeId: v }
+                            })}
+                          >
+                            <SelectTrigger className="h-8 text-xs bg-background/80">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DAMAGE_TYPE_OPTIONS.map(dt => (
+                                <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-foreground font-medium">Naturaleza del Efecto</Label>
+                          <Select
+                            value={form.metadata?.effectType || "dot"}
+                            onValueChange={v => setForm({
+                              ...form,
+                              metadata: { ...form.metadata, effectType: v }
+                            })}
+                          >
+                            <SelectTrigger className="h-8 text-xs bg-background/80">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="dot">🩸 Daño Continuo (DoT)</SelectItem>
+                              <SelectItem value="control">🔒 Estado de Control</SelectItem>
+                              <SelectItem value="hybrid">⚔️ Híbrido (Daño + Control)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-foreground font-medium">Duración Base (Turnos)</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={form.metadata?.defaultDurationTurns ?? 2}
+                            onChange={e => setForm({
+                              ...form,
+                              metadata: {
+                                ...form.metadata,
+                                defaultDurationTurns: Math.max(1, parseInt(e.target.value, 10) || 1)
+                              }
+                            })}
+                            className="h-8 text-xs font-mono bg-background/80"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-2.5 rounded bg-background/40 border border-purple-500/20">
+                        <div className="space-y-0.5">
+                          <Label className="text-xs font-medium text-foreground cursor-pointer">¿Diferenciar por Severidad (Leve, Moderado, Grave)?</Label>
+                          <p className="text-[11px] text-muted-foreground">Permite configurar daño, duración y curación específica por nivel de gravedad.</p>
+                        </div>
+                        <Switch
+                          checked={Boolean(form.metadata?.hasTiers)}
+                          onCheckedChange={checked => setForm({
+                            ...form,
+                            metadata: {
+                              ...form.metadata,
+                              hasTiers: checked
+                            }
+                          })}
+                        />
+                      </div>
+
+                      {form.metadata?.hasTiers ? (
+                        <div className="space-y-3 pt-2 border-t border-purple-500/20">
+                          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                            Configuración de Niveles de Severidad:
+                          </span>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {(['leve', 'moderado', 'grave'] as const).map(tier => {
+                              const tierData = form.metadata?.tiers?.[tier] || {};
+                              const tierLabels = { leve: 'Leve', moderado: 'Moderado', grave: 'Grave' };
+                              return (
+                                <div key={tier} className="p-2.5 rounded border border-border/50 bg-background/60 space-y-2">
+                                  <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider">
+                                    {tierLabels[tier]}
+                                  </Badge>
+                                  {(form.metadata?.effectType === 'dot' || form.metadata?.effectType === 'hybrid') && (
+                                    <div className="grid gap-1">
+                                      <Label className="text-[10px] text-muted-foreground">Daño por Turno (Dados/Fijo)</Label>
+                                      <Input
+                                        value={tierData.damageFormula || (tier === 'leve' ? '1D4' : tier === 'moderado' ? '1D6' : '2D6')}
+                                        onChange={e => {
+                                          const tiers = { ...(form.metadata?.tiers || {}) };
+                                          tiers[tier] = { ...(tiers[tier] || {}), damageFormula: e.target.value };
+                                          setForm({ ...form, metadata: { ...form.metadata, tiers } });
+                                        }}
+                                        className="h-7 text-xs font-mono bg-background"
+                                        placeholder="Ej: 1D4, 1D6, 2"
+                                      />
+                                    </div>
+                                  )}
+                                  <div className="grid gap-1">
+                                    <Label className="text-[10px] text-muted-foreground">Duración (Turnos)</Label>
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      value={tierData.durationTurns || (tier === 'leve' ? 2 : tier === 'moderado' ? 3 : 4)}
+                                      onChange={e => {
+                                        const tiers = { ...(form.metadata?.tiers || {}) };
+                                        tiers[tier] = { ...(tiers[tier] || {}), durationTurns: parseInt(e.target.value, 10) || 1 };
+                                        setForm({ ...form, metadata: { ...form.metadata, tiers } });
+                                      }}
+                                      className="h-7 text-xs font-mono bg-background"
+                                    />
+                                  </div>
+                                  {(form.metadata?.effectType === 'control' || form.metadata?.effectType === 'hybrid') && (
+                                    <div className="grid gap-1">
+                                      <Label className="text-[10px] text-muted-foreground">Efecto / Restricción</Label>
+                                      <Input
+                                        value={tierData.controlDescription || ''}
+                                        onChange={e => {
+                                          const tiers = { ...(form.metadata?.tiers || {}) };
+                                          tiers[tier] = { ...(tiers[tier] || {}), controlDescription: e.target.value };
+                                          setForm({ ...form, metadata: { ...form.metadata, tiers } });
+                                        }}
+                                        className="h-7 text-xs bg-background"
+                                        placeholder="Ej: -2 a EVA, pierde acción"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-purple-500/20">
+                          {(form.metadata?.effectType === 'dot' || form.metadata?.effectType === 'hybrid') && (
+                            <div className="grid gap-1">
+                              <Label className="text-xs text-foreground">Daño por Turno (Dados o Fijo)</Label>
+                              <Input
+                                value={form.metadata?.dotDamageFormula || "1D6"}
+                                onChange={e => setForm({
+                                  ...form,
+                                  metadata: { ...form.metadata, dotDamageFormula: e.target.value }
+                                })}
+                                className="h-8 text-xs font-mono bg-background/80"
+                                placeholder="Ej: 1D6, 2D4, 3"
+                              />
+                            </div>
+                          )}
+                          {(form.metadata?.effectType === 'control' || form.metadata?.effectType === 'hybrid') && (
+                            <div className="grid gap-1">
+                              <Label className="text-xs text-foreground">Efecto / Restricción de Control</Label>
+                              <Input
+                                value={form.metadata?.controlDescription || ""}
+                                onChange={e => setForm({
+                                  ...form,
+                                  metadata: { ...form.metadata, controlDescription: e.target.value }
+                                })}
+                                className="h-8 text-xs bg-background/80"
+                                placeholder="Ej: Pérdida de turno, inmovilizado..."
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-purple-500/20">
+                        <div className="grid gap-1">
+                          <Label className="text-xs text-foreground">Dificultad de Resistencia</Label>
+                          <Input
+                            value={form.metadata?.resistanceDifficulty || ""}
+                            onChange={e => setForm({
+                              ...form,
+                              metadata: { ...form.metadata, resistanceDifficulty: e.target.value }
+                            })}
+                            className="h-8 text-xs bg-background/80"
+                            placeholder="Ej: Fácil (12), Muy Difícil (24)..."
+                          />
+                        </div>
+                        <div className="grid gap-1">
+                          <Label className="text-xs text-foreground">Métodos de Curación</Label>
+                          <Input
+                            value={form.metadata?.cureMethods || ""}
+                            onChange={e => setForm({
+                              ...form,
+                              metadata: { ...form.metadata, cureMethods: e.target.value }
+                            })}
+                            className="h-8 text-xs bg-background/80"
+                            placeholder="Ej: Medicina, Quirk curativo, antídoto..."
+                          />
+                        </div>
+                        <div className="grid gap-1">
+                          <Label className="text-xs text-foreground">Efecto de la Curación</Label>
+                          <Input
+                            value={form.metadata?.cureEffect || ""}
+                            onChange={e => setForm({
+                              ...form,
+                              metadata: { ...form.metadata, cureEffect: e.target.value }
+                            })}
+                            className="h-8 text-xs bg-background/80"
+                            placeholder="Ej: Elimina daño y restaura respiración..."
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
 

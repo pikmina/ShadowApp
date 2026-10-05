@@ -1,5 +1,5 @@
 import { assertElementMechanics, validateElementMechanics } from "../domain/elementMechanics.ts";
-import { createCoreCategories, migrateCanonicalCatalogRulesData2, migrateCanonicalCatalogRulesData2_1, migrateCanonicalCatalogRulesData3A, migrateCanonicalCatalogRulesData3B, migrateCanonicalCatalogRulesData4A, migrateCanonicalCatalogRulesData4B, migrateCoreCategories, validateCoreCategories } from "../domain/coreRuleCatalog.ts";
+import { createCoreCategories, migrateCanonicalCatalogRulesData2, migrateCanonicalCatalogRulesData2_1, migrateCanonicalCatalogRulesData3A, migrateCanonicalCatalogRulesData3B, migrateCanonicalCatalogRulesData4A, migrateCanonicalCatalogRulesData4B, migrateCanonicalCatalogRulesData5A, migrateCoreCategories, validateCoreCategories } from "../domain/coreRuleCatalog.ts";
 import { systemMechanicsConfigSchema } from "../domain/systemMechanics.ts";
 import { systemElements, auditLogs } from "./schema.ts";
 import { db } from './index.ts';
@@ -195,6 +195,7 @@ export async function seedCoreRules() {
     const [migrationFlag3b] = await tx.select().from(systemRules).where(eq(systemRules.key, 'migration_rules_data_3b'));
     const [migrationFlag4a] = await tx.select().from(systemRules).where(eq(systemRules.key, 'migration_rules_data_4a'));
     const [migrationFlag4b] = await tx.select().from(systemRules).where(eq(systemRules.key, 'migration_rules_data_4b'));
+    const [migrationFlag5a] = await tx.select().from(systemRules).where(eq(systemRules.key, 'migration_rules_data_5a'));
 
     if (!stored) {
       // 1. Fresh installation bootstrap: create canonical catalog directly
@@ -241,15 +242,22 @@ export async function seedCoreRules() {
         value: true,
         description: 'Migración a catálogo canónico RULES-DATA-4B aplicada',
       }).onConflictDoNothing();
-    } else if (!migrationFlag4b) {
-      // 2. Explicit controlled migration of current configuration to canonical catalog (runs ONCE for RULES-DATA-4B)
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_5a',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-5A (Estados Alterados Canónicos y Curación) aplicada',
+      }).onConflictDoNothing();
+    } else if (!migrationFlag5a) {
+      // 2. Explicit controlled migration of current configuration to canonical catalog (runs ONCE for RULES-DATA-5A)
       let baseValue = stored.value;
       if (!migrationFlag2) baseValue = migrateCanonicalCatalogRulesData2(baseValue as any);
       if (!migrationFlag21) baseValue = migrateCanonicalCatalogRulesData2_1(baseValue as any);
       if (!migrationFlag3a) baseValue = migrateCanonicalCatalogRulesData3A(baseValue as any);
       if (!migrationFlag3b) baseValue = migrateCanonicalCatalogRulesData3B(baseValue as any);
       if (!migrationFlag4a) baseValue = migrateCanonicalCatalogRulesData4A(baseValue as any);
-      const value = migrateCanonicalCatalogRulesData4B(baseValue as any);
+      if (!migrationFlag4b) baseValue = migrateCanonicalCatalogRulesData4B(baseValue as any);
+      const value = migrateCanonicalCatalogRulesData5A(baseValue as any);
       await tx.insert(systemRules).values({
         key: 'system_mechanics',
         type: 'json',
@@ -291,6 +299,12 @@ export async function seedCoreRules() {
         type: 'boolean',
         value: true,
         description: 'Migración a catálogo canónico RULES-DATA-4B aplicada',
+      }).onConflictDoNothing();
+      await tx.insert(systemRules).values({
+        key: 'migration_rules_data_5a',
+        type: 'boolean',
+        value: true,
+        description: 'Migración a catálogo canónico RULES-DATA-5A (Estados Alterados Canónicos y Curación) aplicada',
       }).onConflictDoNothing();
     } else {
       // 3. Normal startup / restart after migration: DATABASE = SOURCE OF TRUTH.

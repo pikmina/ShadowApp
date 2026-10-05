@@ -9,6 +9,7 @@ export const mechanicalEffectTypeSchema = z.enum([
   "healing",
   "barrier",
   "status",
+  "status_remove",
   "currency",
   "rule_override",
   "choice",
@@ -126,6 +127,7 @@ export const mechanicalEffectDefinitionSchema = z.discriminatedUnion("type", [
   }),
   z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("barrier"), amount: z.number().positive() }),
   z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("status"), statusElementId: z.string().min(1) }),
+  z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("status_remove"), statusElementId: z.string().min(1) }),
   z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("currency"), currencyId: z.enum(["yen", "exp"]), amount: z.number().int(), frequencyRuleId: z.string().min(1).optional() }),
   z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("rule_override"), ruleId: z.string().min(1) }),
   z.strictObject({ ...effectDefinitionBaseShape, type: z.literal("choice"), options: z.array(z.string().min(1)).min(1) }),
@@ -190,6 +192,11 @@ export const mechanicalEffectSchema = z.discriminatedUnion("type", [
   z.strictObject({
     ...baseEffectShape,
     type: z.literal("status"),
+    statusElementId: z.string().min(1),
+  }),
+  z.strictObject({
+    ...baseEffectShape,
+    type: z.literal("status_remove"),
     statusElementId: z.string().min(1),
   }),
   z.strictObject({
@@ -1152,6 +1159,36 @@ export function findStatusOption(
   };
 }
 
+export function findStatusRemoveOption(
+  categories: SystemMechanicsConfig = [],
+  statusId?: string
+): ConfiguredOptionResult | undefined {
+  if (!statusId) return undefined;
+  const raw = String(statusId).trim();
+  const lower = raw.toLowerCase();
+  const normalizedKey = lower.replace(/^core\.(status_remove|status)\./, '');
+  const cat = categories.find(c => c.id === 'status_remove' || c.coreKey === 'status_remove' || c.id === 'core.status_remove');
+  if (!cat || !cat.rules) return undefined;
+  const rule = cat.rules.find(r =>
+    r.id?.toLowerCase() === lower ||
+    r.id?.toLowerCase() === `core.status_remove.${normalizedKey}` ||
+    (r as any).runtimeKey?.toLowerCase() === normalizedKey ||
+    (r as any).effect?.statusElementId?.toLowerCase() === lower ||
+    (r as any).effect?.statusElementId?.toLowerCase() === `core.status_remove.${normalizedKey}` ||
+    (r as any).effect?.statusElementId?.toLowerCase() === `core.status.${normalizedKey}` ||
+    r.name?.toLowerCase() === lower ||
+    (r.name?.toLowerCase().includes(lower) && lower.length > 3)
+  );
+  if (!rule) return undefined;
+  return {
+    ruleId: rule.id,
+    name: rule.name,
+    cost: typeof rule.cost === 'number' ? rule.cost : 0,
+    runtimeKey: (rule as any).runtimeKey || normalizedKey,
+    kind: 'fixed'
+  };
+}
+
 export function findObjectManipulationOption(
   categories: SystemMechanicsConfig = [],
   size?: string
@@ -1476,6 +1513,8 @@ export function findConfiguredRule(
       return findSkillOption(categories, typeof query === 'string' ? query : query?.skillId);
     case 'status':
       return findStatusOption(categories, typeof query === 'string' ? query : query?.statusElementId);
+    case 'status_remove':
+      return findStatusRemoveOption(categories, typeof query === 'string' ? query : query?.statusElementId);
     case 'object_manipulation':
       return findObjectManipulationOption(categories, typeof query === 'string' ? query : query?.size);
     case 'transformation':
@@ -1978,6 +2017,15 @@ export function calculateTechniqueStructuralCost(
           } else {
             const statusKey = String(statusId).replace(/^core\.status\./, '');
             mechanicCostSum += lookupRuleCost('status', statusId) || lookupRuleCost('status', statusKey);
+          }
+        } else if (eff.type === 'status_remove' && (eff.statusElementId || (eff as any).statusId || (eff as any).runtimeKey)) {
+          const statusId = eff.statusElementId || (eff as any).statusId || (eff as any).runtimeKey;
+          const statusOpt = findStatusRemoveOption(effectiveCats, statusId);
+          if (statusOpt) {
+            mechanicCostSum += statusOpt.cost;
+          } else {
+            const statusKey = String(statusId).replace(/^core\.(status_remove|status)\./, '');
+            mechanicCostSum += lookupRuleCost('status_remove', statusId) || lookupRuleCost('status_remove', statusKey) || 2;
           }
         } else if (eff.type === 'bonus' || eff.type === 'penalty') {
           const numOpt = findNumericModifierOption(categories, eff.amount);

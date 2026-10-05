@@ -52,6 +52,7 @@ export function getCategoryFamily(cat: { family?: string; coreKey?: string; id?:
     case "bonus":
     case "penalty":
     case "status":
+    case "status_remove":
     case "transformation":
       return "effect";
     case "cost_adjustment":
@@ -73,6 +74,7 @@ export const CORE_CATEGORIES = {
   attribute: 'Atributo',
   skill: 'Habilidad',
   status: 'Estado alterado',
+  status_remove: 'Retirar / Curar Estado Alterado',
   cost_adjustment: 'Modificar coste',
   manual_resolution: 'Resolución manual',
   target: 'Objetivo',
@@ -196,6 +198,14 @@ export const CORE_CATEGORY_CONTRACTS: Record<CoreCategoryKey, CoreCategoryContra
     ruleClass: 'effect',
     ruleClassLabel: 'Efecto',
     effectType: 'status',
+    editorMode: 'effect',
+  },
+  status_remove: {
+    coreKey: 'status_remove',
+    kind: 'effect',
+    ruleClass: 'effect',
+    ruleClassLabel: 'Efecto',
+    effectType: 'status_remove',
     editorMode: 'effect',
   },
   transformation: {
@@ -384,7 +394,9 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('damage_type', 'electrico', 'Eléctrico', undefined, 'electrico', 0);
   option('damage_type', 'acido', 'Ácido', undefined, 'acido', 0);
   option('damage_type', 'psiquico', 'Psíquico / Mental', undefined, 'psiquico', 0);
-  option('damage_type', 'sonoro', 'Sonoro', undefined, 'sonoro', 0);
+  option('damage_type', 'sensorial', 'Sensorial', undefined, 'sensorial', 0);
+  option('damage_type', 'motor', 'Motor', undefined, 'motor', 0);
+  option('damage_type', 'anomalia_don', 'Anomalía de Don', undefined, 'anomalia_don', 0);
   option('damage_type', 'cortante', 'Cortante', undefined, 'cortante', 0);
   option('damage_type', 'perforante', 'Perforante', undefined, 'perforante', 0);
   option('damage_type', 'contundente', 'Contundente', undefined, 'contundente', 0);
@@ -462,6 +474,7 @@ export function createCoreCategories(): SystemMechanicsConfig {
   // Status (Canonical Altered Statuses)
   effect('status', 'asfixia', 'Asfixia', { type: 'status', statusElementId: 'core.status.asfixia' }, 'asfixia', 3);
   effect('status', 'stunned', 'Aturdido', { type: 'status', statusElementId: 'core.status.stunned' }, 'stunned', 3);
+  effect('status', 'berserker', 'Berserker (Familia)', { type: 'status', statusElementId: 'core.status.berserker' }, 'berserker', 3);
   effect('status', 'berserker_grave', 'Berserker Grave', { type: 'status', statusElementId: 'core.status.berserker_grave' }, 'berserker_grave', 5);
   effect('status', 'berserker_leve', 'Berserker Leve', { type: 'status', statusElementId: 'core.status.berserker_leve' }, 'berserker_leve', 3);
   effect('status', 'coma_ilusorio', 'Coma Ilusorio', { type: 'status', statusElementId: 'core.status.coma_ilusorio' }, 'coma_ilusorio', 4);
@@ -471,23 +484,34 @@ export function createCoreCategories(): SystemMechanicsConfig {
   effect('status', 'desorientado', 'Desorientado', { type: 'status', statusElementId: 'core.status.desorientado' }, 'desorientado', 3);
   effect('status', 'dormido', 'Dormido', { type: 'status', statusElementId: 'core.status.dormido' }, 'dormido', 3);
   effect('status', 'electrocutado', 'Electrocutado', { type: 'status', statusElementId: 'core.status.electrocutado' }, 'electrocutado', 3);
+  effect('status', 'hemorragia', 'Hemorragia (Familia)', { type: 'status', statusElementId: 'core.status.hemorragia' }, 'hemorragia', 3);
   effect('status', 'hemorragia_grave', 'Hemorragia Grave', { type: 'status', statusElementId: 'core.status.hemorragia_grave' }, 'hemorragia_grave', 6);
   effect('status', 'hemorragia_leve', 'Hemorragia Leve', { type: 'status', statusElementId: 'core.status.hemorragia_leve' }, 'hemorragia_leve', 3);
   effect('status', 'locura', 'Locura', { type: 'status', statusElementId: 'core.status.locura' }, 'locura', 3);
   effect('status', 'miedo', 'Miedo / Aterrorizado', { type: 'status', statusElementId: 'core.status.miedo' }, 'miedo', 3);
   effect('status', 'mutacion_visual', 'Mutación Visual', { type: 'status', statusElementId: 'core.status.mutacion_visual' }, 'mutacion_visual', 3);
   effect('status', 'nulificacion_don', 'Nulificación de Don', { type: 'status', statusElementId: 'core.status.nulificacion_don' }, 'nulificacion_don', 5);
+  effect('status', 'quemadura', 'Quemadura (Familia)', { type: 'status', statusElementId: 'core.status.quemadura' }, 'quemadura', 2);
   effect('status', 'quemadura_grave', 'Quemadura Grave', { type: 'status', statusElementId: 'core.status.quemadura_grave' }, 'quemadura_grave', 5);
   effect('status', 'quemadura_leve', 'Quemadura Leve', { type: 'status', statusElementId: 'core.status.quemadura_leve' }, 'quemadura_leve', 2);
   effect('status', 'ralentizado', 'Ralentizado', { type: 'status', statusElementId: 'core.status.ralentizado' }, 'ralentizado', 2);
   effect('status', 'sobrecalentado', 'Sobrecalentado', { type: 'status', statusElementId: 'core.status.sobrecalentado' }, 'sobrecalentado', 3);
+  effect('status', 'veneno', 'Veneno (Familia)', { type: 'status', statusElementId: 'core.status.veneno' }, 'veneno', 2);
   effect('status', 'veneno_grave', 'Veneno Grave', { type: 'status', statusElementId: 'core.status.veneno_grave' }, 'veneno_grave', 5);
   effect('status', 'veneno_leve', 'Veneno Leve', { type: 'status', statusElementId: 'core.status.veneno_leve' }, 'veneno_leve', 2);
   effect('status', 'inmovilizado', 'Inmovilizado', { type: 'status', statusElementId: 'core.status.inmovilizado' }, 'inmovilizado', 3);
-  // Legacy status options (preserved for backward compatibility, not available for new selection)
-  effect('status', 'vulnerable', 'Vulnerable', { type: 'status', statusElementId: 'core.status.vulnerable' }, 'vulnerable', 0, false);
-  effect('status', 'paralyzed', 'Paralizado', { type: 'status', statusElementId: 'core.status.paralyzed' }, 'paralyzed', 3, false);
-  effect('status', 'berserker', 'Berserker', { type: 'status', statusElementId: 'core.status.berserker' }, 'berserker', 3, false);
+  effect('status', 'concentrado', 'Concentrado (beneficio)', { type: 'status', statusElementId: 'core.status.concentrado' }, 'concentrado', 3);
+
+  // Status Removal / Cure (Curar / Retirar Estados Alterados)
+  effect('status_remove', 'all', 'Curar Cualquier Estado Alterado', { type: 'status_remove', statusElementId: 'all' }, 'all', 4);
+  effect('status_remove', 'leve', 'Curar Estado Leve', { type: 'status_remove', statusElementId: 'leve' }, 'leve', 2);
+  effect('status_remove', 'moderado', 'Curar Estado Moderado', { type: 'status_remove', statusElementId: 'moderado' }, 'moderado', 3);
+  effect('status_remove', 'grave', 'Curar Estado Grave', { type: 'status_remove', statusElementId: 'grave' }, 'grave', 4);
+  effect('status_remove', 'veneno', 'Curar Veneno (Cualquier nivel)', { type: 'status_remove', statusElementId: 'veneno' }, 'veneno', 2);
+  effect('status_remove', 'hemorragia', 'Curar Hemorragia (Cualquier nivel)', { type: 'status_remove', statusElementId: 'hemorragia' }, 'hemorragia', 2);
+  effect('status_remove', 'quemadura', 'Curar Quemadura (Cualquier nivel)', { type: 'status_remove', statusElementId: 'quemadura' }, 'quemadura', 2);
+  effect('status_remove', 'aturdido', 'Retirar Aturdido / Conmoción', { type: 'status_remove', statusElementId: 'aturdido' }, 'aturdido', 2);
+  effect('status_remove', 'inmovilizado', 'Retirar Inmovilizado / Ralentizado', { type: 'status_remove', statusElementId: 'inmovilizado' }, 'inmovilizado', 2);
 
   // Manual Adjustments & Costs
   effect('cost_adjustment', 'quirk1', '+1 a costes de quirk', { type: 'cost_adjustment', scopeId: 'quirk', amount: 1 });
@@ -703,7 +727,8 @@ export function createCoreCategories(): SystemMechanicsConfig {
 export function getCategoryOptions(
   categories: SystemMechanicsConfig = [],
   categoryKeyOrId: string,
-  catalogSkills?: Array<{ id: string; name: string; status?: string }>
+  catalogSkills?: Array<{ id: string; name: string; status?: string }>,
+  catalogStatuses?: Array<{ id: string; name: string; status?: string; metadata?: any }>
 ): CategoryOptionView[] {
   const cat = categories.find(
     c => c.id === categoryKeyOrId || c.coreKey === categoryKeyOrId || c.id === `core.${categoryKeyOrId}`
@@ -759,6 +784,87 @@ export function getCategoryOptions(
     return views;
   };
 
+  const mergeCatalogStatuses = (views: CategoryOptionView[], targetCat?: any) => {
+    if (!catalogStatuses || catalogStatuses.length === 0) return views;
+
+    const leveRule = targetCat?.rules?.find((r: any) => (r as any).runtimeKey === 'leve' || r.id?.endsWith('.leve') || r.name?.toLowerCase().includes('leve'));
+    const leveCost = typeof leveRule?.cost === 'number' ? leveRule.cost : 2;
+
+    const modRule = targetCat?.rules?.find((r: any) => (r as any).runtimeKey === 'moderado' || r.id?.endsWith('.moderado') || r.name?.toLowerCase().includes('moderado'));
+    const modCost = typeof modRule?.cost === 'number' ? modRule.cost : 3;
+
+    const graveRule = targetCat?.rules?.find((r: any) => (r as any).runtimeKey === 'grave' || r.id?.endsWith('.grave') || r.name?.toLowerCase().includes('grave'));
+    const graveCost = typeof graveRule?.cost === 'number' ? graveRule.cost : 5;
+
+    for (const st of catalogStatuses) {
+      const meta = st.metadata || {};
+      const cleanId = st.id.replace(/^core\.status\./, '');
+
+      if (meta.hasTiers) {
+        const tiers = meta.tiers || {};
+        if (tiers.leve) {
+          const tierKey = `${cleanId}_leve`;
+          const exists = views.some(v => v.runtimeKey === tierKey || v.id === `core.status.${tierKey}` || v.name === `${st.name} Leve`);
+          if (!exists) {
+            views.push({
+              id: `core.status.${tierKey}`,
+              runtimeKey: tierKey,
+              name: `${st.name} Leve`,
+              cost: leveCost,
+              ruleType: 'effect',
+              isAvailable: st.status !== 'draft',
+              description: `Estado alterado ${st.name} (Nivel Leve)`,
+            });
+          }
+        }
+        if (tiers.moderado) {
+          const tierKey = `${cleanId}_moderado`;
+          const exists = views.some(v => v.runtimeKey === tierKey || v.id === `core.status.${tierKey}` || v.name === `${st.name} Moderado`);
+          if (!exists) {
+            views.push({
+              id: `core.status.${tierKey}`,
+              runtimeKey: tierKey,
+              name: `${st.name} Moderado`,
+              cost: modCost,
+              ruleType: 'effect',
+              isAvailable: st.status !== 'draft',
+              description: `Estado alterado ${st.name} (Nivel Moderado)`,
+            });
+          }
+        }
+        if (tiers.grave) {
+          const tierKey = `${cleanId}_grave`;
+          const exists = views.some(v => v.runtimeKey === tierKey || v.id === `core.status.${tierKey}` || v.name === `${st.name} Grave`);
+          if (!exists) {
+            views.push({
+              id: `core.status.${tierKey}`,
+              runtimeKey: tierKey,
+              name: `${st.name} Grave`,
+              cost: graveCost,
+              ruleType: 'effect',
+              isAvailable: st.status !== 'draft',
+              description: `Estado alterado ${st.name} (Nivel Grave)`,
+            });
+          }
+        }
+      } else {
+        const exists = views.some(v => v.runtimeKey === cleanId || v.id === st.id || v.id === `core.status.${cleanId}` || v.name === st.name);
+        if (!exists) {
+          views.push({
+            id: st.id.startsWith('core.status.') ? st.id : `core.status.${cleanId}`,
+            runtimeKey: cleanId,
+            name: st.name,
+            cost: 3,
+            ruleType: 'effect',
+            isAvailable: st.status !== 'draft',
+            description: `Estado alterado ${st.name}`,
+          });
+        }
+      }
+    }
+    return views;
+  };
+
   // Only fall back to initial schema defaults if categories was not provided at all or is empty (e.g. uninitialized / offline unit tests)
   if (!categories || categories.length === 0) {
     const coreCats = createCoreCategories();
@@ -770,6 +876,9 @@ export function getCategoryOptions(
     if (categoryKeyOrId === 'skill' || fallbackCat.coreKey === 'skill' || fallbackCat.id === 'core.skill') {
       return mergeCatalogSkills(baseOpts, fallbackCat);
     }
+    if (categoryKeyOrId === 'status' || fallbackCat.coreKey === 'status' || fallbackCat.id === 'core.status') {
+      return mergeCatalogStatuses(baseOpts, fallbackCat);
+    }
     return baseOpts;
   }
 
@@ -780,6 +889,9 @@ export function getCategoryOptions(
   const explicitViews = cat.rules.map(extractRuleProps);
   if (categoryKeyOrId === 'skill' || cat.coreKey === 'skill' || cat.id === 'core.skill') {
     return mergeCatalogSkills(explicitViews, cat);
+  }
+  if (categoryKeyOrId === 'status' || cat.coreKey === 'status' || cat.id === 'core.status') {
+    return mergeCatalogStatuses(explicitViews, cat);
   }
 
   return explicitViews;
@@ -1418,6 +1530,66 @@ export function migrateCanonicalCatalogRulesData4B(existingCategories: SystemMec
     return {
       ...cat,
       rules: [...canonicalCat.rules, ...customUserRules],
+    };
+  });
+
+  return systemMechanicsConfigSchema.parse(updated);
+}
+
+/**
+ * RULES-DATA-5A: Controlled, explicit one-time catalog migration.
+ * Synchronizes canonical altered status categories:
+ * 1. core.status: All 28 canonical status options (17 unique + 4 families + 7 tier variants).
+ *    Purges legacy/non-canonical statuses (vulnerable, paralyzed).
+ * 2. core.status_remove: Canonical cure/removal scopes (all, leve, moderado, grave, veneno, hemorragia, quemadura, aturdido, inmovilizado).
+ * Retains any customized user CE values for canonical options.
+ */
+export function migrateCanonicalCatalogRulesData5A(existingCategories: SystemMechanicsConfig): SystemMechanicsConfig {
+  const canonicalCats = createCoreCategories();
+  const canonicalMap = new Map(canonicalCats.map(c => [c.id, c]));
+
+  let updated = migrateCoreCategories(existingCategories);
+
+  const targetCategoryIds = [
+    'core.status',
+    'core.status_remove',
+  ];
+
+  updated = updated.map(cat => {
+    if (!targetCategoryIds.includes(cat.id)) {
+      return cat;
+    }
+
+    const canonicalCat = canonicalMap.get(cat.id);
+    if (!canonicalCat) return cat;
+
+    // Retain existing configured CE costs for canonical rules if user edited them
+    const existingCostMap = new Map<string, number>();
+    for (const r of cat.rules) {
+      if (typeof r.cost === 'number') {
+        existingCostMap.set(r.id, r.cost);
+        if (r.runtimeKey) existingCostMap.set(r.runtimeKey, r.cost);
+      }
+    }
+
+    const mergedRules = canonicalCat.rules.map(canRule => {
+      const existingCost = existingCostMap.get(canRule.id) ?? (canRule.runtimeKey ? existingCostMap.get(canRule.runtimeKey) : undefined);
+      return {
+        ...canRule,
+        cost: existingCost !== undefined ? existingCost : canRule.cost,
+      };
+    });
+
+    // Retain any custom user-added rules that don't match core rule IDs or retired IDs
+    const customUserRules = cat.rules.filter(r => 
+      !r.id.startsWith(`${cat.id}.`) && 
+      !['core.status.vulnerable', 'core.status.paralyzed', 'vulnerable', 'paralyzed'].includes(r.id) &&
+      !['vulnerable', 'paralyzed'].includes((r as any).runtimeKey)
+    );
+
+    return {
+      ...cat,
+      rules: [...mergedRules, ...customUserRules],
     };
   });
 

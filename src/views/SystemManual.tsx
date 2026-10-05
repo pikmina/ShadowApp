@@ -1,9 +1,10 @@
-import { BookOpen, AlertTriangle, Shield, Heart, Zap, Crosshair, ChevronRight, Activity, Hand, Target, ArrowLeft, BadgeCheck, Sparkles, BatteryPlus, HeartPulse } from "lucide-react";
+import { BookOpen, AlertTriangle, Shield, Heart, Zap, Crosshair, ChevronRight, Activity, Hand, Target, ArrowLeft, BadgeCheck, Sparkles, BatteryPlus, HeartPulse, Flame } from "lucide-react";
 import useSWR from "swr";
 import { fetcher } from "../lib/api";
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { Badge } from "../components/ui/badge";
 
 export default function SystemManual() {
   const { user } = useAuth();
@@ -58,8 +59,9 @@ export default function SystemManual() {
               <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">2. Combate</h3>
               <ul className="space-y-1 text-sm">
                 <li><button onClick={() => navigateToSection('estamina')} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-muted text-foreground/80 hover:text-foreground">2.1 Economía de Estamina</button></li>
-                <li><button onClick={() => navigateToSection('dano')} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-muted text-foreground/80 hover:text-foreground">2.2 Tipos de Daño</button></li>
-                <li><button onClick={() => navigateToSection('plus-ultra')} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-muted text-foreground/80 hover:text-foreground">2.3 Recurso Plus Ultra</button></li>
+                <li><button onClick={() => navigateToSection('dano')} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-muted text-foreground/80 hover:text-foreground">2.2 Tipos y Familias de Daño</button></li>
+                <li><button onClick={() => navigateToSection('estados-alterados')} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-muted text-foreground/80 hover:text-foreground">2.3 Estados Alterados y Curación</button></li>
+                <li><button onClick={() => navigateToSection('plus-ultra')} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-muted text-foreground/80 hover:text-foreground">2.4 Recurso Plus Ultra</button></li>
               </ul>
             </div>
             <div>
@@ -347,8 +349,8 @@ export default function SystemManual() {
 
             <section id="dano" className="space-y-6 pt-8 border-t border-border/50">
               <div className="space-y-2">
-                <h2 className="text-2xl font-oxanium font-bold text-foreground">2.2 Tipos de Daño</h2>
-                <p className="text-muted-foreground">El sistema soporta dos formas de expresar la potencia de impacto de armas y técnicas.</p>
+                <h2 className="text-2xl font-oxanium font-bold text-foreground">2.2 Tipos y Familias de Daño</h2>
+                <p className="text-muted-foreground">El sistema clasifica el daño por su forma de expresión y por su naturaleza o familia elemental.</p>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
@@ -363,12 +365,72 @@ export default function SystemManual() {
                   <div className="text-xs bg-muted p-2 rounded text-muted-foreground font-mono border border-border/50">3 significa literalmente 3 puntos exactos de daño.</div>
                 </div>
               </div>
+
+              <div className="p-5 rounded-lg border border-border bg-card space-y-3">
+                <h3 className="text-sm font-bold font-oxanium uppercase tracking-wider text-primary">Familias Temáticas y Tipos Canónicos de Daño</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Físico</strong><span className="text-muted-foreground text-[11px]">Impacto corporal directo</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Cinético</strong><span className="text-muted-foreground text-[11px]">Fuerza en movimiento</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Fuego</strong><span className="text-muted-foreground text-[11px]">Calor y quemaduras</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Hielo</strong><span className="text-muted-foreground text-[11px]">Frío y congelación</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Eléctrico</strong><span className="text-muted-foreground text-[11px]">Sobrecarga y espasmos</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Ácido</strong><span className="text-muted-foreground text-[11px]">Toxinas y corrosión</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Psíquico / Mental</strong><span className="text-muted-foreground text-[11px]">Ataques a la mente</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Sensorial</strong><span className="text-muted-foreground text-[11px]">Aturdimiento y sentidos</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Motor</strong><span className="text-muted-foreground text-[11px]">Movilidad y parálisis</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Anomalía de Don</strong><span className="text-muted-foreground text-[11px]">Inestabilidad de Quirk</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Cortante</strong><span className="text-muted-foreground text-[11px]">Cortes y sangrado</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Perforante</strong><span className="text-muted-foreground text-[11px]">Penetración de armadura</span></div>
+                  <div className="p-2 rounded bg-muted/60 border border-border"><strong className="text-foreground block">Contundente</strong><span className="text-muted-foreground text-[11px]">Golpes pesados</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section id="estados-alterados" className="space-y-6 pt-8 border-t border-border/50">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-oxanium font-bold text-foreground flex items-center gap-2">
+                  <Flame className="w-6 h-6 text-purple-400" /> 2.3 Estados Alterados y Reglas de Curación
+                </h2>
+                <p className="text-muted-foreground">
+                  Los Estados Alterados representan condiciones temporales que afectan la salud o la capacidad operativa de un personaje durante el combate.
+                </p>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="p-4 rounded-lg border border-rose-500/30 bg-rose-500/5 space-y-1.5">
+                  <Badge variant="outline" className="border-rose-500/40 text-rose-400 bg-rose-500/10 text-[10px] uppercase font-bold">🩸 Daño Continuo (DoT)</Badge>
+                  <p className="text-xs text-muted-foreground">Causan daño periódico a la Salud (SA) en cada inicio de turno si no son neutralizados (ej. Veneno, Quemadura, Hemorragia, Asfixia).</p>
+                </div>
+                <div className="p-4 rounded-lg border border-purple-500/30 bg-purple-500/5 space-y-1.5">
+                  <Badge variant="outline" className="border-purple-500/40 text-purple-400 bg-purple-500/10 text-[10px] uppercase font-bold">🔒 Estado de Control</Badge>
+                  <p className="text-xs text-muted-foreground">Bloquean acciones, limitan el movimiento o imponen penalizaciones a las tiradas (ej. Aturdido, Paralizado, Inmovilizado, Ralentizado).</p>
+                </div>
+                <div className="p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 space-y-1.5">
+                  <Badge variant="outline" className="border-amber-500/40 text-amber-400 bg-amber-500/10 text-[10px] uppercase font-bold">⚔️ Híbrido (DoT + Control)</Badge>
+                  <p className="text-xs text-muted-foreground">Combinan daño persistente con restricciones tácticas o alteraciones de atributos (ej. Electrocutado, Berserker).</p>
+                </div>
+              </div>
+
+              <div className="p-5 rounded-lg border border-border bg-card space-y-3">
+                <h3 className="text-sm font-bold font-oxanium uppercase tracking-wider text-primary">Reglas de Curación y Retirada (<code className="font-mono">status_remove</code>)</h3>
+                <p className="text-xs text-muted-foreground">
+                  Las técnicas de soporte o insumos médicos utilizan el comportamiento <code className="font-mono text-purple-400">status_remove</code> con los siguientes alcances y costes de Estamina en Reglas del Sistema:
+                </p>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+                  <div className="p-2.5 rounded bg-muted/50 border border-border/80"><strong className="text-foreground block">Curar Estado Leve (+2 CE)</strong><span className="text-muted-foreground text-[11px]">Retira estados de severidad leve o inicial.</span></div>
+                  <div className="p-2.5 rounded bg-muted/50 border border-border/80"><strong className="text-foreground block">Curar Estado Moderado (+3 CE)</strong><span className="text-muted-foreground text-[11px]">Retira estados de severidad moderada.</span></div>
+                  <div className="p-2.5 rounded bg-muted/50 border border-border/80"><strong className="text-foreground block">Curar Estado Grave (+4 CE)</strong><span className="text-muted-foreground text-[11px]">Retira estados críticos de nivel grave.</span></div>
+                  <div className="p-2.5 rounded bg-muted/50 border border-border/80"><strong className="text-foreground block">Curar Veneno / Quemadura / Hemorragia (+2 CE)</strong><span className="text-muted-foreground text-[11px]">Antídoto o cauterización específica para la familia.</span></div>
+                  <div className="p-2.5 rounded bg-muted/50 border border-border/80"><strong className="text-foreground block">Retirar Aturdido / Inmovilizado (+2 CE)</strong><span className="text-muted-foreground text-[11px]">Restablecimiento sensorial o motor inmediato.</span></div>
+                  <div className="p-2.5 rounded bg-muted/50 border border-border/80"><strong className="text-foreground block">Curar Cualquier Estado (+4 CE)</strong><span className="text-muted-foreground text-[11px]">Purga o panacea universal para cualquier afección.</span></div>
+                </div>
+              </div>
             </section>
 
             <section id="plus-ultra" className="space-y-6 pt-8 border-t border-border/50">
               <div className="space-y-2">
                 <h2 className="text-2xl font-oxanium font-bold text-foreground flex items-center gap-2">
-                  <Sparkles className="w-6 h-6 text-orange-400" /> 2.3 Recurso Heroico: Plus Ultra
+                  <Sparkles className="w-6 h-6 text-orange-400" /> 2.4 Recurso Heroico: Plus Ultra
                 </h2>
                 <p className="text-muted-foreground">
                   Puntos extraordinarios concedidos manualmente por el Narrador para premiar el heroísmo, la creatividad táctica o momentos cumbres de la narrativa.

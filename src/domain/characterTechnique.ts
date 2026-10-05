@@ -192,6 +192,10 @@ export function deriveTechniqueFunctionalCategories(
           categorySet.add('support');
           break;
 
+        case 'status_remove':
+          categorySet.add('support');
+          break;
+
         case 'bonus':
           categorySet.add('support');
           break;

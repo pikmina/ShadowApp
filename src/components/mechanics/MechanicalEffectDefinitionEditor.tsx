@@ -1,7 +1,49 @@
+import useSWR from "swr";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "../ui/select";
 import type { EffectTargeting, MechanicalEffectDefinition, MechanicalEffectType } from "../../domain/systemMechanics";
+import { fetcher } from "../../lib/api";
+import { getAlteredStatusLabel } from "../../domain/mechanicalLabels";
+
+export const CANONICAL_STATUS_LIST = [
+  { id: "core.status.asfixia", name: "🫁 Asfixia" },
+  { id: "core.status.stunned", name: "⚡ Aturdido" },
+  { id: "core.status.berserker", name: "🩸 Berserker (Leve / Grave)" },
+  { id: "core.status.coma_ilusorio", name: "🌀 Coma Ilusorio" },
+  { id: "core.status.concentrado", name: "🎯 Concentrado (beneficio)" },
+  { id: "core.status.congelado", name: "❄️ Congelado" },
+  { id: "core.status.conmocion", name: "💥 Conmoción" },
+  { id: "core.status.desbalanceado", name: "⚖️ Desbalanceado" },
+  { id: "core.status.desorientado", name: "💫 Desorientado" },
+  { id: "core.status.dormido", name: "💤 Dormido" },
+  { id: "core.status.electrocutado", name: "⚡ Electrocutado" },
+  { id: "core.status.hemorragia", name: "🩸 Hemorragia (Leve / Grave)" },
+  { id: "core.status.inmovilizado", name: "🔒 Inmovilizado" },
+  { id: "core.status.locura", name: "🧠 Locura" },
+  { id: "core.status.miedo", name: "😱 Miedo / Aterrorizado" },
+  { id: "core.status.mutacion_visual", name: "👁️ Mutación Visual" },
+  { id: "core.status.nulificacion_don", name: "🚫 Nulificación de Don" },
+  { id: "core.status.quemadura", name: "🔥 Quemadura (Leve / Grave)" },
+  { id: "core.status.ralentizado", name: "🐢 Ralentizado" },
+  { id: "core.status.sobrecalentado", name: "🌡️ Sobrecalentado" },
+  { id: "core.status.veneno", name: "🧪 Veneno (Leve / Grave)" },
+];
+
+const CURING_SCOPE_LIST = [
+  { id: "all", name: "🌐 Todos los Estados Alterados (Purga Universal)" },
+  { id: "leve", name: "🟢 Cualquier Estado Alterado Leve" },
+  { id: "moderado", name: "🟡 Cualquier Estado Alterado Moderado" },
+  { id: "grave", name: "🔴 Cualquier Estado Alterado Grave" },
+];
+
+const CURING_FAMILY_LIST = [
+  { id: "veneno", name: "🧪 Veneno / Toxinas / Ácido" },
+  { id: "quemadura", name: "🔥 Quemadura / Quemaduras por Fuego" },
+  { id: "hemorragia", name: "🩸 Hemorragia / Sangrado" },
+  { id: "aturdido", name: "⚡ Aturdido / Conmoción Sensorial" },
+  { id: "inmovilizado", name: "🔒 Inmovilizado / Ralentizado Motor" },
+];
 
 export const effectTypeLabels: Record<MechanicalEffectType, string> = {
   attribute_modifier: "Modificar atributo base",
@@ -9,7 +51,8 @@ export const effectTypeLabels: Record<MechanicalEffectType, string> = {
   damage: "Daño",
   healing: "Curación",
   barrier: "Barrera",
-  status: "Estado alterado",
+  status: "Estado alterado (Infligir)",
+  status_remove: "Estado alterado (Retirar / Curar)",
   currency: "Recompensa",
   rule_override: "Excepción de regla",
   choice: "Elección",
@@ -32,7 +75,8 @@ export function createEffectDefinition(type: MechanicalEffectType, previous?: Me
     case "damage": return { ...base, type, dice: "1D6" };
     case "healing": return { ...base, type, resourceId: "SA", amount: 1 };
     case "barrier": return { ...base, type, amount: 1 };
-    case "status": return { ...base, type, statusElementId: "status-id" };
+    case "status": return { ...base, type, statusElementId: "core.status.stunned" };
+    case "status_remove": return { ...base, type, statusElementId: "all" };
     case "currency": return { ...base, type, currencyId: "yen", amount: 1 };
     case "rule_override": return { ...base, type, ruleId: "rule-id" };
     case "choice": return { ...base, type, options: ["Opción"] };
@@ -97,6 +141,9 @@ export function MechanicalEffectDefinitionEditor({ value, onChange, independentD
 }
 
 function ValueFields({ value, patch }: { value: MechanicalEffectDefinition; patch: (changes: Record<string, unknown>) => void }) {
+  const { data: elementsData } = useSWR('/api/elements', fetcher);
+  const catalogAlteredStatuses = Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'altered_status') : [];
+
   switch (value.type) {
     case "manual_resolution": return <div><Label>Mensaje para el Master</Label><Input value={value.message} onChange={e => patch({ message: e.target.value })} /></div>;
     case "cost_adjustment": return <div className="grid gap-3 sm:grid-cols-2"><div><Label>Ámbito de coste (ID)</Label><Input value={value.scopeId} onChange={e => patch({ scopeId: e.target.value })} /></div><div><Label>Ajuste</Label><Input type="number" value={value.amount} onChange={e => patch({ amount: Number(e.target.value) })} /></div></div>;
@@ -191,7 +238,118 @@ function ValueFields({ value, patch }: { value: MechanicalEffectDefinition; patc
       );
     }
     case "barrier": return <div className="space-y-2"><Label>Puntos de Barrera</Label><Input type="number" min={1} value={value.amount} onChange={e => patch({ amount: Number(e.target.value) })} /></div>;
-    case "status": return <div className="space-y-2"><Label>Estado Alterado a Aplicar</Label><Input value={value.statusElementId} onChange={e => patch({ statusElementId: e.target.value })} placeholder="ID estable del estado" /></div>;
+    case "status": {
+      const currentVal = value.statusElementId || "core.status.stunned";
+      return (
+        <div className="space-y-2">
+          <Label>Estado Alterado a Infligir / Aplicar</Label>
+          <Select
+            value={currentVal}
+            onValueChange={(statusElementId) => patch({ statusElementId })}
+          >
+            <SelectTrigger className="w-full text-xs font-medium bg-background">
+              <SelectValue placeholder="Selecciona un estado alterado...">
+                {CANONICAL_STATUS_LIST.find(s => s.id === currentVal)?.name ||
+                 catalogAlteredStatuses.find((el: any) => el.id === currentVal)?.name ||
+                 getAlteredStatusLabel(currentVal)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel className="text-[10px] uppercase font-bold text-muted-foreground">Estados Alterados Canónicos</SelectLabel>
+                {CANONICAL_STATUS_LIST.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              {catalogAlteredStatuses.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel className="text-[10px] uppercase font-bold text-purple-400">Estados del Catálogo</SelectLabel>
+                  {catalogAlteredStatuses.map((el: any) => (
+                    <SelectItem key={el.id} value={el.id}>
+                      {el.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              {!CANONICAL_STATUS_LIST.some(s => s.id === currentVal) &&
+               !catalogAlteredStatuses.some((el: any) => el.id === currentVal) && currentVal && (
+                <SelectItem value={currentVal}>
+                  {getAlteredStatusLabel(currentVal)}
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
+    case "status_remove": {
+      const currentVal = value.statusElementId || "all";
+      return (
+        <div className="space-y-2">
+          <Label>Estado Alterado a Retirar / Curar</Label>
+          <Select
+            value={currentVal}
+            onValueChange={(statusElementId) => patch({ statusElementId })}
+          >
+            <SelectTrigger className="w-full text-xs font-medium bg-background">
+              <SelectValue placeholder="Selecciona el alcance o estado a curar...">
+                {CURING_SCOPE_LIST.find(s => s.id === currentVal)?.name ||
+                 CURING_FAMILY_LIST.find(s => s.id === currentVal)?.name ||
+                 CANONICAL_STATUS_LIST.find(s => s.id === currentVal)?.name ||
+                 catalogAlteredStatuses.find((el: any) => el.id === currentVal)?.name ||
+                 getAlteredStatusLabel(currentVal)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel className="text-[10px] uppercase font-bold text-blue-400">Alcance de Curación General</SelectLabel>
+                {CURING_SCOPE_LIST.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel className="text-[10px] uppercase font-bold text-amber-400">Antídotos por Familia / Afección</SelectLabel>
+                {CURING_FAMILY_LIST.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel className="text-[10px] uppercase font-bold text-muted-foreground">Estados Alterados Canónicos</SelectLabel>
+                {CANONICAL_STATUS_LIST.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              {catalogAlteredStatuses.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel className="text-[10px] uppercase font-bold text-purple-400">Estados del Catálogo</SelectLabel>
+                  {catalogAlteredStatuses.map((el: any) => (
+                    <SelectItem key={el.id} value={el.id}>
+                      {el.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              {!CURING_SCOPE_LIST.some(s => s.id === currentVal) &&
+               !CURING_FAMILY_LIST.some(s => s.id === currentVal) &&
+               !CANONICAL_STATUS_LIST.some(s => s.id === currentVal) &&
+               !catalogAlteredStatuses.some((el: any) => el.id === currentVal) && currentVal && (
+                <SelectItem value={currentVal}>
+                  {getAlteredStatusLabel(currentVal)}
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
     case "currency": return <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Recompensa</Label><Select value={value.currencyId} onValueChange={currencyId => patch({ currencyId })}><SelectTrigger><SelectValue>{value.currencyId === "yen" ? "Yenes" : "Experiencia"}</SelectValue></SelectTrigger><SelectContent><SelectItem value="yen">Yenes</SelectItem><SelectItem value="exp">Experiencia</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label>Cantidad</Label><Input type="number" value={value.amount} onChange={e => patch({ amount: Number(e.target.value) })} /></div></div>;
     case "rule_override": return <div className="space-y-2"><Label>Regla Especial</Label><Input value={value.ruleId} onChange={e => patch({ ruleId: e.target.value })} placeholder="ID estable de la regla" /></div>;
     case "choice": return <div className="space-y-2"><Label>Opciones a elegir (separadas por coma)</Label><Input value={value.options.join(", ")} onChange={e => patch({ options: e.target.value.split(",").map(item => item.trim()).filter(Boolean) })} /></div>;

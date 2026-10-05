@@ -67,16 +67,18 @@ describe('RULES-DATA-3A: Canonical Catalog, Composition & CE Balance', () => {
       }
     });
 
-    test('legacy statuses exist and are marked isAvailable: false for new selection', () => {
+    test('non-canonical legacy statuses are purged and canonical family statuses exist', () => {
       const statusCat = categories.find(c => c.id === 'core.status');
       expect(statusCat).toBeDefined();
 
-      const legacyKeys = ['vulnerable', 'paralyzed', 'berserker'];
-      for (const leg of legacyKeys) {
-        const rule = statusCat?.rules.find(r => r.runtimeKey === leg || r.id === `core.status.${leg}`);
-        expect(rule, `Legacy status ${leg} should be preserved`).toBeDefined();
-        expect(rule?.isAvailable, `Legacy status ${leg} should have isAvailable: false`).toBe(false);
+      const purgedKeys = ['vulnerable', 'paralyzed'];
+      for (const pur of purgedKeys) {
+        const rule = statusCat?.rules.find(r => r.runtimeKey === pur || r.id === `core.status.${pur}`);
+        expect(rule, `Non-canonical status ${pur} should be purged`).toBeUndefined();
       }
+
+      const familyRule = statusCat?.rules.find(r => r.runtimeKey === 'berserker' || r.id === 'core.status.berserker');
+      expect(familyRule, 'Canonical Berserker family should exist').toBeDefined();
     });
 
     test('technique applying status Quemadura Leve costs exactly +2 CE (no double charging)', () => {

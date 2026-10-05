@@ -22,6 +22,7 @@ export interface CanonicalStatusDefinition {
   name: string;
   description: string;
   kind: "altered_status";
+  metadata?: Record<string, any>;
   mechanicalBehaviors: MechanicalBehavior[];
 }
 
@@ -30,13 +31,69 @@ const RAW_CORE_ALTERED_STATUSES: Array<{
   name: string;
   description: string;
   kind: "altered_status";
+  metadata?: Record<string, any>;
   mechanicalBehaviors: MechanicalBehaviorInput[];
 }> = [
+  // 1. Asfixia
+  {
+    id: "core.status.asfixia",
+    name: "Asfixia",
+    description: "No puede atacar; 1d6 daño por turno",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "motor",
+      effectType: "hybrid",
+      hasTiers: false,
+      defaultDurationTurns: 1,
+      combatEffect: "No puede atacar; 1d6 daño por turno",
+      resistanceDifficulty: "Muy Difícil (24)",
+      resistanceDC: 24,
+      cureMethods: "Aire, mascarilla, quirk respiratorio",
+      cureEffect: "Elimina daño y restaura respiración.",
+      dotDamageFormula: "1d6",
+      controlDescription: "No puede atacar.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_asfixia_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_asfixia_block",
+            type: "action_block",
+            blockedAction: "attack",
+            duration: 1,
+          },
+          {
+            id: "eff_asfixia_dot",
+            type: "damage",
+            dice: "1d6",
+            damageType: "motor",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 2. Aturdido
   {
     id: "core.status.stunned",
     name: "Aturdido",
-    description: "El personaje pierde su siguiente turno o acción principal.",
+    description: "Pierde la acción; -1 a Evasión",
     kind: "altered_status",
+    metadata: {
+      damageTypeId: "sensorial",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 1,
+      combatEffect: "Pierde la acción; -1 a Evasión",
+      resistanceDifficulty: "Fácil (12)",
+      resistanceDC: 12,
+      cureMethods: "Medicina, estimulantes, quirk de enfoque",
+      cureEffect: "Recupera acción y evita desventaja.",
+      controlDescription: "Pierde la acción; -1 a Evasión.",
+    },
     mechanicalBehaviors: [
       {
         id: "status_stunned_behavior",
@@ -49,23 +106,682 @@ const RAW_CORE_ALTERED_STATUSES: Array<{
             blockedAction: "action",
             duration: 1,
           },
+          {
+            id: "eff_stunned_eva",
+            type: "derived_stat_modifier",
+            statId: "eva",
+            amount: -1,
+            operation: "add",
+          },
         ],
       },
     ],
   },
+
+  // 3. Berserker (Familia con niveles Leve y Grave)
   {
-    id: "core.status.vulnerable",
-    name: "Vulnerable",
-    description: "El personaje tiene sus defensas comprometidas: -2 a Evasión (EVA).",
+    id: "core.status.berserker",
+    name: "Berserker",
+    description: "Estado de frenesí combativo incontrolable.",
     kind: "altered_status",
+    metadata: {
+      damageTypeId: "psiquico",
+      effectType: "hybrid",
+      hasTiers: true,
+      defaultDurationTurns: 2,
+      tiers: {
+        leve: {
+          name: "Berserker Leve",
+          durationTurns: 2,
+          resistanceDifficulty: "Normal (16) Voluntad",
+          resistanceDC: 16,
+          cureMethods: "Quirk calmante, tecnología inhibidora",
+          cureEffect: "Recupera control emocional.",
+          combatEffect: "Da +2 daño, pero no puede retirarse",
+          controlDescription: "Da +2 daño, pero no puede retirarse.",
+        },
+        grave: {
+          name: "Berserker Grave",
+          durationTurns: 3,
+          resistanceDifficulty: "Extremo (28) Voluntad",
+          resistanceDC: 28,
+          cureMethods: "Quirk calmante avanzado, tranquilizante",
+          cureEffect: "Baja a leve o se elimina.",
+          combatEffect: "Da +4 daño, +2 a tirada de acción, sin control sobre objetivos",
+          controlDescription: "Da +4 daño, +2 a tirada de acción, sin control sobre objetivos.",
+        },
+      },
+    },
     mechanicalBehaviors: [
       {
-        id: "status_vulnerable_behavior",
+        id: "status_berserker_behavior",
         mode: "continuous",
         conditions: [],
         effects: [
           {
-            id: "eff_vulnerable_eva",
+            id: "eff_berserker_dmg",
+            type: "outgoing_damage_modifier",
+            amount: 2,
+            operation: "add",
+          },
+          {
+            id: "eff_berserker_ctrl",
+            type: "manual",
+            message: "Frenesí combativo: debe atacar al objetivo más cercano.",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 4. Coma Ilusorio
+  {
+    id: "core.status.coma_ilusorio",
+    name: "Coma Ilusorio",
+    description: "Deja al oponente en estado de coma, teniendo ilusiones y fantasías.",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "psiquico",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 3,
+      combatEffect: "Deja al oponente en estado de coma, teniendo ilusiones y fantasías.",
+      resistanceDifficulty: "Complicado (16)",
+      resistanceDC: 16,
+      cureMethods: "Si recibe un impacto directo, despierta.",
+      cureEffect: "Efecto Aturdido al Despertar",
+      controlDescription: "Deja al oponente en estado de coma. Si recibe impacto directo, despierta con efecto Aturdido.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_coma_ilusorio_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_coma_ilusorio_block",
+            type: "action_block",
+            blockedAction: "all",
+            duration: 3,
+          },
+        ],
+      },
+    ],
+  },
+
+  // 6. Concentrado (beneficio)
+  {
+    id: "core.status.concentrado",
+    name: "Concentrado (beneficio)",
+    description: "Da +2 a todas las tiradas de acción",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "psiquico",
+      effectType: "buff",
+      hasTiers: false,
+      defaultDurationTurns: 2,
+      combatEffect: "Da +2 a todas las tiradas de acción",
+      resistanceDifficulty: "—",
+      resistanceDC: 0,
+      cureMethods: "Pierde efecto si recibe daño o si se desconcentra",
+      cureEffect: "Se elimina al romper la concentración.",
+      controlDescription: "Da +2 a todas las tiradas de acción.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_concentrado_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_concentrado_roll",
+            type: "roll_modifier",
+            rollType: "action",
+            amount: 2,
+            operation: "add",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 7. Congelado
+  {
+    id: "core.status.congelado",
+    name: "Congelado",
+    description: "No puede moverse; Evasión -4",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "hielo",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 2,
+      combatEffect: "No puede moverse; Evasión -4",
+      resistanceDifficulty: "Complicado (16)",
+      resistanceDC: 16,
+      cureMethods: "Calor, Quirk de fuego, aliados rompen hielo",
+      cureEffect: "Recupera movilidad normal.",
+      controlDescription: "No puede moverse; Evasión -4.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_congelado_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_congelado_block",
+            type: "action_block",
+            blockedAction: "movement",
+            duration: 2,
+          },
+          {
+            id: "eff_congelado_eva",
+            type: "derived_stat_modifier",
+            statId: "eva",
+            amount: -4,
+            operation: "add",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 8. Conmoción
+  {
+    id: "core.status.conmocion",
+    name: "Conmoción",
+    description: "-4 a la iniciativa y ataque",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "sensorial",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 2,
+      combatEffect: "-4 a la iniciativa y ataque",
+      resistanceDifficulty: "Difícil (20)",
+      resistanceDC: 20,
+      cureMethods: "Medicina avanzada, descanso, quirk curativo",
+      cureEffect: "Recupera stats; elimina el estado.",
+      controlDescription: "-4 a la iniciativa y ataque.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_conmocion_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_conmocion_ini",
+            type: "derived_stat_modifier",
+            statId: "ini",
+            amount: -4,
+            operation: "add",
+          },
+          {
+            id: "eff_conmocion_att",
+            type: "roll_modifier",
+            rollType: "attack",
+            amount: -4,
+            operation: "add",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 9. Desbalanceado
+  {
+    id: "core.status.desbalanceado",
+    name: "Desbalanceado",
+    description: "-3 a ataques cuerpo a cuerpo",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "motor",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 1,
+      combatEffect: "-3 a ataques cuerpo a cuerpo",
+      resistanceDifficulty: "Fácil (12)",
+      resistanceDC: 12,
+      cureMethods: "Agilidad, ayuda física, estabilizadores",
+      cureEffect: "Vuelve a posición normal.",
+      controlDescription: "-3 a ataques cuerpo a cuerpo.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_desbalanceado_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_desbalanceado_att",
+            type: "roll_modifier",
+            rollType: "attack",
+            amount: -3,
+            operation: "add",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 10. Desorientado
+  {
+    id: "core.status.desorientado",
+    name: "Desorientado",
+    description: "-3 a tiradas; falla movimientos finos",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "psiquico",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 2,
+      combatEffect: "-3 a tiradas; falla movimientos finos",
+      resistanceDifficulty: "Normal (16)",
+      resistanceDC: 16,
+      cureMethods: "Quirk mental, apoyo de aliado",
+      cureEffect: "Recupera claridad; elimina penalizadores.",
+      controlDescription: "-3 a tiradas; falla movimientos finos.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_desorientado_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_desorientado_roll",
+            type: "roll_modifier",
+            rollType: "action",
+            amount: -3,
+            operation: "add",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 11. Dormido
+  {
+    id: "core.status.dormido",
+    name: "Dormido",
+    description: "Deja al oponente dormido.",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "motor",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 3,
+      combatEffect: "Deja al oponente dormido.",
+      resistanceDifficulty: "Complicado (16)",
+      resistanceDC: 16,
+      cureMethods: "Si recibe un impacto directo, despierta.",
+      cureEffect: "Despierta al recibir impacto.",
+      controlDescription: "Deja al oponente dormido. Si recibe impacto directo, despierta.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_dormido_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_dormido_block",
+            type: "action_block",
+            blockedAction: "all",
+            duration: 3,
+          },
+        ],
+      },
+    ],
+  },
+
+  // 12. Electrocutado
+  {
+    id: "core.status.electrocutado",
+    name: "Electrocutado",
+    description: "No puede actuar en ese turno; recibe 1d10 daño instantáneo",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "electrico",
+      effectType: "hybrid",
+      hasTiers: false,
+      defaultDurationTurns: 1,
+      combatEffect: "No puede actuar en ese turno; recibe 1d10 daño instantáneo",
+      resistanceDifficulty: "Normal (16)",
+      resistanceDC: 16,
+      cureMethods: "Aislamiento, medicina, quirks eléctricos",
+      cureEffect: "Elimina incapacidad y evita futuros daños.",
+      dotDamageFormula: "1d10",
+      controlDescription: "No puede actuar en ese turno.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_electrocutado_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_electro_block",
+            type: "action_block",
+            blockedAction: "action",
+            duration: 1,
+          },
+          {
+            id: "eff_electro_dot",
+            type: "damage",
+            dice: "1d10",
+            damageType: "electrico",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 12. Hemorragia (Familia con niveles Leve y Grave)
+  {
+    id: "core.status.hemorragia",
+    name: "Hemorragia",
+    description: "Sangrado profuso que reduce la salud cada turno si no se contiene.",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "cortante",
+      effectType: "dot",
+      hasTiers: true,
+      defaultDurationTurns: 3,
+      tiers: {
+        leve: {
+          name: "Hemorragia Leve",
+          damageFormula: "1d8",
+          durationTurns: 3,
+          resistanceDifficulty: "Normal (16)",
+          resistanceDC: 16,
+          cureMethods: "Medicina, vendaje, sellado",
+          cureEffect: "Detiene el sangrado inmediatamente.",
+          combatEffect: "1d8 daño por turno",
+        },
+        grave: {
+          name: "Hemorragia Grave",
+          damageFormula: "2d8",
+          durationTurns: 4,
+          resistanceDifficulty: "Muy Difícil (24)",
+          resistanceDC: 24,
+          cureMethods: "Medicina avanzada, quirks regenerativos",
+          cureEffect: "Baja a leve; si ya es leve, se elimina.",
+          combatEffect: "2d8 daño por turno",
+        },
+      },
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_hemorragia_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_hemorragia_dot",
+            type: "damage",
+            dice: "1d8",
+            damageType: "cortante",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 15. Inmovilizado
+  {
+    id: "core.status.inmovilizado",
+    name: "Inmovilizado",
+    description: "El personaje no puede moverse.",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "motor",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 2,
+      combatEffect: "El personaje no puede moverse.",
+      resistanceDifficulty: "Fácil (12)",
+      resistanceDC: 12,
+      cureMethods: "Resistencia",
+      cureEffect: "Puede moverse",
+      controlDescription: "El personaje no puede moverse.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_inmovilizado_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_inmovilizado_block",
+            type: "action_block",
+            blockedAction: "movement",
+            duration: 2,
+          },
+        ],
+      },
+    ],
+  },
+
+  // 16. Locura
+  {
+    id: "core.status.locura",
+    name: "Locura",
+    description: "Ataca al aliado enemigo más cercano; acciones caóticas",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "psiquico",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 2,
+      combatEffect: "Ataca al aliado enemigo más cercano; acciones caóticas",
+      resistanceDifficulty: "Muy Difícil (24)",
+      resistanceDC: 24,
+      cureMethods: "Quirk mental, medicina mental",
+      cureEffect: "Recupera lucidez.",
+      controlDescription: "Ataca al aliado enemigo más cercano; acciones caóticas.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_locura_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_locura_ctrl",
+            type: "manual",
+            message: "Locura: ataca al aliado o enemigo más cercano, ejecutando acciones caóticas.",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 17. Miedo / Aterrorizado
+  {
+    id: "core.status.miedo",
+    name: "Miedo / Aterrorizado",
+    description: "No puede atacar; solo huir/defenderse",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "psiquico",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 2,
+      combatEffect: "No puede atacar; solo huir/defenderse",
+      resistanceDifficulty: "Normal (16) Voluntad",
+      resistanceDC: 16,
+      cureMethods: "Apoyo emocional, quirk mental",
+      cureEffect: "Recupera control.",
+      controlDescription: "No puede atacar; solo huir/defenderse.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_miedo_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_miedo_block",
+            type: "action_block",
+            blockedAction: "attack",
+            duration: 2,
+          },
+        ],
+      },
+    ],
+  },
+
+  // 18. Mutación Visual
+  {
+    id: "core.status.mutacion_visual",
+    name: "Mutación Visual",
+    description: "Cambia cómo se ve el usuario. Recibe +2 puntos a Defensa.",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "sensorial",
+      effectType: "buff",
+      hasTiers: false,
+      defaultDurationTurns: 4,
+      combatEffect: "Cambia cómo se ve el usuario. Recibe +2 puntos a Defensa.",
+      resistanceDifficulty: "Complicado (16)",
+      resistanceDC: 16,
+      cureMethods: "Si recibe impacto directo vuelve a su forma original.",
+      cureEffect: "Vuelve a su forma original al recibir impacto directo.",
+      controlDescription: "Cambia cómo se ve el usuario. Recibe +2 puntos a Defensa.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_mutacion_visual_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_mutacion_def",
+            type: "derived_stat_modifier",
+            statId: "def",
+            amount: 2,
+            operation: "add",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 19. Nulificación de Don
+  {
+    id: "core.status.nulificacion_don",
+    name: "Nulificación de Don",
+    description: "El usuario no puede usar su don.",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "anomalia_don",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 1,
+      combatEffect: "El usuario no puede usar su don.",
+      resistanceDifficulty: "Complicado (16)",
+      resistanceDC: 16,
+      cureMethods: "Si se realiza una tirada de Coraje que supere la tirada que la creo.",
+      cureEffect: "Recupera el control sobre el quirk.",
+      controlDescription: "El usuario no puede usar su don.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_nulificacion_don_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_nulificacion_block",
+            type: "action_block",
+            blockedAction: "quirk",
+            duration: 1,
+          },
+        ],
+      },
+    ],
+  },
+
+  // 17. Quemadura (Familia con niveles Leve y Grave)
+  {
+    id: "core.status.quemadura",
+    name: "Quemadura",
+    description: "Herida por fuego o calor extremo que causa daño continuado.",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "fuego",
+      effectType: "dot",
+      hasTiers: true,
+      defaultDurationTurns: 3,
+      tiers: {
+        leve: {
+          name: "Quemadura Leve",
+          damageFormula: "1d6",
+          durationTurns: 3,
+          resistanceDifficulty: "Fácil (12)",
+          resistanceDC: 12,
+          cureMethods: "Resistencia, Medicina, Enfriamiento, Quirk de hielo/curación",
+          cureEffect: "Elimina el daño continuo. Estado desaparece.",
+          combatEffect: "1d6 daño por turno",
+        },
+        grave: {
+          name: "Quemadura Grave",
+          damageFormula: "2d6",
+          durationTurns: 4,
+          resistanceDifficulty: "Difícil (20)",
+          resistanceDC: 20,
+          cureMethods: "Medicina, Quirk de curación, tecnología refrigerante",
+          cureEffect: "Baja a Leve o se elimina completamente si el método es potente.",
+          combatEffect: "2d6 daño por turno",
+        },
+      },
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_quemadura_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_quemadura_dot",
+            type: "damage",
+            dice: "1d6",
+            damageType: "fuego",
+          },
+        ],
+      },
+    ],
+  },
+
+  // 18. Ralentizado
+  {
+    id: "core.status.ralentizado",
+    name: "Ralentizado",
+    description: "Solo movimiento reducido; -2 a evasión",
+    kind: "altered_status",
+    metadata: {
+      damageTypeId: "motor",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 2,
+      combatEffect: "Solo movimiento reducido; -2 a evasión",
+      resistanceDifficulty: "Normal (16)",
+      resistanceDC: 16,
+      cureMethods: "Resistencia, quirk potenciador, exoesqueleto",
+      cureEffect: "Recupera su velocidad normal.",
+      controlDescription: "Solo movimiento reducido; -2 a evasión.",
+    },
+    mechanicalBehaviors: [
+      {
+        id: "status_ralentizado_behavior",
+        mode: "continuous",
+        conditions: [],
+        effects: [
+          {
+            id: "eff_ralentizado_eva",
             type: "derived_stat_modifier",
             statId: "eva",
             amount: -2,
@@ -75,76 +791,94 @@ const RAW_CORE_ALTERED_STATUSES: Array<{
       },
     ],
   },
+
+  // 19. Sobrecalentado
   {
-    id: "core.status.berserker",
-    name: "Berserker",
-    description: "Estado de frenesí incontrolable: +2 Fuerza (FUE), -2 Inteligencia (INT). Obligado a atacar al objetivo más cercano.",
+    id: "core.status.sobrecalentado",
+    name: "Sobrecalentado",
+    description: "No puede usar su Quirk; -2 a tiradas de acción",
     kind: "altered_status",
+    metadata: {
+      damageTypeId: "fuego",
+      effectType: "control",
+      hasTiers: false,
+      defaultDurationTurns: 2,
+      combatEffect: "No puede usar su Quirk; -2 a tiradas de acción",
+      resistanceDifficulty: "Complicado (16)",
+      resistanceDC: 16,
+      cureMethods: "Enfriarse, quirk de hielo, reposo",
+      cureEffect: "Restaura uso del Quirk.",
+      controlDescription: "No puede usar su Quirk; -2 a tiradas de acción.",
+    },
     mechanicalBehaviors: [
       {
-        id: "status_berserker_behavior",
+        id: "status_sobrecalentado_behavior",
         mode: "continuous",
         conditions: [],
         effects: [
           {
-            id: "eff_berserker_fue",
-            type: "attribute_modifier",
-            attributeId: "fue",
-            amount: 2,
-            operation: "add",
+            id: "eff_sobrecalentado_block",
+            type: "action_block",
+            blockedAction: "quirk",
+            duration: 2,
           },
           {
-            id: "eff_berserker_int",
-            type: "attribute_modifier",
-            attributeId: "int",
+            id: "eff_sobrecalentado_roll",
+            type: "roll_modifier",
+            rollType: "action",
             amount: -2,
             operation: "add",
           },
-          {
-            id: "eff_berserker_control",
-            type: "manual",
-            message: "Furia ciega: debe atacar al objetivo más cercano disponible.",
-          },
         ],
       },
     ],
   },
+
+  // 20. Veneno (Familia con niveles Leve y Grave)
   {
-    id: "core.status.paralyzed",
-    name: "Paralizado",
-    description: "Incapacidad motriz temporal: no puede realizar acciones ni movimientos.",
+    id: "core.status.veneno",
+    name: "Veneno",
+    description: "Toxina activa que causa daño continuado por turno si no se neutraliza.",
     kind: "altered_status",
-    mechanicalBehaviors: [
-      {
-        id: "status_paralyzed_behavior",
-        mode: "continuous",
-        conditions: [],
-        effects: [
-          {
-            id: "eff_paralyzed_block",
-            type: "action_block",
-            blockedAction: "all",
-            duration: 1,
-          },
-        ],
+    metadata: {
+      damageTypeId: "acido",
+      effectType: "dot",
+      hasTiers: true,
+      defaultDurationTurns: 2,
+      tiers: {
+        leve: {
+          name: "Veneno Leve",
+          damageFormula: "1d6",
+          durationTurns: 2,
+          resistanceDifficulty: "Fácil (12)",
+          resistanceDC: 12,
+          cureMethods: "Resistencia, antídoto, Quirk purificador",
+          cureEffect: "Elimina el veneno, detiene daño.",
+          combatEffect: "1d6 daño por turno",
+        },
+        grave: {
+          name: "Veneno Grave",
+          damageFormula: "2d6",
+          durationTurns: 3,
+          resistanceDifficulty: "Difícil (20)",
+          resistanceDC: 20,
+          cureMethods: "Antídoto avanzado, Quirk curativo",
+          cureEffect: "Reduce a leve o elimina.",
+          combatEffect: "2d6 daño por turno",
+        },
       },
-    ],
-  },
-  {
-    id: "core.status.unstable",
-    name: "Inestable",
-    description: "El Quirk o poder del personaje se descontrola; sus efectos escapan al control preciso del usuario.",
-    kind: "altered_status",
+    },
     mechanicalBehaviors: [
       {
-        id: "status_unstable_behavior",
+        id: "status_veneno_behavior",
         mode: "continuous",
         conditions: [],
         effects: [
           {
-            id: "eff_unstable_manual",
-            type: "manual",
-            message: "Efecto inestable: el Director de Juego determina desviaciones o efectos colaterales.",
+            id: "eff_veneno_dot",
+            type: "damage",
+            dice: "1d6",
+            damageType: "acido",
           },
         ],
       },

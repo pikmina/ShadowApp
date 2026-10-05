@@ -123,7 +123,7 @@ vi.mock('../index.ts', async () => {
   return { db };
 });
 
-import { getElement, upsertElement, deleteElement, seedCoreWeaknesses } from '../elements';
+import { getElement, getElements, upsertElement, deleteElement, seedCoreWeaknesses } from '../elements';
 import { deleteRule, upsertRule } from '../rules';
 
 beforeEach(() => { memory.tables = { system_rules: [{ key: 'system_mechanics', value: createCoreCategories() }], system_elements: [] }; });
@@ -156,6 +156,39 @@ describe('Element service persistence contract with transactional storage adapte
     expect(afterSecondSeed.name).toBe('Acumulación de Impacto Personalizada');
     expect(afterSecondSeed.description).toBe('Descripción modificada por el usuario');
     expect(afterSecondSeed.mechanicalBehaviors[0].id).toBe('custom_b1');
+  });
+
+  test('seedCoreWeaknesses guarantees only the 25 canonical altered statuses exist and prunes obsolete ones', async () => {
+    // 1. Insert a non-canonical altered status into database
+    const createdObsolete = await upsertElement({
+      kind: 'altered_status',
+      name: 'Estado No Canonico',
+      description: 'Debe ser eliminado',
+    });
+    expect(await getElement(createdObsolete.id)).toBeDefined();
+
+    // 2. Run seedCoreWeaknesses
+    await seedCoreWeaknesses();
+
+    // 3. Obsolete status must be purged
+    expect(await getElement(createdObsolete.id)).toBeUndefined();
+
+    // 4. Verify all 21 canonical statuses are present (17 unitary + 4 tiered families)
+    const elements = await getElements();
+    const alteredStatuses = elements.filter(e => e.kind === 'altered_status');
+    expect(alteredStatuses.length).toBe(21);
+
+    const asfixia = alteredStatuses.find(s => s.id === 'core.status.asfixia');
+    expect(asfixia).toBeDefined();
+    expect((asfixia?.metadata as any)?.resistanceDifficulty).toBe('Muy Difícil (24)');
+    expect((asfixia?.metadata as any)?.cureMethods).toContain('Aire');
+
+    const veneno = alteredStatuses.find(s => s.id === 'core.status.veneno');
+    expect(veneno).toBeDefined();
+    expect((veneno?.metadata as any)?.damageTypeId).toBe('acido');
+    expect((veneno?.metadata as any)?.hasTiers).toBe(true);
+    expect((veneno?.metadata as any)?.tiers?.grave?.damageFormula).toBe('2d6');
+    expect((veneno?.metadata as any)?.tiers?.leve?.damageFormula).toBe('1d6');
   });
   test('create/save/load/edit/save/reload/delete preserves references and valid falsy values', async () => {
     const effects = [{ applicationId: 'a1', groupId: 'speech', mechanicId: 'core.healing', ruleId: 'core.healing.2' }];
