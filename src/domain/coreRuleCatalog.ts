@@ -450,6 +450,7 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('attribute', 'vol', getAttributeLabel('VOL'), undefined, 'VOL', 1);
 
   // Skills (Core Category)
+  option('skill', 'base', 'Coste Base de Habilidad', undefined, 'base', 3);
   option('skill', 'carisma', 'Carisma', undefined, 'carisma', 3);
   option('skill', 'presencia', 'Presencia', undefined, 'presencia', 3);
 
@@ -701,7 +702,8 @@ export function createCoreCategories(): SystemMechanicsConfig {
 
 export function getCategoryOptions(
   categories: SystemMechanicsConfig = [],
-  categoryKeyOrId: string
+  categoryKeyOrId: string,
+  catalogSkills?: Array<{ id: string; name: string; status?: string }>
 ): CategoryOptionView[] {
   const cat = categories.find(
     c => c.id === categoryKeyOrId || c.coreKey === categoryKeyOrId || c.id === `core.${categoryKeyOrId}`
@@ -727,6 +729,36 @@ export function getCategoryOptions(
     };
   };
 
+  const mergeCatalogSkills = (views: CategoryOptionView[], targetCat?: any) => {
+    if (!catalogSkills || catalogSkills.length === 0) return views;
+    const baseRule = targetCat?.rules?.find((r: any) =>
+      (r as any).runtimeKey === 'base' ||
+      r.id === 'core.skill.base' ||
+      r.id.endsWith('.base') ||
+      r.name?.toLowerCase().includes('base')
+    );
+    const baseCost = typeof baseRule?.cost === 'number' ? baseRule.cost : 3;
+
+    for (const sk of catalogSkills) {
+      const alreadyExists = views.some(
+        v => v.runtimeKey?.toLowerCase() === sk.id.toLowerCase() ||
+             v.id === `core.skill.${sk.id}` ||
+             v.name.toLowerCase() === sk.name.toLowerCase()
+      );
+      if (!alreadyExists) {
+        views.push({
+          id: `core.skill.${sk.id}`,
+          runtimeKey: sk.id,
+          name: sk.name,
+          cost: baseCost,
+          ruleType: 'cost_modifier',
+          isAvailable: sk.status !== 'draft',
+        });
+      }
+    }
+    return views;
+  };
+
   // Only fall back to initial schema defaults if categories was not provided at all or is empty (e.g. uninitialized / offline unit tests)
   if (!categories || categories.length === 0) {
     const coreCats = createCoreCategories();
@@ -734,14 +766,23 @@ export function getCategoryOptions(
       c => c.id === categoryKeyOrId || c.coreKey === categoryKeyOrId || c.id === `core.${categoryKeyOrId}`
     );
     if (!fallbackCat || !Array.isArray(fallbackCat.rules)) return [];
-    return fallbackCat.rules.map(extractRuleProps);
+    const baseOpts = fallbackCat.rules.map(extractRuleProps);
+    if (categoryKeyOrId === 'skill' || fallbackCat.coreKey === 'skill' || fallbackCat.id === 'core.skill') {
+      return mergeCatalogSkills(baseOpts, fallbackCat);
+    }
+    return baseOpts;
   }
 
   if (!cat || !Array.isArray(cat.rules)) {
     return [];
   }
 
-  return cat.rules.map(extractRuleProps);
+  const explicitViews = cat.rules.map(extractRuleProps);
+  if (categoryKeyOrId === 'skill' || cat.coreKey === 'skill' || cat.id === 'core.skill') {
+    return mergeCatalogSkills(explicitViews, cat);
+  }
+
+  return explicitViews;
 }
 
 export function getVisibleOptions<T extends { runtimeKey?: string; id?: string; isAvailable?: boolean; name?: string }>(
@@ -1124,9 +1165,15 @@ export function migrateCanonicalCatalogRulesData2_1(existingCategories: SystemMe
 
     if (cat.id === 'core.skill') {
       const customUserRules = cat.rules.filter(r => !r.id.startsWith(`${cat.id}.`));
+      const rules = [...cat.rules.filter(r => r.id.startsWith(`${cat.id}.`))];
+      for (const cr of canonicalCat.rules) {
+        if (!rules.some(r => r.id === cr.id || (r.runtimeKey && r.runtimeKey === cr.runtimeKey))) {
+          rules.push(cr);
+        }
+      }
       return {
         ...cat,
-        rules: [...canonicalCat.rules, ...customUserRules],
+        rules: [...rules, ...customUserRules],
       };
     }
 

@@ -1,6 +1,8 @@
 import { EntityPanel } from "../ui/entity-panel";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import useSWR from 'swr';
+import { fetcher } from '../../lib/api';
 import { nanoid } from 'nanoid';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -57,6 +59,7 @@ const CoreKeyIcon = ({ coreKey, className }: { coreKey?: string, className?: str
     case 'self_damage': return <Flame className={className} />;
     case 'caps': return <Ban className={className} />;
     case 'complexity_adjustment': return <Sliders className={className} />;
+    case 'skill': return <Brain className={className} />;
     default: return <Package className={className} />;
   }
 };
@@ -107,9 +110,9 @@ export const MECHANICAL_BEHAVIOR_GROUPS: CategoryGroupDef[] = [
   {
     key: 'effects',
     title: 'Efectos y Magnitudes',
-    subtitle: 'Daño, curación, barreras, modificadores numéricos, estados alterados y transformaciones',
+    subtitle: 'Daño, curación, barreras, modificadores numéricos, estados alterados, transformaciones y habilidades',
     icon: Swords,
-    coreKeys: ['damage', 'damage_type', 'healing', 'barrier', 'numeric_modifier', 'status', 'transformation', 'object_manipulation', 'cost_adjustment']
+    coreKeys: ['damage', 'damage_type', 'healing', 'barrier', 'numeric_modifier', 'status', 'transformation', 'object_manipulation', 'cost_adjustment', 'skill']
   },
   {
     key: 'consequences',
@@ -189,6 +192,11 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [isNewOption, setIsNewOption] = useState<boolean>(false);
   const [ruleFilter, setRuleFilter] = useState<'all' | 'available' | 'unavailable'>('all');
+
+  const { data: elementsData } = useSWR('/api/elements', fetcher);
+  const catalogSkills = useMemo(() => {
+    return Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'skill') : [];
+  }, [elementsData]);
 
   const save = async (next: SystemMechanicsConfig) => {
     const parsed = systemMechanicsConfigSchema.safeParse(next);
@@ -323,7 +331,9 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                             {getLogicalTypeLabel(c.logicalType)}
                           </span>
                           <span className="text-[10px] text-muted-foreground">
-                            {c.rules.length} {c.rules.length === 1 ? 'opción' : 'ops'}
+                            {c.coreKey === 'skill'
+                              ? `${catalogSkills.length} habilidades del Catálogo`
+                              : `${c.rules.length} ${c.rules.length === 1 ? 'opción' : 'ops'}`}
                           </span>
                         </div>
                         
@@ -364,6 +374,61 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
   const editingIndex = draft.rules.findIndex(r => r.id === editingRuleId);
   const editingRule = editingIndex !== -1 ? draft.rules[editingIndex] : null;
 
+  const isSkillCategory = draft.coreKey === 'skill' || draft.id === 'core.skill' || draft.name.toLowerCase() === 'habilidad';
+  const baseSkillRule = isSkillCategory
+    ? draft.rules.find(r => (r as any).runtimeKey === 'base' || r.id === 'core.skill.base' || r.id.endsWith('.base') || r.name.toLowerCase().includes('base'))
+    : null;
+  const baseCost = typeof baseSkillRule?.cost === 'number' ? baseSkillRule.cost : 3;
+
+  const effectiveRulesList = (() => {
+    if (!isSkillCategory) {
+      return (draft.rules || []).map(r => ({
+        ...r,
+        isBaseRule: false,
+        isFromCatalog: false,
+        isCustomized: false,
+        catalogSkill: null as any,
+      }));
+    }
+
+    const explicit = (draft.rules || []).map(r => {
+      const isBase = (r as any).runtimeKey === 'base' || r.id === 'core.skill.base' || r.id.endsWith('.base') || r.name.toLowerCase().includes('base');
+      const matchedSkill = catalogSkills.find((sk: any) =>
+        (r as any).runtimeKey === sk.id ||
+        r.id === `core.skill.${sk.id}` ||
+        r.name.toLowerCase() === sk.name.toLowerCase()
+      );
+      return {
+        ...r,
+        isBaseRule: isBase,
+        isFromCatalog: Boolean(matchedSkill),
+        isCustomized: Boolean(matchedSkill),
+        catalogSkill: matchedSkill || null,
+      };
+    });
+
+    const projected = catalogSkills
+      .filter((sk: any) => !draft.rules.some((r) =>
+        (r as any).runtimeKey === sk.id ||
+        r.id === `core.skill.${sk.id}` ||
+        r.name.toLowerCase() === sk.name.toLowerCase()
+      ))
+      .map((sk: any) => ({
+        id: `core.skill.${sk.id}`,
+        name: sk.name,
+        cost: baseCost,
+        ruleType: 'cost_modifier' as const,
+        runtimeKey: sk.id,
+        isAvailable: sk.status !== 'draft',
+        isBaseRule: false,
+        isFromCatalog: true,
+        isCustomized: false,
+        catalogSkill: sk,
+      }));
+
+    return [...explicit, ...projected];
+  })();
+
   return <div className="space-y-6">
     <div className="flex items-center justify-between border-b pb-4">
       <h2 className="text-xl font-bold">{draft.id ? "Editar Categoría" : "Nueva Categoría"}</h2>
@@ -399,6 +464,179 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
       {draft.coreKey && <div className="col-span-full"><p className="text-xs text-muted-foreground border-l-2 border-primary pl-2 py-1 bg-primary/5">Categoría core: su identidad y propósito estructural están protegidos por el motor. Puedes modificar sus opciones.</p></div>}
     </div>
     
+    {(draft.coreKey === 'skill' || draft.id === 'core.skill' || draft.name.toLowerCase() === 'habilidad') && (() => {
+      const baseSkillRule = draft.rules.find(r => (r as any).runtimeKey === 'base' || r.id === 'core.skill.base' || r.id.endsWith('.base') || r.name.toLowerCase().includes('base'));
+      const baseCost = typeof baseSkillRule?.cost === 'number' ? baseSkillRule.cost : 3;
+
+      return (
+        <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-primary/20 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <Brain className="size-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold uppercase tracking-wider text-foreground">
+                  Proyección Dinámica del Catálogo de Habilidades
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Las habilidades creadas en el Catálogo se integran automáticamente. Heredan el coste base salvo que definas una excepción aquí.
+                </p>
+              </div>
+            </div>
+            
+            {/* Base Cost Quick Editor */}
+            <div className="flex items-center gap-2 bg-background/90 border rounded-lg px-3 py-1.5 self-start sm:self-auto shadow-xs">
+              <span className="text-xs font-semibold text-muted-foreground">Coste Base General:</span>
+              <Input
+                type="number"
+                className="w-16 h-7 text-xs font-mono font-bold text-center"
+                value={baseCost}
+                onChange={(e) => {
+                  const val = Number(e.target.value) || 0;
+                  const existingIdx = draft.rules.findIndex(r => (r as any).runtimeKey === 'base' || r.id === 'core.skill.base' || r.id.endsWith('.base') || r.name.toLowerCase().includes('base'));
+                  if (existingIdx !== -1) {
+                    patchRule(existingIdx, { cost: val });
+                  } else {
+                    setDraft({
+                      ...draft,
+                      rules: [
+                        {
+                          id: 'core.skill.base',
+                          name: 'Coste Base de Habilidad',
+                          cost: val,
+                          ruleType: 'cost_modifier' as const,
+                          runtimeKey: 'base',
+                          isAvailable: true,
+                        },
+                        ...draft.rules,
+                      ],
+                    });
+                  }
+                }}
+              />
+              <span className="text-xs font-mono font-bold text-primary">CE</span>
+            </div>
+          </div>
+
+          {/* List of Catalog Skills */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between text-xs text-muted-foreground font-medium">
+              <span>Habilidades detectadas en el Catálogo ({catalogSkills.length})</span>
+              <span className="text-[11px] italic">Automáticas sin duplicación de registros</span>
+            </div>
+
+            {catalogSkills.length === 0 ? (
+              <div className="p-6 rounded-lg border border-dashed text-center text-xs text-muted-foreground">
+                No hay habilidades creadas en el Catálogo aún. Cuando crees habilidades en el Catálogo con tipo <strong>Habilidad</strong>, aparecerán aquí automáticamente.
+              </div>
+            ) : (
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {catalogSkills.map((sk: any) => {
+                  const overrideIdx = draft.rules.findIndex(
+                    (r) =>
+                      (r as any).runtimeKey === sk.id ||
+                      r.id === `core.skill.${sk.id}` ||
+                      r.name.toLowerCase() === sk.name.toLowerCase()
+                  );
+                  const override = overrideIdx !== -1 ? draft.rules[overrideIdx] : null;
+                  const effectiveCost = override ? override.cost : baseCost;
+
+                  return (
+                    <div
+                      key={sk.id}
+                      className={`flex items-center justify-between gap-3 p-3 rounded-lg border text-xs transition-colors ${
+                        override
+                          ? 'bg-amber-500/10 border-amber-500/30'
+                          : 'bg-card/80 border-border/70'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-foreground truncate">{sk.name}</span>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
+                            sk.status === 'published' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-zinc-500/15 text-zinc-400'
+                          }`}>
+                            {sk.status === 'published' ? 'Publicada' : 'Borrador'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                          {override ? (
+                            <span className="text-amber-400 font-semibold">Coste personalizado</span>
+                          ) : (
+                            <span>Hereda base ({baseCost} CE)</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-1 bg-background border rounded px-1.5 py-0.5">
+                          <span className="font-mono font-bold text-xs text-primary">{effectiveCost}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">CE</span>
+                        </div>
+
+                        {override ? (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              className="w-14 h-7 text-xs font-mono text-center"
+                              value={override.cost}
+                              onChange={(e) => {
+                                const newCost = Number(e.target.value) || 0;
+                                patchRule(overrideIdx, { cost: newCost });
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-[10px] text-muted-foreground hover:text-destructive"
+                              title="Restablecer a coste base general"
+                              onClick={() => {
+                                setDraft({
+                                  ...draft,
+                                  rules: draft.rules.filter((_, i) => i !== overrideIdx),
+                                });
+                              }}
+                            >
+                              Restablecer
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[10px] px-2"
+                            onClick={() => {
+                              const newRule = {
+                                id: `core.skill.${sk.id}`,
+                                name: sk.name,
+                                cost: baseCost,
+                                ruleType: 'cost_modifier' as const,
+                                runtimeKey: sk.id,
+                                isAvailable: true,
+                              };
+                              setDraft({
+                                ...draft,
+                                rules: [...draft.rules, newRule],
+                              });
+                            }}
+                          >
+                            Personalizar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    })()}
+
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3 flex-wrap">
@@ -409,21 +647,21 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
               className={`px-2.5 py-1 rounded-sm font-medium transition-colors ${ruleFilter === 'all' ? 'bg-background shadow-xs text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={() => setRuleFilter('all')}
             >
-              Todas ({draft.rules.length})
+              Todas ({effectiveRulesList.length})
             </button>
             <button
               type="button"
               className={`px-2.5 py-1 rounded-sm font-medium transition-colors ${ruleFilter === 'available' ? 'bg-background shadow-xs text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={() => setRuleFilter('available')}
             >
-              Disponibles ({draft.rules.filter(r => r.isAvailable !== false).length})
+              Disponibles ({effectiveRulesList.filter(r => r.isAvailable !== false).length})
             </button>
             <button
               type="button"
               className={`px-2.5 py-1 rounded-sm font-medium transition-colors ${ruleFilter === 'unavailable' ? 'bg-background shadow-xs text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={() => setRuleFilter('unavailable')}
             >
-              No disponibles ({(draft.rules ?? []).filter(r => r.isAvailable === false).length})
+              No disponibles ({effectiveRulesList.filter(r => r.isAvailable === false).length})
             </button>
           </div>
         </div>
@@ -724,24 +962,53 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
     </Dialog>
 
       <div className="space-y-3">
-        {draft.rules
+        {effectiveRulesList
           .filter(r => {
             if (ruleFilter === 'available') return r.isAvailable !== false;
             if (ruleFilter === 'unavailable') return r.isAvailable === false;
             return true;
           })
-          .map((r) => {
+          .map((r: any) => {
             return (
-              <div key={r.id} className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:border-primary/50">
+              <div
+                key={r.id}
+                className={`flex items-center justify-between rounded-lg border p-4 transition-colors ${
+                  r.isCustomized
+                    ? 'bg-amber-500/5 border-amber-500/30 hover:border-amber-500/50'
+                    : 'bg-card hover:border-primary/50'
+                }`}
+              >
                 <div className="flex flex-col gap-1.5 min-w-0 pr-4">
-                  <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     <span className="font-semibold text-sm">{r.name || "Sin nombre"}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${r.cost > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${r.cost > 0 ? 'bg-emerald-900/30 text-emerald-400 font-bold' : 'bg-muted text-muted-foreground'}`}>
                       {r.cost > 0 ? `+${r.cost}` : r.cost} CE
                     </span>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground border px-1.5 py-0.5 rounded-sm bg-black/20">
-                      {{ effect: "Efecto", component: "Aplicación", cost_modifier: "Ajuste CE", ce_adjustment: "Ajuste CE" }[r.ruleType] || r.ruleType}
-                    </span>
+                    {r.isBaseRule && (
+                      <span className="text-[10px] uppercase tracking-wider font-semibold border px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary border-primary/30">
+                        Regla Base General
+                      </span>
+                    )}
+                    {r.isFromCatalog && (
+                      <span className="text-[10px] uppercase tracking-wider font-semibold border px-1.5 py-0.5 rounded-sm bg-sky-500/10 text-sky-400 border-sky-500/30 flex items-center gap-1">
+                        <Sparkles className="size-2.5" /> Catálogo
+                      </span>
+                    )}
+                    {r.isFromCatalog && r.isCustomized && (
+                      <span className="text-[10px] uppercase tracking-wider font-semibold border px-1.5 py-0.5 rounded-sm bg-amber-500/10 text-amber-400 border-amber-500/30">
+                        Coste Personalizado
+                      </span>
+                    )}
+                    {r.isFromCatalog && !r.isCustomized && (
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground border px-1.5 py-0.5 rounded-sm bg-muted/40 font-mono">
+                        Hereda Base ({r.cost} CE)
+                      </span>
+                    )}
+                    {!r.isBaseRule && !r.isFromCatalog && (
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground border px-1.5 py-0.5 rounded-sm bg-black/20">
+                        {{ effect: "Efecto", component: "Aplicación", cost_modifier: "Ajuste CE", ce_adjustment: "Ajuste CE" }[r.ruleType] || r.ruleType}
+                      </span>
+                    )}
                     {r.isAvailable === false ? (
                       <span className="text-[10px] uppercase tracking-wider font-semibold border px-1.5 py-0.5 rounded-sm bg-rose-500/10 text-rose-400 border-rose-500/30">
                         No disponible
@@ -759,37 +1026,102 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                   ) : null}
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <Button variant="outline" size="sm" onClick={() => {
-                     setBackupDraft(structuredClone(draft));
-                     setEditingRuleId(r.id);
-                     setIsNewOption(false);
-                     setError('');
-                  }}>
-                    <Edit2 className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-                    Editar
-                  </Button>
-                  <Button variant="ghost" size="icon" disabled={saving} onClick={async () => {
-                     const originalDraft = draft;
-                     const newDraft = { ...draft, rules: (draft.rules ?? []).filter((rule) => rule.id !== r.id) } as Category;
-                     setDraft(newDraft);
-                     const ok = await saveWithoutClosing(newDraft);
-                     if (!ok) {
-                       setDraft(originalDraft);
-                     }
-                  }}>
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
+                  {r.isFromCatalog && !r.isCustomized ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newRule = {
+                          id: `core.skill.${r.runtimeKey}`,
+                          name: r.name,
+                          cost: r.cost,
+                          ruleType: 'cost_modifier' as const,
+                          runtimeKey: r.runtimeKey,
+                          isAvailable: true,
+                        };
+                        setBackupDraft(structuredClone(draft));
+                        setDraft({
+                          ...draft,
+                          rules: [...draft.rules, newRule],
+                        });
+                        setEditingRuleId(newRule.id);
+                        setIsNewOption(false);
+                        setError('');
+                      }}
+                    >
+                      <Settings2 className="w-3.5 h-3.5 mr-1.5 text-primary" />
+                      Personalizar CE
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setBackupDraft(structuredClone(draft));
+                        setEditingRuleId(r.id);
+                        setIsNewOption(false);
+                        setError('');
+                      }}
+                    >
+                      <Edit2 className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+                      Editar
+                    </Button>
+                  )}
+
+                  {r.isFromCatalog && r.isCustomized && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground hover:text-destructive px-2"
+                      title="Restablecer a coste base general"
+                      disabled={saving}
+                      onClick={async () => {
+                        const originalDraft = draft;
+                        const newDraft = {
+                          ...draft,
+                          rules: (draft.rules ?? []).filter((rule) =>
+                            rule.id !== r.id &&
+                            (rule as any).runtimeKey !== r.runtimeKey &&
+                            rule.id !== `core.skill.${r.runtimeKey}`
+                          ),
+                        } as Category;
+                        setDraft(newDraft);
+                        const ok = await saveWithoutClosing(newDraft);
+                        if (!ok) setDraft(originalDraft);
+                      }}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 mr-1 text-amber-400" />
+                      Restablecer
+                    </Button>
+                  )}
+
+                  {!r.isFromCatalog && !r.isBaseRule && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={saving}
+                      onClick={async () => {
+                        const originalDraft = draft;
+                        const newDraft = { ...draft, rules: (draft.rules ?? []).filter((rule) => rule.id !== r.id) } as Category;
+                        setDraft(newDraft);
+                        const ok = await saveWithoutClosing(newDraft);
+                        if (!ok) setDraft(originalDraft);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  )}
                 </div>
               </div>
             );
           })}
-        {(draft.rules ?? []).filter(r => {
+        {effectiveRulesList.filter(r => {
           if (ruleFilter === 'available') return r.isAvailable !== false;
           if (ruleFilter === 'unavailable') return r.isAvailable === false;
           return true;
         }).length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-6 border rounded-lg border-dashed">
-            {(draft.rules ?? []).length === 0 
+            {effectiveRulesList.length === 0 
               ? "No hay opciones configuradas."
               : `No hay opciones ${ruleFilter === 'available' ? 'disponibles' : 'no disponibles'} en esta categoría.`}
           </p>

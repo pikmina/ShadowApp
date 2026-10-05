@@ -297,6 +297,12 @@ export function CharacterTechniqueDialog({
               return;
             }
           }
+          if (eff.type === 'skill_modifier') {
+            if (!eff.skillId || typeof eff.skillId !== 'string' || !eff.skillId.trim()) {
+              toast.error('Cada modificador de habilidad debe especificar una habilidad válida.');
+              return;
+            }
+          }
           if (eff.type === 'healing') {
             const healingOpt = findHealingOption(
               effectiveMechanics,

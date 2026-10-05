@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import useSWR from "swr";
 import { nanoid } from "nanoid";
 import {
   Plus,
@@ -62,6 +63,8 @@ import { MechanicalDescriptionPreview } from "./MechanicalDescriptionPreview.tsx
 import type { SystemMechanicsConfig, SupportDifficultyTier } from "../../domain/systemMechanics.ts";
 import { getCategoryOptions, findHealingOption, getValidHealingOptions, getBarrierAmount, createCoreCategories, getVisibleOptions } from "../../domain/coreRuleCatalog.ts";
 
+const fetcher = (url: string) => fetch(url).then(r => r.json());
+
 interface MechanicalBehaviorsEditorProps {
   behaviors: MechanicalBehavior[];
   onChange: (behaviors: MechanicalBehavior[]) => void;
@@ -88,6 +91,11 @@ export function MechanicalBehaviorsEditor({
   activationAttributeId,
   classification,
 }: MechanicalBehaviorsEditorProps) {
+  const { data: elementsData } = useSWR('/api/elements', fetcher);
+  const catalogSkills = React.useMemo(() => {
+    return Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'skill') : [];
+  }, [elementsData]);
+
   // If element has legacy effects and no modern behaviors, allow viewing legacy editor
   const hasLegacy = Array.isArray(legacyEffects) && legacyEffects.length > 0;
   const hasBehaviors = Array.isArray(behaviors) && behaviors.length > 0;
@@ -1819,6 +1827,10 @@ function EffectsListEditor({
   mechanics?: SystemMechanicsConfig;
 }) {
   const [openOverrides, setOpenOverrides] = useState<Record<string, boolean>>({});
+  const { data: elementsData } = useSWR('/api/elements', fetcher);
+  const catalogSkills = React.useMemo(() => {
+    return Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'skill') : [];
+  }, [elementsData]);
   const damageOptions = getCategoryOptions(mechanics, "damage");
   const knownDamageDice = damageOptions.map((opt) => opt.runtimeKey);
   const damageTypeOptions = getCategoryOptions(mechanics, "damage_type");
@@ -1901,6 +1913,7 @@ function EffectsListEditor({
                       <SelectItem value="healing">💚 {MECHANICAL_LABELS.effectTypes.healing}</SelectItem>
                       <SelectItem value="barrier">🛡️ {MECHANICAL_LABELS.effectTypes.barrier}</SelectItem>
                       <SelectItem value="attribute_modifier">📊 {MECHANICAL_LABELS.effectTypes.attribute_modifier}</SelectItem>
+                      <SelectItem value="skill_modifier">🧠 {MECHANICAL_LABELS.effectTypes.skill_modifier || "Modificar Habilidad"}</SelectItem>
                       <SelectItem value="derived_stat_modifier">📈 {MECHANICAL_LABELS.effectTypes.derived_stat_modifier}</SelectItem>
                       <SelectItem value="cost_modifier">⚡ {MECHANICAL_LABELS.effectTypes.cost_modifier}</SelectItem>
                       <SelectItem value="incoming_damage_modifier">🔥 {MECHANICAL_LABELS.effectTypes.incoming_damage_modifier}</SelectItem>
@@ -2222,6 +2235,92 @@ function EffectsListEditor({
                             {!currentAmountOpt && eff.amount !== undefined && eff.amount !== null && (
                               <SelectItem value={String(eff.amount)}>
                                 {eff.amount >= 0 ? `+${eff.amount}` : eff.amount} · Valor histórico sin regla de CE
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Operación</Label>
+                        <Select
+                          value={eff.operation || "add"}
+                          onValueChange={(val: any) => updateEffect(i, { ...eff, operation: val })}
+                        >
+                          <SelectTrigger className="h-7 w-28 text-xs">
+                            <SelectValue>{getMechanicalLabel("modifierOperations", eff.operation || "add")}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="add">Sumar (+)</SelectItem>
+                            <SelectItem value="subtract">Restar (-)</SelectItem>
+                            <SelectItem value="multiply">Multiplicar (×)</SelectItem>
+                            <SelectItem value="divide">Dividir (/)</SelectItem>
+                            <SelectItem value="set">Establecer (=)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {eff.type === "skill_modifier" && (() => {
+                  const rawSkillOpts = getCategoryOptions(mechanics, "skill", catalogSkills);
+                  const effectiveSkillId = eff.skillId || rawSkillOpts[0]?.runtimeKey || (catalogSkills[0]?.id ?? "acrobacias");
+                  const visibleSkillOpts = getVisibleOptions(rawSkillOpts, eff.skillId);
+                  const rawAmountOpts = getCategoryOptions(mechanics, "numeric_modifier");
+                  const visibleAmountOpts = getVisibleOptions(rawAmountOpts, eff.amount ?? 0);
+                  const currentSkillOpt = rawSkillOpts.find(
+                    (o) =>
+                      o.runtimeKey?.toLowerCase() === effectiveSkillId.toLowerCase() ||
+                      o.id === effectiveSkillId ||
+                      o.id === `core.skill.${effectiveSkillId}` ||
+                      o.name.toLowerCase() === effectiveSkillId.toLowerCase()
+                  );
+                  const currentAmountOpt = rawAmountOpts.find(o => o.runtimeKey === String(eff.amount ?? 0) || o.id === String(eff.amount ?? 0));
+                  const fallbackSkillName = catalogSkills.find((s: any) => s.id === effectiveSkillId)?.name || effectiveSkillId;
+
+                  return (
+                    <>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Habilidad</Label>
+                        <Select
+                          value={eff.skillId || effectiveSkillId}
+                          onValueChange={(val) => updateEffect(i, { ...eff, skillId: val })}
+                        >
+                          <SelectTrigger className="h-7 w-48 text-xs font-medium">
+                            <SelectValue>{currentSkillOpt ? `${currentSkillOpt.name}${currentSkillOpt.cost ? ` (+${currentSkillOpt.cost} CE)` : ''}` : `${fallbackSkillName} · ${eff.skillId ? 'Habilidad' : 'Seleccionar'}`}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {visibleSkillOpts.map((opt) => (
+                              <SelectItem key={opt.id} value={opt.runtimeKey}>
+                                {opt.name}{opt.cost ? ` (+${opt.cost} CE)` : ''}{!opt.isAvailable ? ' · No disponible' : ''}
+                              </SelectItem>
+                            ))}
+                            {!currentSkillOpt && eff.skillId && (
+                              <SelectItem value={eff.skillId}>
+                                {fallbackSkillName} · Valor histórico
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Magnitud / Bono</Label>
+                        <Select
+                          value={String(eff.amount ?? 1)}
+                          onValueChange={(val) => updateEffect(i, { ...eff, amount: parseInt(val, 10) || 0 })}
+                        >
+                          <SelectTrigger className="h-7 w-32 text-xs font-mono font-medium">
+                            <SelectValue>{currentAmountOpt ? `${currentAmountOpt.name}${currentAmountOpt.cost ? ` (+${currentAmountOpt.cost} CE)` : ''}` : `${(eff.amount ?? 0) >= 0 ? '+' : ''}${eff.amount} · Valor histórico`}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {visibleAmountOpts.map((opt) => (
+                              <SelectItem key={opt.id} value={String(opt.amount ?? opt.runtimeKey)}>
+                                {opt.name}{opt.cost ? ` (+${opt.cost} CE)` : ''}{!opt.isAvailable ? ' · No disponible' : ''}
+                              </SelectItem>
+                            ))}
+                            {!currentAmountOpt && eff.amount !== undefined && eff.amount !== null && (
+                              <SelectItem value={String(eff.amount)}>
+                                {eff.amount >= 0 ? `+${eff.amount}` : eff.amount} · Valor histórico
                               </SelectItem>
                             )}
                           </SelectContent>

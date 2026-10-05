@@ -802,19 +802,41 @@ export function findSkillOption(
 ): ConfiguredOptionResult | undefined {
   if (!skillId) return undefined;
   const normalizedKey = String(skillId).trim().toLowerCase();
-  const cat = categories.find(c => c.id === 'skill' || c.coreKey === 'skill' || c.id === 'core.skill');
+  const effectiveCats = (!categories || categories.length === 0) ? createCoreCategories() : categories;
+  const cat = effectiveCats.find(c => c.id === 'skill' || c.coreKey === 'skill' || c.id === 'core.skill');
   if (!cat || !cat.rules) return undefined;
+  
+  // 1. Explicit skill override rule in category
   const rule = cat.rules.find(r =>
     (r as any).runtimeKey?.toLowerCase() === normalizedKey ||
     r.id?.toLowerCase().endsWith(`.${normalizedKey}`) ||
+    r.name?.toLowerCase() === normalizedKey ||
     r.name?.toLowerCase().includes(normalizedKey)
   );
-  if (!rule) return undefined;
+  if (rule) {
+    return {
+      ruleId: rule.id,
+      name: rule.name,
+      cost: typeof rule.cost === 'number' ? rule.cost : 0,
+      runtimeKey: (rule as any).runtimeKey || normalizedKey,
+      kind: 'fixed'
+    };
+  }
+
+  // 2. Dynamic projection: fallback to base skill cost rule if defined, or default to 3 CE
+  const baseRule = cat.rules.find(r =>
+    (r as any).runtimeKey === 'base' ||
+    r.id === 'core.skill.base' ||
+    r.id.endsWith('.base') ||
+    r.name.toLowerCase().includes('base')
+  );
+  const defaultCost = typeof baseRule?.cost === 'number' ? baseRule.cost : 3;
+
   return {
-    ruleId: rule.id,
-    name: rule.name,
-    cost: typeof rule.cost === 'number' ? rule.cost : 0,
-    runtimeKey: (rule as any).runtimeKey || normalizedKey,
+    ruleId: `core.skill.${normalizedKey}`,
+    name: skillId,
+    cost: defaultCost,
+    runtimeKey: normalizedKey,
     kind: 'fixed'
   };
 }
@@ -859,23 +881,23 @@ export function findModifierTargetOption(
   const statOpt = findStatOption(categories, upper) || findStatOption(categories, lower);
   if (statOpt) return statOpt;
 
-  // 3. Skills (Carisma, Presencia)
-  const skillOpt = findSkillOption(categories, lower);
-  if (skillOpt) return skillOpt;
-
-  // 4. Roll / Tirada
+  // 3. Roll / Tirada
   if (lower === 'roll' || lower === 'tirada') {
     const rollOpt = findRollTypeOption(categories, 'roll') || findRollTypeOption(categories, 'tirada');
     if (rollOpt) return rollOpt;
   }
 
-  // 5. Reducción de Estamina / Cost Adjustment
+  // 4. Reducción de Estamina / Cost Adjustment
   if (lower.includes('estamina') || lower === 'stamina' || lower === 'stamina_reduction' || lower === 'es') {
     const costOpt = findCostAdjustmentOption(categories, 'stamina_reduction') ||
       findCostAdjustmentOption(categories, 'stamina') ||
       findCostAdjustmentOption(categories, 'es');
     if (costOpt) return costOpt;
   }
+
+  // 5. Skills (Carisma, Presencia, and catalog skills)
+  const skillOpt = findSkillOption(categories, lower);
+  if (skillOpt) return skillOpt;
 
   return undefined;
 }
