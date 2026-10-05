@@ -12,10 +12,8 @@ function prepare(source) {
   source = source.replace(/\r\n/g, '\n');
   const hash = crypto.createHash('sha256').update(source).digest('hex');
   if (hash !== policy.serverHash) throw new Error('Server startup changed. Review the Namecheap startup adaptation before deploying.');
-  const begin = source.indexOf('  await seedCoreRules();');
-  const end = source.indexOf('  app.get("/api/rules"', begin);
-  if (begin < 0 || end < 0 || !source.includes('  await seedCoreProfileFields();')) throw new Error('Startup structure not recognized');
-  return source.slice(0, begin) + '  // Namecheap: no automatic database initialization.\n\n' + source.slice(end).replace('  await seedCoreProfileFields();', '');
+  // Preserve startup seeders so canonical altered statuses and rules sync on Namecheap
+  return source;
 }
 module.exports = { prepare };
 if (require.main === module) {

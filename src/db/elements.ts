@@ -87,8 +87,28 @@ async function queryElementsFallback(whereStatus?: string): Promise<(typeof syst
   }
 }
 
+let seedingStatusesPromise: Promise<void> | null = null;
+export async function ensureCanonicalStatusesSeeded() {
+  if (seedingStatusesPromise) return seedingStatusesPromise;
+  seedingStatusesPromise = (async () => {
+    try {
+      const existing = await db.select({ id: systemElements.id }).from(systemElements).where(eq(systemElements.kind, 'altered_status')).limit(1);
+      if (existing.length === 0) {
+        console.log("Notice: No altered_status elements found in database. Auto-seeding canonical statuses...");
+        await seedCoreWeaknesses();
+      }
+    } catch (err) {
+      console.warn("Notice: ensureCanonicalStatusesSeeded check warning:", err);
+    } finally {
+      seedingStatusesPromise = null;
+    }
+  })();
+  return seedingStatusesPromise;
+}
+
 export async function getElements(): Promise<(typeof systemElements.$inferSelect)[]> {
   await ensureElementIconColumns();
+  await ensureCanonicalStatusesSeeded();
   if (columnsExist) {
     try {
       return await db.select().from(systemElements).orderBy(desc(systemElements.createdAt));
@@ -101,6 +121,7 @@ export async function getElements(): Promise<(typeof systemElements.$inferSelect
 
 export async function getPublishedElements(): Promise<(typeof systemElements.$inferSelect)[]> {
   await ensureElementIconColumns();
+  await ensureCanonicalStatusesSeeded();
   if (columnsExist) {
     try {
       return await db.select().from(systemElements).where(eq(systemElements.status, 'published')).orderBy(desc(systemElements.createdAt));
@@ -254,7 +275,7 @@ export async function seedCoreWeaknesses(actorUid: string = 'system') {
       }
     }
 
-    // 2. Seed / Synchronize Core Altered Statuses
+    // 2. Seed / Synchronize Core Altered Statuses (preserving user edits and respecting deletions)
     for (const status of CORE_ALTERED_STATUSES) {
       const existing = await tx.select().from(systemElements).where(
         or(
@@ -262,16 +283,26 @@ export async function seedCoreWeaknesses(actorUid: string = 'system') {
           and(eq(systemElements.kind, 'altered_status'), eq(systemElements.name, status.name))
         )
       );
+
+      // If the altered status already exists in the database, preserve user edits!
       if (existing.length > 0) {
-        await tx.update(systemElements).set({
-          name: status.name,
-          description: status.description,
-          mechanicalBehaviors: status.mechanicalBehaviors,
-          metadata: (status as any).metadata || {},
-        }).where(eq(systemElements.id, existing[0].id));
+        const row = existing[0];
+        const currentBehaviors = (row.mechanicalBehaviors as any[]) || [];
+        const currentMeta = (row.metadata as any) || {};
+        const needsBehaviors = currentBehaviors.length === 0 && status.mechanicalBehaviors && status.mechanicalBehaviors.length > 0;
+        const needsMeta = Object.keys(currentMeta).length === 0 && (status as any).metadata;
+
+        if (needsBehaviors || needsMeta) {
+          await tx.update(systemElements).set({
+            ...(needsBehaviors ? { mechanicalBehaviors: status.mechanicalBehaviors } : {}),
+            ...(needsMeta ? { metadata: (status as any).metadata } : {}),
+            updatedAt: new Date(),
+          }).where(eq(systemElements.id, row.id));
+        }
         continue;
       }
 
+      // Check if the user explicitly deleted this altered status from the catalog
       const deletedLog = await tx.select({ id: auditLogs.id }).from(auditLogs).where(
         and(
           eq(auditLogs.actionType, 'element_deleted'),
@@ -282,6 +313,7 @@ export async function seedCoreWeaknesses(actorUid: string = 'system') {
         )
       );
 
+      // If the user intentionally deleted it, do NOT re-insert it on deploy
       if (deletedLog.length === 0) {
         await tx.insert(systemElements).values({
           id: status.id,
@@ -401,13 +433,14 @@ export async function seedCoreTraits(actorUid: string = 'system') {
 export async function getDeletedSystemElements() {
   const allTraits = SYSTEM_TRAITS.map(t => ({ id: t.id, name: t.name, kind: 'trait' as const, description: t.description }));
   const allWeaknesses = SYSTEM_WEAKNESSES.map(w => ({ id: w.id, name: w.name, kind: 'weakness' as const, description: w.description }));
-  const allCanonical = [...allTraits, ...allWeaknesses];
+  const allStatuses = CORE_ALTERED_STATUSES.map(s => ({ id: s.id, name: s.name, kind: 'altered_status' as const, description: s.description }));
+  const allCanonical = [...allTraits, ...allWeaknesses, ...allStatuses];
 
   const existingElements = await db.select({ id: systemElements.id, name: systemElements.name, kind: systemElements.kind }).from(systemElements);
   const existingIds = new Set(existingElements.map(e => e.id));
   const existingKeys = new Set(existingElements.map(e => `${e.kind}:${e.name}`));
 
-  const deleted: Array<{ id: string; name: string; kind: 'trait' | 'weakness'; description: string }> = [];
+  const deleted: Array<{ id: string; name: string; kind: 'trait' | 'weakness' | 'altered_status'; description: string }> = [];
 
   for (const canon of allCanonical) {
     if (existingIds.has(canon.id) || existingKeys.has(`${canon.kind}:${canon.name}`)) {
@@ -437,9 +470,11 @@ export async function restoreSystemElements(elementIds: string[], actorUid: stri
   return db.transaction(async (tx) => {
     const allTraits = SYSTEM_TRAITS.map(t => ({ ...t, kind: 'trait' as const }));
     const allWeaknesses = SYSTEM_WEAKNESSES.map(w => ({ ...w, kind: 'weakness' as const }));
+    const allStatuses = CORE_ALTERED_STATUSES.map(s => ({ ...s, kind: 'altered_status' as const }));
     const allMap = new Map<string, any>();
     for (const t of allTraits) allMap.set(t.id, t);
     for (const w of allWeaknesses) allMap.set(w.id, w);
+    for (const s of allStatuses) allMap.set(s.id, s);
 
     const restored: string[] = [];
 

@@ -1563,20 +1563,27 @@ export function migrateCanonicalCatalogRulesData5A(existingCategories: SystemMec
     const canonicalCat = canonicalMap.get(cat.id);
     if (!canonicalCat) return cat;
 
-    // Retain existing configured CE costs for canonical rules if user edited them
+    // Retain existing configured CE costs and availability for canonical rules if user edited them
     const existingCostMap = new Map<string, number>();
+    const existingAvailableMap = new Map<string, boolean>();
     for (const r of cat.rules) {
       if (typeof r.cost === 'number') {
         existingCostMap.set(r.id, r.cost);
         if (r.runtimeKey) existingCostMap.set(r.runtimeKey, r.cost);
       }
+      if (typeof r.isAvailable === 'boolean') {
+        existingAvailableMap.set(r.id, r.isAvailable);
+        if (r.runtimeKey) existingAvailableMap.set(r.runtimeKey, r.isAvailable);
+      }
     }
 
     const mergedRules = canonicalCat.rules.map(canRule => {
       const existingCost = existingCostMap.get(canRule.id) ?? (canRule.runtimeKey ? existingCostMap.get(canRule.runtimeKey) : undefined);
+      const existingAvailable = existingAvailableMap.get(canRule.id) ?? (canRule.runtimeKey ? existingAvailableMap.get(canRule.runtimeKey) : undefined);
       return {
         ...canRule,
         cost: existingCost !== undefined ? existingCost : canRule.cost,
+        isAvailable: existingAvailable !== undefined ? existingAvailable : canRule.isAvailable,
       };
     });
 

@@ -9,10 +9,18 @@ import { defaultEmploymentCompensation, employmentCompensationSchema } from '../
 
 export async function getRules() {
   try {
-    const rules = await db.select().from(systemRules);
+    let rules = await db.select().from(systemRules);
+    if (!rules.some(r => r.key === 'system_mechanics')) {
+      try {
+        await seedCoreRules();
+        rules = await db.select().from(systemRules);
+      } catch (seedErr) {
+        console.warn("Notice: On-demand seedCoreRules error (non-fatal):", seedErr);
+      }
+    }
     return rules.map(r => {
       if (r.key === 'system_mechanics' && Array.isArray(r.value)) {
-        return { ...r, value: migrateCoreCategories(r.value) };
+        return { ...r, value: migrateCanonicalCatalogRulesData5A(migrateCoreCategories(r.value)) };
       }
       return r;
     });
@@ -27,7 +35,7 @@ export async function getRule(key: string) {
     const results = await db.select().from(systemRules).where(eq(systemRules.key, key));
     const rule = results[0];
     if (rule && rule.key === 'system_mechanics' && Array.isArray(rule.value)) {
-      return { ...rule, value: migrateCoreCategories(rule.value) };
+      return { ...rule, value: migrateCanonicalCatalogRulesData5A(migrateCoreCategories(rule.value)) };
     }
     return rule;
   } catch (error) {

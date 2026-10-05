@@ -37,7 +37,8 @@ import {
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { Switch } from "../components/ui/switch";
-import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff, Sparkles, Layers, Copy, AlertCircle, Loader2, Flame } from "lucide-react";
+import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff, Sparkles, Layers, Copy, AlertCircle, Loader2, Flame, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { useMemo } from "react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -352,6 +353,26 @@ export default function CatalogAdmin() {
     }
   };
 
+  const [syncingStatuses, setSyncingStatuses] = useState(false);
+
+  const handleSyncCanonicalStatuses = async () => {
+    try {
+      setSyncingStatuses(true);
+      setAdminActionError("");
+      const res = await apiFetch("/api/admin/system/sync-canonical-statuses", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Error al sincronizar estados canónicos");
+      await mutate();
+      toast.success("Estados alterados canónicos y reglas sincronizados con éxito");
+    } catch (e: any) {
+      console.error(e);
+      setAdminActionError(e.message || "Error al sincronizar estados canónicos");
+      toast.error(e.message || "Error al sincronizar estados canónicos");
+    } finally {
+      setSyncingStatuses(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <SectionHeader 
@@ -360,6 +381,16 @@ export default function CatalogAdmin() {
         description="Define los rasgos, debilidades, habilidades y estados del sistema." 
         actions={
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleSyncCanonicalStatuses} 
+              disabled={syncingStatuses}
+              className="gap-1.5"
+              title="Asegura que los 21 estados alterados canónicos y sus reglas estén sincronizados en la base de datos"
+            >
+              {syncingStatuses ? <Loader2 className="size-4 animate-spin text-primary" /> : <RefreshCw className="size-4 text-purple-400" />}
+              Sincronizar Estados Canónicos
+            </Button>
             <Button variant="outline" onClick={handleOpenRestore} className="gap-1.5">
               <Sparkles className="size-4" />
               Restaurar elementos del sistema

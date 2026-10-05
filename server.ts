@@ -39,9 +39,13 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   const { getRules, upsertRule, deleteRule, seedCoreRules } = await import("./src/db/rules.ts");
   const { seedCoreWeaknesses, seedCoreTraits } = await import("./src/db/elements.ts");
 
-  await seedCoreRules();
-  await seedCoreWeaknesses();
-  await seedCoreTraits();
+  try {
+    await seedCoreRules();
+    await seedCoreWeaknesses();
+    await seedCoreTraits();
+  } catch (seedErr: any) {
+    console.warn("Notice: Startup core seeding warning (safe fallback):", seedErr?.message || seedErr);
+  }
 
   // Ensure database enums are updated (safe fallback if migrations were bypassed)
   try {
@@ -170,6 +174,22 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     }
   });
 
+  app.post("/api/admin/system/sync-canonical-statuses", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { seedCoreWeaknesses } = await import("./src/db/elements.ts");
+      const { seedCoreRules } = await import("./src/db/rules.ts");
+      await seedCoreWeaknesses(req.user?.uid || 'admin-sync');
+      await seedCoreRules();
+      res.json({
+        success: true,
+        message: "Estados alterados canónicos y reglas del sistema sincronizados con éxito.",
+      });
+    } catch (error: any) {
+      console.error("Error syncing canonical statuses:", error);
+      res.status(500).json({ error: error.message || "Failed to sync canonical statuses" });
+    }
+  });
+
   app.get("/api/elements", async (req, res) => {
     try {
       const items = await getPublishedElements();
@@ -240,7 +260,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // Sheet Fields API
   const { getSheetFields, upsertSheetField, deleteSheetField, seedCoreProfileFields } = await import("./src/db/sheetFields.ts");
-  await seedCoreProfileFields();
+  try {
+    await seedCoreProfileFields();
+  } catch (fieldErr: any) {
+    console.warn("Notice: Startup profile fields seeding warning (safe fallback):", fieldErr?.message || fieldErr);
+  }
   app.get("/api/sheet-fields", async (req, res) => {
     try {
       const fields = await getSheetFields();
