@@ -63,6 +63,14 @@ import { MechanicalDescriptionPreview } from "./MechanicalDescriptionPreview.tsx
 import type { SystemMechanicsConfig, SupportDifficultyTier } from "../../domain/systemMechanics.ts";
 import { getCategoryOptions, findHealingOption, getValidHealingOptions, getBarrierAmount, createCoreCategories, getVisibleOptions } from "../../domain/coreRuleCatalog.ts";
 import { CANONICAL_STATUS_LIST } from "./MechanicalEffectDefinitionEditor.tsx";
+import {
+  getCanonicalStatusDefaultTurns,
+  CANONICAL_STATUS_FAMILIES,
+  CANONICAL_SINGLE_STATUSES,
+  CANONICAL_CURING_SCOPES,
+  parseStatusRemoveSelection,
+  composeStatusRemoveId,
+} from "../../domain/canonicalAlteredStatuses.ts";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -2598,11 +2606,13 @@ function EffectsListEditor({
                           value={eff.statusElementId}
                           onValueChange={(val) => {
                             const matched = statusOptions.find((s) => s.id === val || s.runtimeKey === val || (s as any).effect?.statusElementId === val);
+                            const defaultTurns = getCanonicalStatusDefaultTurns(val);
                             updateEffect(i, {
                               ...eff,
                               statusElementId: val,
                               ruleId: matched?.id,
                               runtimeKey: matched?.runtimeKey,
+                              turns: defaultTurns,
                             } as any);
                           }}
                         >
@@ -2649,7 +2659,7 @@ function EffectsListEditor({
                         <Input
                           type="number"
                           min={1}
-                          value={eff.turns || 1}
+                          value={eff.turns || getCanonicalStatusDefaultTurns(eff.statusElementId) || 1}
                           onChange={(e) => updateEffect(i, { ...eff, turns: parseInt(e.target.value, 10) || 1 })}
                           className="h-7 w-20 text-xs"
                         />
@@ -2662,62 +2672,140 @@ function EffectsListEditor({
                   const removeOptions = getCategoryOptions(mechanics, "status_remove");
                   const statusOptions = getCategoryOptions(mechanics, "status");
                   const allOptions = removeOptions.length > 0 ? removeOptions : statusOptions;
+
+                  const parsed = parseStatusRemoveSelection(eff.statusElementId);
+                  const selectedBase = parsed.baseKey;
+                  const selectedTier = parsed.tier;
+                  const hasTiers = parsed.hasTiers;
+
                   return (
-                    <div className="grid gap-1">
-                      <Label className="text-[11px]">Estado Alterado a Eliminar / Curar</Label>
-                      <Select
-                        value={eff.statusElementId}
-                        onValueChange={(val) => {
-                          const matched = allOptions.find((s) => s.id === val || s.runtimeKey === val || (s as any).effect?.statusElementId === val);
-                          updateEffect(i, {
-                            ...eff,
-                            statusElementId: val,
-                            ruleId: matched?.id,
-                            runtimeKey: matched?.runtimeKey,
-                          } as any);
-                        }}
-                      >
-                        <SelectTrigger className="h-7 w-56 text-xs font-medium">
-                          <SelectValue placeholder="Seleccionar curación...">
-                            {eff.statusElementId === "all"
-                              ? "Todos los Estados Alterados"
-                              : allOptions.find((s) => s.id === eff.statusElementId || s.runtimeKey === eff.statusElementId || (s as any).effect?.statusElementId === eff.statusElementId)?.name ||
-                                catalogAlteredStatuses.find((el: any) => el.id === eff.statusElementId)?.name ||
-                                getAlteredStatusLabel(eff.statusElementId)}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">🌐 Todos los Estados Alterados</SelectItem>
-                          <SelectGroup>
-                            <SelectLabel className="text-[10px] uppercase font-bold text-muted-foreground">Opciones Canónicas de Curación</SelectLabel>
-                            {getVisibleOptions(allOptions, eff.statusElementId).map((s) => (
-                              <SelectItem key={s.id} value={s.id}>
-                                {s.name}
-                                {s.cost > 0 ? ` (+${s.cost} CE)` : s.cost < 0 ? ` (${s.cost} CE)` : ""}
-                                {s.isAvailable === false ? " · No disponible" : ""}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                          {catalogAlteredStatuses.length > 0 && (
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div className="grid gap-1">
+                        <Label className="text-[11px]">Estado Alterado a Eliminar / Curar</Label>
+                        <Select
+                          value={selectedBase}
+                          onValueChange={(val) => {
+                            const newParsed = parseStatusRemoveSelection(val);
+                            const nextStatusId = newParsed.hasTiers
+                              ? composeStatusRemoveId(val, selectedTier)
+                              : val;
+                            const matched = allOptions.find(
+                              (s) =>
+                                s.id === nextStatusId ||
+                                s.runtimeKey === nextStatusId ||
+                                (s as any).effect?.statusElementId === nextStatusId ||
+                                s.id === val ||
+                                (s as any).effect?.statusElementId === val
+                            );
+                            updateEffect(i, {
+                              ...eff,
+                              statusElementId: nextStatusId,
+                              ruleId: matched?.id,
+                              runtimeKey: matched?.runtimeKey,
+                            } as any);
+                          }}
+                        >
+                          <SelectTrigger className="h-7 w-56 text-xs font-medium">
+                            <SelectValue placeholder="Seleccionar curación...">
+                              {selectedBase === "all"
+                                ? "🌐 Todos los Estados Alterados"
+                                : CANONICAL_CURING_SCOPES.find((s) => s.id === selectedBase)?.name ||
+                                  CANONICAL_STATUS_FAMILIES.find((f) => f.id === selectedBase || f.key === selectedBase)?.name ||
+                                  CANONICAL_SINGLE_STATUSES.find((s) => s.id === selectedBase || s.key === selectedBase)?.name ||
+                                  allOptions.find((s) => s.id === selectedBase || s.runtimeKey === selectedBase || (s as any).effect?.statusElementId === selectedBase)?.name ||
+                                  catalogAlteredStatuses.find((el: any) => el.id === selectedBase)?.name ||
+                                  getAlteredStatusLabel(selectedBase)}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
                             <SelectGroup>
-                              <SelectLabel className="text-[10px] uppercase font-bold text-purple-400">Catálogo de Estados Alterados</SelectLabel>
-                              {catalogAlteredStatuses.map((el: any) => (
-                                <SelectItem key={el.id} value={el.id}>
-                                  {el.name}
+                              <SelectLabel className="text-[10px] uppercase font-bold text-blue-400">Alcance de Curación General</SelectLabel>
+                              {CANONICAL_CURING_SCOPES.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name}
                                 </SelectItem>
                               ))}
                             </SelectGroup>
-                          )}
-                          {!allOptions.some((s) => s.id === eff.statusElementId || s.runtimeKey === eff.statusElementId || (s as any).effect?.statusElementId === eff.statusElementId) &&
-                            !catalogAlteredStatuses.some((el: any) => el.id === eff.statusElementId) &&
-                            eff.statusElementId &&
-                            eff.statusElementId !== "all" && (
-                              <SelectItem key="custom" value={eff.statusElementId}>
-                                {getAlteredStatusLabel(eff.statusElementId)}
-                              </SelectItem>
+                            <SelectGroup>
+                              <SelectLabel className="text-[10px] uppercase font-bold text-amber-400">Familias con Niveles</SelectLabel>
+                              {CANONICAL_STATUS_FAMILIES.map((f) => (
+                                <SelectItem key={f.id} value={f.id}>
+                                  {f.icon} {f.name}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                            <SelectGroup>
+                              <SelectLabel className="text-[10px] uppercase font-bold text-muted-foreground">Estados Individuales (Sin Niveles)</SelectLabel>
+                              {CANONICAL_SINGLE_STATUSES.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.icon} {s.name}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                            {catalogAlteredStatuses.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel className="text-[10px] uppercase font-bold text-purple-400">Catálogo de Estados Alterados</SelectLabel>
+                                {catalogAlteredStatuses.map((el: any) => (
+                                  <SelectItem key={el.id} value={el.id}>
+                                    {el.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
                             )}
-                        </SelectContent>
-                      </Select>
+                            {!CANONICAL_CURING_SCOPES.some((s) => s.id === selectedBase) &&
+                              !CANONICAL_STATUS_FAMILIES.some((f) => f.id === selectedBase || f.key === selectedBase) &&
+                              !CANONICAL_SINGLE_STATUSES.some((s) => s.id === selectedBase || s.key === selectedBase) &&
+                              !allOptions.some((s) => s.id === selectedBase || s.runtimeKey === selectedBase || (s as any).effect?.statusElementId === selectedBase) &&
+                              !catalogAlteredStatuses.some((el: any) => el.id === selectedBase) &&
+                              selectedBase && (
+                                <SelectItem key="custom" value={selectedBase}>
+                                  {getAlteredStatusLabel(selectedBase)}
+                                </SelectItem>
+                              )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {hasTiers && (
+                        <div className="grid gap-1">
+                          <Label className="text-[11px]">Gravedad / Nivel</Label>
+                          <Select
+                            value={selectedTier || "all"}
+                            onValueChange={(tierVal: "all" | "leve" | "grave") => {
+                              const nextStatusId = composeStatusRemoveId(selectedBase, tierVal);
+                              const matched = allOptions.find(
+                                (s) =>
+                                  s.id === nextStatusId ||
+                                  s.runtimeKey === nextStatusId ||
+                                  (s as any).effect?.statusElementId === nextStatusId ||
+                                  s.id === selectedBase ||
+                                  (s as any).effect?.statusElementId === selectedBase
+                              );
+                              updateEffect(i, {
+                                ...eff,
+                                statusElementId: nextStatusId,
+                                ruleId: matched?.id,
+                                runtimeKey: matched?.runtimeKey,
+                              } as any);
+                            }}
+                          >
+                            <SelectTrigger className="h-7 w-36 text-xs font-medium">
+                              <SelectValue>
+                                {selectedTier === "leve"
+                                  ? "🟢 Leve"
+                                  : selectedTier === "grave"
+                                  ? "🔴 Grave"
+                                  : "🌐 Cualquier nivel"}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">🌐 Cualquier nivel</SelectItem>
+                              <SelectItem value="leve">🟢 Leve</SelectItem>
+                              <SelectItem value="grave">🔴 Grave</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
@@ -2914,8 +3002,12 @@ function EffectsListEditor({
                   className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {openOverrides[eff.id] ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-                  <span>Sobrescribir Objetivo o Temporalidad para este efecto</span>
-                  {(eff.target || eff.temporality) && (
+                  <span>
+                    {eff.type === "status_apply"
+                      ? "Sobrescribir Objetivo para este efecto"
+                      : "Sobrescribir Objetivo o Temporalidad para este efecto"}
+                  </span>
+                  {(eff.target || (eff.type !== "status_apply" && eff.temporality)) && (
                     <span className="text-primary font-bold">(activo)</span>
                   )}
                 </button>
@@ -2965,48 +3057,50 @@ function EffectsListEditor({
                       )}
                     </div>
 
-                    {/* Temporality Override */}
-                    <div className="space-y-1.5 pt-1.5 border-t border-border/40">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold flex items-center gap-1">
-                          <Clock className="size-3 text-amber-400" />
-                          <span>Temporalidad específica del efecto</span>
-                        </span>
+                    {/* Temporality Override (Hidden for status_apply as the status brings its own duration in turns) */}
+                    {eff.type !== "status_apply" && (
+                      <div className="space-y-1.5 pt-1.5 border-t border-border/40">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-semibold flex items-center gap-1">
+                            <Clock className="size-3 text-amber-400" />
+                            <span>Temporalidad específica del efecto</span>
+                          </span>
+                          {eff.temporality ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 text-[10px] text-destructive px-1.5"
+                              onClick={() => updateEffect(i, { ...eff, temporality: undefined })}
+                            >
+                              Eliminar sobrescritura (heredar)
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-5 text-[10px] px-1.5"
+                              onClick={() => updateEffect(i, { ...eff, temporality: { duration: { type: "instant" } } })}
+                            >
+                              + Definir temporalidad específica
+                            </Button>
+                          )}
+                        </div>
                         {eff.temporality ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-5 text-[10px] text-destructive px-1.5"
-                            onClick={() => updateEffect(i, { ...eff, temporality: undefined })}
-                          >
-                            Eliminar sobrescritura (heredar)
-                          </Button>
+                          <div className="p-2 border rounded bg-background/60">
+                            <TemporalityEditor
+                              temporality={eff.temporality}
+                              onChange={(newTemp) => updateEffect(i, { ...eff, temporality: newTemp })}
+                            />
+                          </div>
                         ) : (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-5 text-[10px] px-1.5"
-                            onClick={() => updateEffect(i, { ...eff, temporality: { duration: { type: "instant" } } })}
-                          >
-                            + Definir temporalidad específica
-                          </Button>
+                          <p className="text-[10px] text-muted-foreground italic">
+                            Hereda la temporalidad configurada a nivel de comportamiento.
+                          </p>
                         )}
                       </div>
-                      {eff.temporality ? (
-                        <div className="p-2 border rounded bg-background/60">
-                          <TemporalityEditor
-                            temporality={eff.temporality}
-                            onChange={(newTemp) => updateEffect(i, { ...eff, temporality: newTemp })}
-                          />
-                        </div>
-                      ) : (
-                        <p className="text-[10px] text-muted-foreground italic">
-                          Hereda la temporalidad configurada a nivel de comportamiento.
-                        </p>
-                      )}
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
