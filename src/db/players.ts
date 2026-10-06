@@ -213,3 +213,61 @@ export async function deletePlayer(id: number, actorUid?: string) {
 
   return { success: true };
 }
+
+export async function assignCharacterToPlayer(playerId: number, characterId: number, actorUid?: string) {
+  const [updated] = await db
+    .update(characters)
+    .set({ playerId, updatedAt: new Date() })
+    .where(eq(characters.id, characterId))
+    .returning();
+
+  if (!updated) {
+    const error = new Error("Character not found");
+    (error as any).status = 404;
+    throw error;
+  }
+
+  if (actorUid) {
+    await db.insert(auditLogs).values({
+      actorUid,
+      actionType: 'character_assigned_to_player',
+      targetId: characterId.toString(),
+      details: {
+        characterId,
+        playerId,
+        characterName: updated.name,
+      },
+    });
+  }
+
+  return updated;
+}
+
+export async function unassignCharacterFromPlayer(playerId: number, characterId: number, actorUid?: string) {
+  const [updated] = await db
+    .update(characters)
+    .set({ playerId: null, updatedAt: new Date() })
+    .where(and(eq(characters.id, characterId), eq(characters.playerId, playerId)))
+    .returning();
+
+  if (!updated) {
+    const error = new Error("Character not found or not assigned to this player");
+    (error as any).status = 404;
+    throw error;
+  }
+
+  if (actorUid) {
+    await db.insert(auditLogs).values({
+      actorUid,
+      actionType: 'character_unassigned_from_player',
+      targetId: characterId.toString(),
+      details: {
+        characterId,
+        playerId,
+        characterName: updated.name,
+      },
+    });
+  }
+
+  return updated;
+}

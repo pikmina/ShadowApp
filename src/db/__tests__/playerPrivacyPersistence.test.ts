@@ -87,4 +87,35 @@ describe.skipIf(!dbAvailable)('Player Privacy & Persistence Integration Tests', 
     expect((publicPlayer as any).notes).toBeUndefined();
     expect((publicPlayer as any).userId).toBeUndefined();
   });
+
+  it('assigns and unassigns unassigned character to a player', async () => {
+    const { assignCharacterToPlayer, unassignCharacterFromPlayer } = await import('../players.ts');
+    
+    // Create an unassigned character (playerId: null)
+    const [unassignedChar] = await db.insert(characters).values({
+      name: `Free Agent ${nanoid(4)}`,
+      playerId: null,
+      active: true,
+      exp: 0,
+      yen: 100,
+    }).returning();
+
+    // Assign to player
+    const assigned = await assignCharacterToPlayer(createdPlayerId, unassignedChar.id);
+    expect(assigned.playerId).toBe(createdPlayerId);
+
+    // Verify in getPlayers
+    const all = await getPlayers({ includeInactive: true });
+    const playerWithChars = all.find(p => p.id === createdPlayerId);
+    expect(playerWithChars?.characters.some(c => c.id === unassignedChar.id)).toBe(true);
+
+    // Unassign
+    await unassignCharacterFromPlayer(createdPlayerId, unassignedChar.id);
+    const allAfter = await getPlayers({ includeInactive: true });
+    const playerAfter = allAfter.find(p => p.id === createdPlayerId);
+    expect(playerAfter?.characters.some(c => c.id === unassignedChar.id)).toBe(false);
+
+    // Cleanup
+    await db.delete(characters).where(eq(characters.id, unassignedChar.id));
+  });
 });

@@ -645,6 +645,38 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     }
   });
 
+  app.post("/api/admin/players/:id/characters", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const playerId = parseInt(req.params.id, 10);
+      if (isNaN(playerId)) return res.status(400).json({ error: "Invalid player ID" });
+      const schema = z.object({
+        characterId: z.number().int().positive(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+
+      const { assignCharacterToPlayer } = await import("./src/db/players.ts");
+      const updated = await assignCharacterToPlayer(playerId, parsed.data.characterId, req.dbUser?.uid);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || "Failed to assign character" });
+    }
+  });
+
+  app.delete("/api/admin/players/:id/characters/:characterId", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const playerId = parseInt(req.params.id, 10);
+      const characterId = parseInt(req.params.characterId, 10);
+      if (isNaN(playerId) || isNaN(characterId)) return res.status(400).json({ error: "Invalid IDs" });
+
+      const { unassignCharacterFromPlayer } = await import("./src/db/players.ts");
+      const updated = await unassignCharacterFromPlayer(playerId, characterId, req.dbUser?.uid);
+      res.json({ success: true, character: updated });
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || "Failed to unassign character" });
+    }
+  });
+
   // --- Public Players API (only players with active characters, only active characters listed) ---
   app.get("/api/public/players", async (req, res) => {
     try {

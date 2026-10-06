@@ -17,7 +17,10 @@ import {
   Sparkles,
   Dices,
   RefreshCw,
-  FileText
+  FileText,
+  UserPlus,
+  X,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch, fetcher } from '@/lib/api';
@@ -33,6 +36,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -48,6 +52,7 @@ export default function PlayersAdmin() {
   const { user, dbUser } = useAuth();
   const isMod = dbUser?.role === 'moderator' || dbUser?.role === 'superadmin';
   const { data: playersList, error, mutate } = useSWR<any[]>(user && isMod ? '/api/admin/players' : null, fetcher);
+  const { data: allCharacters, mutate: mutateCharacters } = useSWR<any[]>(user && isMod ? '/api/admin/characters' : null, fetcher);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'absent'>('all');
@@ -62,9 +67,32 @@ export default function PlayersAdmin() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
+  // Character assignment modal state
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [targetAssignPlayer, setTargetAssignPlayer] = useState<any | null>(null);
+  const [assignSearchTerm, setAssignSearchTerm] = useState('');
+  const [isAssigningId, setIsAssigningId] = useState<number | null>(null);
+
   // Generator state in dialog
   const [generatorCategory, setGeneratorCategory] = useState<NameGeneratorCategory>('all');
   const [nameSuggestions, setNameSuggestions] = useState<string[]>(() => generatePlayerNameList(4, 'all'));
+
+  // Only characters with NO assignment (playerId is null or undefined)
+  const unassignedCharacters = useMemo(() => {
+    if (!allCharacters || !Array.isArray(allCharacters)) return [];
+    return allCharacters.filter((c: any) => !c.playerId && c.playerId !== 0);
+  }, [allCharacters]);
+
+  const filteredUnassigned = useMemo(() => {
+    const q = assignSearchTerm.trim().toLowerCase();
+    if (!q) return unassignedCharacters;
+    return unassignedCharacters.filter((c: any) => {
+      const name = (c.name || '').toLowerCase();
+      const quirk = (c.profileData?.quirk_name || c.profileData?.don || c.profileData?.quirk || '').toLowerCase();
+      const group = (c.profileData?.faction_group || c.profileData?.grupo || '').toLowerCase();
+      return name.includes(q) || quirk.includes(q) || group.includes(q);
+    });
+  }, [unassignedCharacters, assignSearchTerm]);
 
   const filteredPlayers = useMemo(() => {
     if (!playersList) return [];
@@ -101,6 +129,49 @@ export default function PlayersAdmin() {
     }
     setNameSuggestions(generatePlayerNameList(4, generatorCategory));
     setIsDialogOpen(true);
+  };
+
+  const handleOpenAssignModal = (player: any) => {
+    setTargetAssignPlayer(player);
+    setAssignSearchTerm('');
+    setIsAssignDialogOpen(true);
+  };
+
+  const handleAssignCharacter = async (playerId: number, characterId: number, characterName: string) => {
+    try {
+      setIsAssigningId(characterId);
+      const res = await apiFetch(`/api/admin/players/${playerId}/characters`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Error al asignar personaje');
+      }
+      toast.success(`Personaje "${characterName}" asignado a ${targetAssignPlayer?.name || 'jugador'}`);
+      await Promise.all([mutate(), mutateCharacters()]);
+    } catch (err: any) {
+      toast.error(err.message || 'Error al asignar personaje');
+    } finally {
+      setIsAssigningId(null);
+    }
+  };
+
+  const handleUnassignCharacter = async (playerId: number, characterId: number, characterName: string) => {
+    try {
+      const res = await apiFetch(`/api/admin/players/${playerId}/characters/${characterId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Error al desasignar personaje');
+      }
+      toast.success(`Personaje "${characterName}" desasignado`);
+      await Promise.all([mutate(), mutateCharacters()]);
+    } catch (err: any) {
+      toast.error(err.message || 'Error al desasignar personaje');
+    }
   };
 
   const handleQuickGenerate = (cat: NameGeneratorCategory = generatorCategory) => {
@@ -307,37 +378,71 @@ export default function PlayersAdmin() {
                   </div>
 
                   {player.characters && player.characters.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {player.characters.map((char: any) => {
-                        const isArchived = char.active === false;
-                        return (
-                          <div
-                            key={char.id}
-                            className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-oxanium border ${isArchived ? 'bg-muted/10 text-muted-foreground border-border/30 line-through' : 'bg-primary/10 text-foreground border-primary/20'}`}
-                          >
-                            <span>{char.name}</span>
-                            {char.canonCharacterId && (
-                              <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase tracking-wider border-blue-500/30 text-blue-400">
-                                Canon
-                              </Badge>
-                            )}
-                            <Link
-                              to={`/sheet/${char.id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-muted-foreground hover:text-primary ml-1"
-                              title="Ver ficha"
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {player.characters.map((char: any) => {
+                          const isArchived = char.active === false;
+                          return (
+                            <div
+                              key={char.id}
+                              className={`flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded text-[11px] font-oxanium border ${isArchived ? 'bg-muted/10 text-muted-foreground border-border/30 line-through' : 'bg-primary/10 text-foreground border-primary/20'}`}
                             >
-                              <ExternalLink className="size-2.5" />
-                            </Link>
-                          </div>
-                        );
-                      })}
+                              <span>{char.name}</span>
+                              {char.canonCharacterId && (
+                                <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase tracking-wider border-blue-500/30 text-blue-400">
+                                  Canon
+                                </Badge>
+                              )}
+                              <Link
+                                to={`/sheet/${char.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground hover:text-primary"
+                                title="Ver ficha"
+                              >
+                                <ExternalLink className="size-2.5" />
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUnassignCharacter(player.id, char.id, char.name);
+                                }}
+                                className="text-muted-foreground/70 hover:text-destructive transition-colors p-0.5 rounded hover:bg-destructive/10 ml-0.5"
+                                title="Desasignar este personaje"
+                              >
+                                <X className="size-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] font-oxanium text-primary hover:bg-primary/10 border border-dashed border-primary/30 w-full justify-center"
+                        onClick={() => handleOpenAssignModal(player)}
+                      >
+                        <Plus className="size-3 mr-1" /> Asignar otro personaje...
+                      </Button>
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground/60 italic py-1">
-                      Sin personajes asignados aún.
-                    </p>
+                    <div className="py-1 space-y-2">
+                      <p className="text-xs text-muted-foreground/60 italic">
+                        Sin personajes asignados aún.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs font-oxanium gap-1.5 border-dashed border-primary/40 text-primary hover:bg-primary/10 hover:border-primary w-full justify-center"
+                        onClick={() => handleOpenAssignModal(player)}
+                      >
+                        <Plus className="size-3.5" /> Agregar personaje...
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -549,6 +654,124 @@ export default function PlayersAdmin() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog to Assign Unassigned Characters */}
+      <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] flex flex-col p-6">
+          <DialogHeader>
+            <DialogTitle className="font-oxanium text-lg uppercase tracking-wider flex items-center gap-2">
+              <UserPlus className="size-5 text-primary" />
+              <span>Asignar Personaje a {targetAssignPlayer?.name}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Solo se muestran los personajes que no tienen ningún jugador asignado ({unassignedCharacters.length} disponibles).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 flex-1 overflow-hidden flex flex-col">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={assignSearchTerm}
+                onChange={e => setAssignSearchTerm(e.target.value)}
+                placeholder="Buscar personaje sin asignar por nombre, don o grupo..."
+                className="h-9 bg-background/70 pl-9 text-xs w-full"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[220px] max-h-[350px]">
+              {filteredUnassigned.length > 0 ? (
+                filteredUnassigned.map((char: any) => {
+                  const quirk = char.profileData?.quirk_name || char.profileData?.don || char.profileData?.quirk;
+                  const group = char.profileData?.faction_group || char.profileData?.grupo;
+                  const isAssigningThis = isAssigningId === char.id;
+
+                  return (
+                    <div
+                      key={char.id}
+                      className="p-3 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-oxanium font-bold text-sm text-foreground">
+                            {char.name}
+                          </span>
+                          {char.canonCharacterId && (
+                            <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase tracking-wider border-blue-500/40 text-blue-400 bg-blue-500/10">
+                              Canon
+                            </Badge>
+                          )}
+                          {group && (
+                            <Badge variant="outline" className="h-4 px-1.5 text-[8px] uppercase tracking-wider border-border/50 text-muted-foreground">
+                              {group}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {quirk && (
+                          <p className="text-xs text-amber-400/90 font-mono mt-0.5 truncate">
+                            Don: {quirk}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Link
+                          to={`/sheet/${char.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded transition-colors"
+                          title="Ver ficha en nueva pestaña"
+                        >
+                          <ExternalLink className="size-3.5" />
+                        </Link>
+                        <Button
+                          size="sm"
+                          className="h-8 px-3 text-xs font-oxanium gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"
+                          onClick={() => handleAssignCharacter(targetAssignPlayer.id, char.id, char.name)}
+                          disabled={isAssigningId !== null}
+                        >
+                          {isAssigningThis ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <UserPlus className="size-3.5" />
+                          )}
+                          <span>Asignar</span>
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="p-8 text-center rounded-lg border border-dashed border-border/50 bg-muted/10">
+                  <UserX className="mx-auto mb-2 size-6 text-muted-foreground/40" />
+                  <p className="font-oxanium text-xs font-semibold text-foreground">
+                    {unassignedCharacters.length === 0
+                      ? 'No hay personajes sin asignar'
+                      : 'No se encontraron personajes con esa búsqueda'}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {unassignedCharacters.length === 0
+                      ? 'Todos los personajes ya están asignados a un jugador o no hay fichas creadas.'
+                      : 'Prueba a escribir otro término de búsqueda.'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2 border-t border-border/40">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAssignDialogOpen(false)}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
