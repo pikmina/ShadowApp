@@ -29,6 +29,39 @@ export const requireAuth = async (
     
     // Resolve dbUser as the source of truth for roles
     let dbUser = await getUserByUid(decodedToken.uid);
+    if (!dbUser && decodedToken.email) {
+      const email = decodedToken.email.trim().toLowerCase();
+      const [byEmail] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      if (byEmail) {
+        const [linked] = await db
+          .update(users)
+          .set({
+            uid: decodedToken.uid,
+            displayName: byEmail.displayName || decodedToken.name || email.split('@')[0],
+            avatarUrl: byEmail.avatarUrl || decodedToken.picture || null,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, byEmail.id))
+          .returning();
+        dbUser = linked;
+      } else {
+        const all = await db.select().from(users).limit(1);
+        if (all.length === 0) {
+          const [firstAdmin] = await db
+            .insert(users)
+            .values({
+              uid: decodedToken.uid,
+              email,
+              displayName: decodedToken.name || email.split('@')[0],
+              avatarUrl: decodedToken.picture || null,
+              role: 'superadmin'
+            })
+            .returning();
+          dbUser = firstAdmin;
+        }
+      }
+    }
+
     if (!dbUser) {
       res.status(403).json({ error: 'Forbidden: User not found in database or not active' });
       return;

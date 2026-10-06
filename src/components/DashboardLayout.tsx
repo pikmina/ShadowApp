@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, BookOpen, Database, ChevronRight, FileText, LayoutTemplate, Library, LogOut, Menu, Settings, ShieldCheck, ShoppingCart, Swords, UserRound, Component, History, UserCog, Users } from "lucide-react";
+import { LayoutDashboard, BookOpen, Database, ChevronRight, FileText, LayoutTemplate, Library, LogOut, Menu, Settings, ShieldCheck, ShoppingCart, Swords, UserRound, Component, History, UserCog, Users, Code2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "./ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
@@ -28,12 +28,12 @@ const navigation = [
   { label: "Sistema", roles: ["superadmin"], items: [
     { to: "/rules", label: "Reglas del sistema", icon: BookOpen },
     { to: "/catalog", label: "Catálogo", icon: Library },
-    { to: "/techniques", label: "Técnicas", icon: Swords },
   ] },
   { label: "Gestión", roles: ["superadmin", "moderator"], items: [
     { to: "/character-editor", label: "Personajes", icon: UserRound },
     { to: "/players", label: "Jugadores", icon: Users },
     { to: "/canon", label: "Catálogo Canon", icon: Library },
+    { to: "/techniques", label: "Técnicas", icon: Swords },
     { to: "/employments", label: "Empleos", icon: FileText },
     { to: "/classes", label: "Clases", icon: FileText },
     { to: "/shop", label: "Tienda", icon: ShoppingCart },
@@ -41,12 +41,14 @@ const navigation = [
   { label: "Documentación", roles: ["superadmin", "moderator", "user"], items: [
     { to: "/manual", label: "Manual del Sistema", icon: BookOpen, external: true },
     { to: "/registry", label: "Registros", icon: Database, external: true },
+    { to: "/api-guide", label: "Guía de API JSON", icon: Code2 },
   ] },
   { label: "Administración", roles: ["superadmin"], items: [
     { to: "/sheet-builder", label: "Diseño de ficha", icon: LayoutTemplate },
     { to: "/settings", label: "Ajustes globales", icon: Settings },
     { to: "/showcase", label: "Componentes UI", icon: Component },
     { to: "/showcase-variables", label: "Guía de Variables", icon: FileText },
+    { to: "/api-guide", label: "Guía de API JSON", icon: Code2 },
     { to: "/audit", label: "Auditoría", icon: History },
   ] },
 ];

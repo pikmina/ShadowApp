@@ -48,6 +48,8 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   // Experience and Yen progression state
   const [exp, setExp] = useState<number>(() => Number(character?.exp ?? 0));
   const [yen, setYen] = useState<number>(() => Number(character?.yen ?? 0));
+  const [expDelta, setExpDelta] = useState<string>("");
+  const [yenDelta, setYenDelta] = useState<string>("");
 
   // Inventory items state
   const [inventoryItems, setInventoryItems] = useState<Array<{ elementId: string; quantity: number; notes?: string | null; equipped?: boolean; element?: any }>>(() => {
@@ -304,14 +306,55 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
     }
   }, [character, fields, canonList, initialCanonId, isDirty]);
 
+  const parseDelta = (raw: string): { valid: boolean; value: number; explicitSign: 1 | -1 | null } => {
+    const trimmed = raw.trim();
+    if (!trimmed) return { valid: false, value: 0, explicitSign: null };
+    if (trimmed.startsWith('+')) {
+      const num = parseInt(trimmed.slice(1).trim(), 10);
+      return { valid: !isNaN(num) && num > 0, value: isNaN(num) ? 0 : num, explicitSign: 1 };
+    }
+    if (trimmed.startsWith('-')) {
+      const num = parseInt(trimmed.slice(1).trim(), 10);
+      return { valid: !isNaN(num) && num > 0, value: isNaN(num) ? 0 : num, explicitSign: -1 };
+    }
+    const num = parseInt(trimmed, 10);
+    return { valid: !isNaN(num) && num > 0, value: isNaN(num) ? 0 : num, explicitSign: null };
+  };
+
   const handleExpChange = (newExp: number) => {
     setExp(Math.max(0, Math.floor(newExp)));
     setIsDirty(true);
   };
 
+  const handleApplyExpDelta = (sign?: 1 | -1) => {
+    const parsed = parseDelta(expDelta);
+    if (!parsed.valid) {
+      toast.error("Ingresa una cantidad válida para sumar o restar (ej. 60 o +60 o -60)");
+      return;
+    }
+    const effectiveSign = sign ?? (parsed.explicitSign ?? 1);
+    const nextExp = Math.max(0, exp + effectiveSign * parsed.value);
+    handleExpChange(nextExp);
+    toast.success(`${effectiveSign > 0 ? '+' : '-'}${parsed.value.toLocaleString('es-ES')} EXP aplicados. EXP Actual: ${nextExp.toLocaleString('es-ES')}`);
+    setExpDelta("");
+  };
+
   const handleYenChange = (newYen: number) => {
     setYen(Math.max(0, Math.floor(newYen)));
     setIsDirty(true);
+  };
+
+  const handleApplyYenDelta = (sign?: 1 | -1) => {
+    const parsed = parseDelta(yenDelta);
+    if (!parsed.valid) {
+      toast.error("Ingresa una cantidad válida para sumar o restar (ej. 10000 o +10000 o -10000)");
+      return;
+    }
+    const effectiveSign = sign ?? (parsed.explicitSign ?? 1);
+    const nextYen = Math.max(0, yen + effectiveSign * parsed.value);
+    handleYenChange(nextYen);
+    toast.success(`${effectiveSign > 0 ? '+' : '-'}¥${parsed.value.toLocaleString('es-ES')} aplicados. Yenes Actuales: ¥${nextYen.toLocaleString('es-ES')}`);
+    setYenDelta("");
   };
 
   const handleAddInventoryItem = () => {
@@ -738,122 +781,6 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
             Guardar
           </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div className="p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 flex flex-col justify-between gap-3 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                <Sparkles className="size-4" />
-              </div>
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Puntos de Experiencia (EXP)</span>
-                <p className="text-[11px] text-muted-foreground">Progreso y desarrollo de habilidades</p>
-              </div>
-            </div>
-            <Badge variant="outline" className="font-mono text-xs border-amber-500/40 text-amber-400 bg-amber-500/10">
-              {exp.toLocaleString('es-ES')} EXP
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Input 
-                type="number" 
-                min={0}
-                value={exp} 
-                onChange={(e) => handleExpChange(parseInt(e.target.value, 10) || 0)}
-                className="font-mono font-bold text-sm bg-background/80 border-amber-500/30 focus:border-amber-400"
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-amber-500/20 hover:text-amber-400 border-amber-500/20"
-                onClick={() => handleExpChange(exp + 50)}
-              >
-                +50
-              </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-amber-500/20 hover:text-amber-400 border-amber-500/20"
-                onClick={() => handleExpChange(exp + 100)}
-              >
-                +100
-              </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-amber-500/20 hover:text-amber-400 border-amber-500/20"
-                onClick={() => handleExpChange(exp + 500)}
-              >
-                +500
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-lg border border-emerald-500/30 bg-emerald-500/5 flex flex-col justify-between gap-3 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                <Coins className="size-4" />
-              </div>
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Fondos Monetarios (Yenes)</span>
-                <p className="text-[11px] text-muted-foreground">Moneda para comercio y equipamiento</p>
-              </div>
-            </div>
-            <Badge variant="outline" className="font-mono text-xs border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
-              ¥ {yen.toLocaleString('es-ES')}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Input 
-                type="number" 
-                min={0}
-                value={yen} 
-                onChange={(e) => handleYenChange(parseInt(e.target.value, 10) || 0)}
-                className="font-mono font-bold text-sm bg-background/80 border-emerald-500/30 focus:border-emerald-400"
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-emerald-500/20 hover:text-emerald-400 border-emerald-500/20"
-                onClick={() => handleYenChange(yen + 1000)}
-              >
-                +1k
-              </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-emerald-500/20 hover:text-emerald-400 border-emerald-500/20"
-                onClick={() => handleYenChange(yen + 10000)}
-              >
-                +10k
-              </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                className="h-9 px-2 text-xs font-mono bg-background/60 hover:bg-emerald-500/20 hover:text-emerald-400 border-emerald-500/20"
-                onClick={() => handleYenChange(yen + 50000)}
-              >
-                +50k
-              </Button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1467,10 +1394,10 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             <CardHeader className="border-b bg-muted/30 pb-3 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-base uppercase tracking-wider text-primary flex items-center gap-2">
-                  <Package className="size-5" /> Inventario y Posesiones
+                  <Package className="size-5" /> Inventario, Experiencia y Fondos
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Objetos, armas, equipamiento, consumibles y materiales asignados a este personaje.
+                  Gestiona los Puntos de Experiencia (EXP), Yenes (¥), equipamiento y consumibles asignados a este personaje.
                 </CardDescription>
               </div>
               <Badge variant="outline" className="font-mono text-xs">
@@ -1478,6 +1405,263 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
               </Badge>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
+              {/* Sección de Experiencia y Yenes con Modificador Delta (+ / -) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* 1. Experiencia (EXP) */}
+                <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 flex flex-col justify-between gap-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        <Sparkles className="size-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Puntos de Experiencia (EXP)</span>
+                        <p className="text-[11px] text-muted-foreground">Progreso y desarrollo del personaje</p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="font-mono text-xs border-amber-500/40 text-amber-400 bg-amber-500/10">
+                      EXP Actual: {exp.toLocaleString('es-ES')}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2 border-t border-amber-500/20">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Valor Total Directo:</span>
+                      <span className="font-mono font-bold text-foreground">{exp.toLocaleString('es-ES')} EXP</span>
+                    </div>
+                    <Input 
+                      type="number" 
+                      min={0}
+                      value={exp} 
+                      onChange={(e) => handleExpChange(parseInt(e.target.value, 10) || 0)}
+                      className="font-mono font-bold text-sm bg-background/80 border-amber-500/30 focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-amber-500/20">
+                    <Label className="text-[11px] text-muted-foreground block font-medium">Sumar o Restar a la EXP actual:</Label>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Input 
+                          type="text" 
+                          placeholder="Ej. 60 o +60 o -30"
+                          value={expDelta} 
+                          onChange={(e) => setExpDelta(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleApplyExpDelta();
+                            }
+                          }}
+                          className="font-mono text-sm bg-background/80 border-amber-500/30 focus:border-amber-400"
+                        />
+                      </div>
+                      <Button 
+                        type="button"
+                        size="sm"
+                        className="bg-amber-600 hover:bg-amber-500 text-white font-mono text-xs px-3 shadow-xs"
+                        onClick={() => handleApplyExpDelta(1)}
+                        disabled={!expDelta || !parseDelta(expDelta).valid}
+                      >
+                        + Sumar
+                      </Button>
+                      <Button 
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="border-amber-500/40 text-amber-400 hover:bg-amber-500/20 font-mono text-xs px-3"
+                        onClick={() => handleApplyExpDelta(-1)}
+                        disabled={!expDelta || !parseDelta(expDelta).valid || exp === 0}
+                      >
+                        - Restar
+                      </Button>
+                    </div>
+
+                    {/* Vista Previa de Cálculo Dinámico */}
+                    {(() => {
+                      const p = parseDelta(expDelta);
+                      if (!p.valid) return null;
+                      const added = exp + p.value;
+                      const subtracted = Math.max(0, exp - p.value);
+                      return (
+                        <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs font-mono space-y-1">
+                          <div className="flex items-center justify-between text-amber-300">
+                            <span className="text-[10px] uppercase tracking-wider font-semibold">Cálculo Proyectado:</span>
+                            <span className="text-[10px] text-muted-foreground">Presiona Enter o clic en botón</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                            <div className="p-1.5 rounded bg-background/50 border border-amber-500/20 flex flex-col">
+                              <span className="text-[10px] text-emerald-400 font-semibold">+ Sumar ({p.value}):</span>
+                              <span className="font-bold text-foreground">{exp} + {p.value} = <span className="text-amber-400 font-black">{added.toLocaleString('es-ES')} EXP</span></span>
+                            </div>
+                            <div className="p-1.5 rounded bg-background/50 border border-amber-500/20 flex flex-col">
+                              <span className="text-[10px] text-rose-400 font-semibold">- Restar ({p.value}):</span>
+                              <span className="font-bold text-foreground">{exp} - {p.value} = <span className="text-amber-400 font-black">{subtracted.toLocaleString('es-ES')} EXP</span></span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-[10px] text-muted-foreground mr-1">Rápidos:</span>
+                      {[50, 100, 500].map(amt => (
+                        <Button 
+                          key={amt}
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-7 px-2 text-[11px] font-mono bg-background/60 hover:bg-amber-500/20 hover:text-amber-400 border-amber-500/20"
+                          onClick={() => handleExpChange(exp + amt)}
+                        >
+                          +{amt}
+                        </Button>
+                      ))}
+                      {[50, 100].map(amt => (
+                        <Button 
+                          key={`sub-${amt}`}
+                          type="button" 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 px-2 text-[11px] font-mono text-muted-foreground hover:bg-amber-500/10 hover:text-amber-300"
+                          onClick={() => handleExpChange(Math.max(0, exp - amt))}
+                          disabled={exp < amt}
+                        >
+                          -{amt}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Yenes (¥) */}
+                <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 flex flex-col justify-between gap-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        <Coins className="size-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Fondos Monetarios (Yenes)</span>
+                        <p className="text-[11px] text-muted-foreground">Moneda oficial para compras e inventario</p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="font-mono text-xs border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+                      Yenes Actuales: ¥ {yen.toLocaleString('es-ES')}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2 border-t border-emerald-500/20">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Valor Total Directo:</span>
+                      <span className="font-mono font-bold text-foreground">¥ {yen.toLocaleString('es-ES')}</span>
+                    </div>
+                    <Input 
+                      type="number" 
+                      min={0}
+                      value={yen} 
+                      onChange={(e) => handleYenChange(parseInt(e.target.value, 10) || 0)}
+                      className="font-mono font-bold text-sm bg-background/80 border-emerald-500/30 focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-emerald-500/20">
+                    <Label className="text-[11px] text-muted-foreground block font-medium">Sumar o Restar a los Yenes actuales:</Label>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Input 
+                          type="text" 
+                          placeholder="Ej. 10000 o +5000 o -2000"
+                          value={yenDelta} 
+                          onChange={(e) => setYenDelta(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleApplyYenDelta();
+                            }
+                          }}
+                          className="font-mono text-sm bg-background/80 border-emerald-500/30 focus:border-emerald-400"
+                        />
+                      </div>
+                      <Button 
+                        type="button"
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs px-3 shadow-xs"
+                        onClick={() => handleApplyYenDelta(1)}
+                        disabled={!yenDelta || !parseDelta(yenDelta).valid}
+                      >
+                        + Sumar
+                      </Button>
+                      <Button 
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20 font-mono text-xs px-3"
+                        onClick={() => handleApplyYenDelta(-1)}
+                        disabled={!yenDelta || !parseDelta(yenDelta).valid || yen === 0}
+                      >
+                        - Restar
+                      </Button>
+                    </div>
+
+                    {/* Vista Previa de Cálculo Dinámico */}
+                    {(() => {
+                      const p = parseDelta(yenDelta);
+                      if (!p.valid) return null;
+                      const added = yen + p.value;
+                      const subtracted = Math.max(0, yen - p.value);
+                      return (
+                        <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs font-mono space-y-1">
+                          <div className="flex items-center justify-between text-emerald-300">
+                            <span className="text-[10px] uppercase tracking-wider font-semibold">Cálculo Proyectado:</span>
+                            <span className="text-[10px] text-muted-foreground">Presiona Enter o clic en botón</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                            <div className="p-1.5 rounded bg-background/50 border border-emerald-500/20 flex flex-col">
+                              <span className="text-[10px] text-emerald-400 font-semibold">+ Sumar (¥{p.value.toLocaleString('es-ES')}):</span>
+                              <span className="font-bold text-foreground">¥{yen.toLocaleString('es-ES')} + ¥{p.value.toLocaleString('es-ES')} = <span className="text-emerald-400 font-black">¥{added.toLocaleString('es-ES')}</span></span>
+                            </div>
+                            <div className="p-1.5 rounded bg-background/50 border border-emerald-500/20 flex flex-col">
+                              <span className="text-[10px] text-rose-400 font-semibold">- Restar (¥{p.value.toLocaleString('es-ES')}):</span>
+                              <span className="font-bold text-foreground">¥{yen.toLocaleString('es-ES')} - ¥{p.value.toLocaleString('es-ES')} = <span className="text-emerald-400 font-black">¥{subtracted.toLocaleString('es-ES')}</span></span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-[10px] text-muted-foreground mr-1">Rápidos:</span>
+                      {[1000, 10000, 50000].map(amt => (
+                        <Button 
+                          key={amt}
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-7 px-2 text-[11px] font-mono bg-background/60 hover:bg-emerald-500/20 hover:text-emerald-400 border-emerald-500/20"
+                          onClick={() => handleYenChange(yen + amt)}
+                        >
+                          +{amt >= 1000 ? `${amt / 1000}k` : amt}
+                        </Button>
+                      ))}
+                      {[1000, 10000].map(amt => (
+                        <Button 
+                          key={`sub-yen-${amt}`}
+                          type="button" 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 px-2 text-[11px] font-mono text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-300"
+                          onClick={() => handleYenChange(Math.max(0, yen - amt))}
+                          disabled={yen < amt}
+                        >
+                          -{amt >= 1000 ? `${amt / 1000}k` : amt}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Añadir objeto al inventario */}
               <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 space-y-3">
                 <Label className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-2">

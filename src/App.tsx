@@ -64,6 +64,7 @@ function IndexRedirector() {
 }
 
 import DevVariablesShowcase from "./views/DevVariablesShowcase";
+import ApiGuideAdmin from "./views/ApiGuideAdmin";
 import PublicRegistry from "./views/PublicRegistry";
 import PlayersAdmin from "./views/PlayersAdmin";
 
@@ -107,6 +108,7 @@ function AppRoutes() {
         <Route path="shop" element={<Shop />} />
         <Route path="showcase" element={<ComponentShowcase />} />
         <Route path="showcase-variables" element={<DevVariablesShowcase />} />
+        <Route path="api-guide" element={<ApiGuideAdmin />} />
         <Route path="audit" element={<AuditLogsAdmin />} />
       </Route>
     </Routes>

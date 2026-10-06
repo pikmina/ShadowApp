@@ -768,6 +768,70 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     }
   });
 
+  // --- Staff / Moderator Management (Superadmin Only) ---
+  app.get("/api/admin/users", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
+    try {
+      const { getAllUsers } = await import("./src/db/users.ts");
+      const usersList = await getAllUsers();
+      res.json(usersList);
+    } catch (error: any) {
+      console.error("Fetch users error:", error);
+      res.status(500).json({ error: error?.message || "Failed to fetch users" });
+    }
+  });
+
+  app.post("/api/admin/users", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
+    try {
+      const { email, role, displayName } = req.body;
+      if (!email || !role) {
+        return res.status(400).json({ error: "Email y rol son requeridos" });
+      }
+      if (role !== "moderator" && role !== "superadmin") {
+        return res.status(400).json({ error: "Rol inválido. Debe ser moderator o superadmin" });
+      }
+      const { createStaffUser } = await import("./src/db/users.ts");
+      const user = await createStaffUser({ email, role, displayName }, req.dbUser?.uid);
+      res.status(201).json(user);
+    } catch (error: any) {
+      console.error("Create staff user error:", error);
+      res.status(500).json({ error: error?.message || "Failed to create staff user" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/role", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const { role } = req.body;
+      if (!role || (role !== "moderator" && role !== "superadmin")) {
+        return res.status(400).json({ error: "Rol inválido" });
+      }
+      if (req.dbUser?.id === id && role !== "superadmin") {
+        return res.status(400).json({ error: "No puedes quitarte el rol de superadmin a ti mismo" });
+      }
+      const { updateUserRole } = await import("./src/db/users.ts");
+      const updated = await updateUserRole(id, role, req.dbUser?.uid);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update staff user role error:", error);
+      res.status(500).json({ error: error?.message || "Failed to update user role" });
+    }
+  });
+
+  app.delete("/api/admin/users/:id", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (req.dbUser?.id === id) {
+        return res.status(400).json({ error: "No puedes eliminar tu propia cuenta de staff" });
+      }
+      const { deleteStaffUser } = await import("./src/db/users.ts");
+      const result = await deleteStaffUser(id, req.dbUser?.uid);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Delete staff user error:", error);
+      res.status(500).json({ error: error?.message || "Failed to delete staff user" });
+    }
+  });
+
   
   // Shop API
   const { getShopOffers, upsertShopOffer, deleteShopOffer, processPurchase } = await import("./src/db/shop.ts");

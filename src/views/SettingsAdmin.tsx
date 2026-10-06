@@ -1,8 +1,9 @@
 import { SectionHeader } from "../components/common/SectionHeader";
 import { Settings as SectionIcon } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import useSWR from "swr";
 import { useAuth } from "../contexts/AuthContext";
-import { apiFetch } from "../lib/api";
+import { apiFetch, fetcher } from "../lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Button } from "../components/ui/button";
@@ -10,13 +11,16 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { Badge } from "../components/ui/badge";
-import { Loader2, Calendar, Users, Plus, Trash2, User, Camera, Upload, Link2, Sparkles, Check, X, Shield, Mail } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { Loader2, Calendar, Users, Plus, Trash2, User, Camera, Upload, Link2, Sparkles, Check, X, Shield, Mail, UserCheck, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SettingsAdmin() {
-  
   const [loading, setLoading] = useState(true);
-    const [expectedUpdatedAt, setExpectedUpdatedAt] = useState<string | null>(null);
+  const [expectedUpdatedAt, setExpectedUpdatedAt] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [gameDate, setGameDate] = useState({
@@ -27,13 +31,30 @@ export default function SettingsAdmin() {
 
   const [groups, setGroups] = useState<{ id: string; name: string; color: string }[]>([]);
 
+  // Staff users state (Superadmin only)
+  const { user, dbUser, updateProfileData } = useAuth();
+  const isSuperadmin = dbUser?.role === 'superadmin';
+  const { data: staffUsers, mutate: mutateStaffUsers } = useSWR(
+    isSuperadmin && user ? "/api/admin/users" : null,
+    fetcher
+  );
+
+  const [isInviteStaffOpen, setIsInviteStaffOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteDisplayName, setInviteDisplayName] = useState("");
+  const [inviteRole, setInviteRole] = useState<"moderator" | "superadmin">("moderator");
+  const [isInviting, setIsInviting] = useState(false);
+
+  const [deleteStaffId, setDeleteStaffId] = useState<number | null>(null);
+  const [isDeletingStaff, setIsDeletingStaff] = useState(false);
+
   useEffect(() => {
     fetchSettings();
   }, []);
 
   const fetchSettings = async () => {
     try {
-            const res = await apiFetch("/api/settings", {
+      const res = await apiFetch("/api/settings", {
         headers: {
           Accept: "application/json"
         }
@@ -59,7 +80,6 @@ export default function SettingsAdmin() {
   const [activeTab, setActiveTab] = useState("time");
   
   // Profile settings state
-  const { user, dbUser, updateProfileData } = useAuth();
   const [profileName, setProfileName] = useState("");
   const [profileAvatar, setProfileAvatar] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
@@ -168,6 +188,87 @@ export default function SettingsAdmin() {
     }
   };
 
+  const handleCreateStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const emailTrimmed = inviteEmail.trim().toLowerCase();
+    if (!emailTrimmed || !emailTrimmed.includes("@")) {
+      toast.error("Ingresa un correo electrónico válido");
+      return;
+    }
+
+    setIsInviting(true);
+    try {
+      const res = await apiFetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: emailTrimmed,
+          displayName: inviteDisplayName.trim() || undefined,
+          role: inviteRole
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Error al registrar miembro del staff");
+      }
+
+      toast.success("Miembro del staff registrado correctamente");
+      setInviteEmail("");
+      setInviteDisplayName("");
+      setInviteRole("moderator");
+      setIsInviteStaffOpen(false);
+      mutateStaffUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Error al registrar miembro del staff");
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleUpdateRole = async (targetUserId: number, newRole: "moderator" | "superadmin") => {
+    try {
+      const res = await apiFetch(`/api/admin/users/${targetUserId}/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Error al actualizar el rol");
+      }
+
+      toast.success("Rol actualizado correctamente");
+      mutateStaffUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Error al cambiar rol");
+    }
+  };
+
+  const handleDeleteStaff = async () => {
+    if (!deleteStaffId) return;
+    setIsDeletingStaff(true);
+    try {
+      const res = await apiFetch(`/api/admin/users/${deleteStaffId}`, {
+        method: "DELETE"
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Error al eliminar miembro del staff");
+      }
+
+      toast.success("Miembro del staff eliminado");
+      setDeleteStaffId(null);
+      mutateStaffUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Error al eliminar staff");
+    } finally {
+      setIsDeletingStaff(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -186,14 +287,15 @@ export default function SettingsAdmin() {
   }
 
   return (
-    <div className="space-y-6">
-      <SectionHeader icon={SectionIcon} title="Ajustes globales" description="Configura la cronología y los grupos del mundo de Shadowmore." />
+    <div className="space-y-6 max-w-6xl mx-auto pb-16">
+      <SectionHeader icon={SectionIcon} title="Ajustes globales" description="Configura la cronología, grupos y equipo de staff de Shadowmore." />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="w-full overflow-x-auto pb-1.5 no-scrollbar mb-6">
           <TabsList className="inline-flex w-max min-w-full sm:min-w-0 sm:w-auto">
             <TabsTrigger value="time">Tiempo On-Rol</TabsTrigger>
             <TabsTrigger value="groups">Grupos / Facciones</TabsTrigger>
+            {isSuperadmin && <TabsTrigger value="staff">Staff y Moderadores</TabsTrigger>}
             <TabsTrigger value="profile">Mi Perfil</TabsTrigger>
           </TabsList>
         </div>
@@ -313,6 +415,203 @@ export default function SettingsAdmin() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Staff & Moderadores Tab */}
+        {isSuperadmin && (
+          <TabsContent value="staff" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-primary" />
+                    Gestión de Staff y Moderadores
+                  </CardTitle>
+                  <CardDescription>
+                    Administra quiénes tienen acceso al panel de moderación y a las herramientas de gestión de personajes y canon.
+                  </CardDescription>
+                </div>
+                <Button onClick={() => setIsInviteStaffOpen(true)} className="gap-1.5 text-xs font-oxanium">
+                  <Plus className="w-4 h-4" /> Añadir Moderador / Admin
+                </Button>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="overflow-x-auto rounded-lg border border-border">
+                  <Table>
+                    <TableHeader className="bg-muted/40">
+                      <TableRow>
+                        <TableHead>Miembro del Staff</TableHead>
+                        <TableHead>Email de Google</TableHead>
+                        <TableHead>Rol Asignado</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Array.isArray(staffUsers) && staffUsers.map((u: any) => {
+                        const isSelf = u.id === dbUser?.id;
+                        const isInvited = u.uid?.startsWith("invited_");
+                        return (
+                          <TableRow key={u.id} className="hover:bg-muted/20">
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="size-8 border border-border">
+                                  <AvatarImage src={u.avatarUrl || undefined} />
+                                  <AvatarFallback className="text-xs bg-primary/20 text-primary font-bold">
+                                    {(u.displayName || u.email || "U").charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="font-semibold text-xs text-foreground">
+                                  {u.displayName || u.email.split("@")[0]}
+                                  {isSelf && <span className="text-primary ml-1.5 text-[10px]">(Tú)</span>}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs font-mono text-muted-foreground">
+                              {u.email}
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={u.role}
+                                disabled={isSelf}
+                                onValueChange={(val: "moderator" | "superadmin") => handleUpdateRole(u.id, val)}
+                              >
+                                <SelectTrigger className="h-7 text-xs w-36 bg-background">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="moderator">Moderador</SelectItem>
+                                  <SelectItem value="superadmin">Superadmin</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              {isInvited ? (
+                                <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-800/40 bg-amber-950/20">
+                                  Pendiente de Primer Acceso
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-800/40 bg-emerald-950/20">
+                                  Activo / Vinculado
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={isSelf}
+                                onClick={() => setDeleteStaffId(u.id)}
+                                className="size-8 text-destructive hover:bg-destructive/10"
+                                title={isSelf ? "No puedes eliminar tu propia cuenta" : "Eliminar staff"}
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {(!Array.isArray(staffUsers) || staffUsers.length === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">
+                            No hay otros miembros de staff registrados.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Modal Añadir Staff */}
+            <Dialog open={isInviteStaffOpen} onOpenChange={setIsInviteStaffOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-base">
+                    <UserCheck className="w-5 h-5 text-primary" />
+                    Añadir Miembro del Staff
+                  </DialogTitle>
+                  <DialogDescription className="text-xs">
+                    Registra la cuenta de correo de Google de la persona que tendrá acceso como Moderador o Superadministrador.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateStaff} className="space-y-4 py-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="staff-email" className="text-xs">Correo de Google (Obligatorio)</Label>
+                    <Input
+                      id="staff-email"
+                      type="email"
+                      required
+                      placeholder="usuario@gmail.com"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      className="text-xs font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="staff-name" className="text-xs">Nombre o Alias Visible (Opcional)</Label>
+                    <Input
+                      id="staff-name"
+                      placeholder="Ej. Moderador Carlos"
+                      value={inviteDisplayName}
+                      onChange={(e) => setInviteDisplayName(e.target.value)}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Rol Asignado</Label>
+                    <Select value={inviteRole} onValueChange={(v: "moderator" | "superadmin") => setInviteRole(v)}>
+                      <SelectTrigger className="text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="moderator">
+                          <span className="font-semibold block">Moderador</span>
+                          <span className="text-[11px] text-muted-foreground">Gestión de personajes, canon, jugadores, técnicas y compras.</span>
+                        </SelectItem>
+                        <SelectItem value="superadmin">
+                          <span className="font-semibold block">Superadministrador</span>
+                          <span className="text-[11px] text-muted-foreground">Acceso total a reglas de sistema, diseño de ficha y staff.</span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <DialogFooter className="pt-3">
+                    <Button type="button" variant="ghost" onClick={() => setIsInviteStaffOpen(false)} disabled={isInviting}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={isInviting} className="gap-1.5 text-xs">
+                      {isInviting && <Loader2 className="size-3.5 animate-spin" />}
+                      Guardar Miembro
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            {/* Confirm Delete Staff */}
+            <AlertDialog open={!!deleteStaffId} onOpenChange={(open) => !open && setDeleteStaffId(null)}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Revocar acceso al miembro del Staff?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-xs">
+                    Esta acción eliminará los permisos administrativos de este usuario. Ya no podrá iniciar sesión en el panel.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isDeletingStaff}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteStaff}
+                    disabled={isDeletingStaff}
+                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                  >
+                    {isDeletingStaff ? <Loader2 className="size-4 animate-spin" /> : "Revocar Acceso"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </TabsContent>
+        )}
 
         <TabsContent value="profile">
           <Card>
@@ -466,3 +765,4 @@ export default function SettingsAdmin() {
     </div>
   );
 }
+
