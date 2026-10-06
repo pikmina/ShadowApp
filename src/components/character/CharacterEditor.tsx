@@ -231,9 +231,17 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
       setPlayerId(character.playerId ?? null);
       setIsActive(character.active !== false);
       const profile = profileWithRelationalElements(character);
-      for (const field of fields) if (field.coreKey && profile[field.id] === undefined) {
-        const value = profileValue(profile, field.coreKey as CoreProfileKey);
-        if (value !== undefined) profile[field.id] = value;
+      for (const field of fields) {
+        if (field.type === 'quirk') {
+          if (profile[`${field.id}_desc`] === undefined) profile[`${field.id}_desc`] = profile.quirk_description ?? profile.quirk_desc ?? '';
+          if (profile[`${field.id}_lvl1`] === undefined) profile[`${field.id}_lvl1`] = profile.quirk_lvl1 ?? '';
+          if (profile[`${field.id}_lvl2`] === undefined) profile[`${field.id}_lvl2`] = profile.quirk_lvl2 ?? '';
+          if (profile[`${field.id}_lvl3`] === undefined) profile[`${field.id}_lvl3`] = profile.quirk_lvl3 ?? '';
+        }
+        if (field.coreKey && profile[field.id] === undefined) {
+          const value = profileValue(profile, field.coreKey as CoreProfileKey);
+          if (value !== undefined) profile[field.id] = value;
+        }
       }
       setFormData(profile);
       setExp(Number(character.exp ?? 0));
@@ -469,10 +477,22 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
           // Handle Quirk specific mappings
           if (f.type === 'quirk') {
             if (formData[`${f.id}_name`]) finalProfileData['quirk_name'] = formData[`${f.id}_name`];
-            if (formData[`${f.id}_desc`]) finalProfileData['quirk_description'] = formData[`${f.id}_desc`];
-            if (formData[`${f.id}_lvl1`]) finalProfileData['quirk_lvl1'] = formData[`${f.id}_lvl1`];
-            if (formData[`${f.id}_lvl2`]) finalProfileData['quirk_lvl2'] = formData[`${f.id}_lvl2`];
-            if (formData[`${f.id}_lvl3`]) finalProfileData['quirk_lvl3'] = formData[`${f.id}_lvl3`];
+            if (formData[`${f.id}_desc`] !== undefined) {
+              finalProfileData[`${f.id}_desc`] = formData[`${f.id}_desc`];
+              finalProfileData['quirk_description'] = formData[`${f.id}_desc`];
+            }
+            if (formData[`${f.id}_lvl1`] !== undefined) {
+              finalProfileData[`${f.id}_lvl1`] = formData[`${f.id}_lvl1`];
+              finalProfileData['quirk_lvl1'] = formData[`${f.id}_lvl1`];
+            }
+            if (formData[`${f.id}_lvl2`] !== undefined) {
+              finalProfileData[`${f.id}_lvl2`] = formData[`${f.id}_lvl2`];
+              finalProfileData['quirk_lvl2'] = formData[`${f.id}_lvl2`];
+            }
+            if (formData[`${f.id}_lvl3`] !== undefined) {
+              finalProfileData[`${f.id}_lvl3`] = formData[`${f.id}_lvl3`];
+              finalProfileData['quirk_lvl3'] = formData[`${f.id}_lvl3`];
+            }
           }
           
           // Handle specific standard types
