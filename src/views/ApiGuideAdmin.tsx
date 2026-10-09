@@ -294,16 +294,43 @@ async function fetchCharacterSheet(characterIdentifier) {
     const vol = attrs.vol || prof.VOL || 0;
     const vel = attrs.vel || prof.VEL || 0;
 
-    // 4. Extraer Estadísticas Derivadas (Salud, Estamina, etc.)
-    const saludMaxima = prof.salud_maxima ?? char.stats?.salud_maxima ?? (20 + res);
-    const estaminaMaxima = prof.estamina_maxima ?? char.stats?.estamina_maxima ?? (20 + des);
+    // 4. Extraer Estadísticas Derivadas y de Combate
+    const stats = char.stats || {};
+    const saludMaxima = stats.salud_maxima ?? prof.salud_maxima ?? (20 + res);
+    const estaminaMaxima = stats.estamina_maxima ?? prof.estamina_maxima ?? (20 + des);
+    const iniciativa = stats.iniciativa ?? prof.iniciativa ?? 0;
+    const danoFisico = stats.daño_fisico || prof.daño_fisico || '1D8';
+    const danoRango = stats.daño_rango || prof.daño_rango || '1D8';
+    const reduccionDano = stats.reduccion_dano ?? prof.reduccion_dano ?? 0;
+    const modFue = stats.mod_fue ?? prof.mod_fue ?? Math.floor(fue / 2);
+    const modDes = stats.mod_des ?? prof.mod_des ?? Math.floor(des / 2);
 
     // ⚡ Inyectar directamente en los elementos del HTML del Drawer:
-    const healthEl = document.getElementById("drawer-health");
-    if (healthEl) healthEl.textContent = saludMaxima;
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl("drawer-health", saludMaxima);
+    setEl("drawer-stamina", estaminaMaxima);
+    setEl("drawer-initiative", iniciativa >= 0 ? \`+\${iniciativa}\` : iniciativa);
+    setEl("drawer-iniciativa", iniciativa >= 0 ? \`+\${iniciativa}\` : iniciativa);
+    setEl("drawer-phys-dmg", danoFisico);
+    setEl("drawer-dano-fisico", danoFisico);
+    setEl("drawer-range-dmg", danoRango);
+    setEl("drawer-dano-rango", danoRango);
+    setEl("drawer-dmg-reduc", reduccionDano);
+    setEl("drawer-reduccion-dano", reduccionDano);
+    setEl("drawer-mod-fue", modFue >= 0 ? \`+\${modFue}\` : modFue);
+    setEl("drawer-mod-des", modDes >= 0 ? \`+\${modDes}\` : modDes);
 
-    const staminaEl = document.getElementById("drawer-stamina");
-    if (staminaEl) staminaEl.textContent = estaminaMaxima;
+    // Inyectar Don y Etapa
+    const etapa = prof.basic_stage || prof.stage || prof.etapa || '';
+    setEl("drawer-char-quirk", quirkName);
+    setEl("drawer-quirk-name", quirkName);
+    setEl("drawer-don-nombre", quirkName);
+    setEl("drawer-char-quirk-level", quirkLevel);
+    setEl("drawer-quirk-level", quirkLevel);
+    setEl("drawer-don-nivel", quirkLevel);
+    setEl("drawer-char-stage", etapa);
+    setEl("drawer-stage", etapa);
+    setEl("drawer-etapa", etapa);
 
     // 5. Filtrar Posesiones
     const possessions = char.possessions || [];
@@ -311,6 +338,54 @@ async function fetchCharacterSheet(characterIdentifier) {
     const weaknesses = possessions.filter(p => (p.element?.kind || p.kind) === 'weakness');
     const skills = possessions.filter(p => (p.element?.kind || p.kind) === 'skill');
     const inventory = possessions.filter(p => ['equipment', 'weapon', 'consumable'].includes(p.element?.kind || p.kind));
+
+    // Inyectar Rasgos
+    const traitsEl = document.getElementById("drawer-traits") || document.getElementById("drawer-rasgos");
+    if (traitsEl) {
+      traitsEl.innerHTML = traits.length === 0 ? '<div class="text-muted">Sin rasgos</div>' : traits.map(t => {
+        const el = t.element || t;
+        return \`<div class="drawer-trait-item mb-2"><strong>\${el.name || 'Rasgo'}</strong>\${el.description ? \`<span class="block text-xs opacity-80">: \${el.description}</span>\` : ''}</div>\`;
+      }).join('');
+    }
+
+    // Inyectar Debilidades
+    const weakEl = document.getElementById("drawer-weaknesses") || document.getElementById("drawer-debilidades");
+    if (weakEl) {
+      weakEl.innerHTML = weaknesses.length === 0 ? '<div class="text-muted">Sin debilidades</div>' : weaknesses.map(w => {
+        const el = w.element || w;
+        return \`<div class="drawer-weakness-item mb-2"><strong class="text-red-400">\${el.name || 'Debilidad'}</strong>\${el.description ? \`<span class="block text-xs opacity-80">: \${el.description}</span>\` : ''}</div>\`;
+      }).join('');
+    }
+
+    // Inyectar Habilidades
+    const skillsEl = document.getElementById("drawer-skills") || document.getElementById("drawer-habilidades");
+    if (skillsEl) {
+      skillsEl.innerHTML = skills.length === 0 ? '<div class="text-muted">Sin habilidades</div>' : skills.map(s => {
+        const el = s.element || s;
+        const lvl = (s.possession && s.possession.quantity) || s.quantity || 1;
+        return \`<div class="drawer-skill-item mb-1 flex items-center justify-between"><strong>\${el.name || 'Habilidad'}</strong><span class="text-xs bg-black/40 px-2 py-0.5 rounded border border-border/40 font-mono">Nv. \${lvl}</span></div>\`;
+      }).join('');
+    }
+
+    // Inyectar Técnicas
+    const techEl = document.getElementById("drawer-techniques") || document.getElementById("drawer-tecnicas");
+    if (techEl) {
+      const techniques = Array.isArray(char.techniques) ? char.techniques : [];
+      techEl.innerHTML = techniques.length === 0 ? '<div class="text-muted">Sin técnicas</div>' : techniques.map(t => {
+        return \`<div class="drawer-tech-item mb-2"><div class="flex items-center justify-between"><strong>\${t.name || 'Técnica'}</strong><span class="text-xs bg-black/40 px-2 py-0.5 rounded border border-border/40 font-mono">Nv. \${t.level || 1}</span></div>\${t.description ? \`<span class="block text-xs opacity-80 mt-0.5">\${t.description}</span>\` : ''}</div>\`;
+      }).join('');
+    }
+
+    // Inyectar Inventario
+    const invEl = document.getElementById("drawer-inventory") || document.getElementById("drawer-inventario");
+    if (invEl) {
+      invEl.innerHTML = inventory.length === 0 ? '<div class="text-muted">Inventario vacío</div>' : inventory.map(item => {
+        const el = item.element || item;
+        const qty = (item.possession && item.possession.quantity) || item.quantity || 1;
+        const isEquipped = (item.possession && item.possession.equipped === true) || item.equipped === true;
+        return \`<div class="drawer-inv-item mb-1 text-xs flex items-center justify-between"><span><strong>\${el.name || 'Objeto'}</strong>\${qty > 1 ? \` (x\${qty})\` : ''}</span>\${isEquipped ? '<span class="text-emerald-400 font-semibold">[Equipado]</span>' : ''}</div>\`;
+      }).join('');
+    }
 
     // 6. Si tienes una función para renderizar el resto del Drawer:
     if (typeof renderDrawerModal === "function") {
@@ -399,26 +474,44 @@ jQuery(document).ready(function($) {
         });
     }
 
-    // Inyección de estadísticas numéricas en el DOM del Drawer
+    // Inyección de estadísticas numéricas y elementos en el DOM del Drawer
     function renderizarDatosRPG(char) {
         var prof = char.profileData || {};
         var attrs = prof.atributos || {};
-        var res = attrs.res || prof.RES || 0;
-        var des = attrs.des || prof.DES || 0;
+        var stats = char.stats || {};
+        var possessions = char.possessions || [];
 
         // 1. Estadísticas Derivadas (Salud, Estamina)
-        var saludMaxima = (prof.salud_maxima !== undefined) ? prof.salud_maxima : (char.stats && char.stats.salud_maxima ? char.stats.salud_maxima : (20 + res));
-        var estaminaMaxima = (prof.estamina_maxima !== undefined) ? prof.estamina_maxima : (char.stats && char.stats.estamina_maxima ? char.stats.estamina_maxima : (20 + des));
+        var res = attrs.res || prof.RES || 0;
+        var des = attrs.des || prof.DES || 0;
+        var saludMaxima = (stats.salud_maxima !== undefined) ? stats.salud_maxima : ((prof.salud_maxima !== undefined) ? prof.salud_maxima : (20 + res));
+        var estaminaMaxima = (stats.estamina_maxima !== undefined) ? stats.estamina_maxima : ((prof.estamina_maxima !== undefined) ? prof.estamina_maxima : (20 + des));
 
         $('#drawer-health').text(saludMaxima);
         $('#drawer-stamina').text(estaminaMaxima);
 
-        // 2. Defensas y derivados
-        if ($('#drawer-evasion').length) $('#drawer-evasion').text(prof.evasion || (10 + (attrs.vel || 0)));
-        if ($('#drawer-courage').length) $('#drawer-courage').text(prof.coraje || (10 + (attrs.vol || 0)));
-        if ($('#drawer-initiative').length) $('#drawer-initiative').text(prof.iniciativa || 0);
+        // 2. Defensas, Iniciativa y Daños de Combate
+        var evasion = (stats.evasion !== undefined) ? stats.evasion : (prof.evasion || (10 + (attrs.vel || 0)));
+        var coraje = (stats.coraje !== undefined) ? stats.coraje : (prof.coraje || (10 + (attrs.vol || 0)));
+        var iniciativa = (stats.iniciativa !== undefined) ? stats.iniciativa : (prof.iniciativa || 0);
+        var danoFisico = stats.daño_fisico || prof.daño_fisico || '1D8';
+        var danoRango = stats.daño_rango || prof.daño_rango || '1D8';
+        var reduccionDano = (stats.reduccion_dano !== undefined) ? stats.reduccion_dano : (prof.reduccion_dano || 0);
 
-        // 3. Atributos Primarios (si existen los contenedores en tu Drawer)
+        $('#drawer-evasion').text(evasion);
+        $('#drawer-courage, #drawer-coraje').text(coraje);
+        $('#drawer-initiative, #drawer-iniciativa').text(iniciativa >= 0 ? '+' + iniciativa : iniciativa);
+        $('#drawer-phys-dmg, #drawer-dano-fisico, #drawer-daño-fisico').text(danoFisico);
+        $('#drawer-range-dmg, #drawer-dano-rango, #drawer-daño-rango').text(danoRango);
+        $('#drawer-dmg-reduc, #drawer-reduccion-dano, #drawer-reduccion-daño').text(reduccionDano);
+
+        // 3. Modificadores de Atributo (Fuerza y Destreza)
+        var modFue = (stats.mod_fue !== undefined) ? stats.mod_fue : (prof.mod_fue !== undefined ? prof.mod_fue : Math.floor((attrs.fue || prof.FUE || 0) / 2));
+        var modDes = (stats.mod_des !== undefined) ? stats.mod_des : (prof.mod_des !== undefined ? prof.mod_des : Math.floor((attrs.des || prof.DES || 0) / 2));
+        $('#drawer-mod-fue, #drawer-mod-fuerza').text(modFue >= 0 ? '+' + modFue : modFue);
+        $('#drawer-mod-des, #drawer-mod-destreza').text(modDes >= 0 ? '+' + modDes : modDes);
+
+        // 4. Atributos Primarios
         if ($('#drawer-attr-fue').length) $('#drawer-attr-fue').text(attrs.fue || prof.FUE || 0);
         if ($('#drawer-attr-des').length) $('#drawer-attr-des').text(attrs.des || prof.DES || 0);
         if ($('#drawer-attr-res').length) $('#drawer-attr-res').text(res);
@@ -426,9 +519,140 @@ jQuery(document).ready(function($) {
         if ($('#drawer-attr-vol').length) $('#drawer-attr-vol').text(attrs.vol || prof.VOL || 0);
         if ($('#drawer-attr-vel').length) $('#drawer-attr-vel').text(attrs.vel || prof.VEL || 0);
 
-        // 4. Quirk Modular Avanzado (si deseas mostrar nivel y tipo)
-        if (prof.quirk_level && $('#drawer-char-quirk-level').length) {
-            $('#drawer-char-quirk-level').text(prof.quirk_level);
+        // 5. Rasgos (Nombre y Descripción)
+        var $traitsContainer = $('#drawer-traits, #drawer-rasgos');
+        if ($traitsContainer.length) {
+            $traitsContainer.empty();
+            var traits = possessions.filter(function(p) {
+                return (p.element && p.element.kind === 'trait') || p.kind === 'trait';
+            });
+            if (traits.length === 0) {
+                $traitsContainer.html('<div class="drawer-empty-msg text-muted">Sin rasgos</div>');
+            } else {
+                traits.forEach(function(t) {
+                    var el = t.element || t;
+                    var name = el.name || 'Rasgo';
+                    var desc = el.description || '';
+                    $('<div></div>')
+                        .addClass('drawer-trait-item mb-2')
+                        .append($('<strong></strong>').addClass('drawer-trait-name').text(name))
+                        .append(desc ? $('<span></span>').addClass('drawer-trait-desc block text-xs opacity-80').text(': ' + desc) : '')
+                        .appendTo($traitsContainer);
+                });
+            }
+        }
+
+        // 6. Debilidades (Nombre y Descripción)
+        var $weaknessesContainer = $('#drawer-weaknesses, #drawer-debilidades');
+        if ($weaknessesContainer.length) {
+            $weaknessesContainer.empty();
+            var weaknesses = possessions.filter(function(p) {
+                return (p.element && p.element.kind === 'weakness') || p.kind === 'weakness';
+            });
+            if (weaknesses.length === 0) {
+                $weaknessesContainer.html('<div class="drawer-empty-msg text-muted">Sin debilidades</div>');
+            } else {
+                weaknesses.forEach(function(w) {
+                    var el = w.element || w;
+                    var name = el.name || 'Debilidad';
+                    var desc = el.description || '';
+                    $('<div></div>')
+                        .addClass('drawer-weakness-item mb-2')
+                        .append($('<strong></strong>').addClass('drawer-weakness-name text-red-400').text(name))
+                        .append(desc ? $('<span></span>').addClass('drawer-weakness-desc block text-xs opacity-80').text(': ' + desc) : '')
+                        .appendTo($weaknessesContainer);
+                });
+            }
+        }
+
+        // 7. Habilidades (Nombre y Nivel)
+        var $skillsContainer = $('#drawer-skills, #drawer-habilidades');
+        if ($skillsContainer.length) {
+            $skillsContainer.empty();
+            var skills = possessions.filter(function(p) {
+                return (p.element && p.element.kind === 'skill') || p.kind === 'skill';
+            });
+            if (skills.length === 0) {
+                $skillsContainer.html('<div class="drawer-empty-msg text-muted">Sin habilidades</div>');
+            } else {
+                skills.forEach(function(s) {
+                    var el = s.element || s;
+                    var name = el.name || 'Habilidad';
+                    var level = (s.possession && s.possession.quantity) || s.quantity || 1;
+                    $('<div></div>')
+                        .addClass('drawer-skill-item mb-1.5 flex items-center justify-between')
+                        .append($('<strong></strong>').addClass('drawer-skill-name').text(name))
+                        .append($('<span></span>').addClass('drawer-skill-level text-xs bg-black/40 px-2 py-0.5 rounded border border-border/40 font-mono').text('Nv. ' + level))
+                        .appendTo($skillsContainer);
+                });
+            }
+        }
+
+        // 8. Quirk (Don) y Etapa
+        var quirkName = prof.quirk_name || prof.quirkName || prof.don_name || prof.don || '';
+        var quirkLevel = prof.quirk_level || prof.quirkLevel || prof.nivel_de_quirk || prof.quirk_evolution || prof.quirkEvolution || '';
+        var etapa = prof.basic_stage || prof.stage || prof.etapa || '';
+
+        if (quirkName) $('#drawer-char-quirk, #drawer-quirk-name, #drawer-don-nombre').text(quirkName);
+        if (quirkLevel) $('#drawer-char-quirk-level, #drawer-quirk-level, #drawer-don-nivel').text(quirkLevel);
+        if (etapa) $('#drawer-char-stage, #drawer-stage, #drawer-etapa').text(etapa);
+
+        // 9. Técnicas de Combate
+        var $techsContainer = $('#drawer-techniques, #drawer-tecnicas');
+        if ($techsContainer.length) {
+            $techsContainer.empty();
+            var techniques = Array.isArray(char.techniques) ? char.techniques : [];
+            if (techniques.length === 0) {
+                $techsContainer.html('<div class="drawer-empty-msg text-muted">Sin técnicas registradas</div>');
+            } else {
+                techniques.forEach(function(t) {
+                    var name = t.name || 'Técnica';
+                    var level = t.level || 1;
+                    var cls = t.classification ? ' • ' + t.classification : '';
+                    var desc = t.description || '';
+                    $('<div></div>')
+                        .addClass('drawer-tech-item mb-2')
+                        .append(
+                            $('<div></div>')
+                                .addClass('flex items-center justify-between mb-0.5')
+                                .append($('<strong></strong>').addClass('drawer-tech-name text-primary').text(name))
+                                .append($('<span></span>').addClass('text-xs bg-black/40 px-2 py-0.5 rounded border border-border/40 font-mono').text('Nv. ' + level + cls))
+                        )
+                        .append(desc ? $('<span></span>').addClass('drawer-tech-desc block text-xs opacity-80').text(desc) : '')
+                        .appendTo($techsContainer);
+                });
+            }
+        }
+
+        // 10. Inventario / Equipamiento
+        var $invContainer = $('#drawer-inventory, #drawer-inventario');
+        if ($invContainer.length) {
+            $invContainer.empty();
+            var invKinds = ['equipment', 'weapon', 'consumable', 'ammunition', 'crafting_material', 'ingredient', 'vehicle', 'real_estate'];
+            var inventory = possessions.filter(function(p) {
+                var k = (p.element && p.element.kind) || p.kind;
+                return invKinds.includes(k);
+            });
+            if (inventory.length === 0) {
+                $invContainer.html('<div class="drawer-empty-msg text-muted">Inventario vacío</div>');
+            } else {
+                inventory.forEach(function(item) {
+                    var el = item.element || item;
+                    var name = el.name || 'Objeto';
+                    var qty = (item.possession && item.possession.quantity) || item.quantity || 1;
+                    var isEquipped = (item.possession && item.possession.equipped === true) || item.equipped === true;
+                    var desc = el.description || '';
+                    var $itemRow = $('<div></div>').addClass('drawer-inv-item mb-1.5');
+                    var $header = $('<div></div>').addClass('flex items-center justify-between text-xs');
+                    var $nameSpan = $('<span></span>').append($('<strong></strong>').text(name));
+                    if (qty > 1) $nameSpan.append(' <span class="opacity-70 font-mono">(x' + qty + ')</span>');
+                    if (isEquipped) $nameSpan.append(' <span class="badge-equipped text-emerald-400 font-semibold">[Equipado]</span>');
+                    $header.append($nameSpan);
+                    $itemRow.append($header);
+                    if (desc) $itemRow.append($('<span></span>').addClass('block text-[11px] opacity-75 mt-0.5').text(desc));
+                    $itemRow.appendTo($invContainer);
+                });
+            }
         }
     }
 

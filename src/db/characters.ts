@@ -239,9 +239,10 @@ export async function getPublicCharacterById(id: number) {
 
   // Compute canonical derived stats taking into account stage, elements, traits, and possessions (like attribute_upgrade)
   try {
-    const [stagesRule, mechanicsRule] = await Promise.all([
+    const [stagesRule, mechanicsRule, staminaCostsRule] = await Promise.all([
       db.select().from(systemRules).where(eq(systemRules.key, 'system_stages')).then(r => r[0]?.value).catch(() => []),
-      db.select().from(systemRules).where(eq(systemRules.key, 'system_mechanics')).then(r => r[0]?.value).catch(() => [])
+      db.select().from(systemRules).where(eq(systemRules.key, 'system_mechanics')).then(r => r[0]?.value).catch(() => []),
+      db.select().from(systemRules).where(eq(systemRules.key, 'stamina_execution_costs')).then(r => r[0]?.value).catch(() => undefined),
     ]);
     const { getPublishedElements } = await import('./elements.ts');
     const publishedElements = await getPublishedElements().catch(() => []);
@@ -316,6 +317,38 @@ export async function getPublicCharacterById(id: number) {
     reduccion_dano,
   };
 
+  let enrichedTechniques = techniques;
+  try {
+    const { calculateTechniqueStructuralCost } = await import('../domain/systemMechanics.ts');
+    const { deriveTechniqueLevelFromCost } = await import('../domain/characterTechnique.ts');
+    const { generateAutoDescription } = await import('../domain/mechanicalDescription.ts');
+    const [mechanicsRule, staminaCostsRule] = await Promise.all([
+      db.select().from(systemRules).where(eq(systemRules.key, 'system_mechanics')).then(r => r[0]?.value).catch(() => []),
+      db.select().from(systemRules).where(eq(systemRules.key, 'stamina_execution_costs')).then(r => r[0]?.value).catch(() => undefined),
+    ]);
+    const mechanicsList = Array.isArray(mechanicsRule) ? (mechanicsRule as any) : [];
+    enrichedTechniques = (techniques || []).map((tech: any) => {
+      const isStructural = Array.isArray(tech?.mechanicalBehaviors) && tech.mechanicalBehaviors.length > 0;
+      const structuralCost = calculateTechniqueStructuralCost(tech, mechanicsList, staminaCostsRule);
+      const finalCost = isStructural ? structuralCost : (tech.cost ?? structuralCost);
+      const derivedLevel = isStructural ? deriveTechniqueLevelFromCost(finalCost).level : (tech.level || 1);
+      const autoDesc = isStructural
+        ? generateAutoDescription({ ...tech, cost: `${finalCost} CE` }, mechanicsList, staminaCostsRule, finalCost)
+        : (tech.autoDescription || generateAutoDescription(tech, mechanicsList, staminaCostsRule, finalCost));
+      return {
+        ...tech,
+        level: derivedLevel,
+        cost: finalCost,
+        staminaCost: finalCost,
+        ce: finalCost,
+        autoDescription: autoDesc,
+        mechanicalDescription: autoDesc,
+      };
+    });
+  } catch (techErr) {
+    console.warn("Could not calculate technique costs for character", id, techErr);
+  }
+
   return {
     ...character,
     profileData: prof,
@@ -323,7 +356,7 @@ export async function getPublicCharacterById(id: number) {
     possessions,
     employments,
     enrollment,
-    techniques,
+    techniques: enrichedTechniques,
   };
 }
 
