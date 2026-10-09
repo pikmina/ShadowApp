@@ -206,12 +206,77 @@ export async function getPublicCharacterById(id: number) {
     getCharacterEnrollment(id).catch(() => null),
     getCharacterTechniquesByCharacterId(id).catch(() => []),
   ]);
-  return { ...character, possessions, employments, enrollment, techniques };
+
+  const rawProfile = (character.profileData as Record<string, any>) || {};
+  const prof = { ...rawProfile };
+
+  // Calculate / guarantee derived stats and atributos
+  const fue = Number(prof.fue ?? prof.FUE ?? prof.atributos?.fue ?? 0);
+  const des = Number(prof.des ?? prof.DES ?? prof.atributos?.des ?? 0);
+  const res = Number(prof.res ?? prof.RES ?? prof.atributos?.res ?? 0);
+  const int = Number(prof.int ?? prof.INT ?? prof.atributos?.int ?? 0);
+  const vol = Number(prof.vol ?? prof.VOL ?? prof.atributos?.vol ?? 0);
+  const vel = Number(prof.vel ?? prof.VEL ?? prof.atributos?.vel ?? 0);
+
+  if (!prof.atributos) {
+    prof.atributos = { fue, des, res, int, vol, vel };
+  }
+
+  const salud_maxima = Number(prof.salud_maxima ?? prof.salud ?? prof.maxHealth ?? (20 + res));
+  const estamina_maxima = Number(prof.estamina_maxima ?? prof.estamina ?? prof.maxStamina ?? (20 + des));
+  const salud_actual = Number(prof.salud_actual ?? salud_maxima);
+  const estamina_actual = Number(prof.estamina_actual ?? estamina_maxima);
+  const evasion = Number(prof.evasion ?? (10 + vel));
+  const coraje = Number(prof.coraje ?? (10 + vol));
+  const mod_fue = Number(prof.mod_fue ?? Math.floor(fue / 2));
+  const mod_des = Number(prof.mod_des ?? Math.floor(des / 2));
+  const iniciativa = Number(prof.iniciativa ?? (Math.floor(int / 2) + Math.floor(vel / 2)));
+  const reduccion_dano = Number(prof.reduccion_dano ?? 0);
+
+  prof.salud_maxima = salud_maxima;
+  prof.salud_actual = salud_actual;
+  prof.estamina_maxima = estamina_maxima;
+  prof.estamina_actual = estamina_actual;
+  prof.evasion = evasion;
+  prof.coraje = coraje;
+  prof.mod_fue = mod_fue;
+  prof.mod_des = mod_des;
+  prof.iniciativa = iniciativa;
+  prof.reduccion_dano = reduccion_dano;
+  if (!prof.daño_fisico) prof.daño_fisico = mod_fue > 0 ? `1D8 + ${mod_fue}` : '1D8';
+  if (!prof.daño_rango) prof.daño_rango = mod_des > 0 ? `1D8 + ${mod_des}` : '1D8';
+
+  const stats = {
+    salud_maxima,
+    salud_actual,
+    estamina_maxima,
+    estamina_actual,
+    evasion,
+    coraje,
+    mod_fue,
+    mod_des,
+    iniciativa,
+    daño_fisico: prof.daño_fisico,
+    daño_rango: prof.daño_rango,
+    reduccion_dano,
+  };
+
+  return {
+    ...character,
+    profileData: prof,
+    stats,
+    possessions,
+    employments,
+    enrollment,
+    techniques,
+  };
 }
 
 export async function getPublicCharacterByIdOrName(identifier: string) {
   if (!identifier) return null;
-  const decoded = decodeURIComponent(identifier).trim();
+  // Clean raw identifier: strip URI encoding, leading slashes or backslashes, extra whitespace
+  const decoded = decodeURIComponent(identifier).replace(/^[\\/@#\s]+/, '').trim();
+  if (!decoded) return null;
   
   // 1. Try numeric ID
   const numericId = parseInt(decoded, 10);
@@ -220,7 +285,28 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
     if (direct) return direct;
   }
 
-  // 2. Search all characters by name, last_name, canonCharacterId, or alias
+  // Helpers for normalization & tokens
+  const normalize = (str: string) => {
+    return (str || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // strip accents/diacritics
+      .toLowerCase()
+      .trim();
+  };
+
+  const toAlphaNumeric = (str: string) => normalize(str).replace(/[^a-z0-9]+/g, '');
+
+  const getTokens = (str: string) => {
+    return normalize(str)
+      .split(/[^a-z0-9]+/)
+      .filter(t => t.length > 0);
+  };
+
+  const searchNorm = normalize(decoded);
+  const searchAlpha = toAlphaNumeric(decoded);
+  const searchTokens = getTokens(decoded);
+
+  // 2. Load characters
   let allCharacters: any[] = [];
   try {
     allCharacters = await db.select().from(characters);
@@ -240,64 +326,98 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
       allCharacters = [];
     }
   }
-  const normalizedSearch = decoded.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
-  // Exact match
-  let matched = allCharacters.find(c => {
+  // Build candidate profile info extractor
+  const getCharVariations = (c: any) => {
     const prof = (c.profileData as any) || {};
-    const lastName = prof.last_name || prof.apellido || '';
-    const fullName = `${c.name} ${lastName}`.trim().toLowerCase();
-    const reverseFullName = `${lastName} ${c.name}`.trim().toLowerCase();
-    return (
-      c.name.toLowerCase() === decoded.toLowerCase() ||
-      String(lastName).toLowerCase() === decoded.toLowerCase() ||
-      fullName === decoded.toLowerCase() ||
-      reverseFullName === decoded.toLowerCase() ||
-      (c.canonCharacterId && c.canonCharacterId.toLowerCase() === decoded.toLowerCase())
-    );
+    const basicName = String(prof.basic_name || prof.name || prof.nombre || c.name || '').trim();
+    const lastName = String(prof.last_name || prof.apellido || '').trim();
+    const directName = String(c.name || '').trim();
+    const alias = String(prof.alias || prof.hero_name || prof.apodo || '').trim();
+    const canonId = String(c.canonCharacterId || '').trim();
+
+    const firstLast = `${basicName} ${lastName}`.trim();
+    const lastFirst = `${lastName} ${basicName}`.trim();
+    const directFirstLast = `${directName} ${lastName}`.trim();
+    const directLastFirst = `${lastName} ${directName}`.trim();
+
+    // Reversed words from direct name (e.g., "Izuku Midoriya" -> "Midoriya Izuku")
+    const wordsInDirect = directName.split(/\s+/).filter(Boolean);
+    const reversedDirect = wordsInDirect.length > 1 ? [...wordsInDirect].reverse().join(' ') : '';
+
+    const allStrings = [
+      directName,
+      reversedDirect,
+      firstLast,
+      lastFirst,
+      directFirstLast,
+      directLastFirst,
+      basicName,
+      lastName,
+      alias,
+      canonId,
+    ].filter(Boolean);
+
+    const tokenSet = new Set<string>();
+    for (const s of allStrings) {
+      for (const t of getTokens(s)) {
+        tokenSet.add(t);
+      }
+    }
+
+    return {
+      allStrings,
+      allNormStrings: allStrings.map(normalize),
+      allAlphaStrings: allStrings.map(toAlphaNumeric),
+      tokenSet,
+      basicName,
+      lastName,
+      directName,
+      alias,
+      canonId,
+    };
+  };
+
+  // Step A: Exact matches (case/accent-insensitive)
+  let matched = allCharacters.find(c => {
+    const v = getCharVariations(c);
+    return v.allNormStrings.some(s => s === searchNorm);
   });
 
-  // Normalized alphanumeric match
-  if (!matched) {
+  // Step B: Normalized alphanumeric match (ignores spaces/symbols, e.g. "izukumidoriya")
+  if (!matched && searchAlpha) {
     matched = allCharacters.find(c => {
-      const prof = (c.profileData as any) || {};
-      const lastName = prof.last_name || prof.apellido || '';
-      const cNorm = c.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
-      const lastNorm = String(lastName).toLowerCase().replace(/[^a-z0-9]+/g, '');
-      const fullNorm = `${cNorm}${lastNorm}`;
-      const revNorm = `${lastNorm}${cNorm}`;
-      const canonNorm = (c.canonCharacterId || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-      const alias = prof.alias || prof.hero_name || prof.apodo || '';
-      const aliasNorm = String(alias).toLowerCase().replace(/[^a-z0-9]+/g, '');
-      return (
-        cNorm === normalizedSearch ||
-        lastNorm === normalizedSearch ||
-        fullNorm === normalizedSearch ||
-        revNorm === normalizedSearch ||
-        (canonNorm && canonNorm === normalizedSearch) ||
-        (aliasNorm && aliasNorm === normalizedSearch)
-      );
+      const v = getCharVariations(c);
+      return v.allAlphaStrings.some(s => s === searchAlpha);
     });
   }
 
-  // Substring match
-  if (!matched) {
+  // Step C: Token-set match (if query has multiple words, all query words must match character tokens)
+  if (!matched && searchTokens.length >= 2) {
     matched = allCharacters.find(c => {
-      const prof = (c.profileData as any) || {};
-      const lastName = prof.last_name || prof.apellido || '';
-      const fullName = `${c.name} ${lastName}`.trim().toLowerCase();
-      const alias = String(prof.alias || prof.hero_name || prof.apodo || '').toLowerCase();
-      return (
-        c.name.toLowerCase().includes(decoded.toLowerCase()) ||
-        String(lastName).toLowerCase().includes(decoded.toLowerCase()) ||
-        fullName.includes(decoded.toLowerCase()) ||
-        alias.includes(decoded.toLowerCase()) ||
-        (c.canonCharacterId && c.canonCharacterId.toLowerCase().includes(decoded.toLowerCase()))
-      );
+      const v = getCharVariations(c);
+      return searchTokens.every(st => v.tokenSet.has(st));
     });
   }
 
-  // Also check canon characters if still not matched
+  // Step D: Single token match (if search is a single word >= 3 chars, e.g. "Midoriya" or "Izuku")
+  if (!matched && searchTokens.length === 1 && searchTokens[0].length >= 3) {
+    const singleToken = searchTokens[0];
+    matched = allCharacters.find(c => {
+      const v = getCharVariations(c);
+      return v.tokenSet.has(singleToken);
+    });
+  }
+
+  // Step E: Substring match as fallback
+  if (!matched && searchNorm.length >= 3) {
+    matched = allCharacters.find(c => {
+      const v = getCharVariations(c);
+      return v.allNormStrings.some(s => s.includes(searchNorm) || (s.length >= 3 && searchNorm.includes(s)));
+    });
+  }
+
+  // 3. Canon characters check
   if (!matched) {
     let allCanons: any[] = [];
     try {
@@ -317,13 +437,56 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
       }
     }
 
+    const getCanonVariations = (cc: any) => {
+      const first = String(cc.firstName || '').trim();
+      const last = String(cc.lastName || '').trim();
+      const direct = String(cc.name || '').trim();
+      const id = String(cc.id || '').trim();
+      const aliases = Array.isArray(cc.aliases) ? cc.aliases.map(String) : [];
+
+      const firstLast = `${first} ${last}`.trim();
+      const lastFirst = `${last} ${first}`.trim();
+      const directWords = direct.split(/\s+/).filter(Boolean);
+      const reversedDirect = directWords.length > 1 ? [...directWords].reverse().join(' ') : '';
+
+      const allStrings = [
+        id,
+        direct,
+        reversedDirect,
+        firstLast,
+        lastFirst,
+        first,
+        last,
+        ...aliases,
+      ].filter(Boolean);
+
+      const tokenSet = new Set<string>();
+      for (const s of allStrings) {
+        for (const t of getTokens(s)) {
+          tokenSet.add(t);
+        }
+      }
+
+      return {
+        allStrings,
+        allNormStrings: allStrings.map(normalize),
+        allAlphaStrings: allStrings.map(toAlphaNumeric),
+        tokenSet,
+      };
+    };
+
     const matchedCanon = allCanons.find(cc => {
-      const idMatch = cc.id.toLowerCase() === decoded.toLowerCase();
-      const nameMatch = cc.name.toLowerCase().includes(decoded.toLowerCase());
-      const firstMatch = (cc.firstName || '').toLowerCase().includes(decoded.toLowerCase());
-      const lastMatch = (cc.lastName || '').toLowerCase().includes(decoded.toLowerCase());
-      const aliasMatch = Array.isArray(cc.aliases) && cc.aliases.some((a: string) => a.toLowerCase().includes(decoded.toLowerCase()));
-      return idMatch || nameMatch || firstMatch || lastMatch || aliasMatch;
+      const v = getCanonVariations(cc);
+      // Exact or alphanumeric
+      if (v.allNormStrings.some(s => s === searchNorm)) return true;
+      if (searchAlpha && v.allAlphaStrings.some(s => s === searchAlpha)) return true;
+      // All tokens match
+      if (searchTokens.length >= 2 && searchTokens.every(st => v.tokenSet.has(st))) return true;
+      // Single token
+      if (searchTokens.length === 1 && searchTokens[0].length >= 3 && v.tokenSet.has(searchTokens[0])) return true;
+      // Substring
+      if (searchNorm.length >= 3 && v.allNormStrings.some(s => s.includes(searchNorm) || (s.length >= 3 && searchNorm.includes(s)))) return true;
+      return false;
     });
 
     if (matchedCanon) {
@@ -339,6 +502,56 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
           getOwnerEmployments({ canonCharacterId: matchedCanon.id }).catch(() => []),
           getOwnerEnrollment({ canonCharacterId: matchedCanon.id }).catch(() => null),
         ]);
+        const canonProf: Record<string, any> = {
+          ...(matchedCanon.profileData || {}),
+          basic_name: matchedCanon.firstName || matchedCanon.name,
+          last_name: matchedCanon.lastName || '',
+          summary: matchedCanon.summary,
+          biography: matchedCanon.summary,
+          alias: Array.isArray(matchedCanon.aliases) ? matchedCanon.aliases.join(', ') : '',
+        };
+
+        const cFue = Number(canonProf.fue ?? canonProf.FUE ?? canonProf.atributos?.fue ?? 5);
+        const cDes = Number(canonProf.des ?? canonProf.DES ?? canonProf.atributos?.des ?? 5);
+        const cRes = Number(canonProf.res ?? canonProf.RES ?? canonProf.atributos?.res ?? 5);
+        const cInt = Number(canonProf.int ?? canonProf.INT ?? canonProf.atributos?.int ?? 5);
+        const cVol = Number(canonProf.vol ?? canonProf.VOL ?? canonProf.atributos?.vol ?? 5);
+        const cVel = Number(canonProf.vel ?? canonProf.VEL ?? canonProf.atributos?.vel ?? 5);
+
+        if (!canonProf.atributos) {
+          canonProf.atributos = { fue: cFue, des: cDes, res: cRes, int: cInt, vol: cVol, vel: cVel };
+        }
+
+        const cSaludMax = Number(canonProf.salud_maxima ?? canonProf.salud ?? (20 + cRes));
+        const cEstaminaMax = Number(canonProf.estamina_maxima ?? canonProf.estamina ?? (20 + cDes));
+        canonProf.salud_maxima = cSaludMax;
+        canonProf.salud_actual = cSaludMax;
+        canonProf.estamina_maxima = cEstaminaMax;
+        canonProf.estamina_actual = cEstaminaMax;
+        canonProf.evasion = Number(canonProf.evasion ?? (10 + cVel));
+        canonProf.coraje = Number(canonProf.coraje ?? (10 + cVol));
+        canonProf.mod_fue = Math.floor(cFue / 2);
+        canonProf.mod_des = Math.floor(cDes / 2);
+        canonProf.iniciativa = Math.floor(cInt / 2) + Math.floor(cVel / 2);
+        canonProf.daño_fisico = canonProf.daño_fisico || '1D8 + 2';
+        canonProf.daño_rango = canonProf.daño_rango || '1D8 + 2';
+        canonProf.reduccion_dano = canonProf.reduccion_dano || 0;
+
+        const canonStats = {
+          salud_maxima: cSaludMax,
+          salud_actual: cSaludMax,
+          estamina_maxima: cEstaminaMax,
+          estamina_actual: cEstaminaMax,
+          evasion: canonProf.evasion,
+          coraje: canonProf.coraje,
+          mod_fue: canonProf.mod_fue,
+          mod_des: canonProf.mod_des,
+          iniciativa: canonProf.iniciativa,
+          daño_fisico: canonProf.daño_fisico,
+          daño_rango: canonProf.daño_rango,
+          reduccion_dano: canonProf.reduccion_dano,
+        };
+
         return {
           id: matchedCanon.id,
           name: matchedCanon.name,
@@ -346,14 +559,8 @@ export async function getPublicCharacterByIdOrName(identifier: string) {
           exp: 0,
           yen: 0,
           plus_ultra: 0,
-          profileData: {
-            ...(matchedCanon.profileData || {}),
-            basic_name: matchedCanon.firstName || matchedCanon.name,
-            last_name: matchedCanon.lastName || '',
-            summary: matchedCanon.summary,
-            biography: matchedCanon.summary,
-            alias: Array.isArray(matchedCanon.aliases) ? matchedCanon.aliases.join(', ') : '',
-          },
+          profileData: canonProf,
+          stats: canonStats,
           active: matchedCanon.active,
           isCanon: true,
           possessions: [],

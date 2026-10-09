@@ -246,6 +246,247 @@ const SYSTEM_RULES_SAMPLE_JSON = {
   }
 };
 
+const FOROACTIVO_SCRIPT = `// ========================================================
+// Script de consumo de API ShadowApp para Foroactivo / Drawer
+// ========================================================
+
+const API_BASE_URL = "https://app.oneforallrpg.org";
+
+/**
+ * Consulta la ficha del personaje en la API.
+ * Admite 'Nombre Apellido', 'Apellido Nombre', solo 'Apellido', solo 'Nombre', o Alias.
+ */
+async function fetchCharacterSheet(characterIdentifier) {
+  if (!characterIdentifier) {
+    console.warn("No se especificó un nombre o identificador de personaje.");
+    return;
+  }
+
+  try {
+    const url = \`\${API_BASE_URL}/api/public/character/\${encodeURIComponent(characterIdentifier)}\`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(\`Personaje no encontrado (status \${res.status})\`);
+    const char = await res.json();
+    
+    // 1. Extraer Identidad
+    const prof = char.profileData || {};
+    const nombre = prof.basic_name || char.name || "Sin nombre";
+    const apellido = prof.last_name || "";
+    const alias = prof.alias ? \`AKA: \${prof.alias}\` : "";
+    const faceclaim = prof.faceclaim || "Ninguno";
+    const avatar = prof.avatar_url || "https://placehold.co/150";
+
+    // 2. Extraer Quirk Modular
+    const quirkName = prof.quirk_name || "Sin don";
+    const quirkType = prof.quirk_type || "Desconocido";
+    const quirkLevel = prof.quirk_level || "Nivel 1. Despertar";
+    const quirkDesc = prof.quirk_description || "";
+    const quirkLvl1 = prof.quirk_lvl1 || "-";
+    const quirkLvl2 = prof.quirk_lvl2 || "-";
+    const quirkLvl3 = prof.quirk_lvl3 || "-";
+
+    // 3. Extraer Atributos
+    const attrs = prof.atributos || {};
+    const fue = attrs.fue || prof.FUE || 0;
+    const des = attrs.des || prof.DES || 0;
+    const res = attrs.res || prof.RES || 0;
+    const int = attrs.int || prof.INT || 0;
+    const vol = attrs.vol || prof.VOL || 0;
+    const vel = attrs.vel || prof.VEL || 0;
+
+    // 4. Extraer Estadísticas Derivadas (Salud, Estamina, etc.)
+    const saludMaxima = prof.salud_maxima ?? char.stats?.salud_maxima ?? (20 + res);
+    const estaminaMaxima = prof.estamina_maxima ?? char.stats?.estamina_maxima ?? (20 + des);
+
+    // ⚡ Inyectar directamente en los elementos del HTML del Drawer:
+    const healthEl = document.getElementById("drawer-health");
+    if (healthEl) healthEl.textContent = saludMaxima;
+
+    const staminaEl = document.getElementById("drawer-stamina");
+    if (staminaEl) staminaEl.textContent = estaminaMaxima;
+
+    // 5. Filtrar Posesiones
+    const possessions = char.possessions || [];
+    const traits = possessions.filter(p => (p.element?.kind || p.kind) === 'trait');
+    const weaknesses = possessions.filter(p => (p.element?.kind || p.kind) === 'weakness');
+    const skills = possessions.filter(p => (p.element?.kind || p.kind) === 'skill');
+    const inventory = possessions.filter(p => ['equipment', 'weapon', 'consumable'].includes(p.element?.kind || p.kind));
+
+    // 6. Si tienes una función para renderizar el resto del Drawer:
+    if (typeof renderDrawerModal === "function") {
+      renderDrawerModal({
+        nombreCompleto: \`\${nombre} \${apellido}\`.trim(),
+        alias,
+        faceclaim,
+        avatar,
+        salud: saludMaxima,
+        estamina: estaminaMaxima,
+        quirk: { name: quirkName, type: quirkType, level: quirkLevel, desc: quirkDesc, lvl1: quirkLvl1, lvl2: quirkLvl2, lvl3: quirkLvl3 },
+        atributos: { fue, des, res, int, vol, vel },
+        traits,
+        weaknesses,
+        skills,
+        techniques: char.techniques || [],
+        inventory
+      });
+    }
+
+  } catch (err) {
+    console.error("Error al cargar la ficha:", err);
+  }
+}
+
+/**
+ * Ejemplo de lectura automática desde tu Drawer HTML:
+ * <span id="drawer-char-name">Izuku Midoriya</span>
+ */
+function openDrawerForCurrentElement() {
+  const el = document.getElementById("drawer-char-name");
+  if (!el) return;
+  
+  // Limpia posibles barras diagonales invertidas '\\' o espacios extras
+  const rawText = el.textContent || "";
+  const cleanName = rawText.replace(/^[\\\\/@#\\s]+/, "").trim();
+  
+  if (cleanName) {
+    fetchCharacterSheet(cleanName);
+  }
+}`;
+
+const FOROACTIVO_JQUERY_SCRIPT = `// ========================================================
+// Script de integración Foroactivo (jQuery + API ShadowApp)
+// ========================================================
+
+jQuery(document).ready(function($) {
+    var API_BASE_URL = "https://app.oneforallrpg.org";
+    var characterCache = {}; // Caché en memoria para evitar llamadas redundantes
+
+    // Función asíncrona para consultar la ficha en la API
+    async function cargarFichaDesdeAPI(characterName) {
+        if (!characterName) return;
+
+        // Limpia posibles barras diagonales invertidas '\\' o espacios extras
+        var cleanName = characterName.replace(/^[\\\\/@#\\s]+/, '').trim();
+        if (!cleanName) return;
+
+        // Colocar estado de carga temporal en los campos de RPG
+        $('#drawer-health').text('...');
+        $('#drawer-stamina').text('...');
+
+        // Si ya lo tenemos en caché, renderizar de inmediato
+        if (characterCache[cleanName]) {
+            renderizarDatosRPG(characterCache[cleanName]);
+            return;
+        }
+
+        try {
+            var url = API_BASE_URL + "/api/public/character/" + encodeURIComponent(cleanName);
+            var res = await fetch(url);
+            if (!res.ok) throw new Error("Ficha no encontrada en la API");
+            var char = await res.json();
+
+            // Guardar en caché
+            characterCache[cleanName] = char;
+            renderizarDatosRPG(char);
+        } catch (err) {
+            console.warn("No se pudo cargar la ficha RPG para:", cleanName, err);
+            $('#drawer-health').text('--');
+            $('#drawer-stamina').text('--');
+        }
+    }
+
+    // Inyección de estadísticas numéricas en el DOM del Drawer
+    function renderizarDatosRPG(char) {
+        var prof = char.profileData || {};
+        var attrs = prof.atributos || {};
+        var res = attrs.res || prof.RES || 0;
+        var des = attrs.des || prof.DES || 0;
+
+        // 1. Estadísticas Derivadas (Salud, Estamina)
+        var saludMaxima = (prof.salud_maxima !== undefined) ? prof.salud_maxima : (char.stats && char.stats.salud_maxima ? char.stats.salud_maxima : (20 + res));
+        var estaminaMaxima = (prof.estamina_maxima !== undefined) ? prof.estamina_maxima : (char.stats && char.stats.estamina_maxima ? char.stats.estamina_maxima : (20 + des));
+
+        $('#drawer-health').text(saludMaxima);
+        $('#drawer-stamina').text(estaminaMaxima);
+
+        // 2. Defensas y derivados
+        if ($('#drawer-evasion').length) $('#drawer-evasion').text(prof.evasion || (10 + (attrs.vel || 0)));
+        if ($('#drawer-courage').length) $('#drawer-courage').text(prof.coraje || (10 + (attrs.vol || 0)));
+        if ($('#drawer-initiative').length) $('#drawer-initiative').text(prof.iniciativa || 0);
+
+        // 3. Atributos Primarios (si existen los contenedores en tu Drawer)
+        if ($('#drawer-attr-fue').length) $('#drawer-attr-fue').text(attrs.fue || prof.FUE || 0);
+        if ($('#drawer-attr-des').length) $('#drawer-attr-des').text(attrs.des || prof.DES || 0);
+        if ($('#drawer-attr-res').length) $('#drawer-attr-res').text(res);
+        if ($('#drawer-attr-int').length) $('#drawer-attr-int').text(attrs.int || prof.INT || 0);
+        if ($('#drawer-attr-vol').length) $('#drawer-attr-vol').text(attrs.vol || prof.VOL || 0);
+        if ($('#drawer-attr-vel').length) $('#drawer-attr-vel').text(attrs.vel || prof.VEL || 0);
+
+        // 4. Quirk Modular Avanzado (si deseas mostrar nivel y tipo)
+        if (prof.quirk_level && $('#drawer-char-quirk-level').length) {
+            $('#drawer-char-quirk-level').text(prof.quirk_level);
+        }
+    }
+
+    function cargarDatosEnDrawer(postId) {
+        var numericId = postId.replace('p', '');
+        var $postContainer = $('#' + postId).closest('.post-bigwrap'); // Busca el contenedor con los colores
+        var $profile = $('#profile' + numericId);
+
+        // 1. EXTRAER Y APLICAR COLORES DEL GRUPO AL DRAWER
+        var groupStyle = $postContainer.attr('style'); 
+        if (groupStyle) {
+            // Hereda directamente las variables --graccent1 y --graccent2
+            $('#shadow-drawer').attr('style', groupStyle);
+        }
+
+        if ($profile.length > 0) {
+            var name = $profile.find('.profile-name').text();
+            var avatar = $profile.find('.profile-avatar').text();
+            var quirk = $profile.find('.profile-quirk').text();
+            var stats = $profile.find('.profile-stats').text();
+
+            // Inyección en el DOM estático del Drawer
+            $('#drawer-char-name').text(name);
+            $('#drawer-char-title').text(name);
+            $('#drawer-char-avatar').attr('src', avatar).attr('alt', name);
+            $('#drawer-char-quirk').text(quirk);
+            $('#drawer-char-stats').html(stats.replace(/\\|/g, '<br>'));
+
+            // Clonar enlaces de contacto
+            var $linksContainer = $('#drawer-char-links').empty();
+            var $contactLinks = $postContainer.find('.user-mycontact').clone();
+
+            $contactLinks.find('a').each(function() {
+                var href = $(this).attr('href');
+                var title = $(this).attr('title') || 'Enlace';
+                var iconClass = $(this).find('i').attr('class') || 'fa-solid fa-link';
+
+                $('<a></a>')
+                    .attr('href', href)
+                    .attr('target', '_blank')
+                    .append($('<i></i>').addClass(iconClass))
+                    .append(' ' + title)
+                    .appendTo($linksContainer);
+            });
+
+            // ⚡ 2. CONSULTAR Y CARGAR FICHA RPG DESDE LA API SHADOWAPP
+            cargarFichaDesdeAPI(name);
+        }
+    }
+
+    $(document).on('click', '.open-shadow-drawer', function(e) {
+        e.preventDefault();
+        var postId = $(this).attr('data-post-id');
+        cargarDatosEnDrawer(postId);
+    });
+
+    var primerPostId = $('.open-shadow-drawer').first().attr('data-post-id');
+    if (primerPostId) {
+        cargarDatosEnDrawer(primerPostId);
+    }
+});`;
+
 export default function ApiGuideAdmin() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -462,143 +703,53 @@ export default function ApiGuideAdmin() {
                 Script de Integración para Foroactivo (Modal / Drawer)
               </CardTitle>
               <CardDescription>
-                Copia este script e insértalo en la <strong>Gestión de Códigos JavaScript</strong> de Foroactivo (con opción <em>En todas las páginas</em> o <em>En los perfiles</em>).
+                Copia este script e insértalo en la <strong>Gestión de Códigos JavaScript</strong> de Foroactivo o pruébalo localmente.
+                El endpoint <code>/api/public/character/:identificador</code> resuelve automáticamente nombres como <strong>"Izuku Midoriya"</strong>, <strong>"Midoriya Izuku"</strong>, solo apellido <strong>"Midoriya"</strong>, solo nombre <strong>"Izuku"</strong>, o su alias <strong>"Deku"</strong> (insensible a orden, mayúsculas o tildes).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               
+              {/* Script 1: jQuery Foroactivo Drawer */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-foreground">JavaScript (ES6 / Vanilla):</span>
+                  <div>
+                    <span className="text-xs font-bold text-foreground">1. jQuery (Foroactivo + Drawer Integrado):</span>
+                    <p className="text-[11px] text-muted-foreground">Inyecta colores, avatar, enlaces y consulta la API para rellenar Salud, Estamina y Atributos automáticamente.</p>
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => copyToClipboard(`
-// Script de consumo de API ShadowApp para Foroactivo
-async function fetchCharacterSheet(characterIdentifier) {
-  try {
-    const res = await fetch(\`https://TU_DOMINIO/api/public/character/\${encodeURIComponent(characterIdentifier)}\`);
-    if (!res.ok) throw new Error("Personaje no encontrado");
-    const char = await res.json();
-    
-    // 1. Extraer Identidad
-    const prof = char.profileData || {};
-    const nombre = prof.basic_name || char.name || "Sin nombre";
-    const apellido = prof.last_name || "";
-    const alias = prof.alias ? \`AKA: \${prof.alias}\` : "";
-    const faceclaim = prof.faceclaim || "Ninguno";
-    const avatar = prof.avatar_url || "https://placehold.co/150";
-
-    // 2. Extraer Quirk Modular
-    const quirkName = prof.quirk_name || "Sin don";
-    const quirkType = prof.quirk_type || "Desconocido";
-    const quirkLevel = prof.quirk_level || "Nivel 1. Despertar";
-    const quirkDesc = prof.quirk_description || "";
-    const quirkLvl1 = prof.quirk_lvl1 || "-";
-    const quirkLvl2 = prof.quirk_lvl2 || "-";
-    const quirkLvl3 = prof.quirk_lvl3 || "-";
-
-    // 3. Extraer Atributos
-    const attrs = prof.atributos || {};
-    const fue = attrs.fue || 0;
-    const des = attrs.des || 0;
-    const res = attrs.res || 0;
-    const int = attrs.int || 0;
-    const vol = attrs.vol || 0;
-    const vel = attrs.vel || 0;
-
-    // 4. Filtrar Posesiones
-    const possessions = char.possessions || [];
-    const traits = possessions.filter(p => (p.element?.kind || p.kind) === 'trait');
-    const weaknesses = possessions.filter(p => (p.element?.kind || p.kind) === 'weakness');
-    const skills = possessions.filter(p => (p.element?.kind || p.kind) === 'skill');
-    const inventory = possessions.filter(p => ['equipment', 'weapon', 'consumable'].includes(p.element?.kind || p.kind));
-
-    // 5. Inyectar en el Modal o Drawer del Foro
-    renderDrawerModal({
-      nombreCompleto: \`\${nombre} \${apellido}\`.trim(),
-      alias,
-      faceclaim,
-      avatar,
-      quirk: { name: quirkName, type: quirkType, level: quirkLevel, desc: quirkDesc, lvl1: quirkLvl1, lvl2: quirkLvl2, lvl3: quirkLvl3 },
-      atributos: { fue, des, res, int, vol, vel },
-      traits,
-      weaknesses,
-      skills,
-      techniques: char.techniques || [],
-      inventory
-    });
-
-  } catch (err) {
-    console.error("Error al cargar la ficha:", err);
-  }
-}`, 'Foroactivo Script')}
+                    onClick={() => copyToClipboard(FOROACTIVO_JQUERY_SCRIPT, 'jQuery Drawer Script')}
                     className="text-xs h-7"
                   >
-                    <Copy className="w-3.5 h-3.5 mr-1" /> Copiar Script
+                    <Copy className="w-3.5 h-3.5 mr-1" /> Copiar jQuery
                   </Button>
                 </div>
                 
-                <pre className="text-xs text-muted-foreground overflow-x-auto p-4 bg-black/70 border border-border/80 rounded-lg font-mono leading-relaxed">
-{`// Script de consumo de API ShadowApp para Foroactivo
-async function fetchCharacterSheet(characterIdentifier) {
-  try {
-    const res = await fetch(\`https://TU_DOMINIO/api/public/character/\${encodeURIComponent(characterIdentifier)}\`);
-    if (!res.ok) throw new Error("Personaje no encontrado");
-    const char = await res.json();
-    
-    // 1. Extraer Identidad
-    const prof = char.profileData || {};
-    const nombre = prof.basic_name || char.name || "Sin nombre";
-    const apellido = prof.last_name || "";
-    const alias = prof.alias ? \`AKA: \${prof.alias}\` : "";
-    const faceclaim = prof.faceclaim || "Ninguno";
-    const avatar = prof.avatar_url || "https://placehold.co/150";
+                <pre className="text-xs text-muted-foreground overflow-x-auto p-4 bg-black/70 border border-border/80 rounded-lg font-mono leading-relaxed max-h-[400px]">
+{FOROACTIVO_JQUERY_SCRIPT}
+                </pre>
+              </div>
 
-    // 2. Extraer Quirk Modular
-    const quirkName = prof.quirk_name || "Sin don";
-    const quirkType = prof.quirk_type || "Desconocido";
-    const quirkLevel = prof.quirk_level || "Nivel 1. Despertar";
-    const quirkDesc = prof.quirk_description || "";
-    const quirkLvl1 = prof.quirk_lvl1 || "-";
-    const quirkLvl2 = prof.quirk_lvl2 || "-";
-    const quirkLvl3 = prof.quirk_lvl3 || "-";
-
-    // 3. Extraer Atributos
-    const attrs = prof.atributos || {};
-    const fue = attrs.fue || 0;
-    const des = attrs.des || 0;
-    const res = attrs.res || 0;
-    const int = attrs.int || 0;
-    const vol = attrs.vol || 0;
-    const vel = attrs.vel || 0;
-
-    // 4. Filtrar Posesiones
-    const possessions = char.possessions || [];
-    const traits = possessions.filter(p => (p.element?.kind || p.kind) === 'trait');
-    const weaknesses = possessions.filter(p => (p.element?.kind || p.kind) === 'weakness');
-    const skills = possessions.filter(p => (p.element?.kind || p.kind) === 'skill');
-    const inventory = possessions.filter(p => ['equipment', 'weapon', 'consumable'].includes(p.element?.kind || p.kind));
-
-    // 5. Inyectar en el Modal o Drawer del Foro
-    renderDrawerModal({
-      nombreCompleto: \`\${nombre} \${apellido}\`.trim(),
-      alias,
-      faceclaim,
-      avatar,
-      quirk: { name: quirkName, type: quirkType, level: quirkLevel, desc: quirkDesc, lvl1: quirkLvl1, lvl2: quirkLvl2, lvl3: quirkLvl3 },
-      atributos: { fue, des, res, int, vol, vel },
-      traits,
-      weaknesses,
-      skills,
-      techniques: char.techniques || [],
-      inventory
-    });
-
-  } catch (err) {
-    console.error("Error al cargar la ficha:", err);
-  }
-}`}
+              {/* Script 2: Vanilla ES6 */}
+              <div className="space-y-2 pt-4 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-foreground">2. JavaScript (ES6 / Vanilla Modular):</span>
+                    <p className="text-[11px] text-muted-foreground">Función pura async/await sin dependencias de jQuery para cualquier framework o modal.</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(FOROACTIVO_SCRIPT, 'Vanilla Script')}
+                    className="text-xs h-7"
+                  >
+                    <Copy className="w-3.5 h-3.5 mr-1" /> Copiar Vanilla
+                  </Button>
+                </div>
+                
+                <pre className="text-xs text-muted-foreground overflow-x-auto p-4 bg-black/70 border border-border/80 rounded-lg font-mono leading-relaxed max-h-[400px]">
+{FOROACTIVO_SCRIPT}
                 </pre>
               </div>
 
