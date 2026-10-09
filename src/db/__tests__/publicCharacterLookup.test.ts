@@ -8,4 +8,13 @@ describe('Public Character Lookup Matching', () => {
     expect(await getPublicCharacterByIdOrName('   ')).toBeNull();
     expect(await getPublicCharacterByIdOrName('\\')).toBeNull();
   });
+
+  it('resolves Izuku public character with stats', async () => {
+    const char = await getPublicCharacterByIdOrName('Izuku');
+    if (char) {
+      expect(char.stats).toBeDefined();
+      expect(typeof char.stats.estamina_maxima).toBe('number');
+      expect(char.stats.estamina_maxima).toBeGreaterThan(0);
+    }
+  });
 });

@@ -117,6 +117,7 @@ import { systemRules } from './schema.ts';
 import { nanoid } from 'nanoid';
 import { evaluateRequirements, requirementGroupSchema } from '../domain/requirements.ts';
 import { getCharacterTechniquesByCharacterId } from './characterTechniques.ts';
+import { calculateDerivedStats } from '../lib/characterValidation.ts';
 
 export async function getCharacterTechniques(characterId: number) {
   return getCharacterTechniquesByCharacterId(characterId);
@@ -222,16 +223,70 @@ export async function getPublicCharacterById(id: number) {
     prof.atributos = { fue, des, res, int, vol, vel };
   }
 
-  const salud_maxima = Number(prof.salud_maxima ?? prof.salud ?? prof.maxHealth ?? (20 + res));
-  const estamina_maxima = Number(prof.estamina_maxima ?? prof.estamina ?? prof.maxStamina ?? (20 + des));
-  const salud_actual = Number(prof.salud_actual ?? salud_maxima);
-  const estamina_actual = Number(prof.estamina_actual ?? estamina_maxima);
-  const evasion = Number(prof.evasion ?? (10 + vel));
-  const coraje = Number(prof.coraje ?? (10 + vol));
-  const mod_fue = Number(prof.mod_fue ?? Math.floor(fue / 2));
-  const mod_des = Number(prof.mod_des ?? Math.floor(des / 2));
-  const iniciativa = Number(prof.iniciativa ?? (Math.floor(int / 2) + Math.floor(vel / 2)));
-  const reduccion_dano = Number(prof.reduccion_dano ?? 0);
+  // Base fallback derived stats
+  let salud_maxima = Number(prof.salud_maxima ?? prof.salud ?? prof.maxHealth ?? (20 + res));
+  let estamina_maxima = Number(prof.estamina_maxima ?? prof.estamina ?? prof.maxStamina ?? (20 + des));
+  let salud_actual = Number(prof.salud_actual ?? salud_maxima);
+  let estamina_actual = Number(prof.estamina_actual ?? estamina_maxima);
+  let evasion = Number(prof.evasion ?? (10 + vel));
+  let coraje = Number(prof.coraje ?? (10 + vol));
+  let mod_fue = Number(prof.mod_fue ?? Math.floor(fue / 2));
+  let mod_des = Number(prof.mod_des ?? Math.floor(des / 2));
+  let iniciativa = Number(prof.iniciativa ?? (Math.floor(int / 2) + Math.floor(vel / 2)));
+  let reduccion_dano = Number(prof.reduccion_dano ?? 0);
+  let daño_fisico = prof.daño_fisico || (mod_fue > 0 ? `1D8 + ${mod_fue}` : '1D8');
+  let daño_rango = prof.daño_rango || (mod_des > 0 ? `1D8 + ${mod_des}` : '1D8');
+
+  // Compute canonical derived stats taking into account stage, elements, traits, and possessions (like attribute_upgrade)
+  try {
+    const [stagesRule, mechanicsRule] = await Promise.all([
+      db.select().from(systemRules).where(eq(systemRules.key, 'system_stages')).then(r => r[0]?.value).catch(() => []),
+      db.select().from(systemRules).where(eq(systemRules.key, 'system_mechanics')).then(r => r[0]?.value).catch(() => [])
+    ]);
+    const { getPublishedElements } = await import('./elements.ts');
+    const publishedElements = await getPublishedElements().catch(() => []);
+    const elementMap = new Map<string, any>();
+    publishedElements.forEach(el => elementMap.set(el.id, el));
+    possessions.forEach(p => {
+      if (p.element && !elementMap.has(p.element.id)) {
+        elementMap.set(p.element.id, p.element);
+      }
+    });
+    const combinedElements = Array.from(elementMap.values());
+
+    const sheetRows = possessions.filter((row: any) => ['trait', 'weakness'].includes(row?.element?.kind || row?.kind));
+    const relationalTraits = sheetRows.filter((r: any) => (r.element?.kind || r.kind) === 'trait').map((r: any) => r.element?.id || r.possession?.elementId || r.elementId);
+    const relationalWeaknesses = sheetRows.filter((r: any) => (r.element?.kind || r.kind) === 'weakness').map((r: any) => r.element?.id || r.possession?.elementId || r.elementId);
+    const combinedTraits = Array.from(new Set([
+      ...(Array.isArray(prof.traits) ? prof.traits : []),
+      ...relationalTraits
+    ]));
+    const combinedWeaknesses = Array.from(new Set([
+      ...(Array.isArray(prof.weaknesses) ? prof.weaknesses : []),
+      ...relationalWeaknesses
+    ]));
+    const completeProfile = { ...prof, traits: combinedTraits, weaknesses: combinedWeaknesses };
+
+    const stagesList = Array.isArray(stagesRule) ? stagesRule : [];
+    const mechanicsList = Array.isArray(mechanicsRule) ? (mechanicsRule as any) : [];
+    const derived = calculateDerivedStats(completeProfile, stagesList, combinedElements, mechanicsList, possessions);
+    if (derived) {
+      salud_maxima = derived.salud;
+      estamina_maxima = derived.estamina;
+      salud_actual = Number(prof.salud_actual ?? salud_maxima);
+      estamina_actual = Number(prof.estamina_actual ?? estamina_maxima);
+      evasion = derived.evasion;
+      coraje = derived.coraje;
+      mod_fue = derived.modFue;
+      mod_des = derived.modDes;
+      iniciativa = derived.iniciativa;
+      reduccion_dano = derived.reduccionDano;
+      daño_fisico = derived.dañoFisico || daño_fisico;
+      daño_rango = derived.dañoRango || daño_rango;
+    }
+  } catch (derivedErr) {
+    console.warn("Could not calculate dynamic derived stats for character", id, derivedErr);
+  }
 
   prof.salud_maxima = salud_maxima;
   prof.salud_actual = salud_actual;
@@ -243,8 +298,8 @@ export async function getPublicCharacterById(id: number) {
   prof.mod_des = mod_des;
   prof.iniciativa = iniciativa;
   prof.reduccion_dano = reduccion_dano;
-  if (!prof.daño_fisico) prof.daño_fisico = mod_fue > 0 ? `1D8 + ${mod_fue}` : '1D8';
-  if (!prof.daño_rango) prof.daño_rango = mod_des > 0 ? `1D8 + ${mod_des}` : '1D8';
+  prof.daño_fisico = daño_fisico;
+  prof.daño_rango = daño_rango;
 
   const stats = {
     salud_maxima,
@@ -256,8 +311,8 @@ export async function getPublicCharacterById(id: number) {
     mod_fue,
     mod_des,
     iniciativa,
-    daño_fisico: prof.daño_fisico,
-    daño_rango: prof.daño_rango,
+    daño_fisico,
+    daño_rango,
     reduccion_dano,
   };
 
@@ -891,7 +946,7 @@ export async function saveCharacterWithElementSelections(data: {
         .from(elementPossessions)
         .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
         .where(eq(elementPossessions.characterId, character.id));
-      const currentInvPossessions = currentAllPossessions.filter(item => !['trait', 'weakness', 'license', 'permission', 'certification', 'skill'].includes(item.kind));
+      const currentInvPossessions = currentAllPossessions.filter(item => !['trait', 'weakness', 'license', 'permission', 'certification', 'skill', 'attribute_upgrade', 'character_resource', 'background', 'clandestine_asset'].includes(item.kind));
       if (currentInvPossessions.length) {
         await tx.delete(elementPossessions).where(inArray(elementPossessions.id, currentInvPossessions.map(item => item.id)));
       }

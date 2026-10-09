@@ -379,20 +379,24 @@ jQuery(document).ready(function($) {
             return;
         }
 
-        try {
-            var url = API_BASE_URL + "/api/public/character/" + encodeURIComponent(cleanName);
-            var res = await fetch(url);
-            if (!res.ok) throw new Error("Ficha no encontrada en la API");
-            var char = await res.json();
-
-            // Guardar en caché
-            characterCache[cleanName] = char;
-            renderizarDatosRPG(char);
-        } catch (err) {
-            console.warn("No se pudo cargar la ficha RPG para:", cleanName, err);
-            $('#drawer-health').text('--');
-            $('#drawer-stamina').text('--');
-        }
+        $.ajax({
+            url: API_BASE_URL + "/api/public/character/" + encodeURIComponent(cleanName),
+            method: "GET",
+            dataType: "json",
+            crossDomain: true,
+            success: function(char) {
+                characterCache[cleanName] = char;
+                renderizarDatosRPG(char);
+            },
+            error: function(xhr, status, error) {
+                console.warn("No se pudo cargar la ficha RPG para:", cleanName, {
+                    status: xhr.status,
+                    error: error
+                });
+                $('#drawer-health').text('--');
+                $('#drawer-stamina').text('--');
+            }
+        });
     }
 
     // Inyección de estadísticas numéricas en el DOM del Drawer

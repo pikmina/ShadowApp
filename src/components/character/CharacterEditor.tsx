@@ -119,6 +119,25 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const { data: rawElements } = useSWR(user ? "/api/elements" : null, fetcher);
   const elements = useMemo(() => Array.isArray(rawElements) ? rawElements.filter(el => el.status === 'published') : [], [rawElements]);
   
+  const allActivePossessions = useMemo(() => {
+    const rawPossessions = Array.isArray(character?.possessions) ? character.possessions : [];
+    const nonInventory = rawPossessions.filter((row: any) => ![
+      'equipment', 'weapon', 'consumable', 'ammunition', 
+      'crafting_material', 'ingredient', 'vehicle', 'real_estate',
+      'trait', 'weakness', 'skill'
+    ].includes(row?.element?.kind || row?.kind));
+
+    const currentInventory = inventoryItems.map(item => ({
+      elementId: item.elementId,
+      quantity: item.quantity,
+      equipped: item.equipped === true,
+      notes: item.notes,
+      element: item.element || elements.find(el => el.id === item.elementId)
+    }));
+
+    return [...nonInventory, ...currentInventory];
+  }, [character?.possessions, inventoryItems, elements]);
+  
   const credentialKindLabel = (kind: string) => ({
     license: 'Licencia',
     permission: 'Permiso',
@@ -469,7 +488,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
     if (!user) return;
     setIsSaving(true);
     try {
-      const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList);
+      const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList, allActivePossessions);
       const pu = Math.max(0, parseInt(String(formData['plus_ultra'] ?? formData['plusUltra'] ?? 0), 10) || 0);
       const finalProfileData: Record<string, any> = {
         ...formData,
@@ -1094,14 +1113,14 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         })()}
 
         {activeTab === 'Atributos' && (() => {
-          const purchasedBonus = calculatePurchasedAttributeBonuses(inventoryItems, elements);
+          const purchasedBonus = calculatePurchasedAttributeBonuses(allActivePossessions, elements);
           const purchasedAttrPoints = purchasedBonus.total;
 
           const traitBonus = calculateTraitAttributeBonus(formData, elements, mechanicsList);
           const traitAttrPoints = traitBonus.total;
-          const equipmentBonus = calculateEquipmentBonuses(inventoryItems, elements, mechanicsList);
+          const equipmentBonus = calculateEquipmentBonuses(allActivePossessions, elements, mechanicsList);
           const validation = validateCharacter(formData, stagesList, purchasedAttrPoints, 5, traitAttrPoints);
-          const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList, inventoryItems);
+          const derived = calculateDerivedStats(formData, stagesList, elements, mechanicsList, allActivePossessions);
           const stage = stagesList.find((s: any) => s.name.toLowerCase() === String(formData['basic_stage'] || formData['stage'] || formData['etapa'] || '').toLowerCase());
           
           return (
