@@ -322,6 +322,7 @@ export async function getPublicCharacterById(id: number) {
     const { calculateTechniqueStructuralCost } = await import('../domain/systemMechanics.ts');
     const { deriveTechniqueLevelFromCost } = await import('../domain/characterTechnique.ts');
     const { generateAutoDescription } = await import('../domain/mechanicalDescription.ts');
+    const { getTechniqueClassificationLabel } = await import('../domain/mechanicalLabels.ts');
     const [mechanicsRule, staminaCostsRule] = await Promise.all([
       db.select().from(systemRules).where(eq(systemRules.key, 'system_mechanics')).then(r => r[0]?.value).catch(() => []),
       db.select().from(systemRules).where(eq(systemRules.key, 'stamina_execution_costs')).then(r => r[0]?.value).catch(() => undefined),
@@ -329,18 +330,24 @@ export async function getPublicCharacterById(id: number) {
     const mechanicsList = Array.isArray(mechanicsRule) ? (mechanicsRule as any) : [];
     enrichedTechniques = (techniques || []).map((tech: any) => {
       const isStructural = Array.isArray(tech?.mechanicalBehaviors) && tech.mechanicalBehaviors.length > 0;
-      const structuralCost = calculateTechniqueStructuralCost(tech, mechanicsList, staminaCostsRule);
+      const structuralCost = calculateTechniqueStructuralCost(tech, mechanicsList, staminaCostsRule as any);
       const finalCost = isStructural ? structuralCost : (tech.cost ?? structuralCost);
       const derivedLevel = isStructural ? deriveTechniqueLevelFromCost(finalCost).level : (tech.level || 1);
       const autoDesc = isStructural
-        ? generateAutoDescription({ ...tech, cost: `${finalCost} CE` }, mechanicsList, staminaCostsRule, finalCost)
-        : (tech.autoDescription || generateAutoDescription(tech, mechanicsList, staminaCostsRule, finalCost));
+        ? generateAutoDescription({ ...tech, cost: `${finalCost} CE` }, mechanicsList, staminaCostsRule as any, finalCost)
+        : (tech.autoDescription || generateAutoDescription(tech, mechanicsList, staminaCostsRule as any, finalCost));
+      const rawClass = tech?.classification || tech?.type;
+      const spanishClass = getTechniqueClassificationLabel(rawClass) || 'Ofensiva';
       return {
         ...tech,
         level: derivedLevel,
         cost: finalCost,
         staminaCost: finalCost,
         ce: finalCost,
+        classification: spanishClass,
+        classificationKey: tech.classification || 'offensive',
+        classificationLabel: spanishClass,
+        type: spanishClass,
         autoDescription: autoDesc,
         mechanicalDescription: autoDesc,
       };

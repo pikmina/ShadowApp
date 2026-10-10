@@ -25,6 +25,7 @@ import {
 import { StatsHexagon, HexStat } from '../HexagonRadarChart';
 import { ModifierBadgeGroup, ModifierNotesLegend } from '../ModifierBadge';
 import { CANONICAL_STAT_ICONS } from '@/domain/canonicalStatIcons';
+import { getTechniqueClassificationLabel } from '@/domain/mechanicalLabels';
 import { cn } from '@/lib/utils';
 
 export const displayValue = (value: unknown, fallback = '—') => {
@@ -969,7 +970,8 @@ export function CivilianSheetView({
                 const techName = tech?.name || `Procedimiento #${idx + 1}`;
                 const techLevel = tech?.level ? `Nivel ${tech.level}` : 'Nivel 1';
                 const techCost = tech?.cost !== undefined && tech?.cost !== null ? `${tech.cost} CE` : null;
-                const techType = tech?.type || tech?.classification || null;
+                const rawType = tech?.type || tech?.classification || null;
+                const techType = getTechniqueClassificationLabel(rawType) || rawType;
                 const techTarget = tech?.target || tech?.defenseTarget || null;
                 const loreDesc = tech?.description || tech?.loreDescription || '';
                 const autoDesc = tech?.autoDescription || tech?.mechanicalDescription || tech?.mechanicalDesc || '';

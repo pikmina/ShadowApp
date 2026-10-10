@@ -3,6 +3,7 @@ import { detectFactionTheme, FactionThemeId } from '@/components/character/theme
 import { calculateTechniqueStructuralCost } from '@/domain/systemMechanics';
 import { generateAutoDescription } from '@/domain/mechanicalDescription';
 import { deriveTechniqueLevelFromCost } from '@/domain/characterTechnique';
+import { getTechniqueClassificationLabel } from '@/domain/mechanicalLabels';
 import { CANONICAL_STAT_ICONS } from '@/domain/canonicalStatIcons';
 
 export const readValue = (obj: any, keys: string[]): any => {
@@ -499,12 +500,14 @@ export function buildCharacterSheetViewModel({
     const structuralCost = calculateTechniqueStructuralCost(tech, mechanicsList, staminaCosts);
     const finalCost = isStructural ? structuralCost : (tech.cost ?? structuralCost);
     const derivedLevel = isStructural ? deriveTechniqueLevelFromCost(finalCost).level : (tech.level || 1);
+    const spanishClass = getTechniqueClassificationLabel(tech.classification || tech.type);
     return {
       id: tech.id,
       name: tech.name,
       level: derivedLevel,
       cost: finalCost,
-      type: tech.type || tech.classification || (tech.sourceType === 'quirk' ? 'Don' : tech.sourceType === 'physical' ? 'Física' : tech.sourceType === 'weapon' ? 'Arma' : undefined),
+      classification: spanishClass || tech.classification,
+      type: spanishClass || tech.type || (tech.sourceType === 'quirk' ? 'Don' : tech.sourceType === 'physical' ? 'Física' : tech.sourceType === 'weapon' ? 'Arma' : undefined),
       target: tech.target || (tech.attackType === 'mental' ? 'Coraje' : tech.attackType === 'physical' ? 'Evasión' : undefined),
       description: tech.description || '',
       autoDescription: isStructural

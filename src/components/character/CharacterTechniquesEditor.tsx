@@ -70,7 +70,7 @@ import {
 } from '@/domain/systemMechanics';
 import { createCoreCategories } from '@/domain/coreRuleCatalog';
 import { type MechanicalBehavior } from '@/domain/mechanicalBehavior';
-import { getAttributeLabel } from '@/domain/mechanicalLabels';
+import { getAttributeLabel, getTechniqueClassificationLabel } from '@/domain/mechanicalLabels';
 
 // ==========================================
 // CANONICAL LABELS & VISUAL FORMATTERS
@@ -107,7 +107,7 @@ export const SOURCE_TYPE_BADGES: Record<
 };
 
 export const FUNCTIONAL_CATEGORY_CONFIG: Record<
-  TechniqueFunctionalCategory,
+  string,
   {
     label: string;
     icon: React.ComponentType<{ className?: string }>;
@@ -123,7 +123,21 @@ export const FUNCTIONAL_CATEGORY_CONFIG: Record<
     text: 'text-red-400',
     border: 'border-red-500/30',
   },
+  ofensiva: {
+    label: 'Ofensiva',
+    icon: Flame,
+    bg: 'bg-red-500/10',
+    text: 'text-red-400',
+    border: 'border-red-500/30',
+  },
   support: {
+    label: 'Soporte',
+    icon: Heart,
+    bg: 'bg-emerald-500/10',
+    text: 'text-emerald-400',
+    border: 'border-emerald-500/30',
+  },
+  soporte: {
     label: 'Soporte',
     icon: Heart,
     bg: 'bg-emerald-500/10',
@@ -137,12 +151,40 @@ export const FUNCTIONAL_CATEGORY_CONFIG: Record<
     text: 'text-cyan-400',
     border: 'border-cyan-500/30',
   },
+  defensiva: {
+    label: 'Defensiva',
+    icon: Shield,
+    bg: 'bg-cyan-500/10',
+    text: 'text-cyan-400',
+    border: 'border-cyan-500/30',
+  },
   control: {
     label: 'Control',
     icon: Lock,
     bg: 'bg-purple-500/10',
     text: 'text-purple-400',
     border: 'border-purple-500/30',
+  },
+  hybrid: {
+    label: 'Híbrida',
+    icon: Sparkles,
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-400',
+    border: 'border-amber-500/30',
+  },
+  hibrida: {
+    label: 'Híbrida',
+    icon: Sparkles,
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-400',
+    border: 'border-amber-500/30',
+  },
+  híbrida: {
+    label: 'Híbrida',
+    icon: Sparkles,
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-400',
+    border: 'border-amber-500/30',
   },
 };
 
@@ -978,7 +1020,13 @@ export function CharacterTechniquesEditor({
                       {categories.length > 0 ? (
                         <div className="flex items-center gap-1 flex-wrap">
                           {categories.map((cat) => {
-                            const config = FUNCTIONAL_CATEGORY_CONFIG[cat];
+                            const config = FUNCTIONAL_CATEGORY_CONFIG[cat] || {
+                              label: getTechniqueClassificationLabel(cat) || 'Ofensiva',
+                              icon: Sparkles,
+                              bg: 'bg-primary/10',
+                              text: 'text-primary',
+                              border: 'border-primary/30',
+                            };
                             const Icon = config.icon;
                             return (
                               <span

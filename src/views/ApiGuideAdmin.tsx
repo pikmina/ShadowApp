@@ -84,7 +84,7 @@ const CHARACTER_SAMPLE_JSON = {
     {
       "id": "tech-ofa-01",
       "name": "Detroit Smash",
-      "classification": "offensive",
+      "classification": "Ofensiva",
       "staminaCost": 4,
       "description": "Golpe descendente a máxima velocidad que genera un vórtice de aire con daño en área.",
       "effects": [
@@ -94,7 +94,7 @@ const CHARACTER_SAMPLE_JSON = {
     {
       "id": "tech-ofa-02",
       "name": "Delaware Smash",
-      "classification": "offensive",
+      "classification": "Ofensiva",
       "staminaCost": 2,
       "description": "Disparo de aire comprimido chasqueando los dedos para mantener distancia.",
       "effects": [
@@ -187,7 +187,7 @@ const TECHNIQUES_SAMPLE_JSON = [
     "id": "tech-001",
     "name": "Detroit Smash",
     "slug": "detroit-smash",
-    "classification": "offensive",
+    "classification": "Ofensiva",
     "staminaCost": 4,
     "description": "Impacto de choque cinético que comprime el aire provocando daño masivo frontal.",
     "cooldown": 1,
@@ -204,7 +204,7 @@ const TECHNIQUES_SAMPLE_JSON = [
     "id": "tech-002",
     "name": "Muro de Hielo",
     "slug": "muro-de-hielo",
-    "classification": "defensive",
+    "classification": "Defensiva",
     "staminaCost": 3,
     "description": "Genera una barrera sólida de hielo que bloquea proyectiles y absorbe impacto.",
     "cooldown": 2,

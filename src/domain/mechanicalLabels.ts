@@ -735,6 +735,7 @@ export const MECHANICAL_LABELS = {
     support: "Soporte",
     defensive: "Defensiva",
     control: "Control",
+    hybrid: "Híbrida",
   },
   // 19. MECHANIC CATEGORY FAMILIES
   mechanicCategoryFamilies: {
@@ -842,8 +843,17 @@ export function getTagLabel(tag: string | undefined | null): string {
  */
 export function getTechniqueClassificationLabel(classification: string | undefined | null): string {
   if (!classification) return "";
+  const raw = String(classification).trim();
+  const lower = raw.toLowerCase();
   const dict = MECHANICAL_LABELS.techniqueClassifications as Record<string, string>;
-  return dict[classification] ?? humanizeFallback(classification);
+  if (dict[raw]) return dict[raw];
+  if (dict[lower]) return dict[lower];
+  if (lower === 'ofensiva' || lower === 'ofensivo') return 'Ofensiva';
+  if (lower === 'soporte') return 'Soporte';
+  if (lower === 'defensiva' || lower === 'defensivo') return 'Defensiva';
+  if (lower === 'control') return 'Control';
+  if (lower === 'hibrida' || lower === 'híbrida' || lower === 'hibrido' || lower === 'híbrido') return 'Híbrida';
+  return humanizeFallback(classification);
 }
 
 /**

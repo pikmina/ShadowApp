@@ -455,7 +455,7 @@ const VARIABLES_CATALOG: VariableDef[] = [
     type: 'Array de Técnicas',
     desc: 'Movimientos especiales, superataques y maniobras tácticas con Coste de Estamina (CE), clasificación y efectos.',
     aliases: ['techniques', 'tecnicas', 'ataques_especiales'],
-    example: '[{"name": "Detroit Smash", "classification": "offensive", "staminaCost": 4, "description": "Impacto devastador..."}]',
+    example: '[{"name": "Detroit Smash", "classification": "Ofensiva", "staminaCost": 4, "description": "Impacto devastador..."}]',
     category: 'tecnicas'
   },
 
@@ -973,7 +973,7 @@ export default function DevVariablesShowcase() {
     {
       "id": "tech-01",
       "name": "Detroit Smash",
-      "classification": "offensive",
+      "classification": "Ofensiva",
       "staminaCost": 4,
       "description": "Golpe de aire comprimido a gran potencia."
     }

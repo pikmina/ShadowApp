@@ -35,6 +35,7 @@ import { StatsHexagon, HexStat } from '../HexagonRadarChart';
 import { ModifierBadgeGroup, ModifierNotesLegend } from '../ModifierBadge';
 import { CANONICAL_STAT_ICONS } from '@/domain/canonicalStatIcons';
 import { readValue } from '@/domain/characterSheetViewModel';
+import { getTechniqueClassificationLabel } from '@/domain/mechanicalLabels';
 import { cn } from '@/lib/utils';
 
 export const displayValue = (value: unknown, fallback = '—') => {
@@ -994,7 +995,8 @@ export function VigilanteSheetView({
               {techniques.map((tech: any, idx: number) => {
                 const tName = tech?.name || tech?.title || `Técnica #${idx + 1}`;
                 const tCost = tech?.cost || tech?.staminaCost || null;
-                const tType = tech?.type || tech?.classification || 'Ofensiva';
+                const rawType = tech?.type || tech?.classification || 'Ofensiva';
+                const tType = getTechniqueClassificationLabel(rawType) || 'Ofensiva';
                 const tDesc = tech?.description || '';
                 const autoDesc = tech?.autoDescription || tech?.mechanicalDesc || '';
 

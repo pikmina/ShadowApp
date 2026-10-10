@@ -41,6 +41,7 @@ import { VigilanteSheetView } from '@/components/character/themes/VigilanteSheet
 import { BaseSheetView } from '@/components/character/themes/BaseSheetView';
 import { calculateTechniqueStructuralCost } from '@/domain/systemMechanics';
 import { deriveTechniqueLevelFromCost } from '@/domain/characterTechnique';
+import { getTechniqueClassificationLabel } from '@/domain/mechanicalLabels';
 import { CANONICAL_STAT_ICONS, resolveCanonicalGroupColor } from '@/domain/canonicalStatIcons';
 
 const hasValue = (value: unknown) => value !== undefined && value !== null && value !== '';
@@ -506,12 +507,14 @@ export default function PublicSheet() {
     const structuralCost = calculateTechniqueStructuralCost(tech, mechanicsList, staminaCosts);
     const finalCost = isStructural ? structuralCost : (tech.cost ?? structuralCost);
     const derivedLevel = isStructural ? deriveTechniqueLevelFromCost(finalCost).level : (tech.level || 1);
+    const spanishClass = getTechniqueClassificationLabel(tech.classification || tech.type);
     return {
       id: tech.id,
       name: tech.name,
       level: derivedLevel,
       cost: finalCost,
-      type: tech.type || tech.classification || (tech.sourceType === 'quirk' ? 'Don' : tech.sourceType === 'physical' ? 'Física' : tech.sourceType === 'weapon' ? 'Arma' : undefined),
+      classification: spanishClass || tech.classification,
+      type: spanishClass || tech.type || (tech.sourceType === 'quirk' ? 'Don' : tech.sourceType === 'physical' ? 'Física' : tech.sourceType === 'weapon' ? 'Arma' : undefined),
       target: tech.target || (tech.attackType === 'mental' ? 'Coraje' : tech.attackType === 'physical' ? 'Evasión' : undefined),
       description: tech.description || '',
       autoDescription: isStructural

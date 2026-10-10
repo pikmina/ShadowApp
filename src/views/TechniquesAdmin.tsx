@@ -66,7 +66,7 @@ import {
 } from '../domain/systemMechanics';
 import { createCoreCategories } from '../domain/coreRuleCatalog';
 import { resolveCharacterDisplayName } from '../domain/coreProfileFields';
-import { getAttributeLabel, getSourceTypeLabel } from '../domain/mechanicalLabels';
+import { getAttributeLabel, getSourceTypeLabel, getTechniqueClassificationLabel } from '../domain/mechanicalLabels';
 
 export default function TechniquesAdmin() {
   const { user } = useAuth();
@@ -323,6 +323,7 @@ export default function TechniquesAdmin() {
               <SelectItem value="support">Soporte</SelectItem>
               <SelectItem value="defensive">Defensiva</SelectItem>
               <SelectItem value="control">Control</SelectItem>
+              <SelectItem value="hybrid">Híbrida</SelectItem>
             </SelectContent>
           </Select>
 
@@ -483,7 +484,13 @@ export default function TechniquesAdmin() {
                           {categories.length > 0 ? (
                             <div className="flex items-center gap-1 flex-wrap">
                               {categories.map((cat) => {
-                                const config = FUNCTIONAL_CATEGORY_CONFIG[cat];
+                                const config = FUNCTIONAL_CATEGORY_CONFIG[cat] || {
+                                  label: getTechniqueClassificationLabel(cat) || 'Ofensiva',
+                                  icon: Sparkles,
+                                  bg: 'bg-primary/10',
+                                  text: 'text-primary',
+                                  border: 'border-primary/30',
+                                };
                                 const Icon = config.icon;
                                 return (
                                   <span

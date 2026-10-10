@@ -35,9 +35,24 @@ export const TECHNIQUE_FUNCTIONAL_CATEGORIES = [
 
 export type TechniqueFunctionalCategory = (typeof TECHNIQUE_FUNCTIONAL_CATEGORIES)[number];
 
-export const techniqueFunctionalCategorySchema = z.enum(TECHNIQUE_FUNCTIONAL_CATEGORIES, {
-  message: `Categoría funcional inválida. Debe ser una de: ${TECHNIQUE_FUNCTIONAL_CATEGORIES.join(', ')}`,
-});
+export const normalizeTechniqueClassification = (val: unknown): unknown => {
+  if (typeof val === 'string') {
+    const lower = val.trim().toLowerCase();
+    if (lower === 'ofensiva' || lower === 'ofensivo' || lower === 'offensive') return 'offensive';
+    if (lower === 'soporte' || lower === 'support') return 'support';
+    if (lower === 'defensiva' || lower === 'defensivo' || lower === 'defensive') return 'defensive';
+    if (lower === 'control') return 'control';
+    if (lower === 'híbrida' || lower === 'hibrida' || lower === 'híbrido' || lower === 'hibrido' || lower === 'hybrid') return 'offensive';
+  }
+  return val;
+};
+
+export const techniqueFunctionalCategorySchema = z.preprocess(
+  normalizeTechniqueClassification,
+  z.enum(TECHNIQUE_FUNCTIONAL_CATEGORIES, {
+    message: `Categoría funcional inválida. Debe ser una de: ${TECHNIQUE_FUNCTIONAL_CATEGORIES.join(', ')}`,
+  })
+);
 
 export const techniqueLevelSchema = z
   .number({ message: 'El nivel de la técnica es obligatorio' })

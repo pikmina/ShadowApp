@@ -1209,8 +1209,13 @@ async function startServer() {
   app.get("/api/admin/character-techniques", requireAuth, requireRole(["superadmin", "moderator"]), async (_req: AuthRequest, res) => {
     try {
       const { getAllCharacterTechniques } = await import("./src/db/characterTechniques.ts");
+      const { getTechniqueClassificationLabel } = await import("./src/domain/mechanicalLabels.ts");
       const techniques = await getAllCharacterTechniques();
-      res.json(techniques);
+      const enriched = techniques.map((t: any) => ({
+        ...t,
+        classificationLabel: getTechniqueClassificationLabel(t.classification) || 'Ofensiva',
+      }));
+      res.json(enriched);
     } catch (error: any) {
       console.error("Fetch all character techniques error:", error);
       res.status(500).json({ error: error.message || "Failed to fetch character techniques" });
@@ -1233,8 +1238,13 @@ async function startServer() {
       }
 
       const { getCharacterTechniquesByCharacterId } = await import("./src/db/characterTechniques.ts");
+      const { getTechniqueClassificationLabel } = await import("./src/domain/mechanicalLabels.ts");
       const techniques = await getCharacterTechniquesByCharacterId(characterId);
-      res.json(techniques);
+      const enriched = techniques.map((t: any) => ({
+        ...t,
+        classificationLabel: getTechniqueClassificationLabel(t.classification) || 'Ofensiva',
+      }));
+      res.json(enriched);
     } catch (error: any) {
       console.error("Fetch character techniques error:", error);
       res.status(500).json({ error: error.message || "Failed to fetch techniques" });

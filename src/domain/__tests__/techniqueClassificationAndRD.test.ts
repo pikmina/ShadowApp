@@ -92,6 +92,7 @@ describe('Technique Explicit Classification & Automatic RD Derivation', () => {
       support: 'Soporte',
       defensive: 'Defensiva',
       control: 'Control',
+      hybrid: 'Híbrida',
     });
   });
 

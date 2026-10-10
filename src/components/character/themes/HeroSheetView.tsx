@@ -26,6 +26,7 @@ import {
 import { StatsHexagon, HexStat } from '../HexagonRadarChart';
 import { ModifierBadgeGroup, ModifierNotesLegend } from '../ModifierBadge';
 import { cn } from '@/lib/utils';
+import { getTechniqueClassificationLabel } from '@/domain/mechanicalLabels';
 
 export const displayValue = (value: unknown, fallback = 'N/A') => {
   if (value === null || value === undefined || value === '') return fallback;
@@ -751,7 +752,8 @@ export function HeroSheetView({
               const techName = tech?.name || tech?.title || `Técnica #${idx + 1}`;
               const techLevel = tech?.level ? `Nivel ${tech.level}` : null;
               const techCost = tech?.cost || tech?.staminaCost || null;
-              const techType = tech?.type || tech?.classification || null;
+              const rawType = tech?.type || tech?.classification || null;
+              const techType = getTechniqueClassificationLabel(rawType) || rawType;
               const techTarget = tech?.target || tech?.defenseTarget || null;
               const autoDesc = tech?.autoDescription || tech?.mechanicalDesc || '';
 
