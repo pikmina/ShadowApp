@@ -356,17 +356,11 @@ export default function EmploymentsAdmin() {
                               return (
                                 <div
                                   key={pos.id}
-                                  className="rounded border border-border/80 bg-card/60 p-2.5 transition-all hover:border-primary/40 text-xs space-y-2 shadow-2xs"
+                                  className="rounded border border-border/80 bg-card/60 p-2.5 transition-all hover:border-primary/40 text-xs space-y-1 shadow-2xs"
                                 >
                                   {/* Fila superior: Badges contextuales + Acciones */}
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="flex flex-wrap items-center gap-1 text-[10px] font-oxanium">
-                                      <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold uppercase tracking-wider border border-amber-500/20">
-                                        {inst.name}
-                                      </span>
-                                      <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium truncate max-w-[140px]">
-                                        {dep.name}
-                                      </span>
                                       {pos.levelId && (
                                         <span className="px-1.5 py-0.5 rounded bg-muted/80 text-foreground font-mono">
                                           {employmentLevelFallbackLabel(pos.levelId)}
@@ -377,6 +371,9 @@ export default function EmploymentsAdmin() {
                                           Inactivo
                                         </span>
                                       )}
+                                      <span className={`font-bold capitalize ${riskColor}`}>Riesgo &nbsp;
+                                        {employmentRiskFallbackLabel(pos.riskId || 'none')}
+                                      </span>
                                     </div>
 
                                     {/* Botones de acción en la esquina: Duplicar, Editar, Borrar */}
@@ -407,57 +404,15 @@ export default function EmploymentsAdmin() {
                                       </p>
                                     )}
                                   </div>
-
-                                  {/* Salario, EXP y Riesgo Compactos */}
-                                  <div className="grid grid-cols-3 gap-1 rounded bg-muted/20 px-2 py-1.5 font-mono text-[11px] items-center">
-                                    <div>
-                                      <span className="text-[9px] uppercase block font-oxanium text-muted-foreground">Salario</span>
-                                      <span className="font-bold text-emerald-400">
-                                        {quote ? `¥${quote.totalYen}` : pos.bonusYen ? `+¥${pos.bonusYen}` : '¥0'}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-[9px] uppercase block font-oxanium text-muted-foreground">EXP</span>
-                                      <span className="font-bold text-cyan-400">
-                                        {quote ? `+${quote.totalExp}` : pos.bonusExp ? `+${pos.bonusExp}` : '+0'}
-                                      </span>
-                                    </div>
-                                    <div className="text-right">
-                                      <span className="text-[9px] uppercase block font-oxanium text-muted-foreground">Riesgo</span>
-                                      <span className={`font-bold capitalize ${riskColor}`}>
-                                        {employmentRiskFallbackLabel(pos.riskId || 'none')}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Requisitos Compactos */}
-                                  {pos.requirements?.requirements?.length > 0 && (
-                                    <div className="space-y-1">
-                                      <span className="text-[9px] font-oxanium font-bold uppercase tracking-wider text-muted-foreground">
-                                        Requisitos:
-                                      </span>
-                                      <div className="flex flex-wrap gap-1">
-                                        {pos.requirements.requirements.map((req: any) => (
-                                          <span
-                                            key={req.id || nanoid()}
-                                            className="px-1.5 py-0.5 rounded border border-border/70 bg-background/80 text-[10px] text-foreground font-medium"
-                                          >
-                                            {requirementLabel(req, elements, attributes, stages)}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-
                                   {/* Pie de la tarjeta: Estado de cupo + Botón Asignar / Ver Ocupantes */}
                                   <div className="pt-1 border-t border-border/40 flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-1.5 text-[11px] font-oxanium">
                                       <Users className="size-3 text-muted-foreground" />
-                                      <span className="text-muted-foreground">
+                                      <span className="text-muted-foreground pt-1">
                                         Ocupantes ({occupied}/{capacity === null ? '∞' : capacity})
                                       </span>
                                       {isVacant && (
-                                        <span className="text-[10px] font-bold text-emerald-400 px-1 py-0.2 rounded bg-emerald-500/10 border border-emerald-500/20">
+                                        <span className="text-[10px] font-bold text-emerald-400 px-1 py-0.2 pt-1 rounded bg-emerald-500/10 border border-emerald-500/20">
                                           {capacity === null ? 'Ilimitado' : `${capacity - occupied} disponible`}
                                         </span>
                                       )}
@@ -475,6 +430,27 @@ export default function EmploymentsAdmin() {
                                       <EmploymentAssignmentDialog position={pos} mutate={mutate} />
                                     </div>
                                   </div>
+
+                                  {/* Requisitos Compactos */}
+                                  {pos.requirements?.requirements?.length > 0 && (
+                                    <div className="space-y-2">
+                                      <span className="text-[9px] font-oxanium font-bold uppercase tracking-wider text-muted-foreground">
+                                        Requisitos:
+                                      </span>
+                                      <div className="flex flex-wrap gap-1">
+                                        {pos.requirements.requirements.map((req: any) => (
+                                          <span
+                                            key={req.id || nanoid()}
+                                            className="px-1.5 py-0.5 rounded border border-border/70 bg-background/80 text-[10px] text-foreground font-medium"
+                                          >
+                                            {requirementLabel(req, elements, attributes, stages)}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  
                                 </div>
                               );
                             })
