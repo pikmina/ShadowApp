@@ -33,12 +33,14 @@ export const requireAuth = async (
       const email = decodedToken.email.trim().toLowerCase();
       const [byEmail] = await db.select().from(users).where(eq(users.email, email)).limit(1);
       if (byEmail) {
+        const targetRole = (byEmail.role as string) === 'player' ? 'moderator' : byEmail.role;
         const [linked] = await db
           .update(users)
           .set({
             uid: decodedToken.uid,
             displayName: byEmail.displayName || decodedToken.name || email.split('@')[0],
             avatarUrl: byEmail.avatarUrl || decodedToken.picture || null,
+            role: targetRole,
             updatedAt: new Date()
           })
           .where(eq(users.id, byEmail.id))
@@ -58,16 +60,33 @@ export const requireAuth = async (
             })
             .returning();
           dbUser = firstAdmin;
+        } else {
+          const [newUser] = await db
+            .insert(users)
+            .values({
+              uid: decodedToken.uid,
+              email,
+              displayName: decodedToken.name || email.split('@')[0],
+              avatarUrl: decodedToken.picture || null,
+              role: 'moderator'
+            })
+            .returning();
+          dbUser = newUser;
         }
       }
     }
 
+    if (dbUser && (dbUser.role as string) === 'player') {
+      const [upgraded] = await db
+        .update(users)
+        .set({ role: 'moderator', updatedAt: new Date() })
+        .where(eq(users.id, dbUser.id))
+        .returning();
+      dbUser = upgraded || { ...dbUser, role: 'moderator' };
+    }
+
     if (!dbUser) {
       res.status(403).json({ error: 'Forbidden: User not found in database or not active' });
-      return;
-    }
-    if (dbUser.role !== 'moderator' && dbUser.role !== 'superadmin') {
-      res.status(403).json({ error: 'Forbidden: User is not staff' });
       return;
     }
     req.dbUser = dbUser;

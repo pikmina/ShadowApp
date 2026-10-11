@@ -23,7 +23,8 @@ import {
   ShieldAlert,
   Award,
   Clock,
-  Sparkles
+  Sparkles,
+  RefreshCw
 } from "lucide-react";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { ItemIcon } from "@/components/common/ItemIcon";
@@ -236,9 +237,20 @@ export default function EmploymentsAdmin() {
   }, [selectedInstitution, searchTerm, filterDepartment, filterRisk, filterAvailability, elements, attributes, stages]);
 
   if (isLoading)
-    return <div className="p-8 font-oxanium text-sm">Cargando catálogo de empleos...</div>;
+    return <div className="p-8 font-oxanium text-sm text-muted-foreground flex items-center justify-center gap-2"><RefreshCw className="size-4 animate-spin text-primary" /> Cargando catálogo de empleos...</div>;
   if (error)
-    return <div className="p-8 text-red-500 font-oxanium text-sm">Error al cargar empleos</div>;
+    return (
+      <div className="p-8 font-oxanium text-sm text-center text-destructive space-y-3 bg-card border border-destructive/30 rounded-lg max-w-xl mx-auto my-8 shadow-sm">
+        <AlertTriangle className="size-8 mx-auto text-destructive" />
+        <p className="font-bold text-base text-foreground">Error al cargar el catálogo de empleos</p>
+        <p className="text-xs text-muted-foreground">
+          {error?.message || "Error de comunicación con la base de datos o permisos insuficientes."}
+        </p>
+        <Button variant="outline" size="sm" onClick={() => mutate()} className="text-xs gap-1.5 font-oxanium">
+          <RefreshCw className="size-3.5" /> Reintentar
+        </Button>
+      </div>
+    );
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
