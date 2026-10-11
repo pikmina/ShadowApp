@@ -405,7 +405,7 @@ export default function EmploymentsAdmin() {
                                     )}
                                   </div>
                                   {/* Pie de la tarjeta: Estado de cupo + Botón Asignar / Ver Ocupantes */}
-                                  <div className="pt-1 border-t border-border/40 flex items-center justify-between gap-2">
+                                  <div className="pt-1 border-b mb-1 pb-1 border-border/40 flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-1.5 text-[11px] font-oxanium">
                                       <Users className="size-3 text-muted-foreground" />
                                       <span className="text-muted-foreground pt-1">
@@ -434,7 +434,7 @@ export default function EmploymentsAdmin() {
                                   {/* Requisitos Compactos */}
                                   {pos.requirements?.requirements?.length > 0 && (
                                     <div className="space-y-2">
-                                      <span className="text-[9px] font-oxanium font-bold uppercase tracking-wider text-muted-foreground">
+                                      <span className="text-[9px] ml-1 font-oxanium font-bold uppercase tracking-wider text-muted-foreground">
                                         Requisitos:
                                       </span>
                                       <div className="flex flex-wrap gap-1">
