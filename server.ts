@@ -1087,8 +1087,15 @@ async function startServer() {
   app.post("/api/admin/institutions", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { createInstitution } = await import("./src/db/employments.ts");
-      const parsed = z.object({ name: z.string().min(1), description: z.string().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      const parsed = z.object({
+        name: z.string().min(1),
+        description: z.string().optional().nullable(),
+        iconType: z.enum(['lucide', 'emoji']).optional().nullable(),
+        iconValue: z.string().optional().nullable(),
+        active: z.boolean().optional(),
+        sortOrder: z.number().int().optional()
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
       res.json(await createInstitution(parsed.data));
     } catch (error: any) { console.error(error); res.status(error.status ?? 500).json({ error: error.message }); }
   });
@@ -1096,10 +1103,24 @@ async function startServer() {
   app.put("/api/admin/institutions/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { updateInstitution } = await import("./src/db/employments.ts");
-      const parsed = z.object({ name: z.string().min(1).optional(), description: z.string().optional().nullable(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
+      const parsed = z.object({
+        name: z.string().min(1).optional(),
+        description: z.string().optional().nullable(),
+        iconType: z.enum(['lucide', 'emoji']).optional().nullable(),
+        iconValue: z.string().optional().nullable(),
+        active: z.boolean().optional(),
+        sortOrder: z.number().int().optional()
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
       res.json(await updateInstitution(req.params.id, parsed.data));
-    } catch (error) { console.error(error); res.status(500).json({ error: error.message }); }
+    } catch (error: any) { console.error(error); res.status(500).json({ error: error.message }); }
+  });
+
+  app.post("/api/admin/institutions/:id/duplicate", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
+    try {
+      const { duplicateInstitution } = await import("./src/db/employments.ts");
+      res.json(await duplicateInstitution(req.params.id));
+    } catch (error: any) { console.error(error); res.status(error.status ?? 500).json({ error: error.message }); }
   });
 
   app.delete("/api/admin/institutions/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
@@ -1113,7 +1134,15 @@ async function startServer() {
   app.post("/api/admin/departments", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { createDepartment } = await import("./src/db/employments.ts");
-      const parsed = z.object({ institutionId: z.string(), name: z.string().min(1), description: z.string().optional().nullable(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      const parsed = z.object({
+        institutionId: z.string(),
+        name: z.string().min(1),
+        description: z.string().optional().nullable(),
+        defaultLevelId: z.string().optional().nullable(),
+        defaultRiskId: z.string().optional().nullable(),
+        active: z.boolean().optional(),
+        sortOrder: z.number().int().optional()
+      }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
       res.json(await createDepartment(parsed.data));
     } catch (error: any) { console.error(error); res.status(500).json({ error: error.message }); }
@@ -1122,7 +1151,14 @@ async function startServer() {
   app.put("/api/admin/departments/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { updateDepartment } = await import("./src/db/employments.ts");
-      const parsed = z.object({ name: z.string().min(1).optional(), description: z.string().optional().nullable(), active: z.boolean().optional(), sortOrder: z.number().int().optional() }).safeParse(req.body);
+      const parsed = z.object({
+        name: z.string().min(1).optional(),
+        description: z.string().optional().nullable(),
+        defaultLevelId: z.string().optional().nullable(),
+        defaultRiskId: z.string().optional().nullable(),
+        active: z.boolean().optional(),
+        sortOrder: z.number().int().optional()
+      }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
       res.json(await updateDepartment(req.params.id, parsed.data));
     } catch (error: any) { console.error(error); res.status(500).json({ error: error.message }); }

@@ -27,8 +27,18 @@ async function resolveEmploymentOwner(tx: any, owner: EmploymentOwner) {
 
 async function validatePositionRules(tx: any, data: any, existing?: any) {
   const parsed = positionEmploymentRulesSchema.parse(data);
-  const levelId = parsed.levelId !== undefined ? parsed.levelId : existing?.levelId ?? null;
-  const riskId = parsed.riskId !== undefined ? parsed.riskId : existing?.riskId ?? null;
+  let levelId = parsed.levelId !== undefined ? parsed.levelId : existing?.levelId ?? null;
+  let riskId = parsed.riskId !== undefined ? parsed.riskId : existing?.riskId ?? null;
+
+  // Fallback to department defaults if levelId or riskId are null on create/update
+  if ((!levelId || !riskId) && data.departmentId) {
+    const [dept] = await tx.select().from(departments).where(eq(departments.id, data.departmentId));
+    if (dept) {
+      if (!levelId && dept.defaultLevelId) levelId = dept.defaultLevelId;
+      if (!riskId && dept.defaultRiskId) riskId = dept.defaultRiskId;
+    }
+  }
+
   const requirements = requirementGroupSchema.parse(parsed.requirements ?? existing?.requirements ?? { operator: 'all', requirements: [] });
   const optionalBonuses = parsed.optionalBonuses ?? existing?.optionalBonuses ?? [];
   if (levelId || riskId) {
@@ -46,7 +56,12 @@ async function validatePositionRules(tx: any, data: any, existing?: any) {
     if (requirement.type === 'owns_element' || requirement.type === 'skill_level') {
       const elementId = requirement.type === 'owns_element' ? requirement.elementId : requirement.skillElementId;
       const element = catalog.find((item: any) => item.id === elementId);
-      if (!element || element.status !== 'published' || requirement.type === 'skill_level' && element.kind !== 'skill') {
+      if (
+        !element ||
+        element.status !== 'published' ||
+        (requirement.type === 'skill_level' && element.kind !== 'skill') ||
+        (requirement.type === 'owns_element' && !['license', 'permission', 'certification'].includes(element.kind))
+      ) {
         throw Object.assign(new Error(`Invalid employment requirement element: ${elementId}`), { status: 400 });
       }
     }
@@ -110,12 +125,14 @@ export async function getInstitutionsWithDepartmentsAndPositions() {
   });
 }
 
-export async function createInstitution(data: { name: string; description?: string; active?: boolean; sortOrder?: number }) {
+export async function createInstitution(data: { name: string; description?: string; iconType?: string | null; iconValue?: string | null; active?: boolean; sortOrder?: number }) {
   const id = nanoid(10);
   const [created] = await db.insert(institutions).values({
     id,
     name: data.name,
     description: data.description || null,
+    iconType: data.iconType || null,
+    iconValue: data.iconValue || null,
     active: data.active ?? true,
     sortOrder: data.sortOrder ?? 0,
   }).returning();
@@ -130,6 +147,61 @@ export async function updateInstitution(id: string, data: Partial<typeof institu
   return updated;
 }
 
+export async function duplicateInstitution(id: string) {
+  return db.transaction(async tx => {
+    const [inst] = await tx.select().from(institutions).where(eq(institutions.id, id));
+    if (!inst) throw Object.assign(new Error("Institution not found"), { status: 404 });
+
+    const newInstId = nanoid(10);
+    const [newInst] = await tx.insert(institutions).values({
+      id: newInstId,
+      name: `${inst.name} (Copia)`,
+      description: inst.description,
+      iconType: inst.iconType,
+      iconValue: inst.iconValue,
+      active: inst.active,
+      sortOrder: inst.sortOrder,
+    }).returning();
+
+    const deptRows = await tx.select().from(departments).where(eq(departments.institutionId, id));
+    for (const dep of deptRows) {
+      const newDepId = nanoid(10);
+      await tx.insert(departments).values({
+        id: newDepId,
+        institutionId: newInstId,
+        name: dep.name,
+        description: dep.description,
+        defaultLevelId: dep.defaultLevelId,
+        defaultRiskId: dep.defaultRiskId,
+        active: dep.active,
+        sortOrder: dep.sortOrder,
+      });
+
+      const posRows = await tx.select().from(positions).where(eq(positions.departmentId, dep.id));
+      for (const pos of posRows) {
+        await tx.insert(positions).values({
+          id: nanoid(10),
+          departmentId: newDepId,
+          name: pos.name,
+          description: pos.description,
+          capacity: pos.capacity,
+          levelId: pos.levelId,
+          riskId: pos.riskId,
+          bonusYen: pos.bonusYen,
+          bonusExp: pos.bonusExp,
+          minPosts: pos.minPosts,
+          requirements: pos.requirements,
+          optionalBonuses: pos.optionalBonuses,
+          active: pos.active,
+          sortOrder: pos.sortOrder,
+        });
+      }
+    }
+
+    return newInst;
+  });
+}
+
 export async function deleteInstitution(id: string) {
   // Rely on restrict constraint or check manually
   const deps = await db.select().from(departments).where(eq(departments.institutionId, id)).limit(1);
@@ -138,13 +210,15 @@ export async function deleteInstitution(id: string) {
 }
 
 // --- Departments ---
-export async function createDepartment(data: { institutionId: string; name: string; description?: string; active?: boolean; sortOrder?: number }) {
+export async function createDepartment(data: { institutionId: string; name: string; description?: string; defaultLevelId?: string | null; defaultRiskId?: string | null; active?: boolean; sortOrder?: number }) {
   const id = nanoid(10);
   const [created] = await db.insert(departments).values({
     id,
     institutionId: data.institutionId,
     name: data.name,
     description: data.description || null,
+    defaultLevelId: data.defaultLevelId || null,
+    defaultRiskId: data.defaultRiskId || null,
     active: data.active ?? true,
     sortOrder: data.sortOrder ?? 0,
   }).returning();

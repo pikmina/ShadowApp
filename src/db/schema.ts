@@ -225,6 +225,8 @@ export const institutions = pgTable('institutions', {
   id: varchar('id', { length: 100 }).primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
+  iconType: varchar('icon_type', { length: 20 }), // 'lucide' | 'emoji' | null
+  iconValue: varchar('icon_value', { length: 255 }),
   active: boolean('active').default(true).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -236,6 +238,8 @@ export const departments = pgTable('departments', {
   institutionId: varchar('institution_id', { length: 100 }).references(() => institutions.id, { onDelete: 'restrict' }).notNull(),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
+  defaultLevelId: varchar('default_level_id', { length: 100 }),
+  defaultRiskId: varchar('default_risk_id', { length: 100 }),
   active: boolean('active').default(true).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
