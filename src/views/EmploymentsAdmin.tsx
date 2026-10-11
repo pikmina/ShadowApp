@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { fetcher, apiFetch } from "@/lib/api";
 import { Plus, Trash2, Edit2, Briefcase, DollarSign, X, AlertTriangle, UserPlus, CheckCircle2, HandCoins, ChevronDown, ChevronUp, Search, Copy, Users, Eye } from "lucide-react";
-import { useMemo } from "react";
 import { EntityPanel } from "@/components/ui/entity-panel";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { Button } from "../components/ui/button";
@@ -699,6 +698,15 @@ function InstitutionDialog({ institution, mutate }: any) {
   const [active, setActive] = useState(institution ? institution.active : true);
   const [sortOrder, setSortOrder] = useState(institution?.sortOrder || 0);
 
+  useEffect(() => {
+    if (open) {
+      setName(institution?.name || "");
+      setDescription(institution?.description || "");
+      setActive(institution ? institution.active : true);
+      setSortOrder(institution?.sortOrder || 0);
+    }
+  }, [open, institution]);
+
   const handleSubmit = async () => {
     const url = institution ? `/api/admin/institutions/${institution.id}` : `/api/admin/institutions`;
     const method = institution ? "PUT" : "POST";
@@ -755,6 +763,15 @@ function DepartmentDialog({ department, institutionId, mutate }: any) {
   const [description, setDescription] = useState(department?.description || "");
   const [active, setActive] = useState(department ? department.active : true);
   const [sortOrder, setSortOrder] = useState(department?.sortOrder || 0);
+
+  useEffect(() => {
+    if (open) {
+      setName(department?.name || "");
+      setDescription(department?.description || "");
+      setActive(department ? department.active : true);
+      setSortOrder(department?.sortOrder || 0);
+    }
+  }, [open, department]);
 
   const handleSubmit = async () => {
     const url = department ? `/api/admin/departments/${department.id}` : `/api/admin/departments`;
@@ -826,6 +843,29 @@ function PositionDialog({ position, departmentId, mutate }: any) {
   const [reqOptional, setReqOptional] = useState(false);
   const [reqBonusYen, setReqBonusYen] = useState(0);
   const [reqBonusExp, setReqBonusExp] = useState(0);
+
+  useEffect(() => {
+    if (open) {
+      setName(position?.name || "");
+      setDescription(position?.description || "");
+      setCapacity(position?.capacity === null || position?.capacity === undefined ? "" : position.capacity.toString());
+      setActive(position ? position.active : true);
+      setSortOrder(position?.sortOrder || 0);
+      setLevelId(position ? position.levelId ?? "" : "level_4");
+      setRiskId(position ? position.riskId ?? "" : "moderate");
+      setBonusYen(position?.bonusYen ?? 0);
+      setBonusExp(position?.bonusExp ?? 0);
+      setMinPosts(position?.minPosts === null || position?.minPosts === undefined ? "" : String(position.minPosts));
+      setRequirements(position?.requirements ? JSON.parse(JSON.stringify(position.requirements)) : { operator: 'all', requirements: [] });
+      setOptionalBonuses(position?.optionalBonuses ? JSON.parse(JSON.stringify(position.optionalBonuses)) : []);
+      setReqType('owns_element');
+      setReqReference('');
+      setReqValue(1);
+      setReqOptional(false);
+      setReqBonusYen(0);
+      setReqBonusExp(0);
+    }
+  }, [open, position]);
   const { data: rules } = useSWR(open ? '/api/rules' : null, fetcher);
   const { data: elements } = useSWR(open ? '/api/admin/elements' : null, fetcher);
   const compensationResult = employmentCompensationSchema.safeParse(rules?.find((rule: any) => rule.key === 'employment_compensation')?.value);
