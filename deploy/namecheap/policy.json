@@ -1,5 +1,5 @@
 {
   "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-  "serverHash": "0d7281df42bd19eb4f2a8dcb96ab2b46b75b2ee0828eaa5790b3eba7de56a481",
+  "serverHash": "0effc41049c35a9db91d94dde620dcf006851c1cec0425d848dbf0793694ee6d",
   "baseline": "HEAD"
 }
