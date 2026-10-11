@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
+import { Combobox } from "../components/ui/combobox";
 import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
 import {
@@ -351,6 +352,25 @@ export default function Shop() {
       return name.includes(q) || kind.includes(q) || kindLabel.includes(q) || id.includes(q);
     });
   }, [allElements, offerElementSearch]);
+
+  const allElementGroups = useMemo(() => {
+    const groupMap = new Map<string, any[]>();
+    for (const el of allElements) {
+      const groupLabel = KIND_TYPES[el.kind] || el.kind || "Otros";
+      if (!groupMap.has(groupLabel)) {
+        groupMap.set(groupLabel, []);
+      }
+      groupMap.get(groupLabel)!.push({
+        value: el.id,
+        label: el.name,
+        description: el.status === 'draft' ? 'Borrador' : el.description,
+      });
+    }
+    return Array.from(groupMap.entries()).map(([label, options]) => ({
+      label,
+      options: options.sort((a, b) => a.label.localeCompare(b.label)),
+    }));
+  }, [allElements]);
   
   // Cart & Drawer state
   const [cart, setCart] = useState<any[]>([]);
@@ -1553,74 +1573,13 @@ export default function Shop() {
                       </span>
                     </div>
 
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground pointer-events-none" />
-                      <Input
-                        type="text"
-                        placeholder="Buscar por nombre, tipo o ID..."
-                        value={offerElementSearch}
-                        onChange={e => setOfferElementSearch(e.target.value)}
-                        className="h-8 pl-8 pr-7 text-xs bg-background/50"
-                      />
-                      {offerElementSearch && (
-                        <button
-                          type="button"
-                          onClick={() => setOfferElementSearch("")}
-                          className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
-                          title="Limpiar búsqueda"
-                        >
-                          <X className="size-3.5" />
-                        </button>
-                      )}
-                    </div>
-
-                    <Select 
-                      value={editingOffer?.elementId || ""} 
+                    <Combobox
+                      value={editingOffer?.elementId || ""}
                       onValueChange={v => setEditingOffer({...editingOffer, elementId: v})}
-                    >
-                      <SelectTrigger className="text-xs">
-                        <SelectValue placeholder={allElements.length === 0 ? "No hay elementos en catálogo" : "Selecciona un elemento..."}>
-                          {selectedOfferElement ? (
-                            <div className="flex items-center gap-1.5 truncate">
-                              <span className="text-muted-foreground font-mono text-[10px]">
-                                [{KIND_TYPES[selectedOfferElement.kind] || selectedOfferElement.kind}]
-                              </span>
-                              <span className="font-semibold text-foreground">{selectedOfferElement.name}</span>
-                              {selectedOfferElement.status === "draft" && (
-                                <span className="text-[10px] text-amber-400 font-medium">· Borrador</span>
-                              )}
-                            </div>
-                          ) : (editingOffer?.elementId || "Selecciona un elemento...")}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {filteredOfferElements.length === 0 ? (
-                          <div className="p-3 text-xs text-muted-foreground text-center">
-                            No se encontraron elementos coincidentes
-                          </div>
-                        ) : (
-                          filteredOfferElements.map((el: any) => (
-                            <SelectItem key={el.id} value={el.id} className="text-xs">
-                              <div className="flex items-center justify-between gap-2 w-full">
-                                <span className="text-muted-foreground font-mono text-[10px] shrink-0">
-                                  [{KIND_TYPES[el.kind] || el.kind}]
-                                </span>
-                                <span className="font-medium text-foreground truncate">{el.name}</span>
-                                {el.status === "draft" ? (
-                                  <Badge variant="outline" className="text-[9px] text-amber-400 border-amber-500/30 bg-amber-500/10 shrink-0 ml-auto">
-                                    Borrador
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-[9px] text-emerald-400 border-emerald-500/30 bg-emerald-500/10 shrink-0 ml-auto">
-                                    Publicado
-                                  </Badge>
-                                )}
-                              </div>
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                      placeholder={allElements.length === 0 ? "No hay elementos en catálogo" : "Selecciona un elemento..."}
+                      searchPlaceholder="Buscar por nombre o tipo..."
+                      groups={allElementGroups}
+                    />
 
                     {/* Selected element summary card */}
                     {selectedOfferElement && (
@@ -1864,61 +1823,30 @@ export default function Shop() {
 
                           {req.type === "owns_element" && (
                             <div className="space-y-1.5 text-xs">
-                              <Select
-                                value={req.elementId}
+                              <Combobox
+                                value={req.elementId || ""}
                                 onValueChange={v => updateRequirementInOffer(req.id, { elementId: v })}
-                              >
-                                <SelectTrigger className="h-8 text-xs w-full">
-                                  <SelectValue placeholder="Selecciona el elemento requerido...">
-                                    {(() => {
-                                      const found = elementMap.get(req.elementId);
-                                      return found ? `[${KIND_TYPES[found.kind] || found.kind}] ${found.name}` : (req.elementId || "Selecciona un elemento...");
-                                    })()}
-                                  </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="max-h-56">
-                                  {allElements.map((el: any) => (
-                                    <SelectItem key={el.id} value={el.id} className="text-xs">
-                                      <span className="text-muted-foreground font-mono text-[10px] mr-1.5">
-                                        [{KIND_TYPES[el.kind] || el.kind}]
-                                      </span>
-                                      <span className="font-medium">{el.name}</span>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                placeholder="Selecciona el elemento requerido..."
+                                searchPlaceholder="Buscar elemento..."
+                                groups={allElementGroups}
+                              />
                             </div>
                           )}
 
                           {req.type === "skill_level" && (
                             <div className="flex items-center gap-2 text-xs">
-                              <Select
-                                value={req.skillElementId}
+                              <Combobox
+                                value={req.skillElementId || ""}
                                 onValueChange={v => updateRequirementInOffer(req.id, { skillElementId: v })}
-                              >
-                                <SelectTrigger className="h-8 text-xs flex-1">
-                                  <SelectValue placeholder="Selecciona la habilidad...">
-                                    {(() => {
-                                      const found = elementMap.get(req.skillElementId);
-                                      return found ? `[Habilidad] ${found.name}` : (req.skillElementId || "Selecciona una habilidad...");
-                                    })()}
-                                  </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="max-h-56">
-                                  {skillElements.length === 0 ? (
-                                    <div className="p-2 text-xs text-muted-foreground text-center">
-                                      No hay habilidades registradas en el catálogo
-                                    </div>
-                                  ) : (
-                                    skillElements.map((el: any) => (
-                                      <SelectItem key={el.id} value={el.id} className="text-xs">
-                                        <span className="text-muted-foreground font-mono text-[10px] mr-1.5">[Habilidad]</span>
-                                        <span className="font-medium">{el.name}</span>
-                                      </SelectItem>
-                                    ))
-                                  )}
-                                </SelectContent>
-                              </Select>
+                                placeholder="Selecciona la habilidad..."
+                                searchPlaceholder="Buscar habilidad..."
+                                options={skillElements.map((el: any) => ({
+                                  value: el.id,
+                                  label: el.name,
+                                  description: el.description,
+                                }))}
+                                className="flex-1"
+                              />
                               <span className="font-bold text-sm">Nv. ≥</span>
                               <Input
                                 type="number"

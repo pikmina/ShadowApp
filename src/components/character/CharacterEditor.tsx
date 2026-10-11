@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, ShieldCheck, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus, FileText, User, Eye, ArrowLeft } from "lucide-react";
@@ -168,6 +169,27 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
       'character_resource', 'background', 'clandestine_asset'
     ].includes(el.kind));
   }, [elements]);
+
+  const credentialGroups = useMemo(() => {
+    const kindOrder = ['license', 'permission', 'certification', 'character_resource', 'background', 'clandestine_asset'];
+    const kindLabels: Record<string, string> = {
+      license: 'Licencias',
+      permission: 'Permisos',
+      certification: 'Certificaciones',
+      character_resource: 'Recursos de Personaje',
+      background: 'Trasfondos',
+      clandestine_asset: 'Activos Clandestinos',
+    };
+    return kindOrder
+      .map(k => ({
+        label: kindLabels[k] || k,
+        options: publishedCredentialElements
+          .filter(el => el.kind === k)
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map(el => ({ value: el.id, label: el.name, description: el.description })),
+      }))
+      .filter(g => g.options.length > 0);
+  }, [publishedCredentialElements]);
 
   const publishedSkillElements = useMemo(() => {
     return elements.filter(el => el.kind === 'skill');
@@ -972,28 +994,18 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                     <div className="md:col-span-8 space-y-1.5">
                       <Label className="text-[11px] text-muted-foreground">Habilidad</Label>
-                      <Select 
-                        value={selectedSkillElementId} 
+                      <Combobox
+                        value={selectedSkillElementId}
                         onValueChange={setSelectedSkillElementId}
-                      >
-                        <SelectTrigger className="w-full bg-background">
-                          <SelectValue placeholder="Selecciona una habilidad del catálogo..." />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-64">
-                          {publishedSkillElements.map(el => (
-                            <SelectItem 
-                              key={el.id} 
-                              value={el.id}
-                              disabled={skillItems.some(s => s.elementId === el.id)}
-                            >
-                              {el.name} {skillItems.some(s => s.elementId === el.id) ? '(Ya asignada)' : ''}
-                            </SelectItem>
-                          ))}
-                          {publishedSkillElements.length === 0 && (
-                            <div className="p-2 text-xs text-muted-foreground text-center">No hay habilidades publicadas</div>
-                          )}
-                        </SelectContent>
-                      </Select>
+                        placeholder="Selecciona una habilidad del catálogo..."
+                        searchPlaceholder="Buscar habilidad..."
+                        options={publishedSkillElements.map(el => ({
+                          value: el.id,
+                          label: `${el.name} ${skillItems.some(s => s.elementId === el.id) ? '(Ya asignada)' : ''}`,
+                          description: el.description,
+                          disabled: skillItems.some(s => s.elementId === el.id),
+                        }))}
+                      />
                     </div>
                     <div className="md:col-span-2 space-y-1.5">
                       <Label className="text-[11px] text-muted-foreground">Nivel Inicial (1-5)</Label>
@@ -1688,24 +1700,17 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                 </Label>
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                   <div className="sm:col-span-7">
-                    <Select 
-                      value={selectedInvElementId} 
+                    <Combobox
+                      value={selectedInvElementId}
                       onValueChange={setSelectedInvElementId}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Seleccionar objeto del catálogo..." />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-72">
-                        {publishedInventoryElements.map(el => (
-                          <SelectItem key={el.id} value={el.id}>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{el.name}</span>
-                              <span className="text-[10px] uppercase font-mono text-muted-foreground">({elementKindMap[el.kind] || el.kind})</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Seleccionar objeto del catálogo..."
+                      searchPlaceholder="Buscar objeto o equipo..."
+                      options={publishedInventoryElements.map(el => ({
+                        value: el.id,
+                        label: el.name,
+                        description: `[${elementKindMap[el.kind] || el.kind}] ${el.description || ''}`,
+                      }))}
+                    />
                   </div>
                   <div className="sm:col-span-2">
                     <Input 
@@ -1885,24 +1890,13 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                 </Label>
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                   <div className="sm:col-span-9">
-                    <Select 
-                      value={selectedCredElementId} 
+                    <Combobox
+                      value={selectedCredElementId}
                       onValueChange={setSelectedCredElementId}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Seleccionar credencial, recurso o trasfondo del catálogo..." />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-72">
-                        {publishedCredentialElements.map(el => (
-                          <SelectItem key={el.id} value={el.id}>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{el.name}</span>
-                              <span className="text-[10px] uppercase font-mono text-muted-foreground">({credentialKindLabel(el.kind)})</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Seleccionar credencial, recurso o trasfondo..."
+                      searchPlaceholder="Buscar licencia, permiso, certificación..."
+                      groups={credentialGroups}
+                    />
                   </div>
                   <div className="sm:col-span-3">
                     <Button 
@@ -2014,24 +2008,24 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                   <Label className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
                     <Shield className="size-3.5" /> Vínculo Canon
                   </Label>
-                  <Select value={canonId || 'none'} onValueChange={(val) => setCanonId(val === 'none' ? null : val)}>
-                    <SelectTrigger className="w-full text-xs">
-                      <SelectValue placeholder="Personaje Original" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Ninguno / Personaje Original</SelectItem>
-                      {(canonList || []).map((c: any) => {
+                  <Combobox
+                    value={canonId || 'none'}
+                    onValueChange={(val) => setCanonId(val === 'none' ? null : val)}
+                    placeholder="Personaje Original"
+                    searchPlaceholder="Buscar canon..."
+                    options={[
+                      { value: 'none', label: 'Ninguno / Personaje Original' },
+                      ...(canonList || []).map((c: any) => {
                         const isOccupied = c.status === 'occupied' && c.id !== canonId;
                         const isReserved = c.status === 'reserved' && c.id !== canonId;
-                        const isDisabled = isOccupied || isReserved;
-                        return (
-                          <SelectItem key={c.id} value={c.id} disabled={isDisabled}>
-                            {c.name} {isOccupied ? '(Ocupado)' : isReserved ? '(Reservado)' : '(Disponible)'}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                        return {
+                          value: c.id,
+                          label: `${c.name} ${isOccupied ? '(Ocupado)' : isReserved ? '(Reservado)' : '(Disponible)'}`,
+                          disabled: isOccupied || isReserved,
+                        };
+                      })
+                    ]}
+                  />
                   <p className="text-[10px] text-muted-foreground">Enlace con catálogo canon público.</p>
                 </div>
 
@@ -2039,19 +2033,19 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                   <Label className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
                     <User className="size-3.5" /> Jugador Asignado
                   </Label>
-                  <Select value={playerId ? String(playerId) : 'none'} onValueChange={(val) => setPlayerId(val === 'none' ? null : parseInt(val, 10))}>
-                    <SelectTrigger className="w-full text-xs">
-                      <SelectValue placeholder="Sin jugador (Independiente/NPC)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sin jugador asignado (NPC/Independiente)</SelectItem>
-                      {(playersList || []).map((p: any) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.name} {p.status === 'absent' ? '· [Ausente]' : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    value={playerId ? String(playerId) : 'none'}
+                    onValueChange={(val) => setPlayerId(val === 'none' ? null : parseInt(val, 10))}
+                    placeholder="Sin jugador (Independiente/NPC)"
+                    searchPlaceholder="Buscar jugador..."
+                    options={[
+                      { value: 'none', label: 'Sin jugador asignado (NPC/Independiente)' },
+                      ...(playersList || []).map((p: any) => ({
+                        value: String(p.id),
+                        label: `${p.name} ${p.status === 'absent' ? '· [Ausente]' : ''}`,
+                      }))
+                    ]}
+                  />
                   <p className="text-[10px] text-muted-foreground">Asigna este personaje a un jugador.</p>
                 </div>
 

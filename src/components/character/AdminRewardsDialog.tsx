@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { Badge } from '@/components/ui/badge';
 import { Search, X, Loader2, Package, Coins, Sparkles, User } from 'lucide-react';
 import { toast } from 'sonner';
@@ -81,6 +82,25 @@ export default function AdminRewardsDialog({ characterId, character, onClose }: 
     const match = character.possessions.find((p: any) => p.element?.id === selectedElement.id || p.possession?.elementId === selectedElement.id);
     return match?.possession?.quantity ?? 0;
   }, [selectedElement, character]);
+
+  const elementGroups = useMemo(() => {
+    const groupMap = new Map<string, any[]>();
+    for (const el of publishedElements) {
+      const groupLabel = elementKindLabel(el.kind) || 'Otros';
+      if (!groupMap.has(groupLabel)) {
+        groupMap.set(groupLabel, []);
+      }
+      groupMap.get(groupLabel)!.push({
+        value: el.id,
+        label: el.name,
+        description: el.description,
+      });
+    }
+    return Array.from(groupMap.entries()).map(([label, options]) => ({
+      label,
+      options: options.sort((a, b) => a.label.localeCompare(b.label)),
+    }));
+  }, [publishedElements]);
 
   // Ensure selected element is always in the options list for Radix Select to display it
   const displayElements = useMemo(() => {
@@ -209,52 +229,13 @@ export default function AdminRewardsDialog({ characterId, character, onClose }: 
                 <span className="text-[11px] text-emerald-500 font-medium">● Solo publicados</span>
               </div>
 
-              {/* Buscador de elementos */}
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground pointer-events-none" />
-                <Input
-                  type="text"
-                  placeholder="Buscar por nombre, tipo o ID..."
-                  value={elementSearch}
-                  onChange={e => setElementSearch(e.target.value)}
-                  className="h-8 pl-8 pr-7 text-xs bg-background/50"
-                />
-                {elementSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setElementSearch('')}
-                    className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
-                    title="Limpiar búsqueda"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Selector con elementos filtrados */}
-              <Select value={elementId} onValueChange={setElementId}>
-                <SelectTrigger className="text-xs">
-                  <SelectValue placeholder={publishedElements.length === 0 ? "No hay elementos disponibles" : "Selecciona un elemento..."}>
-                    {selectedElement ? `[${elementKindLabel(selectedElement.kind)}] ${selectedElement.name}` : undefined}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {displayElements.length === 0 ? (
-                    <div className="p-3 text-xs text-muted-foreground text-center">
-                      No se encontraron elementos publicados
-                    </div>
-                  ) : (
-                    displayElements.map((el: any) => (
-                      <SelectItem key={el.id} value={el.id} className="text-xs">
-                        <span className="text-muted-foreground font-mono text-[10px] mr-1.5">
-                          [{elementKindLabel(el.kind)}]
-                        </span>
-                        <span className="font-medium">{el.name}</span>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Combobox
+                value={elementId}
+                onValueChange={setElementId}
+                placeholder={publishedElements.length === 0 ? "No hay elementos disponibles" : "Selecciona un elemento..."}
+                searchPlaceholder="Buscar por nombre o categoría..."
+                groups={elementGroups}
+              />
 
               {/* Ficha de detalles del elemento seleccionado */}
               {selectedElement && (

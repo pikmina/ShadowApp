@@ -1,0 +1,6 @@
+{
+  "summary":  "Plan de rediseño del catálogo de empleos (EmploymentsAdmin) incorporando:\n- Disposición en dos columnas para instituciones.\n- Áreas/departamentos con botón de colapsar/expandir individual y toggle global.\n- Tarjetas de puestos con formato compacto simplificado (nombre, salario en ¥ y EXP, cupos y botones de acción).\n- Acciones de duplicar, editar y borrar puesto en la esquina superior de cada tarjeta de puesto.\n- Barra superior de búsqueda y filtros rápidos (institución, área vinculada, nivel de riesgo y disponibilidad).\n- Respeto del sistema de diseño Shadowmore (tipografía Oxanium, paleta cyberpunk, bordes sutiles y espaciados compactos).",
+  "updatedAt":  "2026-10-11T19:26:38.365591330Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

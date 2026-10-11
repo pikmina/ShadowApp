@@ -1,7 +1,8 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { fetcher, apiFetch } from "@/lib/api";
-import { Plus, Trash2, Edit2, Briefcase, DollarSign, X, AlertTriangle, UserPlus, CheckCircle2, HandCoins } from "lucide-react";
+import { Plus, Trash2, Edit2, Briefcase, DollarSign, X, AlertTriangle, UserPlus, CheckCircle2, HandCoins, ChevronDown, ChevronUp, Search, Copy, Users, Eye } from "lucide-react";
+import { useMemo } from "react";
 import { EntityPanel } from "@/components/ui/entity-panel";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { Button } from "../components/ui/button";
@@ -12,116 +13,547 @@ import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { Checkbox } from "../components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Combobox } from "../components/ui/combobox";
 import { calculateEmploymentCompensation, employmentCompensationSchema } from "@/domain/employmentCompensation";
 import { nanoid } from "nanoid";
 
 
 export default function EmploymentsAdmin() {
   const { data, error, isLoading, mutate } = useSWR("/api/admin/employments/structure", fetcher);
+  const { data: rules } = useSWR("/api/rules", fetcher);
+  const { data: elements } = useSWR("/api/admin/elements", fetcher);
 
-  if (isLoading) return <div className="p-8">Cargando empleos...</div>;
-  if (error) return <div className="p-8 text-red-500">Error al cargar empleos</div>;
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterInstitution, setFilterInstitution] = useState("all");
+  const [filterDepartment, setFilterDepartment] = useState("all");
+  const [filterRisk, setFilterRisk] = useState("all");
+  const [filterAvailability, setFilterAvailability] = useState("all");
+  const [collapsedDepts, setCollapsedDepts] = useState<Record<string, boolean>>({});
+
+  const compensationResult = employmentCompensationSchema.safeParse(rules?.find((rule: any) => rule.key === 'employment_compensation')?.value);
+  const compensation = compensationResult.success ? compensationResult.data : null;
+  const attributes = rules?.find((rule: any) => rule.key === 'system_attributes')?.value ?? [];
+  const stages = Array.isArray(rules?.find((rule: any) => rule.key === 'system_stages')?.value) ? rules.find((rule: any) => rule.key === 'system_stages')?.value : [];
+
+  const toggleDept = (deptId: string) => {
+    setCollapsedDepts(prev => ({ ...prev, [deptId]: !prev[deptId] }));
+  };
+
+  const handleDuplicatePosition = async (pos: any) => {
+    try {
+      const payload = {
+        departmentId: pos.departmentId,
+        name: `${pos.name} (Copia)`,
+        description: pos.description || null,
+        capacity: pos.capacity,
+        active: Boolean(pos.active),
+        sortOrder: Number(pos.sortOrder) || 0,
+        levelId: pos.levelId || null,
+        riskId: pos.riskId || null,
+        bonusYen: Number(pos.bonusYen) || 0,
+        bonusExp: Number(pos.bonusExp) || 0,
+        minPosts: pos.minPosts === null || pos.minPosts === undefined ? null : Number(pos.minPosts),
+        requirements: pos.requirements ?? { operator: 'all', requirements: [] },
+        optionalBonuses: pos.optionalBonuses ?? [],
+      };
+
+      const res = await apiFetch("/api/admin/positions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        toast.success(`Puesto duplicado como "${payload.name}"`);
+        await mutate();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error al duplicar el puesto");
+    }
+  };
+
+  // Unique institutions and departments for filters
+  const allInstitutions = useMemo(() => (data || []), [data]);
+  const availableDepartments = useMemo(() => {
+    if (!data) return [];
+    if (filterInstitution === "all") {
+      return data.flatMap((inst: any) => inst.departments || []);
+    }
+    const inst = data.find((i: any) => i.id === filterInstitution);
+    return inst ? (inst.departments || []) : [];
+  }, [data, filterInstitution]);
+
+  // Filter logic
+  const filteredInstitutions = useMemo(() => {
+    if (!data) return [];
+    const q = searchTerm.trim().toLowerCase();
+
+    return data
+      .filter((inst: any) => {
+        if (filterInstitution !== "all" && inst.id !== filterInstitution) return false;
+        return true;
+      })
+      .map((inst: any) => {
+        const departments = (inst.departments || [])
+          .filter((dep: any) => {
+            if (filterDepartment !== "all" && dep.id !== filterDepartment) return false;
+            return true;
+          })
+          .map((dep: any) => {
+            const positions = (dep.positions || []).filter((pos: any) => {
+              if (filterRisk !== "all" && (pos.riskId || 'none') !== filterRisk) return false;
+              if (filterAvailability === "available") {
+                if (pos.capacity !== null && pos.occupiedSlots >= pos.capacity) return false;
+              } else if (filterAvailability === "full") {
+                if (pos.capacity === null || pos.occupiedSlots < pos.capacity) return false;
+              }
+
+              if (q) {
+                const matchName = pos.name.toLowerCase().includes(q);
+                const matchDesc = (pos.description || "").toLowerCase().includes(q);
+                const matchOccupant = (pos.occupants || []).some((occ: any) => occ.name.toLowerCase().includes(q));
+                const matchReq = (pos.requirements?.requirements || []).some((r: any) => {
+                  const lbl = requirementLabel(r, elements, attributes, stages).toLowerCase();
+                  return lbl.includes(q);
+                });
+                if (!matchName && !matchDesc && !matchOccupant && !matchReq) return false;
+              }
+
+              return true;
+            });
+
+            return { ...dep, positions };
+          })
+          .filter((dep: any) => {
+            // Keep department if it has matching positions or if no search query is active
+            if (q || filterRisk !== "all" || filterAvailability !== "all") {
+              return dep.positions.length > 0;
+            }
+            return true;
+          });
+
+        return { ...inst, departments };
+      })
+      .filter((inst: any) => {
+        if (q || filterDepartment !== "all" || filterRisk !== "all" || filterAvailability !== "all") {
+          return inst.departments.length > 0;
+        }
+        return true;
+      });
+  }, [data, searchTerm, filterInstitution, filterDepartment, filterRisk, filterAvailability, elements, attributes, stages]);
+
+  if (isLoading) return <div className="p-8 font-oxanium text-sm">Cargando catálogo de empleos...</div>;
+  if (error) return <div className="p-8 text-red-500 font-oxanium text-sm">Error al cargar empleos</div>;
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
       <SectionHeader
         icon={Briefcase}
         title="Catálogo de Empleos y Cargos"
-        description="Administra instituciones, departamentos y posiciones laborales."
+        description="Administra instituciones, departamentos y posiciones laborales con jerarquía visual."
         actions={
-          <>
+          <div className="flex items-center gap-2">
             <EmploymentPaymentsDialog structure={data ?? []} />
             <InstitutionDialog mutate={mutate} />
-          </>
+          </div>
         }
       />
 
-      <EntityPanel variant="character">
-        <div className="p-4 sm:p-5">
-          <div className="space-y-4">
-        {data?.length === 0 && <p className="text-muted-foreground">No hay instituciones registradas.</p>}
-        {data?.map((inst: any) => (
-          <div key={inst.id} className="border border-border rounded-md bg-background overflow-hidden mb-4">
-            <div className="bg-muted/20 p-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h2 className="text-lg font-bold">{inst.name} {!inst.active && <span className="text-red-500 text-sm">(Inactivo)</span>}</h2>
-                {inst.description && <p className="text-sm text-muted-foreground">{inst.description}</p>}
-              </div>
-              <div className="flex gap-2">
-                <DepartmentDialog institutionId={inst.id} mutate={mutate} />
-                <InstitutionDialog institution={inst} mutate={mutate} />
-                <DeleteAction type="institutions" id={inst.id} mutate={mutate} />
-              </div>
-            </div>
+      {/* Barra de Búsqueda y Filtros Rápidos (Estilo Cyberpunk de Referencia) */}
+      <div className="rounded-lg border border-border/80 bg-card/60 p-4 shadow-sm space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Buscar por nombre de puesto, ocupante, descripción o requisito..."
+            className="pl-9 h-9 bg-background/70 text-xs w-full"
+          />
+        </div>
 
-            <div className="p-4 space-y-4">
-              {inst.departments?.length === 0 && <p className="text-sm text-muted-foreground">Sin departamentos.</p>}
-              {inst.departments?.map((dep: any) => (
-                <div key={dep.id} className="border border-border rounded-md p-4 bg-background">
-                  <div className="flex justify-between items-center mb-3">
-                    <div>
-                      <h3 className="font-semibold text-primary">{dep.name} {!dep.active && <span className="text-red-500 text-sm">(Inactivo)</span>}</h3>
-                      {dep.description && <p className="text-xs text-muted-foreground">{dep.description}</p>}
-                    </div>
-                    <div className="flex gap-2">
-                      <PositionDialog departmentId={dep.id} mutate={mutate} />
-                      <DepartmentDialog department={dep} institutionId={inst.id} mutate={mutate} />
-                      <DeleteAction type="departments" id={dep.id} mutate={mutate} />
-                    </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <div className="space-y-1">
+            <label className="text-[10px] font-oxanium uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1">
+              <Briefcase className="size-3" /> Institución
+            </label>
+            <Select value={filterInstitution} onValueChange={(val: string) => { setFilterInstitution(val); setFilterDepartment("all"); }}>
+              <SelectTrigger className="h-8 bg-background/70 text-xs">
+                <SelectValue placeholder="Todas las Instituciones">
+                  {filterInstitution === "all" ? "Todas las Instituciones" : allInstitutions.find((i: any) => i.id === filterInstitution)?.name}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las Instituciones</SelectItem>
+                {allInstitutions.map((i: any) => (
+                  <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-oxanium uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1">
+              <span className="size-3 flex items-center justify-center font-bold">§</span> Área Vinculada
+            </label>
+            <Select value={filterDepartment} onValueChange={setFilterDepartment}>
+              <SelectTrigger className="h-8 bg-background/70 text-xs">
+                <SelectValue placeholder="Todas las Áreas">
+                  {filterDepartment === "all" ? "Todas las Áreas" : availableDepartments.find((d: any) => d.id === filterDepartment)?.name}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las Áreas</SelectItem>
+                {availableDepartments.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-oxanium uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1">
+              <AlertTriangle className="size-3 text-amber-400" /> Nivel de Riesgo
+            </label>
+            <Select value={filterRisk} onValueChange={setFilterRisk}>
+              <SelectTrigger className="h-8 bg-background/70 text-xs">
+                <SelectValue placeholder="Cualquier Riesgo">
+                  {filterRisk === "all" ? "Cualquier Riesgo" : employmentRiskFallbackLabel(filterRisk)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Cualquier Riesgo</SelectItem>
+                <SelectItem value="none">Ninguno</SelectItem>
+                <SelectItem value="low">Leve</SelectItem>
+                <SelectItem value="moderate">Moderado</SelectItem>
+                <SelectItem value="serious">Grave</SelectItem>
+                <SelectItem value="extreme">Extremo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-oxanium uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1">
+              <Users className="size-3" /> Disponibilidad
+            </label>
+            <Select value={filterAvailability} onValueChange={setFilterAvailability}>
+              <SelectTrigger className="h-8 bg-background/70 text-xs">
+                <SelectValue placeholder="Todos los puestos">
+                  {filterAvailability === "all" ? "Todos los puestos" : filterAvailability === "available" ? "Solo con vacantes" : "Ocupados al 100%"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los puestos</SelectItem>
+                <SelectItem value="available">Solo con vacantes</SelectItem>
+                <SelectItem value="full">Ocupados al 100%</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid en 2 Columnas para Instituciones */}
+      {filteredInstitutions.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground font-oxanium">
+          No se encontraron instituciones o puestos con los filtros aplicados.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+          {filteredInstitutions.map((inst: any) => (
+            <div
+              key={inst.id}
+              className="rounded-lg border border-border/80 bg-card/40 overflow-hidden shadow-xs flex flex-col transition-colors"
+            >
+              {/* Cabecera de la Institución */}
+              <div className="bg-muted/30 px-3.5 py-2.5 border-b border-border/80 flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-oxanium text-base font-bold text-foreground truncate">
+                      {inst.name}
+                    </h2>
+                    {!inst.active && (
+                      <span className="text-[10px] font-oxanium px-1.5 py-0.2 rounded bg-destructive/15 text-destructive font-semibold">
+                        Inactivo
+                      </span>
+                    )}
                   </div>
+                  {inst.description && (
+                    <p className="text-xs text-muted-foreground truncate">{inst.description}</p>
+                  )}
+                </div>
 
-                  <div className="space-y-2 pl-4 border-l-2 border-border/50">
-                    {dep.positions?.length === 0 && <p className="text-xs text-muted-foreground">Sin posiciones.</p>}
-                    {dep.positions?.map((pos: any) => (
-                      <div key={pos.id} className="rounded bg-muted/30 p-3 text-sm">
-                        <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <span className="font-medium">{pos.name}</span> {!pos.active && <span className="text-red-500 text-xs">(Inactivo)</span>}
-                          {pos.description && <p className="text-xs text-muted-foreground">{pos.description}</p>}
-                          <div className="text-xs mt-1 text-primary">
-                            Ocupantes: {pos.occupiedSlots} / {pos.capacity === null ? 'Ilimitado' : pos.capacity}
+                <div className="flex items-center gap-1 shrink-0">
+                  <DepartmentDialog institutionId={inst.id} mutate={mutate} />
+                  <InstitutionDialog institution={inst} mutate={mutate} />
+                  <DeleteAction type="institutions" id={inst.id} mutate={mutate} />
+                </div>
+              </div>
+
+              {/* Contenedor de Departamentos */}
+              <div className="p-3 space-y-3">
+                {inst.departments?.length === 0 && (
+                  <p className="text-xs text-muted-foreground italic px-1 py-2">Sin departamentos configurados.</p>
+                )}
+
+                {inst.departments?.map((dep: any) => {
+                  const isCollapsed = Boolean(collapsedDepts[dep.id]);
+                  const positionsCount = dep.positions?.length || 0;
+
+                  return (
+                    <div
+                      key={dep.id}
+                      className="rounded-md border border-border/60 bg-background/50 overflow-hidden"
+                    >
+                      {/* Cabecera del Departamento con Toggle Expandir/Minimizar */}
+                      <div className="px-3 py-2 bg-muted/20 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleDept(dep.id)}
+                          className="flex items-center gap-2 min-w-0 text-left hover:text-primary transition-colors flex-1"
+                        >
+                          {isCollapsed ? (
+                            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
+                          )}
+                          <div className="min-w-0">
+                            <span className="font-oxanium text-xs font-semibold text-foreground truncate block">
+                              {dep.name} {!dep.active && <span className="text-destructive font-normal">(Inactivo)</span>}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {positionsCount} {positionsCount === 1 ? 'puesto' : 'puestos'}
+                            </span>
                           </div>
-                          {(pos.levelId || pos.riskId) && <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                            {pos.levelId && <span>{employmentLevelFallbackLabel(pos.levelId)}</span>}{pos.riskId && <span>· {employmentRiskFallbackLabel(pos.riskId)}</span>}
-                            {pos.minPosts !== null && <span>· {pos.minPosts} posts mínimos</span>}
-                          </div>}
-                        </div>
-                        <div className="flex gap-2">
-                          <EmploymentAssignmentDialog position={pos} mutate={mutate} />
-                          <PositionDialog position={pos} departmentId={dep.id} mutate={mutate} />
-                          <DeleteAction type="positions" id={pos.id} mutate={mutate} />
-                        </div>
-                        </div>
-                        <div className="mt-3 border-t border-border/50 pt-3">
-                          <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Personajes asignados</p>
-                          {pos.occupants?.length ? <div className="flex flex-wrap gap-2">{pos.occupants.map((occupant: any) => (
-                            <div key={occupant.employmentId} className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1">
-                              {occupant.requirementsVerified && <CheckCircle2 className="size-3 text-emerald-500" />}
-                              <span className="text-xs font-medium">{occupant.name}</span>
-                              <Button variant="ghost" size="icon-sm" className="size-5 rounded-full text-muted-foreground hover:text-destructive" aria-label={`Retirar a ${occupant.name}`} onClick={async () => {
-                                try {
-                                  await apiFetch(`/api/admin/employments/${occupant.employmentId}`, { method: 'DELETE' });
-                                  toast.success(`${occupant.name} fue retirado del puesto`);
-                                  await mutate();
-                                } catch (error: any) {
-                                  toast.error(error.message || 'No se pudo retirar el empleo');
-                                }
-                              }}><X className="size-3" /></Button>
-                            </div>
-                          ))}</div> : <p className="text-xs text-muted-foreground">Todavía no hay personajes asignados.</p>}
+                        </button>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <PositionDialog departmentId={dep.id} mutate={mutate} />
+                          <DepartmentDialog department={dep} institutionId={inst.id} mutate={mutate} />
+                          <DeleteAction type="departments" id={dep.id} mutate={mutate} />
                         </div>
                       </div>
-                    ))}
+
+                      {/* Lista de Puestos del Departamento */}
+                      {!isCollapsed && (
+                        <div className="p-2 space-y-2 border-t border-border/40 bg-background/30">
+                          {positionsCount === 0 ? (
+                            <p className="text-[11px] text-muted-foreground italic py-1 px-2">Sin puestos en esta área.</p>
+                          ) : (
+                            dep.positions.map((pos: any) => {
+                              const occupied = pos.occupiedSlots || 0;
+                              const capacity = pos.capacity;
+                              const isFull = capacity !== null && occupied >= capacity;
+                              const isVacant = capacity === null || occupied < capacity;
+
+                              // Calculate quote for compact display
+                              const quote = (compensation && pos.levelId && pos.riskId)
+                                ? calculateEmploymentCompensation(compensation, pos.levelId, pos.riskId, pos.bonusYen || 0, pos.bonusExp || 0)
+                                : null;
+
+                              const riskColor = pos.riskId === 'extreme' ? 'text-rose-400'
+                                : pos.riskId === 'serious' ? 'text-orange-400'
+                                : pos.riskId === 'moderate' ? 'text-amber-400'
+                                : 'text-zinc-400';
+
+                              return (
+                                <div
+                                  key={pos.id}
+                                  className="rounded border border-border/80 bg-card/60 p-2.5 transition-all hover:border-primary/40 text-xs space-y-2 shadow-2xs"
+                                >
+                                  {/* Fila superior: Badges contextuales + Acciones */}
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex flex-wrap items-center gap-1 text-[10px] font-oxanium">
+                                      <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold uppercase tracking-wider border border-amber-500/20">
+                                        {inst.name}
+                                      </span>
+                                      <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium truncate max-w-[140px]">
+                                        {dep.name}
+                                      </span>
+                                      {pos.levelId && (
+                                        <span className="px-1.5 py-0.5 rounded bg-muted/80 text-foreground font-mono">
+                                          {employmentLevelFallbackLabel(pos.levelId)}
+                                        </span>
+                                      )}
+                                      {!pos.active && (
+                                        <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 font-bold uppercase">
+                                          Inactivo
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Botones de acción en la esquina: Duplicar, Editar, Borrar */}
+                                    <div className="flex items-center gap-0.5 shrink-0 text-muted-foreground">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="size-6 rounded hover:text-foreground"
+                                        title="Duplicar puesto"
+                                        aria-label={`Duplicar puesto ${pos.name}`}
+                                        onClick={() => handleDuplicatePosition(pos)}
+                                      >
+                                        <Copy className="size-3.5" />
+                                      </Button>
+                                      <PositionDialog position={pos} departmentId={dep.id} mutate={mutate} />
+                                      <DeleteAction type="positions" id={pos.id} mutate={mutate} />
+                                    </div>
+                                  </div>
+
+                                  {/* Título del puesto */}
+                                  <div className="min-w-0">
+                                    <h4 className="font-oxanium text-sm font-bold text-foreground leading-tight truncate">
+                                      {pos.name}
+                                    </h4>
+                                    {pos.description && (
+                                      <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
+                                        {pos.description}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {/* Salario, EXP y Riesgo Compactos */}
+                                  <div className="grid grid-cols-3 gap-1 rounded bg-muted/20 px-2 py-1.5 font-mono text-[11px] items-center">
+                                    <div>
+                                      <span className="text-[9px] uppercase block font-oxanium text-muted-foreground">Salario</span>
+                                      <span className="font-bold text-emerald-400">
+                                        {quote ? `¥${quote.totalYen}` : pos.bonusYen ? `+¥${pos.bonusYen}` : '¥0'}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[9px] uppercase block font-oxanium text-muted-foreground">EXP</span>
+                                      <span className="font-bold text-cyan-400">
+                                        {quote ? `+${quote.totalExp}` : pos.bonusExp ? `+${pos.bonusExp}` : '+0'}
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-[9px] uppercase block font-oxanium text-muted-foreground">Riesgo</span>
+                                      <span className={`font-bold capitalize ${riskColor}`}>
+                                        {employmentRiskFallbackLabel(pos.riskId || 'none')}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Requisitos Compactos */}
+                                  {pos.requirements?.requirements?.length > 0 && (
+                                    <div className="space-y-1">
+                                      <span className="text-[9px] font-oxanium font-bold uppercase tracking-wider text-muted-foreground">
+                                        Requisitos:
+                                      </span>
+                                      <div className="flex flex-wrap gap-1">
+                                        {pos.requirements.requirements.map((req: any) => (
+                                          <span
+                                            key={req.id || nanoid()}
+                                            className="px-1.5 py-0.5 rounded border border-border/70 bg-background/80 text-[10px] text-foreground font-medium"
+                                          >
+                                            {requirementLabel(req, elements, attributes, stages)}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Pie de la tarjeta: Estado de cupo + Botón Asignar / Ver Ocupantes */}
+                                  <div className="pt-1 border-t border-border/40 flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 text-[11px] font-oxanium">
+                                      <Users className="size-3 text-muted-foreground" />
+                                      <span className="text-muted-foreground">
+                                        Ocupantes ({occupied}/{capacity === null ? '∞' : capacity})
+                                      </span>
+                                      {isVacant && (
+                                        <span className="text-[10px] font-bold text-emerald-400 px-1 py-0.2 rounded bg-emerald-500/10 border border-emerald-500/20">
+                                          {capacity === null ? 'Ilimitado' : `${capacity - occupied} disponible`}
+                                        </span>
+                                      )}
+                                      {isFull && (
+                                        <span className="text-[10px] font-bold text-rose-400 px-1 py-0.2 rounded bg-rose-500/10 border border-rose-500/20">
+                                          Completo
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5">
+                                      {occupied > 0 && (
+                                        <OccupantsDetailsDialog position={pos} mutate={mutate} />
+                                      )}
+                                      <EmploymentAssignmentDialog position={pos} mutate={mutate} />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OccupantsDetailsDialog({ position, mutate }: { position: any; mutate: any }) {
+  const [open, setOpen] = useState(false);
+  const occupants = position.occupants || [];
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" className="h-7 px-2 text-[10px] font-oxanium gap-1 text-muted-foreground hover:text-foreground" />}>
+        <Eye className="size-3" /> Ver lista ({occupants.length})
+      </DialogTrigger>
+      <DialogContent className="admin-dialog sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-oxanium text-base">
+            Ocupantes del puesto: {position.name}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
+          <p className="text-xs text-muted-foreground">
+            {occupants.length} {occupants.length === 1 ? 'personaje asignado' : 'personajes asignados'} a este cargo.
+          </p>
+          <div className="divide-y divide-border/50 border rounded-md">
+            {occupants.map((occ: any) => (
+              <div key={occ.employmentId} className="flex items-center justify-between p-2.5 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  {occ.requirementsVerified ? (
+                    <CheckCircle2 className="size-3.5 text-emerald-400 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="size-3.5 text-amber-400 shrink-0" />
+                  )}
+                  <div>
+                    <span className="font-semibold text-foreground block truncate">{occ.name}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      {occ.characterId ? `Ficha #${occ.characterId}` : 'Personaje Canon'}
+                    </span>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-7 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                  title={`Retirar a ${occ.name}`}
+                  aria-label={`Retirar a ${occ.name}`}
+                  onClick={async () => {
+                    try {
+                      await apiFetch(`/api/admin/employments/${occ.employmentId}`, { method: 'DELETE' });
+                      toast.success(`${occ.name} fue retirado del puesto`);
+                      await mutate();
+                    } catch (error: any) {
+                      toast.error(error.message || 'No se pudo retirar el empleo');
+                    }
+                  }}
+                >
+                  <X className="size-3.5" />
+                </Button>
+              </div>
+            ))}
           </div>
-        ))}
-                </div>
         </div>
-      </EntityPanel>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -245,10 +677,13 @@ function EmploymentAssignmentDialog({ position, mutate }: any) {
         <p className="text-sm text-muted-foreground">Al confirmar, el sistema comprobará la capacidad y, cuando exista una ficha, sus requisitos obligatorios. Los personajes canon sin ficha quedarán pendientes de verificación manual.</p>
         <div className="space-y-2">
           <Label>Personaje</Label>
-          <Select value={selection} onValueChange={setSelection}>
-            <SelectTrigger><SelectValue placeholder="Selecciona un personaje">{options.find(option => option.value === selection)?.label ?? 'Selecciona un personaje'}</SelectValue></SelectTrigger>
-            <SelectContent>{options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
-          </Select>
+          <Combobox
+            value={selection}
+            onValueChange={setSelection}
+            placeholder="Selecciona un personaje..."
+            searchPlaceholder="Buscar personaje..."
+            options={options.map(opt => ({ value: opt.value, label: opt.label }))}
+          />
           {options.length === 0 && <p className="text-xs text-muted-foreground">No hay personajes disponibles para este puesto.</p>}
         </div>
       </div>
@@ -385,7 +820,7 @@ function PositionDialog({ position, departmentId, mutate }: any) {
   const [minPosts, setMinPosts] = useState(position?.minPosts === null || position?.minPosts === undefined ? "" : String(position.minPosts));
   const [requirements, setRequirements] = useState<any>(position?.requirements ?? { operator: 'all', requirements: [] });
   const [optionalBonuses, setOptionalBonuses] = useState<any[]>(position?.optionalBonuses ?? []);
-  const [reqType, setReqType] = useState<'owns_element' | 'skill_level' | 'attribute' | 'age'>('owns_element');
+  const [reqType, setReqType] = useState<'owns_element' | 'skill_level' | 'attribute' | 'stage' | 'age'>('owns_element');
   const [reqReference, setReqReference] = useState('');
   const [reqValue, setReqValue] = useState(1);
   const [reqOptional, setReqOptional] = useState(false);
@@ -396,20 +831,48 @@ function PositionDialog({ position, departmentId, mutate }: any) {
   const compensationResult = employmentCompensationSchema.safeParse(rules?.find((rule: any) => rule.key === 'employment_compensation')?.value);
   const compensation = compensationResult.success ? compensationResult.data : null;
   const attributes = rules?.find((rule: any) => rule.key === 'system_attributes')?.value ?? [];
+  const stages = Array.isArray(rules?.find((rule: any) => rule.key === 'system_stages')?.value) ? rules.find((rule: any) => rule.key === 'system_stages')?.value : [];
   const validBonuses = Number.isSafeInteger(bonusYen) && bonusYen >= 0 && Number.isSafeInteger(bonusExp) && bonusExp >= 0;
   const quote = compensation && levelId && riskId && validBonuses && compensation.levels.some(item => item.id === levelId) && compensation.risks.some(item => item.id === riskId)
     ? calculateEmploymentCompensation(compensation, levelId, riskId, bonusYen, bonusExp)
     : null;
 
+  const credentialOrder = ['license', 'permission', 'certification'];
+  const credentialKindLabels: Record<string, string> = {
+    license: 'Licencias',
+    permission: 'Permisos',
+    certification: 'Certificados',
+  };
+
+  const elementGroups = credentialOrder
+    .map(kind => ({
+      label: credentialKindLabels[kind] || kind,
+      options: (elements || [])
+        .filter((item: any) => item.status === 'published' && item.kind === kind)
+        .sort((a: any, b: any) => a.name.localeCompare(b.name))
+        .map((item: any) => ({
+          value: item.id,
+          label: item.name,
+          description: item.description,
+        })),
+    }))
+    .filter(group => group.options.length > 0);
+
+  const skillOptions = (elements || [])
+    .filter((item: any) => item.status === 'published' && item.kind === 'skill')
+    .sort((a: any, b: any) => a.name.localeCompare(b.name))
+    .map((item: any) => ({ value: item.id, label: item.name, description: item.description }));
+
   const addRequirement = () => {
-    if (reqType !== 'age' && !reqReference) return toast.error('Selecciona la referencia del requisito');
+    if (reqType !== 'age' && !reqReference) return toast.error(reqType === 'stage' ? 'Selecciona la etapa mínima' : 'Selecciona la referencia del requisito');
     const id = nanoid(10);
     const requirement = reqType === 'owns_element' ? { id, type: reqType, elementId: reqReference, quantity: 1 }
       : reqType === 'skill_level' ? { id, type: reqType, skillElementId: reqReference, comparison: 'gte', value: reqValue }
       : reqType === 'attribute' ? { id, type: reqType, attributeId: reqReference, comparison: 'gte', value: reqValue }
+      : reqType === 'stage' ? { id, type: reqType, stageId: reqReference, comparison: 'gte' }
       : { id, type: reqType, comparison: 'gte', value: reqValue };
     if (reqOptional) {
-      setOptionalBonuses(current => [...current, { id: nanoid(10), name: requirementLabel(requirement, elements, attributes), requirements: { operator: 'all', requirements: [requirement] }, yen: reqBonusYen, exp: reqBonusExp }]);
+      setOptionalBonuses(current => [...current, { id: nanoid(10), name: requirementLabel(requirement, elements, attributes, stages), requirements: { operator: 'all', requirements: [requirement] }, yen: reqBonusYen, exp: reqBonusExp }]);
     } else {
       setRequirements((current: any) => ({ ...current, requirements: [...current.requirements, requirement] }));
     }
@@ -417,21 +880,46 @@ function PositionDialog({ position, departmentId, mutate }: any) {
   };
 
   const handleSubmit = async () => {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      toast.error("El nombre del puesto es obligatorio");
+      return;
+    }
     const url = position ? `/api/admin/positions/${position.id}` : `/api/admin/positions`;
     const method = position ? "PUT" : "POST";
-    const parsedCap = capacity === "" ? null : Number(capacity);
+    const parsedCap = capacity === "" || capacity === null || capacity === undefined ? null : Math.max(0, Math.floor(Number(capacity)));
+    const parsedSortOrder = Number.isFinite(Number(sortOrder)) ? Math.floor(Number(sortOrder)) : 0;
+    const parsedBonusYen = Number.isFinite(Number(bonusYen)) ? Math.max(0, Math.floor(Number(bonusYen))) : 0;
+    const parsedBonusExp = Number.isFinite(Number(bonusExp)) ? Math.max(0, Math.floor(Number(bonusExp))) : 0;
+    const parsedMinPosts = minPosts === '' || minPosts === null || minPosts === undefined ? null : Math.max(0, Math.floor(Number(minPosts)));
     
-    const res = await apiFetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ departmentId, name, description, capacity: parsedCap, active, sortOrder: Number(sortOrder), levelId: levelId || null, riskId: riskId || null, bonusYen, bonusExp, minPosts: minPosts === '' ? null : Number(minPosts), requirements, optionalBonuses })
-    });
-    if (res.ok) {
-      toast.success("Posición guardada");
-      setOpen(false);
-      mutate();
-    } else {
-      toast.error("Error al guardar posición");
+    try {
+      const res = await apiFetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          departmentId,
+          name: trimmedName,
+          description: description?.trim() || null,
+          capacity: parsedCap,
+          active: Boolean(active),
+          sortOrder: parsedSortOrder,
+          levelId: levelId?.trim() ? levelId.trim() : null,
+          riskId: riskId?.trim() ? riskId.trim() : null,
+          bonusYen: parsedBonusYen,
+          bonusExp: parsedBonusExp,
+          minPosts: parsedMinPosts,
+          requirements: requirements ?? { operator: 'all', requirements: [] },
+          optionalBonuses: optionalBonuses ?? [],
+        })
+      });
+      if (res.ok) {
+        toast.success("Posición guardada");
+        setOpen(false);
+        mutate();
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Error al guardar posición");
     }
   };
 
@@ -447,19 +935,58 @@ function PositionDialog({ position, departmentId, mutate }: any) {
             <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Nombre del puesto</Label><Input value={name} onChange={e => setName(e.target.value)} /></div><div className="space-y-2"><Label>Capacidad</Label><Input type="number" min={0} placeholder="Ilimitada" value={capacity} onChange={e => setCapacity(e.target.value)} /></div></div>
             <div className="space-y-2"><Label>Descripción</Label><Input value={description} onChange={e => setDescription(e.target.value)} /></div>
             <div className="rounded-lg border p-4 space-y-4">
-              <div><h3 className="font-semibold">Requisitos del puesto</h3><p className="text-xs text-muted-foreground">Añade licencias, habilidades, atributos o edad mínima como en Shadowmore.</p></div>
+              <div><h3 className="font-semibold">Requisitos del puesto</h3><p className="text-xs text-muted-foreground">Añade licencias, habilidades, atributos, etapa o edad mínima como en Shadowmore.</p></div>
               <div className="grid gap-2 sm:grid-cols-2">
-                <Select value={reqType} onValueChange={(value: any) => { setReqType(value); setReqReference(''); }}><SelectTrigger><SelectValue>{requirementTypeLabel(reqType)}</SelectValue></SelectTrigger><SelectContent><SelectItem value="owns_element">Elemento, licencia, permiso o certificación</SelectItem><SelectItem value="skill_level">Habilidad</SelectItem><SelectItem value="attribute">Atributo</SelectItem><SelectItem value="age">Edad mínima</SelectItem></SelectContent></Select>
-                {reqType === 'owns_element' && <Select value={reqReference} onValueChange={setReqReference}><SelectTrigger><SelectValue placeholder="Selecciona elemento">{reqReference ? requirementElementSelectLabel(reqReference, elements) : 'Selecciona elemento'}</SelectValue></SelectTrigger><SelectContent>{elements?.filter((item: any) => item.status === 'published').sort((a: any, b: any) => employmentElementKindOrder(a.kind) - employmentElementKindOrder(b.kind) || a.name.localeCompare(b.name)).map((item: any) => <SelectItem key={item.id} value={item.id}>[{employmentElementKindLabel(item.kind)}] {item.name}</SelectItem>)}</SelectContent></Select>}
-                {reqType === 'skill_level' && <Select value={reqReference} onValueChange={setReqReference}><SelectTrigger><SelectValue placeholder="Selecciona habilidad">{reqReference ? requirementElementSelectLabel(reqReference, elements, false) : 'Selecciona habilidad'}</SelectValue></SelectTrigger><SelectContent>{elements?.filter((item: any) => item.status === 'published' && item.kind === 'skill').map((item: any) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select>}
+                <Select value={reqType} onValueChange={(value: any) => { setReqType(value); setReqReference(''); }}><SelectTrigger><SelectValue>{requirementTypeLabel(reqType)}</SelectValue></SelectTrigger><SelectContent><SelectItem value="owns_element">Licencia, permiso o certificado</SelectItem><SelectItem value="skill_level">Habilidad</SelectItem><SelectItem value="attribute">Atributo</SelectItem><SelectItem value="stage">Etapa mínima</SelectItem><SelectItem value="age">Edad mínima</SelectItem></SelectContent></Select>
+                {reqType === 'owns_element' && (
+                  <Combobox
+                    value={reqReference}
+                    onValueChange={setReqReference}
+                    placeholder="Selecciona licencia, permiso o certificado..."
+                    searchPlaceholder="Buscar licencia, permiso o certificado..."
+                    groups={elementGroups}
+                  />
+                )}
+                {reqType === 'skill_level' && (
+                  <Combobox
+                    value={reqReference}
+                    onValueChange={setReqReference}
+                    placeholder="Selecciona habilidad..."
+                    searchPlaceholder="Buscar habilidad..."
+                    options={skillOptions}
+                  />
+                )}
                 {reqType === 'attribute' && <Select value={reqReference} onValueChange={setReqReference}><SelectTrigger><SelectValue placeholder="Selecciona atributo">{reqReference ? attributes.find((item: any) => (item.abbrev ?? item.id) === reqReference)?.name ?? reqReference : 'Selecciona atributo'}</SelectValue></SelectTrigger><SelectContent>{attributes.map((item: any) => <SelectItem key={item.id} value={item.abbrev ?? item.id}>{item.name}</SelectItem>)}</SelectContent></Select>}
+                {reqType === 'stage' && (
+                  <Select value={reqReference} onValueChange={setReqReference}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona etapa...">
+                        {reqReference ? (() => {
+                          const st = stages.find((s: any) => (s.id || s.name) === reqReference || s.name === reqReference);
+                          return st ? `${st.name}${st.minAge !== undefined ? ` - ${st.minAge} años` : ''}` : reqReference;
+                        })() : 'Selecciona etapa...'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stages.length === 0 ? (
+                        <div className="p-2 text-xs text-muted-foreground text-center">No hay etapas configuradas en Reglas</div>
+                      ) : (
+                        stages.map((st: any) => {
+                          const val = st.name || st.id;
+                          const label = `${st.name}${st.minAge !== undefined ? ` - ${st.minAge} años` : ''}`;
+                          return <SelectItem key={val} value={val}>{label}</SelectItem>;
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
                 {reqType === 'age' && <div className="flex items-center rounded-md border px-3 text-sm text-muted-foreground">Edad comprobada desde la ficha</div>}
               </div>
-              {reqType !== 'owns_element' && <div className="space-y-1"><Label>Valor mínimo</Label><Input type="number" min={0} value={reqValue} onChange={event => setReqValue(Number(event.target.value))} /></div>}
+              {reqType !== 'owns_element' && reqType !== 'stage' && <div className="space-y-1"><Label>Valor mínimo</Label><Input type="number" min={0} value={reqValue} onChange={event => setReqValue(Number(event.target.value))} /></div>}
               <div className="flex items-center gap-2"><Checkbox id={`optional-${position?.id ?? 'new'}`} checked={reqOptional} onCheckedChange={(checked: boolean) => setReqOptional(checked)} /><Label htmlFor={`optional-${position?.id ?? 'new'}`}>Requisito opcional con bonificación</Label></div>
               {reqOptional && <div className="grid grid-cols-2 gap-3"><div><Label>Bono ¥</Label><Input type="number" min={0} value={reqBonusYen} onChange={e => setReqBonusYen(Number(e.target.value))} /></div><div><Label>Bono EXP</Label><Input type="number" min={0} value={reqBonusExp} onChange={e => setReqBonusExp(Number(e.target.value))} /></div></div>}
               <Button type="button" variant="outline" onClick={addRequirement}><Plus className="size-4 mr-2" />Añadir requisito</Button>
-              <RequirementTags title="Obligatorios" items={requirements?.requirements || []} elements={elements} attributes={attributes} onRemove={(id: string) => setRequirements((current: any) => ({ ...current, requirements: (current?.requirements || []).filter((item: any) => item.id !== id) }))} />
+              <RequirementTags title="Obligatorios" items={requirements?.requirements || []} elements={elements} attributes={attributes} stages={stages} onRemove={(id: string) => setRequirements((current: any) => ({ ...current, requirements: (current?.requirements || []).filter((item: any) => item.id !== id) }))} />
               <div className="space-y-2"><p className="text-xs font-bold uppercase text-muted-foreground">Opcionales</p>{optionalBonuses.map(item => <div key={item.id} className="flex items-center justify-between rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-xs"><span>{item.name} · +¥{item.yen} / +{item.exp} EXP</span><Button variant="ghost" size="icon-sm" onClick={() => setOptionalBonuses(current => current.filter(entry => entry.id !== item.id))}><X className="size-3" /></Button></div>)}{optionalBonuses.length === 0 && <p className="text-xs text-muted-foreground">Sin bonificaciones opcionales.</p>}</div>
             </div>
           </div>
@@ -482,10 +1009,15 @@ function PositionDialog({ position, departmentId, mutate }: any) {
   );
 }
 
-function requirementLabel(requirement: any, elements: any[] = [], attributes: any[] = []) {
+function requirementLabel(requirement: any, elements: any[] = [], attributes: any[] = [], stages: any[] = []) {
   if (requirement.type === 'owns_element') return elements?.find(item => item.id === requirement.elementId)?.name ?? requirement.elementId;
   if (requirement.type === 'skill_level') return `${elements?.find(item => item.id === requirement.skillElementId)?.name ?? requirement.skillElementId} (Nv. ${requirement.value})`;
   if (requirement.type === 'attribute') return `${attributes?.find(item => (item.abbrev ?? item.id) === requirement.attributeId)?.name ?? requirement.attributeId} ≥ ${requirement.value}`;
+  if (requirement.type === 'stage') {
+    const stage = stages?.find((item: any) => (item.id || item.name) === requirement.stageId || item.name === requirement.stageId);
+    const stageText = stage ? `${stage.name}${stage.minAge !== undefined ? ` - ${stage.minAge} años` : ''}` : requirement.stageId;
+    return `Etapa ≥ ${stageText}`;
+  }
   if (requirement.type === 'age') return `Edad ≥ ${requirement.value}`;
   return requirement.id;
 }
@@ -499,7 +1031,7 @@ function employmentElementKindOrder(kind: string) {
 }
 
 function requirementTypeLabel(type: string) {
-  return ({ owns_element: 'Elemento, licencia, permiso o certificación', skill_level: 'Habilidad', attribute: 'Atributo', age: 'Edad mínima' } as Record<string, string>)[type] ?? 'Requisito';
+  return ({ owns_element: 'Licencia, permiso o certificado', skill_level: 'Habilidad', attribute: 'Atributo', stage: 'Etapa mínima', age: 'Edad mínima' } as Record<string, string>)[type] ?? 'Requisito';
 }
 
 function requirementElementSelectLabel(id: string, elements: any[] = [], showKind = true) {
@@ -516,8 +1048,8 @@ function employmentRiskFallbackLabel(id: string) {
   return ({ none: 'Ninguno', low: 'Leve', moderate: 'Moderado', serious: 'Grave', extreme: 'Extremo' } as Record<string, string>)[id] ?? id;
 }
 
-function RequirementTags({ title, items, elements, attributes, onRemove }: any) {
-  return <div className="space-y-2"><p className="text-xs font-bold uppercase text-muted-foreground">{title}</p><div className="flex flex-wrap gap-2">{items.map((item: any) => <div key={item.id} className="flex items-center gap-1 rounded-full border bg-muted px-3 py-1 text-xs"><span>{requirementLabel(item, elements, attributes)}</span><Button variant="ghost" size="icon-sm" className="size-5 rounded-full" onClick={() => onRemove(item.id)}><X className="size-3" /></Button></div>)}</div>{items.length === 0 && <p className="text-xs text-muted-foreground">Sin requisitos obligatorios.</p>}</div>;
+function RequirementTags({ title, items, elements, attributes, stages, onRemove }: any) {
+  return <div className="space-y-2"><p className="text-xs font-bold uppercase text-muted-foreground">{title}</p><div className="flex flex-wrap gap-2">{items.map((item: any) => <div key={item.id} className="flex items-center gap-1 rounded-full border bg-muted px-3 py-1 text-xs"><span>{requirementLabel(item, elements, attributes, stages)}</span><Button variant="ghost" size="icon-sm" className="size-5 rounded-full" onClick={() => onRemove(item.id)}><X className="size-3" /></Button></div>)}</div>{items.length === 0 && <p className="text-xs text-muted-foreground">Sin requisitos obligatorios.</p>}</div>;
 }
 
 function DeleteAction({ type, id, mutate }: { type: string, id: string, mutate: any }) {
