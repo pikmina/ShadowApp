@@ -1342,11 +1342,11 @@ function InstitutionDialog({ institution, mutate }: any) {
           </>
         )}
       </DialogTrigger>
-      <DialogContent className="admin-dialog sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="admin-dialog sm:max-w-lg max-h-[85vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-border/60 shrink-0">
           <DialogTitle>{institution ? "Editar" : "Nueva"} Institución</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto p-6 flex-1">
           <div className="space-y-2">
             <Label>Nombre de la Institución</Label>
             <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Policía de Neo-Tokyo, Hospital Central..." />
@@ -1377,12 +1377,12 @@ function InstitutionDialog({ institution, mutate }: any) {
 
           <div className="flex items-center space-x-2 pt-2">
             <Checkbox id="active-inst" checked={active} onCheckedChange={(c: boolean) => setActive(c)} />
-            <label htmlFor="active-inst" className="text-sm font-medium">
+            <label htmlFor="active-inst" className="text-sm font-medium cursor-pointer">
               Institución Activa
             </label>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="px-6 py-4 border-t border-border/60 shrink-0 bg-background/50">
           <Button onClick={handleSubmit}>Guardar Institución</Button>
         </DialogFooter>
       </DialogContent>
@@ -1461,11 +1461,11 @@ function DepartmentDialog({ department, institutionId, mutate }: any) {
           </>
         )}
       </DialogTrigger>
-      <DialogContent className="admin-dialog sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="admin-dialog sm:max-w-lg max-h-[85vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-border/60 shrink-0">
           <DialogTitle>{department ? "Editar" : "Nuevo"} Departamento</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto p-6 flex-1">
           <div className="space-y-2">
             <Label>Nombre del Área / Departamento</Label>
             <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Investigación, Seguridad Especial, Administración..." />
@@ -1532,12 +1532,12 @@ function DepartmentDialog({ department, institutionId, mutate }: any) {
 
           <div className="flex items-center space-x-2 pt-2">
             <Checkbox id="active-dep" checked={active} onCheckedChange={(c: boolean) => setActive(c)} />
-            <label htmlFor="active-dep" className="text-sm font-medium">
+            <label htmlFor="active-dep" className="text-sm font-medium cursor-pointer">
               Departamento Activo
             </label>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="px-6 py-4 border-t border-border/60 shrink-0 bg-background/50">
           <Button onClick={handleSubmit}>Guardar Departamento</Button>
         </DialogFooter>
       </DialogContent>
@@ -1745,11 +1745,11 @@ function PositionDialog({ position, department, departmentId, mutate }: any) {
           </>
         )}
       </DialogTrigger>
-      <DialogContent className="admin-dialog max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-        <DialogHeader>
+      <DialogContent className="admin-dialog sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-border/60 shrink-0">
           <DialogTitle>{position ? "Editar" : "Nuevo"} Puesto de Trabajo</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 overflow-y-auto p-6 flex-1">
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Nombre del puesto</Label>
@@ -1789,43 +1789,45 @@ function PositionDialog({ position, department, departmentId, mutate }: any) {
               {reqType === "owns_element" && (
                 <div className="space-y-1">
                   <Label className="text-xs">Licencia, permiso o certificado requerido</Label>
-                  <Select value={reqReference} onValueChange={setReqReference}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecciona licencia, permiso o certificado..." /></SelectTrigger>
-                    <SelectContent>
-                      {(elements ?? [])
-                        .filter((el: any) =>
-                          ["license", "permission", "certification"].includes(el.kind)
-                        )
-                        .map((el: any) => (
-                          <SelectItem key={el.id} value={el.id}>
-                            [{employmentElementKindLabel(el.kind)}] {el.name}
-                          </SelectItem>
-                        ))}
-                      {(elements ?? []).filter((el: any) =>
+                  <Combobox
+                    value={reqReference}
+                    onValueChange={setReqReference}
+                    placeholder="Selecciona licencia, permiso o certificado..."
+                    searchPlaceholder="Buscar por nombre..."
+                    options={(elements ?? [])
+                      .filter((el: any) =>
                         ["license", "permission", "certification"].includes(el.kind)
-                      ).length === 0 && (
-                        <p className="p-2 text-xs text-muted-foreground italic">
-                          No hay licencias, permisos ni certificados disponibles.
-                        </p>
-                      )}
-                    </SelectContent>
-                  </Select>
+                      )
+                      .map((el: any) => ({
+                        value: el.id,
+                        label: `[${employmentElementKindLabel(el.kind)}] ${el.name}`
+                      }))}
+                  />
+                  {(elements ?? []).filter((el: any) =>
+                    ["license", "permission", "certification"].includes(el.kind)
+                  ).length === 0 && (
+                    <p className="text-xs text-muted-foreground italic pt-1">
+                      No hay licencias, permisos ni certificados creados en el catálogo.
+                    </p>
+                  )}
                 </div>
               )}
 
               {reqType === "skill_level" && (
                 <div className="space-y-1">
                   <Label className="text-xs">Habilidad requerida</Label>
-                  <Select value={reqReference} onValueChange={setReqReference}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecciona habilidad..." /></SelectTrigger>
-                    <SelectContent>
-                      {(elements ?? []).filter((e: any) => e.kind === "skill").map((el: any) => (
-                        <SelectItem key={el.id} value={el.id}>
-                          {el.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    value={reqReference}
+                    onValueChange={setReqReference}
+                    placeholder="Selecciona habilidad..."
+                    searchPlaceholder="Buscar habilidad..."
+                    options={(elements ?? [])
+                      .filter((e: any) => e.kind === "skill")
+                      .map((el: any) => ({
+                        value: el.id,
+                        label: el.name
+                      }))}
+                  />
                 </div>
               )}
 
@@ -1870,7 +1872,7 @@ function PositionDialog({ position, department, departmentId, mutate }: any) {
 
               <div className="flex items-center gap-2 pt-1">
                 <Checkbox id={`optional-${position?.id ?? "new"}`} checked={reqOptional} onCheckedChange={(checked: boolean) => setReqOptional(checked)} />
-                <Label htmlFor={`optional-${position?.id ?? "new"}`} className="text-xs">Requisito opcional con bonificación</Label>
+                <Label htmlFor={`optional-${position?.id ?? "new"}`} className="text-xs cursor-pointer">Requisito opcional con bonificación</Label>
               </div>
 
               {reqOptional && (
@@ -2014,12 +2016,12 @@ function PositionDialog({ position, department, departmentId, mutate }: any) {
               </div>
               <div className="flex items-end gap-2 pb-2">
                 <Checkbox id="active-pos" checked={active} onCheckedChange={(c: boolean) => setActive(c)} />
-                <Label htmlFor="active-pos">Puesto Activo</Label>
+                <Label htmlFor="active-pos" className="text-sm font-medium cursor-pointer">Puesto Activo</Label>
               </div>
             </div>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="px-6 py-4 border-t border-border/60 shrink-0 bg-background/50">
           <Button onClick={handleSubmit}>Guardar Puesto</Button>
         </DialogFooter>
       </DialogContent>

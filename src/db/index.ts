@@ -42,59 +42,97 @@ export async function ensureSystemSchemaColumns() {
   if (!ensureColsPromise) {
     ensureColsPromise = (async () => {
       try {
-        const check = await pool.query(`
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'system_elements' AND column_name = 'icon_type'
-          LIMIT 1;
+        const colCheck = await pool.query(`
+          SELECT table_name, column_name 
+          FROM information_schema.columns 
+          WHERE table_schema = 'public' 
+            AND table_name IN ('system_elements', 'institutions', 'departments', 'positions', 'characters', 'players');
         `);
-        if (check.rows.length === 0) {
-          hasElementIconColumns = false;
+
+        const existingCols = new Set(
+          colCheck.rows.map((r: { table_name: string; column_name: string }) => `${r.table_name}.${r.column_name}`)
+        );
+
+        hasElementIconColumns = existingCols.has('system_elements.icon_type');
+
+        if (!existingCols.has('system_elements.icon_type')) {
           try {
             await pool.query('ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;');
             await pool.query('ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;');
             hasElementIconColumns = true;
           } catch {
-            // Alter permission not granted; legacy fallback projection will be used
             hasElementIconColumns = false;
           }
-        } else {
-          hasElementIconColumns = true;
         }
 
-        // Safely attempt to ensure institutions, departments, positions, players and character extension columns
-        try {
-          await pool.query('ALTER TABLE "institutions" ADD COLUMN IF NOT EXISTS "icon_type" varchar(20);');
-          await pool.query('ALTER TABLE "institutions" ADD COLUMN IF NOT EXISTS "icon_value" varchar(255);');
-          await pool.query('ALTER TABLE "departments" ADD COLUMN IF NOT EXISTS "default_level_id" varchar(100);');
-          await pool.query('ALTER TABLE "departments" ADD COLUMN IF NOT EXISTS "default_risk_id" varchar(100);');
-          await pool.query('ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "min_posts" integer;');
+        if (!existingCols.has('institutions.icon_type')) {
+          try {
+            await pool.query('ALTER TABLE "institutions" ADD COLUMN IF NOT EXISTS "icon_type" varchar(20);');
+            await pool.query('ALTER TABLE "institutions" ADD COLUMN IF NOT EXISTS "icon_value" varchar(255);');
+          } catch {
+            // Permission restricted (e.g. non-owner database user)
+          }
+        }
 
-          await pool.query(`
-            DO $$
-            BEGIN
-              IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'player_status') THEN
-                CREATE TYPE "player_status" AS ENUM('active', 'absent', 'inactive');
-              END IF;
-            END $$;
-          `);
-          await pool.query(`
-            CREATE TABLE IF NOT EXISTS "players" (
-              "id" serial PRIMARY KEY NOT NULL,
-              "name" text NOT NULL,
-              "status" "player_status" DEFAULT 'active' NOT NULL,
-              "user_id" integer,
-              "identity" text,
-              "discord" text,
-              "notes" text,
-              "created_at" timestamp DEFAULT now(),
-              "updated_at" timestamp DEFAULT now()
-            );
-          `);
-          await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "player_id" integer;');
-          await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;');
-          await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "canon_character_id" text;');
-        } catch (schemaErr) {
-          console.warn("Notice: Schema columns update warning:", schemaErr);
+        if (!existingCols.has('departments.default_level_id')) {
+          try {
+            await pool.query('ALTER TABLE "departments" ADD COLUMN IF NOT EXISTS "default_level_id" varchar(100);');
+            await pool.query('ALTER TABLE "departments" ADD COLUMN IF NOT EXISTS "default_risk_id" varchar(100);');
+          } catch {
+            // Permission restricted
+          }
+        }
+
+        if (!existingCols.has('positions.min_posts')) {
+          try {
+            await pool.query('ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "min_posts" integer;');
+          } catch {
+            // Permission restricted
+          }
+        }
+
+        if (!existingCols.has('players.id')) {
+          try {
+            await pool.query(`
+              DO $$
+              BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'player_status') THEN
+                  CREATE TYPE "player_status" AS ENUM('active', 'absent', 'inactive');
+                END IF;
+              END $$;
+            `);
+            await pool.query(`
+              CREATE TABLE IF NOT EXISTS "players" (
+                "id" serial PRIMARY KEY NOT NULL,
+                "name" text NOT NULL,
+                "status" "player_status" DEFAULT 'active' NOT NULL,
+                "user_id" integer,
+                "identity" text,
+                "discord" text,
+                "notes" text,
+                "created_at" timestamp DEFAULT now(),
+                "updated_at" timestamp DEFAULT now()
+              );
+            `);
+          } catch {
+            // Table exists or permission restricted
+          }
+        }
+
+        if (!existingCols.has('characters.player_id')) {
+          try {
+            await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "player_id" integer;');
+          } catch {}
+        }
+        if (!existingCols.has('characters.active')) {
+          try {
+            await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;');
+          } catch {}
+        }
+        if (!existingCols.has('characters.canon_character_id')) {
+          try {
+            await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "canon_character_id" text;');
+          } catch {}
         }
       } catch {
         // Safe check
