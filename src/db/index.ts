@@ -46,7 +46,7 @@ export async function ensureSystemSchemaColumns() {
           SELECT table_name, column_name 
           FROM information_schema.columns 
           WHERE table_schema = 'public' 
-            AND table_name IN ('system_elements', 'institutions', 'departments', 'positions', 'characters', 'players');
+            AND table_name IN ('system_elements', 'institutions', 'departments', 'positions', 'characters', 'players', 'character_employments', 'character_techniques');
         `);
 
         const existingCols = new Set(
@@ -70,7 +70,7 @@ export async function ensureSystemSchemaColumns() {
             await pool.query('ALTER TABLE "institutions" ADD COLUMN IF NOT EXISTS "icon_type" varchar(20);');
             await pool.query('ALTER TABLE "institutions" ADD COLUMN IF NOT EXISTS "icon_value" varchar(255);');
           } catch {
-            // Permission restricted (e.g. non-owner database user)
+            // Permission restricted
           }
         }
 
@@ -83,11 +83,45 @@ export async function ensureSystemSchemaColumns() {
           }
         }
 
-        if (!existingCols.has('positions.min_posts')) {
+        // Auto-provision missing positions columns
+        if (
+          !existingCols.has('positions.institution_id') ||
+          !existingCols.has('positions.level_id') ||
+          !existingCols.has('positions.risk_id') ||
+          !existingCols.has('positions.bonus_yen') ||
+          !existingCols.has('positions.bonus_exp') ||
+          !existingCols.has('positions.min_posts') ||
+          !existingCols.has('positions.requirements') ||
+          !existingCols.has('positions.optional_bonuses')
+        ) {
           try {
-            await pool.query('ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "min_posts" integer;');
-          } catch {
-            // Permission restricted
+            await pool.query(`
+              ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "level_id" varchar(100);
+              ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "risk_id" varchar(100);
+              ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "bonus_yen" integer DEFAULT 0 NOT NULL;
+              ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "bonus_exp" integer DEFAULT 0 NOT NULL;
+              ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "min_posts" integer;
+              ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "requirements" jsonb DEFAULT '{"operator":"all","requirements":[]}'::jsonb NOT NULL;
+              ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "optional_bonuses" jsonb DEFAULT '[]'::jsonb NOT NULL;
+              ALTER TABLE "positions" ALTER COLUMN "department_id" DROP NOT NULL;
+              ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "institution_id" varchar(100);
+              UPDATE "positions" p SET "institution_id" = d."institution_id" FROM "departments" d WHERE p."department_id" = d."id" AND p."institution_id" IS NULL;
+            `);
+          } catch (e) {
+            console.warn("Could not alter table positions:", e);
+          }
+        }
+
+        // Auto-provision missing character_employments columns
+        if (!existingCols.has('character_employments.canon_character_id') || !existingCols.has('character_employments.requirements_verified')) {
+          try {
+            await pool.query(`
+              ALTER TABLE "character_employments" ALTER COLUMN "character_id" DROP NOT NULL;
+              ALTER TABLE "character_employments" ADD COLUMN IF NOT EXISTS "canon_character_id" text;
+              ALTER TABLE "character_employments" ADD COLUMN IF NOT EXISTS "requirements_verified" boolean DEFAULT false NOT NULL;
+            `);
+          } catch (e) {
+            console.warn("Could not alter table character_employments:", e);
           }
         }
 

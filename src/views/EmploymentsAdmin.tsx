@@ -24,7 +24,8 @@ import {
   Award,
   Clock,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  Database
 } from "lucide-react";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { ItemIcon } from "@/components/common/ItemIcon";
@@ -258,6 +259,26 @@ export default function EmploymentsAdmin() {
       });
   }, [selectedInstitution, searchTerm, filterDepartment, filterRisk, filterAvailability, elements, attributes, stages]);
 
+  const [isMigratingDb, setIsMigratingDb] = useState(false);
+
+  const handleMigrateDb = async () => {
+    try {
+      setIsMigratingDb(true);
+      const res = await apiFetch("/api/admin/system/migrate", { method: "POST" });
+      if (res.ok) {
+        toast.success("Estructura de la base de datos migrada con éxito.");
+        await mutate();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Error al ejecutar migración.");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Error al comunicarse con el servidor.");
+    } finally {
+      setIsMigratingDb(false);
+    }
+  };
+
   if (isLoading)
     return <div className="p-8 font-oxanium text-sm text-muted-foreground flex items-center justify-center gap-2"><RefreshCw className="size-4 animate-spin text-primary" /> Cargando catálogo de empleos...</div>;
   if (error)
@@ -268,9 +289,14 @@ export default function EmploymentsAdmin() {
         <p className="text-xs text-muted-foreground">
           {error?.message || "Error de comunicación con la base de datos o permisos insuficientes."}
         </p>
-        <Button variant="outline" size="sm" onClick={() => mutate()} className="text-xs gap-1.5 font-oxanium">
-          <RefreshCw className="size-3.5" /> Reintentar
-        </Button>
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={() => mutate()} className="text-xs gap-1.5 font-oxanium">
+            <RefreshCw className="size-3.5" /> Reintentar
+          </Button>
+          <Button variant="default" size="sm" onClick={handleMigrateDb} disabled={isMigratingDb} className="text-xs gap-1.5 font-oxanium">
+            <Database className="size-3.5" /> {isMigratingDb ? "Migrando BD..." : "Reparar Esquema de BD"}
+          </Button>
+        </div>
       </div>
     );
 

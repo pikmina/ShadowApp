@@ -1079,9 +1079,22 @@ async function startServer() {
   // --- Employments Admin API ---
   app.get("/api/admin/employments/structure", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
+      const { ensureSystemSchemaColumns } = await import("./src/db/index.ts");
+      await ensureSystemSchemaColumns();
       const { getInstitutionsWithDepartmentsAndPositions } = await import("./src/db/employments.ts");
       res.json(await getInstitutionsWithDepartmentsAndPositions());
     } catch (error: any) { console.error(error); res.status(error.status ?? 500).json({ error: error.message }); }
+  });
+
+  app.post("/api/admin/system/migrate", requireAuth, requireRole(["superadmin"]), async (req: AuthRequest, res) => {
+    try {
+      const { runMigration } = await import("./src/db/migrate.ts");
+      await runMigration();
+      res.json({ success: true, message: "Base de datos migrada correctamente." });
+    } catch (error: any) {
+      console.error("Migration error:", error);
+      res.status(500).json({ error: error.message || "Error al migrar la base de datos." });
+    }
   });
 
   app.post("/api/admin/institutions", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
