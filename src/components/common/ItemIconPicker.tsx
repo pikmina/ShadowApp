@@ -285,18 +285,13 @@ export function ItemIconPicker({
   };
 
   return (
-    <div className="space-y-4 rounded-lg border border-border/80 bg-card/60 p-4">
+    <div className="space-y-3 rounded-lg border border-border/80 bg-card/60 p-3">
       {/* Header and Mode Selector */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
-        <div>
-          <Label className="text-sm font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-            <Sparkles className="size-4 text-primary" />
-            Icono del Artículo (Catálogo)
-          </Label>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Elige un icono de Lucide o un emoji Unicode para representar este artículo en todo el sistema.
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2">
+        <Label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+          <Sparkles className="size-3.5 text-primary" />
+          Icono
+        </Label>
 
         {/* Mode selector buttons */}
         <div className="inline-flex rounded-md border border-border bg-background p-1 text-xs shrink-0">
@@ -393,7 +388,7 @@ export function ItemIconPicker({
               <Input
                 value={lucideSearch}
                 onChange={(e) => setLucideSearch(e.target.value)}
-                placeholder="Buscar icono Lucide (ej: sword, shield, potion, heart, tool, book)..."
+                placeholder="Buscar icono Lucide..."
                 className="pl-8 text-xs h-8 bg-background"
               />
             </div>

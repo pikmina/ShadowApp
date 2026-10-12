@@ -24,6 +24,7 @@ import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
+import { Checkbox } from "../ui/checkbox";
 import {
   Accordion,
   AccordionContent,
@@ -2019,10 +2020,14 @@ function EffectsListEditor({
                       <Select
                         value={eff.damageType || "fisico"}
                         onValueChange={(val) => {
-                          const matched = damageTypeOptions.find((opt) => opt.runtimeKey === val);
+                          const matched = damageTypeOptions.find((opt) => opt.runtimeKey === val || opt.id === val);
+                          const catalogDefense = (matched as any)?.component?.defenseType;
+                          const isMentalType = catalogDefense === "courage" || 
+                            (catalogDefense !== "evasion" && ["psiquico", "mental", "sensorial", "motor", "anomalia_don"].includes(val));
                           updateEffect(i, {
                             ...eff,
                             damageType: val,
+                            vsCourage: isMentalType,
                             ...(matched ? { damageTypeRuleId: matched.id } : {}),
                           } as any);
                         }}
@@ -2034,13 +2039,17 @@ function EffectsListEditor({
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {getVisibleOptions(damageTypeOptions, eff.damageType || "fisico").map((opt) => (
-                            <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
-                              {opt.name || getMechanicalLabel("damageTypes", opt.runtimeKey)}
-                              {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
-                              {opt.isAvailable === false ? " · No disponible" : ""}
-                            </SelectItem>
-                          ))}
+                          {getVisibleOptions(damageTypeOptions, eff.damageType || "fisico").map((opt) => {
+                            const defType = (opt as any)?.component?.defenseType;
+                            const defBadge = defType === 'courage' ? ' [COR]' : defType === 'evasion' ? ' [EVA]' : '';
+                            return (
+                              <SelectItem key={opt.runtimeKey} value={opt.runtimeKey}>
+                                {opt.name || getMechanicalLabel("damageTypes", opt.runtimeKey)}{defBadge}
+                                {opt.cost > 0 ? ` (+${opt.cost} CE)` : opt.cost < 0 ? ` (${opt.cost} CE)` : ""}
+                                {opt.isAvailable === false ? " · No disponible" : ""}
+                              </SelectItem>
+                            );
+                          })}
                           {!damageTypeOptions.some((opt) => opt.runtimeKey === (eff.damageType || "fisico")) && eff.damageType && (
                             <SelectItem key="legacy" value={eff.damageType}>
                               {getMechanicalLabel("damageTypes", eff.damageType) || eff.damageType}
@@ -2048,6 +2057,37 @@ function EffectsListEditor({
                           )}
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 self-end pb-1 pl-1">
+                      {(() => {
+                        const matchedOpt = damageTypeOptions.find((opt) => opt.runtimeKey === (eff.damageType || "fisico") || opt.id === eff.damageType);
+                        const catalogDefense = (matchedOpt as any)?.component?.defenseType;
+                        const isDefaultMental = catalogDefense === "courage" || 
+                          (catalogDefense !== "evasion" && ["psiquico", "mental", "sensorial", "motor", "anomalia_don"].includes(eff.damageType || ""));
+                        const isChecked = Boolean((eff as any).vsCourage ?? isDefaultMental);
+                        return (
+                          <>
+                            <Checkbox
+                              id={`vs-courage-${i}`}
+                              checked={isChecked}
+                              onCheckedChange={(checked: boolean) => {
+                                updateEffect(i, {
+                                  ...eff,
+                                  vsCourage: checked,
+                                } as any);
+                              }}
+                            />
+                            <label
+                              htmlFor={`vs-courage-${i}`}
+                              className="text-xs font-semibold cursor-pointer select-none text-foreground flex items-center gap-1"
+                              title="Si está activo, la tirada de la técnica se realiza contra Coraje (COR) en lugar de Evasión (EVA)"
+                            >
+                              VS Coraje
+                            </label>
+                          </>
+                        );
+                      })()}
                     </div>
                   </>
                 )}

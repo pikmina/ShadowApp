@@ -112,7 +112,8 @@ export default function EmploymentsAdmin() {
   const handleDuplicatePosition = async (pos: any) => {
     try {
       const payload = {
-        departmentId: pos.departmentId,
+        institutionId: pos.institutionId || null,
+        departmentId: pos.departmentId || null,
         name: `${pos.name} (Copia)`,
         description: pos.description || null,
         capacity: pos.capacity,
@@ -152,6 +153,15 @@ export default function EmploymentsAdmin() {
     let totalCapacity = 0;
     let isUnlimitedCapacity = false;
 
+    (inst.directPositions || []).forEach((pos: any) => {
+      employeesCount += pos.occupiedSlots || 0;
+      if (pos.capacity === null) {
+        isUnlimitedCapacity = true;
+      } else {
+        totalCapacity += pos.capacity;
+      }
+    });
+
     (inst.departments || []).forEach((dep: any) => {
       (dep.positions || []).forEach((pos: any) => {
         employeesCount += pos.occupiedSlots || 0;
@@ -175,12 +185,13 @@ export default function EmploymentsAdmin() {
 
   const availableDepartments = useMemo(() => {
     if (!data) return [];
-    if (filterInstitution === "all" && !selectedInstitutionId) {
-      return data.flatMap((inst: any) => inst.departments || []);
-    }
     const instId = selectedInstitutionId || filterInstitution;
-    const inst = data.find((i: any) => i.id === instId);
-    return inst ? inst.departments || [] : [];
+    const inst = instId !== "all" ? data.find((i: any) => i.id === instId) : null;
+    const depts = inst ? [...(inst.departments || [])] : data.flatMap((i: any) => i.departments || []);
+    if (inst && inst.directPositions && inst.directPositions.length > 0) {
+      depts.unshift({ id: "direct_positions", name: "Puestos Directos (Sin Área)", active: true });
+    }
+    return depts;
   }, [data, filterInstitution, selectedInstitutionId]);
 
   // Selected single institution object
@@ -194,7 +205,18 @@ export default function EmploymentsAdmin() {
     if (!selectedInstitution) return [];
     const q = searchTerm.trim().toLowerCase();
 
-    return (selectedInstitution.departments || [])
+    const depts = [...(selectedInstitution.departments || [])];
+    if (selectedInstitution.directPositions && selectedInstitution.directPositions.length > 0) {
+      depts.unshift({
+        id: "direct_positions",
+        name: "Puestos Directos (Sin Área)",
+        isDirect: true,
+        active: true,
+        positions: selectedInstitution.directPositions
+      });
+    }
+
+    return depts
       .filter((dep: any) => {
         if (filterDepartment !== "all" && dep.id !== filterDepartment) return false;
         return true;
@@ -384,7 +406,10 @@ export default function EmploymentsAdmin() {
 
               <div className="flex items-center gap-2">
                 {selectedInstitution && (
-                  <DepartmentDialog institutionId={selectedInstitution.id} mutate={mutate} />
+                  <>
+                    <PositionDialog institution={selectedInstitution} mutate={mutate} />
+                    <DepartmentDialog institutionId={selectedInstitution.id} mutate={mutate} />
+                  </>
                 )}
                 {selectedInstitution && (
                   <Button
@@ -565,9 +590,15 @@ export default function EmploymentsAdmin() {
                       </button>
 
                       <div className="flex items-center gap-1.5">
-                        <PositionDialog department={dep} mutate={mutate} />
-                        <DepartmentDialog department={dep} institutionId={selectedInstitution!.id} mutate={mutate} />
-                        <DeleteAction type="departments" id={dep.id} mutate={mutate} />
+                        {dep.isDirect ? (
+                          <PositionDialog institution={selectedInstitution} mutate={mutate} />
+                        ) : (
+                          <>
+                            <PositionDialog department={dep} institution={selectedInstitution} mutate={mutate} />
+                            <DepartmentDialog department={dep} institutionId={selectedInstitution!.id} mutate={mutate} />
+                            <DeleteAction type="departments" id={dep.id} mutate={mutate} />
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -729,7 +760,7 @@ export default function EmploymentsAdmin() {
                                         </Button>
 
                                         {/* Botón Editar */}
-                                        <PositionDialog position={pos} department={dep} mutate={mutate} />
+                                        <PositionDialog position={pos} department={dep} institution={selectedInstitution} mutate={mutate} />
 
                                         {/* Botón Borrar */}
                                         <DeleteAction type="positions" id={pos.id} mutate={mutate} />
@@ -1353,7 +1384,7 @@ function InstitutionDialog({ institution, mutate }: any) {
           </div>
 
           <div className="space-y-2">
-            <Label>Icono / Emoji Reconocible</Label>
+            <Label>Icono</Label>
             <ItemIconPicker
               iconType={iconType}
               iconValue={iconValue}
@@ -1545,9 +1576,11 @@ function DepartmentDialog({ department, institutionId, mutate }: any) {
   );
 }
 
-function PositionDialog({ position, department, departmentId, mutate }: any) {
-  const targetDeptId = departmentId || department?.id;
+function PositionDialog({ position, department, institution, departmentId, mutate }: any) {
+  const targetInst = institution || department?.institution;
+  const availableDepts = targetInst?.departments || department?.institution?.departments || [];
   const [open, setOpen] = useState(false);
+  const [selectedDeptId, setSelectedDeptId] = useState<string>("none");
   const [name, setName] = useState(position?.name || "");
   const [description, setDescription] = useState(position?.description || "");
   const [capacity, setCapacity] = useState(
@@ -1608,6 +1641,8 @@ function PositionDialog({ position, department, departmentId, mutate }: any) {
       setOptionalBonuses(
         position?.optionalBonuses ? JSON.parse(JSON.stringify(position.optionalBonuses)) : []
       );
+      const initDept = position?.departmentId || department?.id || departmentId || "none";
+      setSelectedDeptId(initDept);
       setReqType("owns_element");
       setReqReference("");
       setReqValue(1);
@@ -1615,7 +1650,7 @@ function PositionDialog({ position, department, departmentId, mutate }: any) {
       setReqBonusYen(0);
       setReqBonusExp(0);
     }
-  }, [open, position, department]);
+  }, [open, position, department, departmentId]);
 
   const { data: rules } = useSWR(open ? "/api/rules" : null, fetcher);
   const { data: elements } = useSWR(open ? "/api/admin/elements" : null, fetcher);
@@ -1682,9 +1717,12 @@ function PositionDialog({ position, department, departmentId, mutate }: any) {
     const url = position ? `/api/admin/positions/${position.id}` : `/api/admin/positions`;
     const method = position ? "PUT" : "POST";
     const parsedCap = capacity === "" ? null : Number(capacity);
+    const finalDeptId = selectedDeptId === "none" ? null : selectedDeptId;
+    const finalInstId = targetInst?.id || position?.institutionId || null;
 
     const payload = {
-      departmentId: targetDeptId,
+      institutionId: finalInstId,
+      departmentId: finalDeptId,
       name: trimmedName,
       description: description.trim() || null,
       capacity: parsedCap !== null && !isNaN(parsedCap) ? parsedCap : null,
@@ -1751,6 +1789,24 @@ function PositionDialog({ position, department, departmentId, mutate }: any) {
         </DialogHeader>
         <div className="grid gap-6 md:grid-cols-2 overflow-y-auto p-6 flex-1">
           <div className="space-y-4">
+            {availableDepts.length > 0 && (
+              <div className="space-y-2">
+                <Label>Área / Departamento (Opcional)</Label>
+                <Select value={selectedDeptId} onValueChange={setSelectedDeptId}>
+                  <SelectTrigger className="h-9 text-xs bg-background/80">
+                    <SelectValue placeholder="Sin área asignada (Directo)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin área asignada (Directo a la institución)</SelectItem>
+                    {availableDepts.map((d: any) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Nombre del puesto</Label>
               <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Oficial de Patrulla, Médico Cirujano..." />

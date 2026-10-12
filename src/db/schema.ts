@@ -248,7 +248,8 @@ export const departments = pgTable('departments', {
 
 export const positions = pgTable('positions', {
   id: varchar('id', { length: 100 }).primaryKey(),
-  departmentId: varchar('department_id', { length: 100 }).references(() => departments.id, { onDelete: 'restrict' }).notNull(),
+  institutionId: varchar('institution_id', { length: 100 }).references(() => institutions.id, { onDelete: 'cascade' }),
+  departmentId: varchar('department_id', { length: 100 }).references(() => departments.id, { onDelete: 'restrict' }),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
   capacity: integer('capacity'), // null = unlimited
@@ -352,6 +353,7 @@ export const characterEnrollments = pgTable('character_enrollments', {
 
 export const institutionsRelations = relations(institutions, ({ many }) => ({
   departments: many(departments),
+  positions: many(positions),
 }));
 
 export const departmentsRelations = relations(departments, ({ one, many }) => ({
@@ -360,6 +362,7 @@ export const departmentsRelations = relations(departments, ({ one, many }) => ({
 }));
 
 export const positionsRelations = relations(positions, ({ one, many }) => ({
+  institution: one(institutions, { fields: [positions.institutionId], references: [institutions.id] }),
   department: one(departments, { fields: [positions.departmentId], references: [departments.id] }),
   employments: many(characterEmployments),
 }));

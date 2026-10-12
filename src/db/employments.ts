@@ -94,31 +94,36 @@ export async function getInstitutionsWithDepartmentsAndPositions() {
 
   return allInstitutions.map(inst => {
     const instDeps = allDepartments.filter(d => d.institutionId === inst.id);
+    const directPositions = allPositions.filter(p => !p.departmentId && (p.institutionId === inst.id || !p.institutionId));
+
+    const mapPosition = (pos: any) => ({
+      ...pos,
+      occupiedSlots: occupantsByPosition[pos.id] || 0,
+      occupants: activeEmployments
+        .filter(employment => employment.positionId === pos.id)
+        .map(employment => {
+          const directCharacter = employment.characterId ? allCharacters.find(item => item.id === employment.characterId) : null;
+          const canonId = employment.canonCharacterId ?? directCharacter?.canonCharacterId;
+          const character = directCharacter ?? (canonId ? allCharacters.find(item => item.canonCharacterId === canonId) : null);
+          const canon = canonId ? allCanonCharacters.find(item => item.id === canonId) : null;
+          return {
+            employmentId: employment.id,
+            characterId: character?.id ?? null,
+            canonCharacterId: canon?.id ?? null,
+            name: canon?.name ?? character?.name ?? 'Personaje no disponible',
+            requirementsVerified: employment.requirementsVerified,
+          };
+        }),
+    });
+
     return {
       ...inst,
+      directPositions: directPositions.map(mapPosition),
       departments: instDeps.map(dep => {
         const depPos = allPositions.filter(p => p.departmentId === dep.id);
         return {
           ...dep,
-          positions: depPos.map(pos => ({
-            ...pos,
-            occupiedSlots: occupantsByPosition[pos.id] || 0,
-            occupants: activeEmployments
-              .filter(employment => employment.positionId === pos.id)
-              .map(employment => {
-                const directCharacter = employment.characterId ? allCharacters.find(item => item.id === employment.characterId) : null;
-                const canonId = employment.canonCharacterId ?? directCharacter?.canonCharacterId;
-                const character = directCharacter ?? (canonId ? allCharacters.find(item => item.canonCharacterId === canonId) : null);
-                const canon = canonId ? allCanonCharacters.find(item => item.id === canonId) : null;
-                return {
-                  employmentId: employment.id,
-                  characterId: character?.id ?? null,
-                  canonCharacterId: canon?.id ?? null,
-                  name: canon?.name ?? character?.name ?? 'Personaje no disponible',
-                  requirementsVerified: employment.requirementsVerified,
-                };
-              }),
-          }))
+          positions: depPos.map(mapPosition)
         };
       })
     };
@@ -242,11 +247,23 @@ export async function deleteDepartment(id: string) {
 // --- Positions ---
 export async function createPosition(data: any) {
   return db.transaction(async tx => {
-    const rules = await validatePositionRules(tx, data);
+    let institutionId = data.institutionId ?? null;
+    let departmentId = data.departmentId ?? null;
+    if (departmentId && !institutionId) {
+      const [dept] = await tx.select().from(departments).where(eq(departments.id, departmentId));
+      if (dept) institutionId = dept.institutionId;
+    }
+    const rules = await validatePositionRules(tx, { ...data, departmentId, institutionId });
     const [created] = await tx.insert(positions).values({
-      id: nanoid(10), departmentId: data.departmentId, name: data.name,
-      description: data.description ?? null, capacity: data.capacity,
-      active: data.active ?? true, sortOrder: data.sortOrder ?? 0, ...rules,
+      id: nanoid(10),
+      institutionId,
+      departmentId,
+      name: data.name,
+      description: data.description ?? null,
+      capacity: data.capacity,
+      active: data.active ?? true,
+      sortOrder: data.sortOrder ?? 0,
+      ...rules,
     }).returning();
     return created;
   });
@@ -256,8 +273,23 @@ export async function updatePosition(id: string, data: Partial<typeof positions.
   return db.transaction(async tx => {
     const [existing] = await tx.select().from(positions).where(eq(positions.id, id));
     if (!existing) throw Object.assign(new Error('Position not found'), { status: 404 });
-    const rules = await validatePositionRules(tx, data, existing);
-    const [updated] = await tx.update(positions).set({ ...data, ...rules, updatedAt: new Date() }).where(eq(positions.id, id)).returning();
+
+    let departmentId = data.departmentId !== undefined ? data.departmentId : existing.departmentId;
+    let institutionId = data.institutionId !== undefined ? data.institutionId : existing.institutionId;
+
+    if (departmentId && !institutionId) {
+      const [dept] = await tx.select().from(departments).where(eq(departments.id, departmentId));
+      if (dept) institutionId = dept.institutionId;
+    }
+
+    const rules = await validatePositionRules(tx, { ...data, departmentId, institutionId }, existing);
+    const [updated] = await tx.update(positions).set({
+      ...data,
+      departmentId,
+      institutionId,
+      ...rules,
+      updatedAt: new Date()
+    }).where(eq(positions.id, id)).returning();
     return updated;
   });
 }
@@ -453,8 +485,11 @@ export async function getOwnerEmployments(owner: EmploymentOwner) {
   })
   .from(characterEmployments)
   .innerJoin(positions, eq(positions.id, characterEmployments.positionId))
-  .innerJoin(departments, eq(departments.id, positions.departmentId))
-  .innerJoin(institutions, eq(institutions.id, departments.institutionId))
+  .leftJoin(departments, eq(departments.id, positions.departmentId))
+  .leftJoin(institutions, or(
+    eq(institutions.id, departments.institutionId),
+    eq(institutions.id, positions.institutionId)
+  ))
   .where(and(
     ownerCondition,
     eq(characterEmployments.status, 'active')
@@ -474,8 +509,11 @@ export async function getPublicEmployments() {
     directCanon,
   })
   .from(institutions)
-  .innerJoin(departments, eq(departments.institutionId, institutions.id))
-  .innerJoin(positions, eq(positions.departmentId, departments.id))
+  .leftJoin(departments, eq(departments.institutionId, institutions.id))
+  .innerJoin(positions, or(
+    eq(positions.departmentId, departments.id),
+    and(isNull(positions.departmentId), eq(positions.institutionId, institutions.id))
+  ))
   .leftJoin(characterEmployments, and(eq(characterEmployments.positionId, positions.id), eq(characterEmployments.status, 'active')))
   .leftJoin(characters, eq(characters.id, characterEmployments.characterId))
   .leftJoin(canonCharacters, eq(canonCharacters.id, characters.canonCharacterId))
@@ -495,13 +533,16 @@ export async function getPublicEmployments() {
     }
     const inst = instMap.get(row.institution.id);
     
-    if (!inst.departments.has(row.department.id)) {
-      inst.departments.set(row.department.id, {
-        ...row.department,
+    const depKey = row.department?.id || `direct_${row.institution.id}`;
+    if (!inst.departments.has(depKey)) {
+      inst.departments.set(depKey, {
+        id: depKey,
+        name: row.department?.name || 'Puestos Generales',
+        isGeneral: !row.department,
         positions: new Map()
       });
     }
-    const dep = inst.departments.get(row.department.id);
+    const dep = inst.departments.get(depKey);
     
     if (!dep.positions.has(row.position.id)) {
       dep.positions.set(row.position.id, {

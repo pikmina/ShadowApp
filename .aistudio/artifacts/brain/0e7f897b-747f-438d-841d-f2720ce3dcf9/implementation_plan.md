@@ -1,74 +1,96 @@
-# Plan de Rediseño del Catálogo de Empleos e Instituciones
+# Plan de Implementación: Naturaleza de Defensa por Tipo de Daño e Identificadores Legibles
 
-Este plan reestructura la navegación y organización del área de empleos para hacerla intuitiva, limpia y fácil de gestionar mediante un flujo de dos pantallas: **1. Catálogo General de Instituciones** y **2. Detalle Interior de Institución**.
-
----
-
-## 1. Cambios en Base de Datos y Backend
-
-1. **Esquema de Base de Datos (`src/db/schema.ts`)**:
-   - Agregar campos `iconType` (`varchar`, 'lucide' | 'emoji' | null) e `iconValue` (`varchar`) a la tabla `institutions`.
-
-2. **Backend API (`server.ts` & `src/db/employments.ts`)**:
-   - Actualizar endpoints `POST /api/admin/institutions` y `PUT /api/admin/institutions/:id` para incluir `iconType` e `iconValue`.
-   - Crear endpoint `POST /api/admin/institutions/:id/duplicate` o lógica en frontend para clonar una institución completa (con sus departamentos y puestos opcionalmente).
-
-3. **Selector de Iconos (`ItemIconPicker`)**:
-   - Integrar `ItemIconPicker` en el diálogo de creación/edición de instituciones (`InstitutionDialog`) para seleccionar icono Lucide o Emoji.
+Este plan detalla cómo permitir que cada **Tipo de Daño** en el Editor de Reglas Mecánicas (Catálogo del Sistema) configure su naturaleza defensiva por defecto (Físico vs Evasión o Mental vs Coraje), heredando automáticamente esta regla al crear técnicas en el Creador de Mecánicas, además de generar **Identificadores Legibles** (slugs amigables como `id: "sensorial"`) en el registro de reglas.
 
 ---
 
-## 2. Rediseño de Vistas y UX (`EmploymentsAdmin.tsx`)
+### User Review & Critical Decisions
 
-### A. Pantalla 1: Catálogo General de Instituciones
-- **Mapeo en tarjetas limpias**:
-  - **Icono**: Renderizado mediante `<ItemIcon iconType={inst.iconType} iconValue={inst.iconValue} />`.
-  - **Nombre de Institución**.
-  - **Métricas unificadas**: `X Departamentos / X Empleados / X Vacantes`.
-  - **Barra de Acciones**:
-    - `Ver`: Cambia el estado a la vista detallada interior de la institución.
-    - `Duplicar`: Clona la institución.
-    - `Editar`: Abre el modal `InstitutionDialog` (con selector de icono).
-    - `Borrar`: Modal de confirmación `DeleteAction`.
+> [!IMPORTANT]
+> Decisiones de arquitectura y flujo confirmadas con el usuario:
 
-### B. Pantalla 2: Interior de Institución (Vista Detallada)
-- **Navegación**:
-  - Botón de regreso `← Volver al Catálogo de Instituciones`.
-  - Cabecera con el icono de la institución, título, descripción y botones globales.
+- **1. Configuración de Naturaleza Defensiva en el Editor de Reglas (`UniversalRulesCatalog.tsx`)**:
+  - Cada opción en la categoría **Tipo de Daño** (`damage_type`) tendrá un selector explícito para configurar su **Naturaleza de Defensa**:
+    - **Físico (Evasión - EVA)**
+    - **Mental (Coraje - COR)**
+  - Opciones existentes como `psiquico`, `sensorial`, `motor` y `anomalia_don` se pre-configurarán con naturaleza **Mental (Coraje)**, mientras que los tipos elementales/físicos (`fuego`, `cortante`, `fisico`, etc.) se configurarán con **Físico (Evasión)**.
 
-- **Filtros Rápidos en el Interior**:
-  - **Riesgo**: Todos, Ninguno, Leve, Moderado, Grave, Extremo.
-  - **Área**: Todos los departamentos de la institución o uno específico.
-  - **Disponibilidad**: Todos, Solo con vacantes, Ocupados al 100%.
+- **2. Herencia Automática en el Creador de Técnicas (`MechanicalBehaviorsEditor.tsx`)**:
+  - Al seleccionar un Tipo de Daño al crear una técnica, el creador consultará la regla configurada en el catálogo.
+  - Si el Tipo de Daño es de naturaleza **Mental (Coraje)**, la técnica activará automáticamente el modo **VS Coraje**.
+  - El usuario podrá anular manualmente la selección activando o desactivando el Switch **VS Coraje** si la técnica lo requiere.
 
-- **Tabla Agrupada por Departamento (Expandible)**:
-  - Encabezado de Departamento con botón `[+ Nuevo puesto]` directo para esa área.
-  - Tabla estilizada con columnas claras:
-    1. **Nombre**: Nombre del puesto + Descripción corta debajo en tipografía menor.
-    2. **Nivel de Riesgo**: Leve / Moderado / Grave / Extremo con color distintivo.
-    3. **Nivel de Responsabilidad**: Nivel I - VI / Por tema / Por venta, etc.
-    4. **Edad / Etapa Mínima**: Requisito consolidado de edad o etapa.
-    5. **Remuneración**: Yenes (¥) + Experiencia (EXP) calculados.
-    6. **Vacantes**: Ocupados / Capacidad (ej. `1/2 (1 libre)`).
-    7. **Acciones**:
-       - `Ver / Personajes Asignados`: Abre modal con detalles del puesto, requisitos completos y lista de personajes asignados (con opción de retirar o asignar).
-       - `Editar`: Abre `PositionDialog`.
-       - `Duplicar`: Clona el puesto.
-       - `Borrar`: Elimina el puesto.
+- **3. Identificadores Legibles en Nuevas Reglas (`slugifyId`)**:
+  - Al registrar nuevas reglas o categorías en el catálogo, el sistema derivará automáticamente el ID y `runtimeKey` en minúsculas y sin acentos (ej. `"Sensorial"` $\rightarrow$ `id: "sensorial"` / `runtimeKey: "sensorial"`).
 
 ---
 
-## 3. Plan de Verificación
+### 1. Overview & Core Concept
 
-1. **Prueba de Iconos**:
-   - Asignar emoji e icono Lucide a instituciones y verificar que se persistan en BD y muestren en la tarjeta.
-2. **Prueba de Navegación**:
-   - Probar cambiar entre Vista General de Instituciones y Vista Interior con el botón `Ver` y `Volver`.
-3. **Prueba de Filtros y Tabla**:
-   - Verificar filtrado por Riesgo, Área y Disponibilidad en la tabla interior.
-4. **Prueba de Duplicación**:
-   - Duplicar puestos e instituciones y verificar respuesta exitosa del servidor.
-5. **Verificación de Compilación y Calidad**:
-   - `compile_applet` (`npm run build`).
-   - `lint_applet` (`tsc --noEmit`).
-   - Pruebas automatizadas `npx vitest run src/db/__tests__/employments.test.ts`.
+- **Objetivo**:
+  Establecer la regla de defensa primaria (Físico/Evasión vs Mental/Coraje) directamente a nivel de Catálogo de Reglas para los Tipos de Daño, eliminando errores de configuración en las técnicas y garantizando que los IDs de las reglas mecánicas sean legibles y semánticos.
+
+- **Beneficio**:
+  Al seleccionar un tipo de daño como "Sensorial" o "Psíquico", la técnica sabrá automáticamente que se tira contra Coraje sin requerir configuración manual repetitiva, manteniendo el control de anulación manual en el switch **VS Coraje**.
+
+---
+
+### 2. User Experience & Visual Design
+
+1. **Editor de Reglas Mecánicas (`UniversalRulesCatalog.tsx`)**:
+   - En la sección de edición para las opciones de la categoría **Tipo de Daño**, se muestra un selector de **Defensa Objetivo por Defecto**:
+     - `[ Físico (Evasión) | Mental (Coraje) ]`.
+   - Al guardar o crear nuevos tipos de daño (ej. "Sensorial"), el ID asignado se genera limpia y automáticamente como `sensorial`.
+
+2. **Creador de Técnicas / Mecánico (`MechanicalBehaviorsEditor.tsx`)**:
+   - Al añadir un efecto de daño y cambiar el **Tipo de Daño** (ej. a "Sensorial" o "Mental"), el creador consulta la opción seleccionada.
+   - El Switch **VS Coraje** se ajusta automáticamente según la regla del catálogo:
+     - Si la opción es de naturaleza Mental $\rightarrow$ Switch **VS Coraje** encendido (`vsCourage: true`).
+     - Si es de naturaleza Física $\rightarrow$ Switch **VS Coraje** apagado (`vsCourage: false`).
+   - Un distintivo sutil indica: *"Heredado del tipo de daño (VS Coraje)"*, el cual se actualiza de inmediato si el usuario cambia el switch manualmente.
+
+---
+
+### 3. Key Product Decisions & Trade-Offs
+
+- **Decisión 1: Atributo `defenseType` en las Opciones del Catálogo**:
+  - *Elección*: Almacenar `defenseType: 'evasion' | 'courage'` en el objeto de configuración/parámetros de la opción de tipo de daño.
+  - *Por qué*: Centraliza la lógica en las Reglas del Sistema, evitando depender de comparaciones de texto sueltas.
+
+- **Decisión 2: Generador de Slugs `slugifyId`**:
+  - *Elección*: Función de conversión que elimina tildes, caracteres especiales y espacios, produciendo cadenas en minúsculas.
+  - *Ejemplo*: `"Sensorial"` $\rightarrow$ `"sensorial"`, `"Aumento de Daño"` $\rightarrow$ `"aumento_de_dano"`.
+
+---
+
+### 4. Technical Architecture & Data Strategy
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                           System Rules Catalog (damage_type options)                           │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Option "Sensorial"      ──► defenseType: 'courage'   ──► id: "sensorial"                        │
+│ Option "Fuego"          ──► defenseType: 'evasion'   ──► id: "fuego"                            │
+└────────────────────────────────────────────────┬────────────────────────────────────────────────┘
+                                                 │
+                                                 ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                            Technique Creator (Effect Execution)                                │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  User selects "Sensorial" Damage Type                                                           │
+│  └─► Look up option rule in catalog                                                             │
+│      └─► defenseType === 'courage' ──► Auto-set Switch VS Coraje = ON                            │
+│                                        (Manual toggle override still available)                 │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Archivos Afectados**:
+  1. `src/domain/coreRuleCatalog.ts`: Inclusión de `defenseType: 'evasion' | 'courage'` en las opciones por defecto de `damage_type`.
+  2. `src/components/mechanics/UniversalRulesCatalog.tsx`:
+     - UI para editar `defenseType` en las opciones de `damage_type`.
+     - Implementación de `slugifyId(name)` para IDs legibles en nuevas reglas/opciones.
+  3. `src/components/mechanics/MechanicalBehaviorsEditor.tsx`:
+     - Consulta de `defenseType` del tipo de daño seleccionado para ajustar automáticamente `vsCourage`.
+     - Switch **VS Coraje** para permitir anulación manual.
+  4. `src/domain/characterTechnique.ts`:
+     - Asegurar que la resolución de tiradas tome en cuenta `vsCourage` para la tirada contra Coraje (COR).

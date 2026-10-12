@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import useSWR from 'swr';
 import { fetcher } from '../../lib/api';
 import { nanoid } from 'nanoid';
+import { slugifyId } from '../../domain/slug';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -202,22 +203,48 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
     return Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'altered_status') : [];
   }, [elementsData]);
 
+  const sanitizeCategoryRules = (category: Category): Category => {
+    const isDamageType = category.coreKey === 'damage_type' || category.id === 'damage_type' || category.id === 'core.damage_type';
+    if (!isDamageType) return category;
+    return {
+      ...category,
+      rules: (category.rules || []).map(r => {
+        const currentDefense = (r.component as any)?.defenseType || 
+          (["psiquico", "mental", "sensorial", "motor", "anomalia_don"].includes((r as any).runtimeKey || slugifyId(r.name)) || 
+           r.name?.toLowerCase().includes("mental") || 
+           r.name?.toLowerCase().includes("psíquico") ? "courage" : "evasion");
+        return {
+          ...r,
+          ruleType: 'component' as const,
+          component: {
+            kind: 'damage_type',
+            defenseType: currentDefense,
+          },
+          effect: undefined,
+        };
+      }),
+    };
+  };
+
   const save = async (next: SystemMechanicsConfig) => {
-    const parsed = systemMechanicsConfigSchema.safeParse(next);
+    const sanitizedNext = next.map(sanitizeCategoryRules);
+    const parsed = systemMechanicsConfigSchema.safeParse(sanitizedNext);
     if (!parsed.success) { setError(parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('\n')); return; }
     setSaving(true); setError('');
     try { await onSave(parsed.data); setDraft(null); setBackupDraft(null); } catch (e) { setError(e instanceof Error ? e.message : 'Error al guardar'); } finally { setSaving(false); }
   };
 
   const saveWithoutClosing = async (draftOverride?: Category): Promise<boolean> => {
-    const currentDraft = draftOverride || draft;
+    let currentDraft = draftOverride || draft;
     if (!currentDraft) return false;
-    const next = mechanics.some(c => c.id === currentDraft.id) ? mechanics.map(c => c.id === currentDraft.id ? currentDraft : c) : [...mechanics, currentDraft];
+    currentDraft = sanitizeCategoryRules(currentDraft);
+    const next = mechanics.some(c => c.id === currentDraft.id) ? mechanics.map(c => c.id === currentDraft.id ? currentDraft! : c) : [...mechanics, currentDraft];
     const parsed = systemMechanicsConfigSchema.safeParse(next);
     if (!parsed.success) { setError(parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('\n')); return false; }
     setSaving(true); setError('');
     try { 
       await onSave(parsed.data); 
+      setDraft(currentDraft);
       return true;
     } catch (e) { 
       setError(e instanceof Error ? e.message : 'Error al guardar'); 
@@ -784,7 +811,20 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
           setBackupDraft(structuredClone(draft));
           const contract = getCoreCategoryContract(draft);
           let newRule: any;
-          if (contract) {
+          if (contract?.coreKey === 'damage_type' || draft.coreKey === 'damage_type' || draft.id === 'damage_type') {
+            newRule = {
+              id: newId,
+              name: 'Nueva opción',
+              cost: 0,
+              ruleType: 'component',
+              runtimeKey: 'nueva_opcion',
+              isAvailable: true,
+              component: {
+                kind: 'damage_type',
+                defenseType: 'evasion',
+              },
+            };
+          } else if (contract) {
             if (contract.kind === 'ce_adjustment') {
               newRule = {
                 id: newId,
@@ -888,6 +928,106 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                       );
                     }
 
+                    const isDamageTypeCategory = contract?.coreKey === 'damage_type' || draft.id === 'damage_type' || draft.coreKey === 'damage_type';
+
+                    if (isDamageTypeCategory) {
+                      const currentDefenseType = (editingRule.component as any)?.defenseType || 
+                        (["psiquico", "mental", "sensorial", "motor", "anomalia_don"].includes(editingRule.runtimeKey || slugifyId(editingRule.name)) || 
+                         editingRule.name?.toLowerCase().includes("mental") || 
+                         editingRule.name?.toLowerCase().includes("psíquico") ? "courage" : "evasion");
+                      const isCourage = currentDefenseType === 'courage';
+
+                      return (
+                        <div className="space-y-4">
+                          <div className="grid gap-4 sm:grid-cols-3">
+                            <div className="space-y-2 sm:col-span-1">
+                              <Label className="text-xs font-semibold">Nombre del Tipo de Daño</Label>
+                              <Input 
+                                value={editingRule.name} 
+                                onChange={e => {
+                                  const rawVal = e.target.value;
+                                  const slug = slugifyId(rawVal);
+                                  patchRule(editingIndex, { 
+                                    name: rawVal,
+                                    ruleType: 'component',
+                                    component: { kind: 'damage_type', defenseType: currentDefenseType },
+                                    effect: undefined,
+                                    ...(isNewOption || !editingRule.runtimeKey ? { runtimeKey: slug } : {})
+                                  });
+                                }} 
+                                placeholder="Ej. Sensorial, Físico, Mental..." 
+                              />
+                            </div>
+                            <div className="space-y-2 sm:col-span-1">
+                              <Label className="text-xs font-semibold">Identificador (ID)</Label>
+                              <Input 
+                                value={editingRule.runtimeKey || slugifyId(editingRule.name)} 
+                                onChange={e => {
+                                  const customKey = slugifyId(e.target.value);
+                                  patchRule(editingIndex, { 
+                                    runtimeKey: customKey,
+                                    ruleType: 'component',
+                                    component: { kind: 'damage_type', defenseType: currentDefenseType },
+                                    effect: undefined,
+                                  });
+                                }} 
+                                placeholder="Ej. sensorial" 
+                                className="font-mono text-xs"
+                              />
+                            </div>
+                            <div className="space-y-2 sm:col-span-1">
+                              <Label className="text-xs font-semibold">Ajuste de CE (Coste Estamina)</Label>
+                              <Input type="number" value={editingRule.cost} onChange={e => patchRule(editingIndex, { 
+                                cost: Number(e.target.value),
+                                ruleType: 'component',
+                                component: { kind: 'damage_type', defenseType: currentDefenseType },
+                                effect: undefined,
+                              })} />
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-xs font-semibold">Defensa Objetivo (Naturaleza del Daño)</Label>
+                                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                                    isCourage 
+                                      ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' 
+                                      : 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+                                  }`}>
+                                    {isCourage ? '[COR] MENTAL / CORAJE' : '[EVA] FÍSICO / EVASIÓN'}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                  Determina si al seleccionar este tipo de daño en una técnica se usará por defecto VS Evasión (Físico) o VS Coraje (Mental).
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className={`text-xs font-semibold ${isCourage ? 'text-purple-400' : 'text-sky-400'}`}>
+                                  {isCourage ? "VS Coraje" : "VS Evasión"}
+                                </span>
+                                <Switch
+                                  checked={isCourage}
+                                  onCheckedChange={(checked) => {
+                                    const nextType = checked ? 'courage' : 'evasion';
+                                    patchRule(editingIndex, {
+                                      ruleType: 'component',
+                                      component: {
+                                        kind: 'damage_type',
+                                        defenseType: nextType,
+                                      },
+                                      effect: undefined,
+                                    });
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     if (contract?.editorMode === 'parameter') {
                       const isSelfDamage = contract?.coreKey === 'self_damage';
                       return (
@@ -943,43 +1083,32 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                           <Label className="text-xs font-semibold">Nombre de Opción</Label>
                           <Input 
                             value={editingRule.name} 
-                            onChange={e => patchRule(editingIndex, { name: e.target.value })} 
-                            placeholder="Ej. Daño Severo" 
+                            onChange={e => {
+                              const newName = e.target.value;
+                              const slug = slugifyId(newName);
+                              patchRule(editingIndex, { 
+                                name: newName,
+                                ...(isNewOption || !editingRule.runtimeKey ? { runtimeKey: slug } : {})
+                              });
+                            }} 
+                            placeholder="Ej. Sensorial, Daño Severo..." 
+                          />
+                        </div>
+                        <div className="space-y-2 sm:col-span-1">
+                          <Label className="text-xs font-semibold">Identificador (ID)</Label>
+                          <Input 
+                            value={editingRule.runtimeKey || slugifyId(editingRule.name)} 
+                            onChange={e => {
+                              const customKey = slugifyId(e.target.value);
+                              patchRule(editingIndex, { runtimeKey: customKey });
+                            }} 
+                            placeholder="Ej. sensorial" 
+                            className="font-mono text-xs"
                           />
                         </div>
                         <div className="space-y-2 sm:col-span-1">
                           <Label className="text-xs font-semibold">CE adicional (Coste de Estamina)</Label>
                           <Input type="number" value={editingRule.cost} onChange={e => patchRule(editingIndex, { cost: Number(e.target.value) })} />
-                        </div>
-                        <div className="space-y-2 sm:col-span-1">
-                          <Label className="text-xs font-semibold">Clase de Regla</Label>
-                          {contract ? (
-                            <div className="h-9 px-3 py-2 rounded-md border bg-muted/40 text-xs font-medium text-foreground flex items-center">
-                              {contract.ruleClassLabel}
-                            </div>
-                          ) : (
-                            <Select 
-                              value={editingRule.ruleType} 
-                              onValueChange={ruleType => setDraft({ 
-                                ...draft, 
-                                rules: draft.rules.map((old, j) => editingIndex !== j ? old : { 
-                                  id: old.id, 
-                                  name: old.name, 
-                                  cost: old.cost, 
-                                  mechDesc: old.mechDesc, 
-                                  ruleType: ruleType as typeof old.ruleType, 
-                                  ...(ruleType === 'effect' ? { effect: createEffectDefinition('damage') } : ruleType === 'component' ? { component: structuredClone(componentTemplates.duration) } : { effect: undefined, component: undefined }) 
-                                }) 
-                              })}
-                            >
-                              <SelectTrigger><SelectValue>{{ effect: "Efecto", component: "Aplicación / regla", cost_modifier: "Ajuste CE", ce_adjustment: "Ajuste CE" }[editingRule.ruleType]}</SelectValue></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="effect">Efecto</SelectItem>
-                                <SelectItem value="component">Aplicación / regla</SelectItem>
-                                <SelectItem value="cost_modifier">Ajuste CE</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
                         </div>
                       </div>
                     );
@@ -1005,7 +1134,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                     </div>
                   </div>
 
-                  {editingRule.effect && contract?.kind !== 'ce_adjustment' && (
+                  {editingRule.effect && contract?.kind !== 'ce_adjustment' && !(contract?.coreKey === 'damage_type' || draft.id === 'damage_type' || draft.coreKey === 'damage_type') && (
                     <div className="pt-2">
                       <Label className="text-xs font-semibold mb-2 block">Definición de Efecto Mecánico</Label>
                       <MechanicalEffectDefinitionEditor 
@@ -1022,7 +1151,7 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                     </div>
                   )}
 
-                  {editingRule.component && contract?.kind !== 'ce_adjustment' && (
+                  {editingRule.component && contract?.kind !== 'ce_adjustment' && !(contract?.coreKey === 'damage_type' || draft.id === 'damage_type' || draft.coreKey === 'damage_type') && (
                     <div className="pt-2">
                       <Label className="text-xs font-semibold mb-2 block">Parámetros de la Regla / Componente</Label>
                       <RuleComponentEditor value={editingRule.component} onChange={component => patchRule(editingIndex, { component })} />
@@ -1098,6 +1227,19 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                     <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${r.cost > 0 ? 'bg-emerald-900/30 text-emerald-400 font-bold' : 'bg-muted text-muted-foreground'}`}>
                       {r.cost > 0 ? `+${r.cost}` : r.cost} CE
                     </span>
+                    {(draft.coreKey === 'damage_type' || draft.id === 'damage_type') && (() => {
+                      const isCourage = (r.component as any)?.defenseType === 'courage' || 
+                        (["psiquico", "mental", "sensorial", "motor", "anomalia_don"].includes(r.runtimeKey) || r.name?.toLowerCase().includes("mental") || r.name?.toLowerCase().includes("psíquico"));
+                      return (
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                          isCourage 
+                            ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' 
+                            : 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+                        }`}>
+                          {isCourage ? 'VS CORAJE (COR)' : 'VS EVASIÓN (EVA)'}
+                        </span>
+                      );
+                    })()}
                     {r.isBaseRule && (
                       <span className="text-[10px] uppercase tracking-wider font-semibold border px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary border-primary/30">
                         Regla Base General

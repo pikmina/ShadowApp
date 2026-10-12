@@ -774,35 +774,73 @@ export function describeMechanicalCondition(
         );
       }
 
-      const matchingOption = allOptions.find(
-        (o) => o.id === cond.signalId || o.runtimeKey === cond.signalId
-      );
+      const sigKey = (cond.signalId || "").trim().toLowerCase();
+      let matchingOption = allOptions.find((o) => {
+        if (!sigKey) return false;
+        const optId = (o.id || "").toLowerCase();
+        const optKey = (o.runtimeKey || "").toLowerCase();
+        return (
+          optId === sigKey ||
+          optKey === sigKey ||
+          optId.endsWith(`.${sigKey}`) ||
+          sigKey.endsWith(`.${optKey}`) ||
+          sigKey.includes(`.${optKey}.`) ||
+          sigKey.includes(`.${optKey}`) ||
+          sigKey.includes(optKey)
+        );
+      });
+
+      const fallbackSignalMap: Record<string, string> = {
+        physical_contact: "Contacto físico",
+        visual_contact: "Contacto visual",
+        auditory_contact: "Contacto auditivo",
+        speak_directly: "Hablar directamente al objetivo",
+        conscious: "Objetivo consciente",
+        target_conscious: "Objetivo consciente",
+        permiso_master: "Permiso del Master",
+        master_narrative_permission: "Permiso del Master",
+        consumption: "Consumir algo",
+        consume_something: "Consumir algo",
+        emotion: "Emoción intensa",
+        intense_emotion: "Emoción intensa",
+      };
+
+      let resolvedName = matchingOption?.name;
+      if (!resolvedName && sigKey) {
+        for (const [key, label] of Object.entries(fallbackSignalMap)) {
+          if (sigKey.includes(key)) {
+            resolvedName = label;
+            break;
+          }
+        }
+      }
 
       const hasDesc = cond.description && cond.description.trim().length > 0;
 
-      if (matchingOption) {
-        const optName = matchingOption.name;
+      if (resolvedName) {
         if (hasDesc) {
           const detail = cond.description!.trim();
           const detailFormatted = lowerFirstIfAppropriate(detail);
-          if (optName.toLowerCase().includes("consumir")) {
+          if (resolvedName.toLowerCase().includes("consumir")) {
             text = `Requiere consumir ${detailFormatted}`;
-          } else if (optName.toLowerCase().startsWith("contacto ")) {
-            text = `Requiere ${lowerFirstIfAppropriate(optName)} (${detail})`;
+          } else if (resolvedName.toLowerCase().startsWith("contacto ")) {
+            text = `Requiere ${lowerFirstIfAppropriate(resolvedName)} (${detail})`;
           } else {
-            text = `${optName} (${detail})`;
+            text = `${resolvedName} (${detail})`;
           }
         } else {
-          if (optName.toLowerCase().startsWith("contacto ")) {
-            text = `Requiere ${lowerFirstIfAppropriate(optName)}`;
-          } else if (optName.toLowerCase().startsWith("debe ")) {
-            text = `Requiere ${lowerFirstIfAppropriate(optName.slice(5))}`;
-          } else if (optName.toLowerCase() === "consumir algo") {
+          if (resolvedName.toLowerCase().startsWith("contacto ")) {
+            text = `Requiere ${lowerFirstIfAppropriate(resolvedName)}`;
+          } else if (resolvedName.toLowerCase().startsWith("debe ")) {
+            text = `Requiere ${lowerFirstIfAppropriate(resolvedName.slice(5))}`;
+          } else if (resolvedName.toLowerCase() === "consumir algo") {
             text = "Requiere consumir algo";
-          } else if (optName.toLowerCase() === "objetivo consciente") {
+          } else if (resolvedName.toLowerCase() === "objetivo consciente") {
             text = "Requiere objetivo consciente";
+          } else if (resolvedName.toLowerCase().includes("permiso del master")) {
+            text = "Permiso del Master";
           } else {
-            text = `Requiere ${lowerFirstIfAppropriate(optName)}`;
+            text = `Requiere ${lowerFirstIfAppropriate(resolvedName)}`;
           }
         }
       } else {
@@ -816,7 +854,7 @@ export function describeMechanicalCondition(
           }
         } else if (cond.signalId && cond.signalId.trim().length > 0) {
           const sig = cond.signalId.trim();
-          if (sig === "permiso_master") {
+          if (sig === "permiso_master" || sig.includes("master")) {
             text = "Permiso del Master";
           } else {
             text = `Condición manual (${sig})`;

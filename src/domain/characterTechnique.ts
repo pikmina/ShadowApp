@@ -389,7 +389,24 @@ export function deriveEffectiveBehaviorResolution(
   const isOffensive = explicitClassification !== undefined && explicitClassification !== null
     ? explicitClassification === 'offensive'
     : (behaviorCategories.includes('offensive') || hasDamage);
-  const isDamageMental = damageEff?.damageType === 'psiquico' || (damageEff as any)?.tag === 'mental';
+  const isControl = explicitClassification !== undefined && explicitClassification !== null
+    ? explicitClassification === 'control'
+    : behaviorCategories.includes('control');
+  const isOffensiveOrControl = isOffensive || isControl;
+
+  const isDamageMental = (behavior.effects || []).some((e: any) =>
+    e.vsCourage === true ||
+    e.targetDefense === 'COR' ||
+    e.attackType === 'mental' ||
+    e.damageType === 'psiquico' ||
+    e.damageType === 'mental' ||
+    e.elementId === 'psiquico' ||
+    e.elementId === 'mental' ||
+    e.type === 'psiquico' ||
+    e.type === 'mental' ||
+    e.tag === 'mental' ||
+    (e.type === 'damage' && (e.damageType === 'psiquico' || e.damageType === 'mental'))
+  );
   const isDamagePhysical = damageEff?.damageType === 'fisico';
 
   const storedRes = behavior.resolution;
@@ -410,10 +427,9 @@ export function deriveEffectiveBehaviorResolution(
 
   if (isExplicit && storedRes) {
     let attackType = storedRes.attackType;
-    if (storedRes.type === 'roll' && !attackType && isOffensive) {
+    if (storedRes.type === 'roll' && !attackType && isOffensiveOrControl) {
       if (isDamageMental) attackType = 'mental';
-      else if (isDamagePhysical) attackType = 'physical';
-      // else if damage exists but without damageType, leave undefined for validation warning
+      else attackType = 'physical';
     }
 
     let oppositionKind: OppositionKind | undefined = undefined;
@@ -472,8 +488,8 @@ export function deriveEffectiveBehaviorResolution(
   }
 
   // Otherwise, DERIVE resolution automatically based on classification:
-  if (isOffensive) {
-    const attackType: AttackType = isDamageMental ? 'mental' : 'physical';
+  if (isOffensiveOrControl) {
+    const attackType: AttackType = (storedRes?.attackType === 'mental' || isDamageMental) ? 'mental' : 'physical';
     const targetDefense: 'EVA' | 'COR' = attackType === 'physical' ? 'EVA' : 'COR';
     const oppositionLabel = attackType === 'physical' ? 'Evasión' : 'Coraje';
     const oppositionKind: OppositionKind = attackType === 'physical' ? 'target_evasion' : 'target_courage';

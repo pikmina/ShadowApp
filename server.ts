@@ -1175,7 +1175,16 @@ async function startServer() {
   app.post("/api/admin/positions", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { createPosition } = await import("./src/db/employments.ts");
-      const parsed = z.object({ departmentId: z.string(), name: z.string().min(1), description: z.string().optional().nullable(), capacity: z.number().int().min(0).nullable().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional(), ...positionEmploymentRulesSchema.shape }).safeParse(req.body);
+      const parsed = z.object({
+        institutionId: z.string().optional().nullable(),
+        departmentId: z.string().optional().nullable(),
+        name: z.string().min(1),
+        description: z.string().optional().nullable(),
+        capacity: z.number().int().min(0).nullable().optional(),
+        active: z.boolean().optional(),
+        sortOrder: z.number().int().optional(),
+        ...positionEmploymentRulesSchema.shape
+      }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
       res.json(await createPosition(parsed.data));
     } catch (error: any) { console.error(error); res.status(error.status ?? 500).json({ error: error.message }); }
@@ -1184,7 +1193,16 @@ async function startServer() {
   app.put("/api/admin/positions/:id", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
       const { updatePosition } = await import("./src/db/employments.ts");
-      const parsed = z.object({ name: z.string().min(1).optional(), description: z.string().optional().nullable(), capacity: z.number().int().min(0).nullable().optional(), active: z.boolean().optional(), sortOrder: z.number().int().optional(), ...positionEmploymentRulesSchema.shape }).safeParse(req.body);
+      const parsed = z.object({
+        institutionId: z.string().optional().nullable(),
+        departmentId: z.string().optional().nullable(),
+        name: z.string().min(1).optional(),
+        description: z.string().optional().nullable(),
+        capacity: z.number().int().min(0).nullable().optional(),
+        active: z.boolean().optional(),
+        sortOrder: z.number().int().optional(),
+        ...positionEmploymentRulesSchema.shape
+      }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
       res.json(await updatePosition(req.params.id, parsed.data));
     } catch (error: any) { console.error(error); res.status(error.status ?? 500).json({ error: error.message }); }

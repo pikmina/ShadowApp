@@ -161,9 +161,9 @@ export const CORE_CATEGORY_CONTRACTS: Record<CoreCategoryKey, CoreCategoryContra
   },
   damage_type: {
     coreKey: 'damage_type',
-    kind: 'ce_adjustment',
-    ruleClass: 'cost_modifier',
-    ruleClassLabel: 'Ajuste de CE',
+    kind: 'component',
+    ruleClass: 'component',
+    ruleClassLabel: 'Aplicación / Regla',
     editorMode: 'parameter',
   },
 
@@ -387,19 +387,19 @@ export function createCoreCategories(): SystemMechanicsConfig {
   effect('damage', '5d8', '5D8', { type: 'damage', dice: '5D8' }, '5D8', 7);
 
   // Damage Types (Canonical Core Category)
-  option('damage_type', 'fisico', 'Físico', undefined, 'fisico', 0);
-  option('damage_type', 'cinetico', 'Cinético', undefined, 'cinetico', 0);
-  option('damage_type', 'fuego', 'Fuego', undefined, 'fuego', 0);
-  option('damage_type', 'hielo', 'Hielo', undefined, 'hielo', 0);
-  option('damage_type', 'electrico', 'Eléctrico', undefined, 'electrico', 0);
-  option('damage_type', 'acido', 'Ácido', undefined, 'acido', 0);
-  option('damage_type', 'psiquico', 'Psíquico / Mental', undefined, 'psiquico', 0);
-  option('damage_type', 'sensorial', 'Sensorial', undefined, 'sensorial', 0);
-  option('damage_type', 'motor', 'Motor', undefined, 'motor', 0);
-  option('damage_type', 'anomalia_don', 'Anomalía de Don', undefined, 'anomalia_don', 0);
-  option('damage_type', 'cortante', 'Cortante', undefined, 'cortante', 0);
-  option('damage_type', 'perforante', 'Perforante', undefined, 'perforante', 0);
-  option('damage_type', 'contundente', 'Contundente', undefined, 'contundente', 0);
+  option('damage_type', 'fisico', 'Físico', { kind: 'damage_type', defenseType: 'evasion' } as any, 'fisico', 0);
+  option('damage_type', 'cinetico', 'Cinético', { kind: 'damage_type', defenseType: 'evasion' } as any, 'cinetico', 0);
+  option('damage_type', 'fuego', 'Fuego', { kind: 'damage_type', defenseType: 'evasion' } as any, 'fuego', 0);
+  option('damage_type', 'hielo', 'Hielo', { kind: 'damage_type', defenseType: 'evasion' } as any, 'hielo', 0);
+  option('damage_type', 'electrico', 'Eléctrico', { kind: 'damage_type', defenseType: 'evasion' } as any, 'electrico', 0);
+  option('damage_type', 'acido', 'Ácido', { kind: 'damage_type', defenseType: 'evasion' } as any, 'acido', 0);
+  option('damage_type', 'psiquico', 'Psíquico / Mental', { kind: 'damage_type', defenseType: 'courage' } as any, 'psiquico', 0);
+  option('damage_type', 'sensorial', 'Sensorial', { kind: 'damage_type', defenseType: 'courage' } as any, 'sensorial', 0);
+  option('damage_type', 'motor', 'Motor', { kind: 'damage_type', defenseType: 'courage' } as any, 'motor', 0);
+  option('damage_type', 'anomalia_don', 'Anomalía de Don', { kind: 'damage_type', defenseType: 'courage' } as any, 'anomalia_don', 0);
+  option('damage_type', 'cortante', 'Cortante', { kind: 'damage_type', defenseType: 'evasion' } as any, 'cortante', 0);
+  option('damage_type', 'perforante', 'Perforante', { kind: 'damage_type', defenseType: 'evasion' } as any, 'perforante', 0);
+  option('damage_type', 'contundente', 'Contundente', { kind: 'damage_type', defenseType: 'evasion' } as any, 'contundente', 0);
 
   // Healing: Canonical Core Category
   // Fixed healing

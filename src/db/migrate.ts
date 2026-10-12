@@ -365,6 +365,9 @@ export async function runMigration() {
           ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "min_posts" integer;
           ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "requirements" jsonb DEFAULT '{"operator":"all","requirements":[]}'::jsonb NOT NULL;
           ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "optional_bonuses" jsonb DEFAULT '[]'::jsonb NOT NULL;
+          ALTER TABLE "positions" ALTER COLUMN "department_id" DROP NOT NULL;
+          ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "institution_id" varchar(100);
+          UPDATE "positions" p SET "institution_id" = d."institution_id" FROM "departments" d WHERE p."department_id" = d."id" AND p."institution_id" IS NULL;
           ALTER TABLE "shop_offers" ADD COLUMN IF NOT EXISTS "requirements" jsonb DEFAULT '{"operator":"all","requirements":[]}'::jsonb NOT NULL;
           ALTER TABLE "character_techniques" ADD COLUMN IF NOT EXISTS "activation_attribute_id" text;
           ALTER TABLE "character_techniques" ADD COLUMN IF NOT EXISTS "classification" "technique_classification";
@@ -419,6 +422,10 @@ export async function runMigration() {
 
             IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'positions_department_id_departments_id_fk') THEN
               ALTER TABLE "positions" ADD CONSTRAINT "positions_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE restrict ON UPDATE no action;
+            END IF;
+
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'positions_institution_id_institutions_id_fk') THEN
+              ALTER TABLE "positions" ADD CONSTRAINT "positions_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;
             END IF;
 
             IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'character_employments_character_id_characters_id_fk') THEN
