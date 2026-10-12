@@ -61,8 +61,14 @@ export async function ensureSystemSchemaColumns() {
           hasElementIconColumns = true;
         }
 
-        // Safely attempt to ensure players and character extension columns
+        // Safely attempt to ensure institutions, departments, positions, players and character extension columns
         try {
+          await pool.query('ALTER TABLE "institutions" ADD COLUMN IF NOT EXISTS "icon_type" varchar(20);');
+          await pool.query('ALTER TABLE "institutions" ADD COLUMN IF NOT EXISTS "icon_value" varchar(255);');
+          await pool.query('ALTER TABLE "departments" ADD COLUMN IF NOT EXISTS "default_level_id" varchar(100);');
+          await pool.query('ALTER TABLE "departments" ADD COLUMN IF NOT EXISTS "default_risk_id" varchar(100);');
+          await pool.query('ALTER TABLE "positions" ADD COLUMN IF NOT EXISTS "min_posts" integer;');
+
           await pool.query(`
             DO $$
             BEGIN
@@ -87,8 +93,8 @@ export async function ensureSystemSchemaColumns() {
           await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "player_id" integer;');
           await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;');
           await pool.query('ALTER TABLE "characters" ADD COLUMN IF NOT EXISTS "canon_character_id" text;');
-        } catch {
-          // Schema additions skipped if user lacks DDL permissions
+        } catch (schemaErr) {
+          console.warn("Notice: Schema columns update warning:", schemaErr);
         }
       } catch {
         // Safe check

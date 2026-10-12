@@ -210,6 +210,8 @@ export async function runMigration() {
             "id" varchar(100) PRIMARY KEY NOT NULL,
             "name" varchar(255) NOT NULL,
             "description" text,
+            "icon_type" varchar(20),
+            "icon_value" varchar(255),
             "active" boolean DEFAULT true NOT NULL,
             "sort_order" integer DEFAULT 0 NOT NULL,
             "created_at" timestamp DEFAULT now() NOT NULL,
@@ -221,6 +223,8 @@ export async function runMigration() {
             "institution_id" varchar(100) NOT NULL,
             "name" varchar(255) NOT NULL,
             "description" text,
+            "default_level_id" varchar(100),
+            "default_risk_id" varchar(100),
             "active" boolean DEFAULT true NOT NULL,
             "sort_order" integer DEFAULT 0 NOT NULL,
             "created_at" timestamp DEFAULT now() NOT NULL,
@@ -340,6 +344,10 @@ export async function runMigration() {
           ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "display_name" text;
           ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text;
           ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updated_at" timestamp DEFAULT now();
+          ALTER TABLE "institutions" ADD COLUMN IF NOT EXISTS "icon_type" varchar(20);
+          ALTER TABLE "institutions" ADD COLUMN IF NOT EXISTS "icon_value" varchar(255);
+          ALTER TABLE "departments" ADD COLUMN IF NOT EXISTS "default_level_id" varchar(100);
+          ALTER TABLE "departments" ADD COLUMN IF NOT EXISTS "default_risk_id" varchar(100);
           ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "mechanical_behaviors" jsonb DEFAULT '[]'::jsonb;
           ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_type" text;
           ALTER TABLE "system_elements" ADD COLUMN IF NOT EXISTS "icon_value" text;
