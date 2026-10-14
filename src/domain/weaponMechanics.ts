@@ -1,5 +1,6 @@
 import { getAlteredStatusLabel } from "./mechanicalLabels.ts";
 import { getCanonicalStatusDefaultTurns } from "./canonicalAlteredStatuses.ts";
+import type { CategoryOptionView } from "./coreRuleCatalog.ts";
 
 export interface BuildWeaponDescriptionParams {
   name?: string;
@@ -131,4 +132,49 @@ export function buildWeaponMechanicalDescription(params: BuildWeaponDescriptionP
   }
 
   return parts.join(" ");
+}
+
+/**
+ * Extrae el número de caras (sides) de una especificación de dado (ej. "D10" -> 10, "1D12" -> 12, "2d6" -> 6).
+ * Devuelve null si la cadena no representa dados con caras (por ejemplo valores fijos como "4").
+ */
+export function extractDieSides(diceStr?: string | null): number | null {
+  if (!diceStr || typeof diceStr !== "string") return null;
+  const trimmed = diceStr.trim();
+  // 1. Caso de tipo de dado como "D10", "d12", "D6"
+  const singleDieMatch = /^[dD](\d+)$/.exec(trimmed);
+  if (singleDieMatch && singleDieMatch[1]) {
+    const sides = parseInt(singleDieMatch[1], 10);
+    return Number.isNaN(sides) || sides <= 0 ? null : sides;
+  }
+  // 2. Caso de fórmula con cantidad como "1D10", "2d12", "3D6"
+  const countDieMatch = /^\d+[dD](\d+)$/.exec(trimmed);
+  if (countDieMatch && countDieMatch[1]) {
+    const sides = parseInt(countDieMatch[1], 10);
+    return Number.isNaN(sides) || sides <= 0 ? null : sides;
+  }
+  return null;
+}
+
+/**
+ * Filtra las opciones de daño del catálogo de reglas basándose estrictamente en propiedades
+ * estructuradas (effect.dice y formula) comparando las caras del dado con baseDice del tipo de arma.
+ * No evalúa nombres de presentación, no usa regex heurísticas sobre runtimeKey y jamás fabrica opciones sintéticas.
+ */
+export function filterDamageOptionsByBaseDice(
+  options: CategoryOptionView[],
+  baseDice?: string | null
+): CategoryOptionView[] {
+  const targetSides = extractDieSides(baseDice || "D10");
+  if (targetSides === null) return [];
+
+  return (options || []).filter((opt) => {
+    // Inspeccionar la propiedad estructurada canónica: opt.effect.dice
+    const effectDice = opt.effect?.dice;
+    const formula = typeof effectDice === "string" && effectDice.trim() ? effectDice : opt.formula;
+    if (!formula || typeof formula !== "string") return false;
+
+    const optSides = extractDieSides(formula);
+    return optSides !== null && optSides === targetSides;
+  });
 }

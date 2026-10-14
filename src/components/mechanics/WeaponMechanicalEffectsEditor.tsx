@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { nanoid } from "nanoid";
-import { Zap, Plus, Trash2, Info, Sparkles, Shield, AlertTriangle, Clock } from "lucide-react";
+import { Zap, Plus, Trash2, Info, Sparkles, Shield, AlertTriangle, Clock, Swords, Disc } from "lucide-react";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -13,10 +13,10 @@ import {
   type MechanicalLimitation,
 } from "../../domain/mechanicalBehavior.ts";
 import type { SystemMechanicsConfig } from "../../domain/systemMechanics.ts";
-import { getCategoryOptions } from "../../domain/coreRuleCatalog.ts";
+import { createCoreCategories, getCategoryOptions, getVisibleOptions } from "../../domain/coreRuleCatalog.ts";
 import { CANONICAL_SINGLE_STATUSES, CANONICAL_STATUS_FAMILIES, getCanonicalStatusDefaultTurns } from "../../domain/canonicalAlteredStatuses.ts";
 import { getAlteredStatusLabel } from "../../domain/mechanicalLabels.ts";
-import { buildWeaponMechanicalDescription } from "../../domain/weaponMechanics.ts";
+import { buildWeaponMechanicalDescription, filterDamageOptionsByBaseDice } from "../../domain/weaponMechanics.ts";
 
 interface WeaponMechanicalEffectsEditorProps {
   behaviors: MechanicalBehavior[];
@@ -28,6 +28,18 @@ interface WeaponMechanicalEffectsEditorProps {
   weaponName?: string;
   caliberName?: string;
   magazineCapacity?: number;
+  ammoElementId?: string;
+  ammoElements?: any[];
+  weaponTypeOptions?: any[];
+  onMetadataChange?: (patch: Partial<{
+    weaponTypeId: string;
+    baseDice: string;
+    damageModifier: string;
+    usesAmmo: boolean;
+    ammoElementId: string;
+    caliberName: string;
+    magazineCapacity: number;
+  }>) => void;
   mechanics?: SystemMechanicsConfig;
   catalogStatuses?: Array<{ id: string; name: string; status?: string; metadata?: any }>;
 }
@@ -42,6 +54,10 @@ export function WeaponMechanicalEffectsEditor({
   weaponName = "",
   caliberName = "",
   magazineCapacity = 12,
+  ammoElementId = "",
+  ammoElements = [],
+  weaponTypeOptions,
+  onMetadataChange,
   mechanics = [],
   catalogStatuses = [],
 }: WeaponMechanicalEffectsEditorProps) {
@@ -104,25 +120,26 @@ export function WeaponMechanicalEffectsEditor({
     ];
   }, [mechanics]);
 
-  // Damage Options filtered by baseDice
+  // Damage Options filtered strictly by baseDice using structured properties (effect.dice / formula)
   const filteredDamageOptions = useMemo(() => {
     const allDamage = getCategoryOptions(mechanics, "damage");
-    const targetDice = (baseDice || "D10").toUpperCase();
-    const regex = new RegExp(`(^|\\D)\\d*${targetDice}$`, "i");
-
-    const matched = allDamage.filter((d: any) => {
-      const key = (d.runtimeKey || d.name || "").toUpperCase();
-      return regex.test(key) || key.endsWith(targetDice);
-    });
-
-    if (matched.length > 0) return matched;
-    // Fallback if system rules lack explicit entries
-    return [
-      { id: `1${targetDice}`, runtimeKey: `1${targetDice}`, name: `1${targetDice}` },
-      { id: `2${targetDice}`, runtimeKey: `2${targetDice}`, name: `2${targetDice}` },
-      { id: `3${targetDice}`, runtimeKey: `3${targetDice}`, name: `3${targetDice}` },
-    ];
+    return filterDamageOptionsByBaseDice(allDamage, baseDice);
   }, [mechanics, baseDice]);
+
+  // Weapon Type Options & Availability
+  const availableWeaponTypeOptions = useMemo(() => {
+    if (Array.isArray(weaponTypeOptions) && weaponTypeOptions.length > 0) {
+      return weaponTypeOptions;
+    }
+    const opts = getCategoryOptions(mechanics, "weapon_type");
+    if (opts.length > 0) return opts;
+    const defaults = createCoreCategories().find(c => c.coreKey === "weapon_type");
+    return defaults ? defaults.rules : [];
+  }, [weaponTypeOptions, mechanics]);
+
+  const visibleWeaponTypes = useMemo(() => {
+    return getVisibleOptions(availableWeaponTypeOptions, weaponTypeId);
+  }, [availableWeaponTypeOptions, weaponTypeId]);
 
   // Limitation categories from mechanics
   const limitationCategories = useMemo(() => {
@@ -224,7 +241,10 @@ export function WeaponMechanicalEffectsEditor({
     newEquippedModifiers?: MechanicalEffectItem[]
   ) => {
     const activeId = primaryBehavior?.id || nanoid(8);
-    const existingDice = (primaryDamageEffect as any)?.dice || filteredDamageOptions[0]?.runtimeKey || `1${baseDice || "D10"}`;
+    const firstOptionVal = filteredDamageOptions.length > 0
+      ? (filteredDamageOptions[0].effect?.dice || filteredDamageOptions[0].formula || filteredDamageOptions[0].runtimeKey || filteredDamageOptions[0].name)
+      : "";
+    const existingDice = (primaryDamageEffect as any)?.dice || firstOptionVal;
     const existingDamageType = (primaryDamageEffect as any)?.damageType || "fisico";
 
     const finalDamageEffect: MechanicalEffectItem = {
@@ -287,12 +307,15 @@ export function WeaponMechanicalEffectsEditor({
 
   // Handlers for Damage
   const rawDice = (primaryDamageEffect as any)?.dice;
-  const isCurrentDiceValid = filteredDamageOptions.some((d: any) =>
-    (d.runtimeKey || d.name || "").toUpperCase() === (rawDice || "").toUpperCase()
-  );
+  const isCurrentDiceValid = filteredDamageOptions.some((d: any) => {
+    const diceVal = d.effect?.dice || d.formula || d.runtimeKey || d.name;
+    return diceVal === rawDice;
+  });
   const currentDice = isCurrentDiceValid
     ? rawDice
-    : (filteredDamageOptions[0]?.runtimeKey || filteredDamageOptions[0]?.name || `1${baseDice || "D10"}`);
+    : (filteredDamageOptions.length > 0
+        ? (filteredDamageOptions[0].effect?.dice || filteredDamageOptions[0].formula || filteredDamageOptions[0].runtimeKey || filteredDamageOptions[0].name)
+        : "");
   const currentDamageType = (primaryDamageEffect as any)?.damageType || "fisico";
 
   const handleDiceChange = (newDice: string) => {
@@ -432,32 +455,182 @@ export function WeaponMechanicalEffectsEditor({
     statusOptions,
   ]);
 
+  const handleWeaponTypeSelect = (newTypeId: string) => {
+    const opt = availableWeaponTypeOptions.find((o: any) => o.runtimeKey === newTypeId || o.id === newTypeId);
+    const comp = (opt as any)?.component || {};
+    const newBaseDice = comp.baseDice || "D10";
+    const newDamageMod = comp.damageModifier || "NONE";
+    const newUsesAmmo = comp.usesAmmo === true;
+
+    onMetadataChange?.({
+      weaponTypeId: newTypeId,
+      baseDice: newBaseDice,
+      damageModifier: newDamageMod,
+      usesAmmo: newUsesAmmo,
+    });
+
+    const newFilteredDamage = filterDamageOptionsByBaseDice(getCategoryOptions(mechanics, "damage"), newBaseDice);
+    const isStillValid = newFilteredDamage.some((d: any) => {
+      const val = d.effect?.dice || d.formula || d.runtimeKey || d.name;
+      return val === (primaryDamageEffect as any)?.dice;
+    });
+
+    if (!isStillValid && newFilteredDamage.length > 0) {
+      const firstVal = newFilteredDamage[0].effect?.dice || newFilteredDamage[0].formula || newFilteredDamage[0].runtimeKey || newFilteredDamage[0].name;
+      commitChanges({ dice: firstVal });
+    }
+  };
+
+  const handleAmmoSelect = (ammoId: string) => {
+    if (ammoId === "none") {
+      onMetadataChange?.({
+        ammoElementId: "",
+      });
+    } else {
+      const selectedAmmo = ammoElements?.find((a: any) => a.id === ammoId);
+      onMetadataChange?.({
+        ammoElementId: ammoId,
+        caliberName: selectedAmmo?.metadata?.caliberName || selectedAmmo?.name || caliberName || "",
+      });
+    }
+  };
+
+  const handleCaliberChange = (val: string) => {
+    onMetadataChange?.({ caliberName: val });
+  };
+
+  const handleMagazineCapacityChange = (val: number) => {
+    onMetadataChange?.({ magazineCapacity: Math.max(1, val || 1) });
+  };
+
   return (
     <div className="space-y-4">
-      {/* 1. Header Information */}
-      <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Zap className="size-4 text-red-400" />
+      {/* 1. Parámetros del Tipo de Arma y Munición */}
+      <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-red-400">
+            <Swords className="size-4" />
             <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-              Comportamiento Mecánico del Arma
+              Parámetros del Arma (Tipo y Munición)
             </h4>
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
+            <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 bg-red-500/10">
+              Reglas de Tipo y Munición
+            </Badge>
             <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
-              Activo (Disparo / Blandir)
-            </Badge>
-            <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-400 bg-blue-500/10">
-              Instantáneo (1 Acción)
-            </Badge>
-            <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">
-              Objetivo: Enemigo
+              Activo (Ataque Instantáneo)
             </Badge>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Ataque directo con daño derivado del tipo de arma, modificadores al portador mientras esté equipada, limitaciones y efectos al impacto.
-        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Tipo Mecánico de Arma */}
+          <div className="grid gap-1.5">
+            <Label className="text-xs text-foreground font-medium">Tipo Mecánico de Arma</Label>
+            {onMetadataChange ? (
+              <Select value={weaponTypeId} onValueChange={handleWeaponTypeSelect}>
+                <SelectTrigger className="h-8 text-xs bg-background/80">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {visibleWeaponTypes.map((wt: any) => (
+                    <SelectItem key={wt.runtimeKey || wt.id} value={wt.runtimeKey || wt.id}>
+                      {wt.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex items-center px-3 rounded-md bg-background/50 border h-8 text-xs font-mono text-foreground">
+                {visibleWeaponTypes.find((wt: any) => (wt.runtimeKey || wt.id) === weaponTypeId)?.name || weaponTypeId}
+              </div>
+            )}
+            <span className="text-[10px] text-muted-foreground">
+              Define el dado base (<strong className="text-foreground">{baseDice || "D10"}</strong>) y si requiere munición.
+            </span>
+          </div>
+
+          {/* Munición Requerida */}
+          <div className="grid gap-1.5">
+            <Label className="text-xs text-foreground font-medium">Munición Requerida</Label>
+            <div className="flex items-center px-3 rounded-md bg-background/50 border h-8 text-xs font-mono text-muted-foreground">
+              {usesAmmo ? "SÍ (Heredado de Tipo de Arma)" : "NO (Sin munición)"}
+            </div>
+            <span className="text-[10px] text-muted-foreground">
+              Heredado automáticamente según las reglas del tipo de arma.
+            </span>
+          </div>
+
+          {/* Munición compatible del catálogo */}
+          {usesAmmo && (
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-foreground font-medium">Munición Compatible (Catálogo)</Label>
+              {onMetadataChange ? (
+                <Select value={ammoElementId || "none"} onValueChange={handleAmmoSelect}>
+                  <SelectTrigger className="h-8 text-xs bg-background/80">
+                    <SelectValue placeholder="Seleccionar munición..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin munición vinculada / Calibre libre</SelectItem>
+                    {(ammoElements || []).map((ammo: any) => (
+                      <SelectItem key={ammo.id} value={ammo.id}>
+                        {ammo.name} {ammo.metadata?.caliberName ? `(${ammo.metadata.caliberName})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex items-center px-3 rounded-md bg-background/50 border h-8 text-xs font-mono text-foreground">
+                  {ammoElementId || "Sin munición vinculada"}
+                </div>
+              )}
+              <span className="text-[10px] text-muted-foreground">
+                Elemento consumible de tipo munición en el Catálogo.
+              </span>
+            </div>
+          )}
+
+          {/* Calibre de Munición (Texto / Nombre) */}
+          {usesAmmo && (
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-foreground font-medium">Calibre de Munición</Label>
+              {onMetadataChange ? (
+                <Input
+                  value={caliberName || ""}
+                  onChange={(e) => handleCaliberChange(e.target.value)}
+                  className="h-8 text-xs bg-background/80"
+                  placeholder="Ej: 9mm, .45 ACP, 5.56mm..."
+                />
+              ) : (
+                <div className="flex items-center px-3 rounded-md bg-background/50 border h-8 text-xs font-mono text-foreground">
+                  {caliberName || "Sin calibre especificado"}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Capacidad por Cargador */}
+          {usesAmmo && (
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-foreground font-medium">Capacidad de Cargador (Balas)</Label>
+              {onMetadataChange ? (
+                <Input
+                  type="number"
+                  min={1}
+                  value={magazineCapacity ?? 12}
+                  onChange={(e) => handleMagazineCapacityChange(parseInt(e.target.value, 10) || 1)}
+                  className="h-8 text-xs font-mono bg-background/80"
+                  placeholder="Ej. 6, 12, 30..."
+                />
+              ) : (
+                <div className="flex items-center px-3 rounded-md bg-background/50 border h-8 text-xs font-mono text-foreground">
+                  {magazineCapacity ?? 12} balas
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 2. Primary Mandatory Effect: DAMAGE */}
@@ -475,21 +648,45 @@ export function WeaponMechanicalEffectsEditor({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {/* Damage Dice Select (Filtered by baseDice) */}
           <div className="grid gap-1.5">
-            <Label className="text-xs text-foreground font-medium">Dado de Daño ({baseDice || "D10"})</Label>
-            <Select value={currentDice} onValueChange={handleDiceChange}>
-              <SelectTrigger className="h-8 text-xs font-mono font-bold bg-background/80">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredDamageOptions.map((opt: any) => (
-                  <SelectItem key={opt.runtimeKey || opt.id} value={opt.runtimeKey || opt.name}>
-                    {opt.name || opt.runtimeKey}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-foreground font-medium">Dado de Daño ({baseDice || "D10"})</Label>
+              {filteredDamageOptions.length === 0 && (
+                <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-400 bg-amber-500/10">
+                  Sin opciones
+                </Badge>
+              )}
+            </div>
+
+            {filteredDamageOptions.length > 0 ? (
+              <Select value={currentDice} onValueChange={handleDiceChange}>
+                <SelectTrigger className="h-8 text-xs font-mono font-bold bg-background/80">
+                  <SelectValue placeholder="Seleccionar dado..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredDamageOptions.map((opt: any) => {
+                    const val = opt.effect?.dice || opt.formula || opt.runtimeKey || opt.name;
+                    return (
+                      <SelectItem key={opt.id || opt.runtimeKey || val} value={val}>
+                        {opt.name || val}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div
+                role="status"
+                aria-live="polite"
+                className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-300 space-y-0.5"
+              >
+                <p className="font-semibold">No hay opciones de daño compatibles</p>
+                <p className="text-[11px] text-amber-300/80">
+                  No existen reglas configuradas para el dado {baseDice || "D10"}. Debes configurarlas en Reglas del Sistema antes de seleccionarlas aquí.
+                </p>
+              </div>
+            )}
             <span className="text-[10px] text-muted-foreground">
-              Opciones de Categoría Daño que coinciden con <span className="font-bold text-foreground">{baseDice || "D10"}</span>.
+              Opciones de Categoría Daño compatibles con <span className="font-bold text-foreground">{baseDice || "D10"}</span>.
             </span>
           </div>
 

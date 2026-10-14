@@ -327,7 +327,7 @@ export default function CatalogAdmin() {
 
         payloadForm = {
           ...form,
-          description: autoDesc,
+          description: form.description,
           metadata: {
             ...form.metadata,
             weaponTypeId: selectedWeaponTypeId,
@@ -1082,160 +1082,7 @@ export default function CatalogAdmin() {
                     </div>
                   )}
 
-                  {/* Configuración de Parámetros de Arma */}
-                  {form.kind === 'weapon' && (() => {
-                    const defaultWeaponKey = weaponTypeOptions[0]?.runtimeKey || weaponTypeOptions[0]?.id || "arma_de_fuego";
-                    const selectedWeaponTypeId = form.metadata?.weaponTypeId || defaultWeaponKey;
-                    const selectedWeaponTypeOpt = weaponTypeOptions.find((o: any) => o.runtimeKey === selectedWeaponTypeId || o.id === selectedWeaponTypeId) || weaponTypeOptions[0];
-                    const selectedComp = (selectedWeaponTypeOpt as any)?.component || {};
-                    const effectiveUsesAmmo = selectedComp.usesAmmo === true;
-                    const effectiveBaseDice = selectedComp.baseDice || "D10";
-                    const effectiveDamageModifier = selectedComp.damageModifier || "NONE";
 
-                    return (
-                      <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 text-red-400">
-                            <Swords className="size-4" />
-                            <h4 className="text-xs font-bold uppercase tracking-wider">Parámetros del Arma</h4>
-                          </div>
-                          <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 bg-red-500/10">
-                            Reglas de Daño y Munición
-                          </Badge>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {/* Tipo de Arma */}
-                          <div className="grid gap-1.5">
-                            <Label className="text-xs text-foreground font-medium">Tipo de Arma</Label>
-                            <Select
-                              value={selectedWeaponTypeId}
-                              onValueChange={v => {
-                                const opt = weaponTypeOptions.find((o: any) => o.runtimeKey === v || o.id === v);
-                                const comp = (opt as any)?.component || {};
-                                const defaultDice = comp.baseDice || 'D10';
-                                const defaultMod = comp.damageModifier || 'NONE';
-                                const usesAmmo = comp.usesAmmo === true;
-
-                                setForm({
-                                  ...form,
-                                  metadata: {
-                                    ...form.metadata,
-                                    weaponTypeId: v,
-                                    baseDice: defaultDice,
-                                    damageModifier: defaultMod,
-                                    usesAmmo,
-                                  }
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="h-8 text-xs bg-background/80">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {weaponTypeOptions.map((wt: any) => (
-                                  <SelectItem key={wt.runtimeKey || wt.id} value={wt.runtimeKey || wt.id}>
-                                    {wt.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* Indicador de herencia de Munición */}
-                          <div className="grid gap-1.5">
-                            <Label className="text-xs text-foreground font-medium">Munición Requerida</Label>
-                            <div className="flex items-center px-3 rounded-md bg-background/50 border h-8 text-xs font-mono text-muted-foreground">
-                              {effectiveUsesAmmo ? "SÍ (Heredado de Tipo de Arma)" : "NO (Sin munición)"}
-                            </div>
-                          </div>
-
-                          {/* Seleccionar Munición compatible del Catálogo */}
-                          {effectiveUsesAmmo && (
-                          <div className="grid gap-1.5">
-                            <Label className="text-xs text-foreground font-medium">Munición Compatible (Catálogo)</Label>
-                            <Select
-                              value={form.metadata?.ammoElementId || "none"}
-                              onValueChange={v => {
-                                if (v === "none") {
-                                  setForm({
-                                    ...form,
-                                    metadata: {
-                                      ...form.metadata,
-                                      ammoElementId: "",
-                                    }
-                                  });
-                                } else {
-                                  const selectedAmmo = ammoElements.find((a: any) => a.id === v);
-                                  setForm({
-                                    ...form,
-                                    metadata: {
-                                      ...form.metadata,
-                                      ammoElementId: v,
-                                      caliberName: selectedAmmo?.metadata?.caliberName || selectedAmmo?.name || "",
-                                    }
-                                  });
-                                }
-                              }}
-                            >
-                              <SelectTrigger className="h-8 text-xs bg-background/80">
-                                <SelectValue placeholder="Seleccionar munición..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Sin munición vinculada / Calibre libre</SelectItem>
-                                {ammoElements.map((ammo: any) => (
-                                  <SelectItem key={ammo.id} value={ammo.id}>
-                                    {ammo.name} {ammo.metadata?.caliberName ? `(${ammo.metadata.caliberName})` : ''}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-
-                        {/* Calibre de Munición (Texto / Nombre) */}
-                        {effectiveUsesAmmo && (
-                          <div className="grid gap-1.5">
-                            <Label className="text-xs text-foreground font-medium">Calibre de Munición</Label>
-                            <Input
-                              value={form.metadata?.caliberName || ""}
-                              onChange={e => setForm({
-                                ...form,
-                                metadata: {
-                                  ...form.metadata,
-                                  caliberName: e.target.value
-                                }
-                              })}
-                              className="h-8 text-xs bg-background/80"
-                              placeholder="Ej: 9mm, .45 ACP, 5.56mm..."
-                            />
-                          </div>
-                        )}
-
-                        {/* Capacidad por Cargador */}
-                        {effectiveUsesAmmo && (
-                          <div className="grid gap-1.5">
-                            <Label className="text-xs text-foreground font-medium">Capacidad de Cargador (Balas)</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={form.metadata?.magazineCapacity ?? 12}
-                              onChange={e => setForm({
-                                ...form,
-                                metadata: {
-                                  ...form.metadata,
-                                  magazineCapacity: Math.max(1, parseInt(e.target.value, 10) || 1)
-                                }
-                              })}
-                              className="h-8 text-xs font-mono bg-background/80"
-                              placeholder="Ej. 6, 12, 30..."
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
 
                   {/* Configuración de Parámetros de Munición */}
                   {form.kind === 'ammunition' && (
@@ -1415,6 +1262,15 @@ export default function CatalogAdmin() {
                             weaponName={form.name}
                             caliberName={form.metadata?.caliberName}
                             magazineCapacity={form.metadata?.magazineCapacity}
+                            ammoElementId={form.metadata?.ammoElementId}
+                            ammoElements={ammoElements}
+                            weaponTypeOptions={weaponTypeOptions}
+                            onMetadataChange={(patch) =>
+                              setForm((current) => ({
+                                ...current,
+                                metadata: { ...current.metadata, ...patch },
+                              }))
+                            }
                             mechanics={mechanics}
                             catalogStatuses={catalogStatuses}
                           />
