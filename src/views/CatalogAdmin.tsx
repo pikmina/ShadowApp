@@ -7,6 +7,7 @@ import { apiFetch, fetcher } from "../lib/api";
 import { MechanicalBehaviorsEditor } from "../components/mechanics/MechanicalBehaviorsEditor";
 import { WeaponMechanicalEffectsEditor } from "../components/mechanics/WeaponMechanicalEffectsEditor";
 import { MechanicalDescriptionPreview } from "../components/mechanics/MechanicalDescriptionPreview";
+import { buildWeaponMechanicalDescription } from "../domain/weaponMechanics";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import {
@@ -293,10 +294,53 @@ export default function CatalogAdmin() {
     setSaveError("");
     setIsSaving(true);
     try {
+      let payloadForm = { ...form };
+
+      if (form.kind === "weapon") {
+        const selectedWeaponTypeId = form.metadata?.weaponTypeId || weaponTypeOptions[0]?.runtimeKey || weaponTypeOptions[0]?.id || "arma_de_fuego";
+        const selectedWeaponTypeOpt = weaponTypeOptions.find((o: any) => o.runtimeKey === selectedWeaponTypeId || o.id === selectedWeaponTypeId) || weaponTypeOptions[0];
+        const selectedComp = (selectedWeaponTypeOpt as any)?.component || {};
+        const effectiveUsesAmmo = selectedComp.usesAmmo === true;
+        const effectiveBaseDice = form.metadata?.baseDice || selectedComp.baseDice || "D10";
+        const effectiveDamageModifier = form.metadata?.damageModifier || selectedComp.damageModifier || "NONE";
+
+        const primaryBeh = form.mechanicalBehaviors?.find((b: any) => b.mode === "active") || form.mechanicalBehaviors?.[0];
+        const primaryDmg = primaryBeh?.effects?.find((e: any) => e.type === "damage");
+        const equippedBeh = form.mechanicalBehaviors?.find((b: any) => b.mode === "continuous");
+        const equippedMods = equippedBeh?.effects || [];
+        const limits = primaryBeh?.limitations || [];
+        const secondary = primaryBeh?.effects?.filter((e: any) => e.type !== "damage") || [];
+
+        const autoDesc = buildWeaponMechanicalDescription({
+          name: form.name,
+          usesAmmo: effectiveUsesAmmo,
+          caliberName: form.metadata?.caliberName,
+          magazineCapacity: form.metadata?.magazineCapacity,
+          dice: primaryDmg?.dice || `1${effectiveBaseDice}`,
+          damageType: primaryDmg?.damageType || "físico",
+          damageModifier: effectiveDamageModifier,
+          equippedModifiers: equippedMods,
+          limitations: limits,
+          secondaryEffects: secondary,
+          statusOptions: getCategoryOptions(mechanics, "status", undefined, catalogStatuses),
+        });
+
+        payloadForm = {
+          ...form,
+          description: autoDesc,
+          metadata: {
+            ...form.metadata,
+            weaponTypeId: selectedWeaponTypeId,
+            usesAmmo: effectiveUsesAmmo,
+            mechanicalDescription: autoDesc,
+          },
+        };
+      }
+
       const res = await apiFetch("/api/elements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form)
+        body: JSON.stringify(payloadForm),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Error al guardar elemento");
@@ -1297,7 +1341,9 @@ export default function CatalogAdmin() {
                     <Label>Descripción Narrativa</Label>
                     <Textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="h-32" placeholder="Describe qué hace esto a nivel narrativo y de rol..." />
                   </div>
-                  <MechanicalDescriptionPreview behaviors={form.mechanicalBehaviors || []} />
+                  {form.kind !== 'weapon' && (
+                    <MechanicalDescriptionPreview behaviors={form.mechanicalBehaviors || []} />
+                  )}
                   <div className="flex items-center justify-between rounded-lg border border-border/70 p-3.5 bg-card/50 mt-2">
                     <div className="space-y-0.5">
                       <Label htmlFor="catalog-item-status" className="text-sm font-medium cursor-pointer">
@@ -1366,6 +1412,9 @@ export default function CatalogAdmin() {
                             baseDice={form.metadata?.baseDice || effectiveBaseDice}
                             damageModifier={form.metadata?.damageModifier || effectiveDamageModifier}
                             usesAmmo={effectiveUsesAmmo}
+                            weaponName={form.name}
+                            caliberName={form.metadata?.caliberName}
+                            magazineCapacity={form.metadata?.magazineCapacity}
                             mechanics={mechanics}
                             catalogStatuses={catalogStatuses}
                           />

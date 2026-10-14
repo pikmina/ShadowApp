@@ -166,7 +166,7 @@ async function startServer() {
   });
 
   // System Elements API
-  const { getElements, getPublishedElements, upsertElement, deleteElement, getDeletedSystemElements, restoreSystemElements } = await import("./src/db/elements.ts");
+  const { getElements, getPublishedElements, getElement, upsertElement, deleteElement, getDeletedSystemElements, restoreSystemElements, enrichElement } = await import("./src/db/elements.ts");
 
   app.get("/api/admin/deleted-system-elements", requireAuth, requireRole(["superadmin", "moderator"]), async (req: AuthRequest, res) => {
     try {
@@ -209,9 +209,19 @@ async function startServer() {
   app.get("/api/elements", async (req, res) => {
     try {
       const items = await getPublishedElements();
-      res.json(items);
+      res.json(items.map(enrichElement));
     } catch (error: any) {
       res.status(500).json({ error: "Failed to fetch elements" });
+    }
+  });
+
+  app.get("/api/elements/:id", async (req, res) => {
+    try {
+      const item = await getElement(req.params.id);
+      if (!item) return res.status(404).json({ error: "Element not found" });
+      res.json(enrichElement(item));
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch element" });
     }
   });
 
@@ -1544,7 +1554,8 @@ async function startServer() {
 
   app.get("/api/admin/elements", requireAuth, requireRole(["superadmin", "moderator"]), async (_req, res) => {
     try {
-      res.json(await getElements());
+      const items = await getElements();
+      res.json(items.map(enrichElement));
     } catch {
       res.status(500).json({ error: "Failed to fetch elements" });
     }

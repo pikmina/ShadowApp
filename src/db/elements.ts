@@ -234,6 +234,28 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
   });
 }
 
+export function enrichElement(item: any) {
+  if (!item) return item;
+  const isEmoji = item.iconType === "emoji";
+  const emoji = isEmoji ? item.iconValue : null;
+  const icon = item.iconValue || (item.kind === "weapon" ? "Swords" : null);
+
+  let usesAmmo = item.metadata?.usesAmmo;
+  if (usesAmmo === undefined && item.kind === "weapon") {
+    usesAmmo = true;
+  }
+
+  const mechanicalDescription = item.metadata?.mechanicalDescription || item.description || "";
+
+  return {
+    ...item,
+    icon,
+    emoji,
+    usesAmmo: usesAmmo ?? false,
+    mechanicalDescription,
+  };
+}
+
 export async function deleteElement(id: string, actorUid: string = 'system') {
   try {
     await db.transaction(async (tx) => {

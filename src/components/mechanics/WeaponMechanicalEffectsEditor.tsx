@@ -16,6 +16,7 @@ import type { SystemMechanicsConfig } from "../../domain/systemMechanics.ts";
 import { getCategoryOptions } from "../../domain/coreRuleCatalog.ts";
 import { CANONICAL_SINGLE_STATUSES, CANONICAL_STATUS_FAMILIES, getCanonicalStatusDefaultTurns } from "../../domain/canonicalAlteredStatuses.ts";
 import { getAlteredStatusLabel } from "../../domain/mechanicalLabels.ts";
+import { buildWeaponMechanicalDescription } from "../../domain/weaponMechanics.ts";
 
 interface WeaponMechanicalEffectsEditorProps {
   behaviors: MechanicalBehavior[];
@@ -24,6 +25,9 @@ interface WeaponMechanicalEffectsEditorProps {
   baseDice?: string;
   damageModifier?: string;
   usesAmmo?: boolean;
+  weaponName?: string;
+  caliberName?: string;
+  magazineCapacity?: number;
   mechanics?: SystemMechanicsConfig;
   catalogStatuses?: Array<{ id: string; name: string; status?: string; metadata?: any }>;
 }
@@ -35,6 +39,9 @@ export function WeaponMechanicalEffectsEditor({
   baseDice = "D10",
   damageModifier = "NONE",
   usesAmmo = true,
+  weaponName = "",
+  caliberName = "",
+  magazineCapacity = 12,
   mechanics = [],
   catalogStatuses = [],
 }: WeaponMechanicalEffectsEditorProps) {
@@ -397,6 +404,33 @@ export function WeaponMechanicalEffectsEditor({
         return "Sin Modificador (Fijo por Calibre)";
     }
   }, [damageModifier]);
+  const weaponSummary = useMemo(() => {
+    return buildWeaponMechanicalDescription({
+      name: weaponName,
+      usesAmmo,
+      caliberName,
+      magazineCapacity,
+      dice: currentDice,
+      damageType: currentDamageType,
+      damageModifier,
+      equippedModifiers,
+      limitations: currentLimitations,
+      secondaryEffects,
+      statusOptions,
+    });
+  }, [
+    weaponName,
+    usesAmmo,
+    caliberName,
+    magazineCapacity,
+    currentDice,
+    currentDamageType,
+    damageModifier,
+    equippedModifiers,
+    currentLimitations,
+    secondaryEffects,
+    statusOptions,
+  ]);
 
   return (
     <div className="space-y-4">
@@ -1007,61 +1041,15 @@ export function WeaponMechanicalEffectsEditor({
       </div>
 
       {/* 6. Real-time Summary Banner */}
-      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-start gap-2.5 text-xs">
-        <Sparkles className="size-4 text-primary shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <div className="font-semibold text-primary">Resumen de Resolución del Arma:</div>
-          <div className="text-muted-foreground leading-relaxed text-[11px] space-y-0.5">
-            <div>
-              <span className="font-semibold text-foreground">Ataque:</span> Inflige{" "}
-              <span className="font-mono font-bold text-foreground">{currentDice}</span> de daño{" "}
-              <span className="font-bold text-foreground capitalize">{currentDamageType}</span>{" "}
-              {damageModifier !== "NONE" && <span className="font-medium text-foreground">{modLabel} </span>}
-              contra un enemigo.
-            </div>
-
-            {equippedModifiers.length > 0 && (
-              <div>
-                <span className="font-semibold text-amber-400">Mientras esté equipada:</span>{" "}
-                {equippedModifiers.map((m: any) => {
-                  const isAttr = m.type === "attribute_modifier";
-                  const targetName = isAttr ? m.attributeId : m.targetStat;
-                  const isBonus = m.type === "bonus" || (isAttr && (m.amount || 0) > 0);
-                  const sign = isBonus ? "+" : "-";
-                  const val = Math.abs(m.amount || 1);
-                  return `${sign}${val} a ${targetName}`;
-                }).join(", ")} al portador.
-              </div>
-            )}
-
-            {currentLimitations.length > 0 && (
-              <div>
-                <span className="font-semibold text-cyan-400">Limitaciones:</span>{" "}
-                {currentLimitations.map((l: any) => {
-                  if (l.type === "cooldown") return `${l.turns} turno(s) de enfriamiento`;
-                  if (l.type === "usage_limit") return `Máx. ${l.max} por ${l.period}`;
-                  if (l.type === "self_damage") return `${l.amount} HP daño al usuario`;
-                  return l.description || l.type;
-                }).join(", ")}.
-              </div>
-            )}
-
-            {secondaryEffects.length > 0 && (
-              <div>
-                <span className="font-semibold text-foreground">Al impactar:</span>{" "}
-                {secondaryEffects.map((s: any) => {
-                  if (s.type === "status_apply" || s.type === "status") {
-                    const matchedOpt = statusOptions.find((st: any) => st.id === s.statusElementId || st.runtimeKey === s.statusElementId);
-                    const name = matchedOpt?.name || getAlteredStatusLabel(s.statusElementId) || s.statusElementId || "Estado Alterado";
-                    const turns = getCanonicalStatusDefaultTurns(s.statusElementId);
-                    return `produce ${name} durante ${turns} ${turns === 1 ? "turno" : "turnos"}`;
-                  }
-                  const turns = s.temporality?.duration?.turns || 2;
-                  return `aplica -${Math.abs(s.amount || 1)} a ${s.targetStat || s.attributeId} (${turns}t)`;
-                }).join(", ")}.
-              </div>
-            )}
-          </div>
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3.5 space-y-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className="size-4 text-primary shrink-0" />
+          <span className="font-semibold text-xs text-primary uppercase tracking-wider">
+            Resumen de Resolución / Descripción Mecánica del Arma:
+          </span>
+        </div>
+        <div className="text-foreground leading-relaxed text-xs font-mono bg-background/80 p-3 rounded-md border border-primary/20 shadow-sm select-all">
+          {weaponSummary}
         </div>
       </div>
     </div>
