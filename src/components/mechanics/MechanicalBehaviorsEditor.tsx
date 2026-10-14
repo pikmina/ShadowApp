@@ -24,7 +24,6 @@ import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
-import { Checkbox } from "../ui/checkbox";
 import {
   Accordion,
   AccordionContent,
@@ -2057,37 +2056,6 @@ function EffectsListEditor({
                           )}
                         </SelectContent>
                       </Select>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 self-end pb-1 pl-1">
-                      {(() => {
-                        const matchedOpt = damageTypeOptions.find((opt) => opt.runtimeKey === (eff.damageType || "fisico") || opt.id === eff.damageType);
-                        const catalogDefense = (matchedOpt as any)?.component?.defenseType;
-                        const isDefaultMental = catalogDefense === "courage" || 
-                          (catalogDefense !== "evasion" && ["psiquico", "mental", "sensorial", "motor", "anomalia_don"].includes(eff.damageType || ""));
-                        const isChecked = Boolean((eff as any).vsCourage ?? isDefaultMental);
-                        return (
-                          <>
-                            <Checkbox
-                              id={`vs-courage-${i}`}
-                              checked={isChecked}
-                              onCheckedChange={(checked: boolean) => {
-                                updateEffect(i, {
-                                  ...eff,
-                                  vsCourage: checked,
-                                } as any);
-                              }}
-                            />
-                            <label
-                              htmlFor={`vs-courage-${i}`}
-                              className="text-xs font-semibold cursor-pointer select-none text-foreground flex items-center gap-1"
-                              title="Si está activo, la tirada de la técnica se realiza contra Coraje (COR) en lugar de Evasión (EVA)"
-                            >
-                              VS Coraje
-                            </label>
-                          </>
-                        );
-                      })()}
                     </div>
                   </>
                 )}

@@ -12,7 +12,7 @@ export interface CanonicalStatusFamily {
   icon: string;
   hasTiers: true;
   tiers: Array<{
-    id: "leve" | "grave";
+    id: "leve" | "moderado" | "grave";
     label: string;
     statusId: string;
     turns: number;
@@ -37,6 +37,7 @@ export const CANONICAL_STATUS_FAMILIES: CanonicalStatusFamily[] = [
     hasTiers: true,
     tiers: [
       { id: "leve", label: "Leve", statusId: "core.status.hemorragia_leve", turns: 2 },
+      { id: "moderado", label: "Moderado", statusId: "core.status.hemorragia_moderado", turns: 3 },
       { id: "grave", label: "Grave", statusId: "core.status.hemorragia_grave", turns: 4 },
     ],
   },
@@ -48,6 +49,7 @@ export const CANONICAL_STATUS_FAMILIES: CanonicalStatusFamily[] = [
     hasTiers: true,
     tiers: [
       { id: "leve", label: "Leve", statusId: "core.status.quemadura_leve", turns: 2 },
+      { id: "moderado", label: "Moderado", statusId: "core.status.quemadura_moderado", turns: 3 },
       { id: "grave", label: "Grave", statusId: "core.status.quemadura_grave", turns: 4 },
     ],
   },
@@ -59,6 +61,7 @@ export const CANONICAL_STATUS_FAMILIES: CanonicalStatusFamily[] = [
     hasTiers: true,
     tiers: [
       { id: "leve", label: "Leve", statusId: "core.status.veneno_leve", turns: 2 },
+      { id: "moderado", label: "Moderado", statusId: "core.status.veneno_moderado", turns: 3 },
       { id: "grave", label: "Grave", statusId: "core.status.veneno_grave", turns: 3 },
     ],
   },
@@ -70,6 +73,7 @@ export const CANONICAL_STATUS_FAMILIES: CanonicalStatusFamily[] = [
     hasTiers: true,
     tiers: [
       { id: "leve", label: "Leve", statusId: "core.status.berserker_leve", turns: 2 },
+      { id: "moderado", label: "Moderado", statusId: "core.status.berserker_moderado", turns: 3 },
       { id: "grave", label: "Grave", statusId: "core.status.berserker_grave", turns: 3 },
     ],
   },
@@ -112,6 +116,7 @@ export function getCanonicalStatusDefaultTurns(statusId?: string): number {
   // Tiered variants
   if (raw.includes("hemorragia_grave") || raw.includes("quemadura_grave")) return 4;
   if (raw.includes("berserker_grave") || raw.includes("veneno_grave")) return 3;
+  if (raw.includes("hemorragia_moderado") || raw.includes("quemadura_moderado") || raw.includes("veneno_moderado") || raw.includes("berserker_moderado")) return 3;
   if (raw.includes("hemorragia_leve") || raw.includes("quemadura_leve") || raw.includes("veneno_leve") || raw.includes("berserker_leve")) return 2;
   if (raw.includes("hemorragia") || raw.includes("quemadura")) return 3;
 
@@ -130,7 +135,7 @@ export function getCanonicalStatusDefaultTurns(statusId?: string): number {
  */
 export function parseStatusRemoveSelection(statusElementId?: string): {
   baseKey: string;
-  tier: "all" | "leve" | "grave";
+  tier: "all" | "leve" | "moderado" | "grave";
   hasTiers: boolean;
 } {
   if (!statusElementId) {
@@ -141,6 +146,9 @@ export function parseStatusRemoveSelection(statusElementId?: string): {
   for (const fam of CANONICAL_STATUS_FAMILIES) {
     if (raw === `${fam.id}_leve` || raw === `${fam.key}_leve` || raw === `core.status_remove.${fam.key}_leve`) {
       return { baseKey: fam.id, tier: "leve", hasTiers: true };
+    }
+    if (raw === `${fam.id}_moderado` || raw === `${fam.key}_moderado` || raw === `core.status_remove.${fam.key}_moderado`) {
+      return { baseKey: fam.id, tier: "moderado", hasTiers: true };
     }
     if (raw === `${fam.id}_grave` || raw === `${fam.key}_grave` || raw === `core.status_remove.${fam.key}_grave`) {
       return { baseKey: fam.id, tier: "grave", hasTiers: true };
@@ -162,13 +170,16 @@ export function parseStatusRemoveSelection(statusElementId?: string): {
 /**
  * Composes a canonical status_remove statusElementId from a base key and selected severity tier
  */
-export function composeStatusRemoveId(baseKey: string, tier: "all" | "leve" | "grave" = "all"): string {
+export function composeStatusRemoveId(baseKey: string, tier: "all" | "leve" | "moderado" | "grave" = "all"): string {
   const isFamily = CANONICAL_STATUS_FAMILIES.find(f => f.id === baseKey || f.key === baseKey);
   if (!isFamily) {
     return baseKey;
   }
   if (tier === "leve") {
     return `${isFamily.id}_leve`;
+  }
+  if (tier === "moderado") {
+    return `${isFamily.id}_moderado`;
   }
   if (tier === "grave") {
     return `${isFamily.id}_grave`;

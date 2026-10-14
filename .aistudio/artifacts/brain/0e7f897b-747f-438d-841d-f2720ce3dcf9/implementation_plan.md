@@ -1,96 +1,203 @@
-# Plan de Implementación: Naturaleza de Defensa por Tipo de Daño e Identificadores Legibles
+# Refinamiento de Armas: Herencia de Munición, Daño Dinámico, Limitaciones, Modificadores al Equipar y Penalizadores
 
-Este plan detalla cómo permitir que cada **Tipo de Daño** en el Editor de Reglas Mecánicas (Catálogo del Sistema) configure su naturaleza defensiva por defecto (Físico vs Evasión o Mental vs Coraje), heredando automáticamente esta regla al crear técnicas en el Creador de Mecánicas, además de generar **Identificadores Legibles** (slugs amigables como `id: "sensorial"`) en el registro de reglas.
+Ajuste integral del flujo de **Armas** en el Catálogo de Elementos para heredar estrictamente la necesidad de munición desde el Tipo de Arma, filtrar dinámicamente las opciones de daño por dado base, incorporar Limitaciones mecánicas, permitir Modificadores pasivos (Bonos/Penalizadores) para el portador mientras esté equipada, y añadir duración en turnos a los penalizadores al impacto.
 
 ---
 
-### User Review & Critical Decisions
+## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Decisiones de arquitectura y flujo confirmadas con el usuario:
+> Se han incorporado todas las solicitudes y comentarios del usuario:
 
-- **1. Configuración de Naturaleza Defensiva en el Editor de Reglas (`UniversalRulesCatalog.tsx`)**:
-  - Cada opción en la categoría **Tipo de Daño** (`damage_type`) tendrá un selector explícito para configurar su **Naturaleza de Defensa**:
-    - **Físico (Evasión - EVA)**
-    - **Mental (Coraje - COR)**
-  - Opciones existentes como `psiquico`, `sensorial`, `motor` y `anomalia_don` se pre-configurarán con naturaleza **Mental (Coraje)**, mientras que los tipos elementales/físicos (`fuego`, `cortante`, `fisico`, etc.) se configurarán con **Físico (Evasión)**.
+1. **Modificadores para el Portador (Mientras esté equipada)**:
+   - Nuevo bloque en el editor mecánico para definir bonos o penalizadores pasivos que afectan directamente al personaje que tiene el arma empuñada/equipada.
+   - Ejemplo: *Arma Pesada: Penalización -1 a Evasión (EVA) mientras esté equipada*.
+   - Permite seleccionar si es **Bono (+)** o **Penalización (-)**, el valor numérico y el objetivo: **Atributo** (`FUE`, `DES`, `INT`, `RES`, `VEL`, `VOL`) o **Estadística Derivada** (`EVA`, `RD`, `INI`, `DB`, `COR`, `SAL`, `EST`).
+   - Se mapea canónicamente como un comportamiento continuo (`mode: 'continuous'`) con la condición `[{ type: 'equipped' }]` y objetivo `self`.
 
-- **2. Herencia Automática en el Creador de Técnicas (`MechanicalBehaviorsEditor.tsx`)**:
-  - Al seleccionar un Tipo de Daño al crear una técnica, el creador consultará la regla configurada en el catálogo.
-  - Si el Tipo de Daño es de naturaleza **Mental (Coraje)**, la técnica activará automáticamente el modo **VS Coraje**.
-  - El usuario podrá anular manualmente la selección activando o desactivando el Switch **VS Coraje** si la técnica lo requiere.
+2. **Eliminación del campo "Número de Cargadores"**:
+   - En los parámetros del arma solo se mantiene la **Capacidad de Cargador (balas)**.
 
-- **3. Identificadores Legibles en Nuevas Reglas (`slugifyId`)**:
-  - Al registrar nuevas reglas o categorías en el catálogo, el sistema derivará automáticamente el ID y `runtimeKey` en minúsculas y sin acentos (ej. `"Sensorial"` $\rightarrow$ `id: "sensorial"` / `runtimeKey: "sensorial"`).
+3. **Herencia estricta de Munición**:
+   - Sin interruptores manuales en el Catálogo; se hereda directamente de `weapon_type.component.usesAmmo`. Si el Tipo de Arma no requiere munición, los campos de munición se ocultan por completo.
 
----
+4. **Filtrado Dinámico del Dado de Daño**:
+   - Se extraen las opciones de `Categorías Mecánicas → Daño` que coinciden con el `baseDice` del Tipo de Arma (ej: si es `D10`, lista `1D10`, `2D10`, etc.).
 
-### 1. Overview & Core Concept
+5. **Limitaciones Mecánicas**:
+   - Soporte para *Enfriamiento* (turnos) y *Límite de Uso* (máximo por turno, combate, misión o día).
 
-- **Objetivo**:
-  Establecer la regla de defensa primaria (Físico/Evasión vs Mental/Coraje) directamente a nivel de Catálogo de Reglas para los Tipos de Daño, eliminando errores de configuración en las técnicas y garantizando que los IDs de las reglas mecánicas sean legibles y semánticos.
+6. **Penalizadores al Impacto contra el Enemigo con Duración**:
+   - `Penalizador [ x ] a [ Atributo | Estadística Derivada ] → [ FUE, DES... | EVA, RD... ] durante [ N ] turnos`.
 
-- **Beneficio**:
-  Al seleccionar un tipo de daño como "Sensorial" o "Psíquico", la técnica sabrá automáticamente que se tira contra Coraje sin requerir configuración manual repetitiva, manteniendo el control de anulación manual en el switch **VS Coraje**.
-
----
-
-### 2. User Experience & Visual Design
-
-1. **Editor de Reglas Mecánicas (`UniversalRulesCatalog.tsx`)**:
-   - En la sección de edición para las opciones de la categoría **Tipo de Daño**, se muestra un selector de **Defensa Objetivo por Defecto**:
-     - `[ Físico (Evasión) | Mental (Coraje) ]`.
-   - Al guardar o crear nuevos tipos de daño (ej. "Sensorial"), el ID asignado se genera limpia y automáticamente como `sensorial`.
-
-2. **Creador de Técnicas / Mecánico (`MechanicalBehaviorsEditor.tsx`)**:
-   - Al añadir un efecto de daño y cambiar el **Tipo de Daño** (ej. a "Sensorial" o "Mental"), el creador consulta la opción seleccionada.
-   - El Switch **VS Coraje** se ajusta automáticamente según la regla del catálogo:
-     - Si la opción es de naturaleza Mental $\rightarrow$ Switch **VS Coraje** encendido (`vsCourage: true`).
-     - Si es de naturaleza Física $\rightarrow$ Switch **VS Coraje** apagado (`vsCourage: false`).
-   - Un distintivo sutil indica: *"Heredado del tipo de daño (VS Coraje)"*, el cual se actualiza de inmediato si el usuario cambia el switch manualmente.
+7. **Descripción Generada Automáticamente**:
+   - Refleja: `"Daño [Dado] [Tipo de Daño] + [Mod. Fuerza / Mod. Destreza / Promedio FUE y DES / Sin Modificador] del personaje que lo tiene equipado contra un enemigo."`
+   - Si tiene modificadores de equipo: `"Mientras esté equipada: Aplica [Bono/Penalizador] al portador."`
+   - Detalla las limitaciones y estados alterados/penalizadores al impacto.
 
 ---
 
-### 3. Key Product Decisions & Trade-Offs
+## 1. Overview & Core Concept
 
-- **Decisión 1: Atributo `defenseType` en las Opciones del Catálogo**:
-  - *Elección*: Almacenar `defenseType: 'evasion' | 'courage'` en el objeto de configuración/parámetros de la opción de tipo de daño.
-  - *Por qué*: Centraliza la lógica en las Reglas del Sistema, evitando depender de comparaciones de texto sueltas.
-
-- **Decisión 2: Generador de Slugs `slugifyId`**:
-  - *Elección*: Función de conversión que elimina tildes, caracteres especiales y espacios, produciendo cadenas en minúsculas.
-  - *Ejemplo*: `"Sensorial"` $\rightarrow$ `"sensorial"`, `"Aumento de Daño"` $\rightarrow$ `"aumento_de_dano"`.
+- **Dos Dimensiones Mecánicas de un Arma**:
+  1. **Comportamiento Ofensivo Activo (Al disparar / atacar)**:
+     - Daño base (filtrado según dado base del tipo de arma).
+     - Modificador por atributo del personaje que la empuña (FUE, DES, Promedio o Calibre fijo).
+     - Limitaciones del ataque (cooldown, usos por combate).
+     - Efectos secundarios al impactar (Estados alterados, Penalizadores con duración en turnos).
+  2. **Efecto Pasivo Continuo al Portar (Mientras esté equipada)**:
+     - Modificaciones pasivas al usuario del arma (ej. -1 EVA en armas pesadas, +1 Iniciativa en armas tácticas ligeras, etc.).
 
 ---
 
-### 4. Technical Architecture & Data Strategy
+## 2. User Experience & Visual Design
 
+### Parámetros del Arma (Pestaña Información)
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                           System Rules Catalog (damage_type options)                           │
-├─────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Option "Sensorial"      ──► defenseType: 'courage'   ──► id: "sensorial"                        │
-│ Option "Fuego"          ──► defenseType: 'evasion'   ──► id: "fuego"                            │
-└────────────────────────────────────────────────┬────────────────────────────────────────────────┘
-                                                 │
-                                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                            Technique Creator (Effect Execution)                                │
-├─────────────────────────────────────────────────────────────────────────────────────────────────┤
-│  User selects "Sensorial" Damage Type                                                           │
-│  └─► Look up option rule in catalog                                                             │
-│      └─► defenseType === 'courage' ──► Auto-set Switch VS Coraje = ON                            │
-│                                        (Manual toggle override still available)                 │
-└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│ PARÁMETROS DEL ARMA                                                    │
+├────────────────────────────────────────────────────────────────────────┤
+│ Tipo de Arma:            [ Arma de Fuego                      ▼ ]      │
+│ Dado Base: D10           Modificador: Ninguno (Fijo por Calibre)       │
+│ Munición: SÍ (Heredado de Tipo de Arma)                                │
+├────────────────────────────────────────────────────────────────────────┤
+│ (Solo si usesAmmo === true):                                           │
+│ Munición Compatible:     [ 9mm Parabellum (Catálogo)          ▼ ]      │
+│ Calibre de Munición:     [ 9mm Parabellum                      ]       │
+│ Capacidad de Cargador:   [ 12 ] balas por cargador                     │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Archivos Afectados**:
-  1. `src/domain/coreRuleCatalog.ts`: Inclusión de `defenseType: 'evasion' | 'courage'` en las opciones por defecto de `damage_type`.
-  2. `src/components/mechanics/UniversalRulesCatalog.tsx`:
-     - UI para editar `defenseType` en las opciones de `damage_type`.
-     - Implementación de `slugifyId(name)` para IDs legibles en nuevas reglas/opciones.
-  3. `src/components/mechanics/MechanicalBehaviorsEditor.tsx`:
-     - Consulta de `defenseType` del tipo de daño seleccionado para ajustar automáticamente `vsCourage`.
-     - Switch **VS Coraje** para permitir anulación manual.
-  4. `src/domain/characterTechnique.ts`:
-     - Asegurar que la resolución de tiradas tome en cuenta `vsCourage` para la tirada contra Coraje (COR).
+### Efectos Mecánicos del Arma (Pestaña Efectos)
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ EFECTOS MECÁNICOS DEL ARMA                                             │
+├────────────────────────────────────────────────────────────────────────┤
+│ 1. EFECTO PRIMARIO DE ATAQUE: DAÑO                                     │
+│ Daño: [ 1D10 ▼ ]  (Filtrado de Reglas del Sistema para D10)            │
+│       │ 1D10 │                                                         │
+│       │ 2D10 │                                                         │
+│ Tipo de Daño: [ Físico ▼ ]                                             │
+│ Modificador: Suma Mod. de DES/FUE del personaje equipado               │
+├────────────────────────────────────────────────────────────────────────┤
+│ 2. MODIFICADORES AL PORTADOR (Mientras esté equipada)                  │
+│ [+ Añadir Modificador al Equipar]                                      │
+│ • Penalización [ 1 ] a [ Estadística Derivada ▼ ] → [ EVA (Evasión) ▼ ]│
+│   (Aplica continuamente al usuario mientras tenga el arma equipada)    │
+│   [ Eliminar ]                                                         │
+├────────────────────────────────────────────────────────────────────────┤
+│ 3. LIMITACIONES DEL ARMA (Opcionales)                                  │
+│ [+ Añadir Limitación]                                                  │
+│ • Enfriamiento: [ 1 ] turno(s)                          [ Eliminar ]   │
+│ • Límite de uso: Máximo [ 2 ] por [ combate ▼ ]         [ Eliminar ]   │
+├────────────────────────────────────────────────────────────────────────┤
+│ 4. EFECTOS SECUNDARIOS AL IMPACTO (Contra el enemigo)                  │
+│ [+ Añadir Estado Alterado]   [+ Añadir Penalizador al Objetivo]        │
+│                                                                        │
+│ • Penalizador al Objetivo:                                             │
+│   Penalizador [ 1 ] a [ Estadística Derivada ▼ ] → [ RD ▼ ]            │
+│   Duración: [ 2 ] turnos                                [ Eliminar ]   │
+│                                                                        │
+│ • Estado Alterado:                                                     │
+│   Estado [ Aturdido ▼ ]   Duración: [ 2 ] turnos        [ Eliminar ]   │
+├────────────────────────────────────────────────────────────────────────┤
+│ RESUMEN DE RESOLUCIÓN AUTOMÁTICO:                                      │
+│ "Ataque con arma: Inflige 1D10 de daño Físico + Mod. Destreza del      │
+│ personaje que lo tiene equipado contra un enemigo.                     │
+│ Mientras esté equipada: Penalización -1 a Evasión (EVA) al portador.   │
+│ Al impactar: Aplica -1 a RD (2 turnos). Limitación: 1t enfriamiento."  │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+- **Modelado Canónico de Modificadores al Portador**:
+  - *Decisión*: Se estructuran como un comportamiento continuo independiente (`mode: 'continuous'`, `conditions: [{ type: 'equipped' }]`, `target: { type: 'self' }`).
+  - *Beneficio*: Es 100% compatible con la función `calculateDerivedStats()` y el `mechanicalRuntime.ts`, por lo que el personaje ve automáticamente reflejado el bono o penalizador en su ficha tan pronto como equipa el arma.
+- **Diferenciación entre Efectos al Portador y Efectos al Objetivo**:
+  - *Decisión*:
+    - Modificadores al portador: target `self`, condicionados a `equipped`, modo continuo.
+    - Penalizadores al objetivo: target `enemy`, modo activo al disparar, con duración finita en turnos.
+  - *Beneficio*: Claridad conceptual absoluta para el administrador y el sistema de combate.
+
+---
+
+## 4. Technical Architecture & Data Strategy
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                    ELEMENTO EN CATÁLOGO: ARMA                        │
+│                                                                      │
+│  metadata: {                                                         │
+│    weaponTypeId: "heavy_weapon",                                     │
+│    baseDice: "D10",                                                  │
+│    damageModifier: "FUE",                                            │
+│    usesAmmo: false,                                                  │
+│    magazineCapacity: 0                                               │
+│  }                                                                   │
+│                                                                      │
+│  mechanicalBehaviors: [                                              │
+│    // 1. Comportamiento Activo de Ataque                             │
+│    {                                                                 │
+│      id: "beh_attack",                                               │
+│      name: "Disparo / Ataque",                                       │
+│      mode: "active",                                                 │
+│      activation: { actionType: "action", timing: "immediate" },      │
+│      target: { type: "enemy" },                                      │
+│      limitations: [ ... ],                                           │
+│      effects: [                                                      │
+│        { type: "damage", dice: "1D10", damageType: "fisico" },        │
+│        { type: "status_apply", statusElementId: "stunned", ... },    │
+│        { type: "penalty", targetStat: "RD", amount: 1, ... }         │
+│      ]                                                               │
+│    },                                                                │
+│    // 2. Comportamiento Continuo Pasivo (Solo si tiene mod. equip)   │
+│    {                                                                 │
+│      id: "beh_equipped_passive",                                     │
+│      name: "Efecto al equipar",                                      │
+│      mode: "continuous",                                             │
+│      conditions: [{ type: "equipped" }],                             │
+│      target: { type: "self" },                                       │
+│      effects: [                                                      │
+│        { type: "penalty", targetStat: "EVA", amount: 1, ... }        │
+│      ]                                                               │
+│    }                                                                 │
+│  ]                                                                   │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Plan de Ejecución
+
+1. **Actualizar `src/views/CatalogAdmin.tsx`**:
+   - Eliminar el campo "Número de Cargadores".
+   - Eliminar el interruptor manual `¿Requiere Munición?`.
+   - Derivar `usesAmmo` de la opción seleccionada de `weapon_type`.
+   - Mostrar campos de munición únicamente cuando `usesAmmo === true`.
+
+2. **Actualizar `src/components/mechanics/WeaponMechanicalEffectsEditor.tsx`**:
+   - **Daño Primario**:
+     - Filtro dinámico de opciones de `damage` desde `mechanics` según el `baseDice` (`1D10`, `2D10`).
+   - **Modificadores para el Portador (Al Equipar)**:
+     - Botón `+ Añadir Modificador al Equipar`.
+     - Selector: Bono (+) o Penalización (-).
+     - Selector de tipo: Atributo o Estadística Derivada.
+     - Selector específico: FUE, DES, INT, RES, VEL, VOL o EVA, RD, INI, DB, COR, SAL, EST.
+     - Valor numérico.
+     - Sincronización automática con un comportamiento continuo `{ mode: 'continuous', conditions: [{ type: 'equipped' }] }`.
+   - **Limitaciones**:
+     - Botón `+ Añadir Limitación`.
+     - Soporte para Cooldown (turnos) y Límite de Uso (usos por turno/combate/misión/día).
+   - **Efectos Secundarios al Impacto**:
+     - Estados Alterados canónicos con duración en turnos.
+     - Penalizadores contra el objetivo con duración en turnos.
+   - **Resumen Narrativo**:
+     - Incluye daño + modificador de atributo del portador + modificadores de equipo pasivos + limitaciones y efectos de impacto.
+
+3. **Verificación y Pruebas**:
+   - `lint_applet` para validar tipado estricto.
+   - `compile_applet` para asegurar compilación exitosa.
+   - Ejecución de tests del sistema de equipamiento y reglas.

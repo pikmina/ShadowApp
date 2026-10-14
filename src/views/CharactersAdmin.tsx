@@ -225,7 +225,7 @@ export default function CharactersAdmin() {
       <SectionHeader
         icon={Users}
         title="Personajes"
-        description="Base de datos automatizada Shadowmore OS 4.1.2 — Sincronización instantánea de estadísticas y técnicas."
+        description="Base de datos automatizada Shadowmore — Sincronización instantánea de estadísticas y técnicas."
         actions={
           <Button onClick={() => { setSelectedCharacterId(null); setEditing(true); }}>
             <Plus className="size-4 mr-2" aria-hidden="true" />

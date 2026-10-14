@@ -48,6 +48,9 @@ export async function upsertRule(key: string, type: string, value: any, descript
   try {
     if (key === 'employment_compensation') value = employmentCompensationSchema.parse(value);
     if (key === 'system_mechanics') {
+      if (Array.isArray(value)) {
+        value = value.filter((c: any) => c.id !== 'core.caliber' && c.coreKey !== 'caliber' && c.id !== 'caliber');
+      }
       const parsed = systemMechanicsConfigSchema.parse(value);
       if (!validateCoreCategories(parsed)) throw new Error('Core categories are required');
       return await db.transaction(async tx => {

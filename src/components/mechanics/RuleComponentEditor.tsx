@@ -22,6 +22,8 @@ export const componentTemplates: Record<RuleComponent['kind'], RuleComponent> = 
   consequence: { kind: 'consequence', role: 'consequence', when: 'end', consequence: { kind: 'attribute', attributeId: 'INT', amount: -2, turns: 3, untilEnd: false } },
   cap: { kind: 'cap', subject: 'stamina_cost', min: 0, max: 100 },
   damage_type: { kind: 'damage_type', defenseType: 'evasion' },
+  weapon_type: { kind: 'weapon_type', baseDice: 'D10', damageModifier: 'NONE', usesAmmo: true },
+  caliber: { kind: 'caliber', baseDice: 'D8' },
   complexity_adjustment: { kind: 'complexity_adjustment', count: 1 },
 };
 

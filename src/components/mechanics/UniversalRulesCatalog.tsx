@@ -227,7 +227,9 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
   };
 
   const save = async (next: SystemMechanicsConfig) => {
-    const sanitizedNext = next.map(sanitizeCategoryRules);
+    const sanitizedNext = next
+      .filter(c => c.id !== 'core.caliber' && c.coreKey !== 'caliber' && c.id !== 'caliber')
+      .map(sanitizeCategoryRules);
     const parsed = systemMechanicsConfigSchema.safeParse(sanitizedNext);
     if (!parsed.success) { setError(parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('\n')); return; }
     setSaving(true); setError('');
@@ -238,7 +240,8 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
     let currentDraft = draftOverride || draft;
     if (!currentDraft) return false;
     currentDraft = sanitizeCategoryRules(currentDraft);
-    const next = mechanics.some(c => c.id === currentDraft.id) ? mechanics.map(c => c.id === currentDraft.id ? currentDraft! : c) : [...mechanics, currentDraft];
+    const cleanedMechanics = mechanics.filter(c => c.id !== 'core.caliber' && c.coreKey !== 'caliber' && c.id !== 'caliber');
+    const next = cleanedMechanics.some(c => c.id === currentDraft.id) ? cleanedMechanics.map(c => c.id === currentDraft.id ? currentDraft! : c) : [...cleanedMechanics, currentDraft];
     const parsed = systemMechanicsConfigSchema.safeParse(next);
     if (!parsed.success) { setError(parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('\n')); return false; }
     setSaving(true); setError('');
@@ -265,7 +268,8 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
   };
   
   if (!draft) {
-    const filteredMechanics = mechanics.filter(c => 
+    const activeMechanics = mechanics.filter(c => c.id !== 'core.caliber' && c.coreKey !== 'caliber' && c.id !== 'caliber');
+    const filteredMechanics = activeMechanics.filter(c => 
       c.name.toLocaleLowerCase().includes(filter.toLocaleLowerCase()) ||
       (c.description && c.description.toLocaleLowerCase().includes(filter.toLocaleLowerCase()))
     );
@@ -1028,6 +1032,114 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                       );
                     }
 
+                    const isWeaponTypeCategory = contract?.coreKey === 'weapon_type' || draft.id === 'weapon_type' || draft.coreKey === 'weapon_type';
+
+                    if (isWeaponTypeCategory) {
+                      const comp = (editingRule.component as any) || {};
+                      const baseDice = comp.baseDice || 'D10';
+                      const damageModifier = comp.damageModifier || 'NONE';
+                      const usesAmmo = comp.usesAmmo !== undefined ? comp.usesAmmo : true;
+
+                      return (
+                        <div className="space-y-4">
+                          <div className="grid gap-4 sm:grid-cols-3">
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold">Nombre del Tipo de Arma</Label>
+                              <Input 
+                                value={editingRule.name} 
+                                onChange={e => {
+                                  const rawVal = e.target.value;
+                                  const slug = slugifyId(rawVal);
+                                  patchRule(editingIndex, { 
+                                    name: rawVal,
+                                    ruleType: 'component',
+                                    component: { kind: 'weapon_type', baseDice, damageModifier, usesAmmo },
+                                    ...(isNewOption || !editingRule.runtimeKey ? { runtimeKey: slug } : {})
+                                  });
+                                }} 
+                                placeholder="Ej. Arma de Fuego, Arma Ligera..." 
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold">Identificador (ID)</Label>
+                              <Input 
+                                value={editingRule.runtimeKey || slugifyId(editingRule.name)} 
+                                onChange={e => {
+                                  const customKey = slugifyId(e.target.value);
+                                  patchRule(editingIndex, { 
+                                    runtimeKey: customKey,
+                                    ruleType: 'component',
+                                    component: { kind: 'weapon_type', baseDice, damageModifier, usesAmmo },
+                                  });
+                                }} 
+                                placeholder="Ej. firearm" 
+                                className="font-mono text-xs"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold">Ajuste de CE (Coste Estamina)</Label>
+                              <Input type="number" value={editingRule.cost} onChange={e => patchRule(editingIndex, { 
+                                cost: Number(e.target.value),
+                                ruleType: 'component',
+                                component: { kind: 'weapon_type', baseDice, damageModifier, usesAmmo },
+                              })} />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold">Dado Base (Caras D)</Label>
+                              <Select value={baseDice} onValueChange={(val) => {
+                                patchRule(editingIndex, {
+                                  ruleType: 'component',
+                                  component: { kind: 'weapon_type', baseDice: val, damageModifier, usesAmmo },
+                                });
+                              }}>
+                                <SelectTrigger className="h-9 text-xs bg-background font-mono font-bold">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {['D4', 'D6', 'D8', 'D10', 'D12', 'D20'].map(d => (
+                                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold">Modificador Sumado al Daño</Label>
+                              <Select value={damageModifier} onValueChange={(val: any) => {
+                                patchRule(editingIndex, {
+                                  ruleType: 'component',
+                                  component: { kind: 'weapon_type', baseDice, damageModifier: val, usesAmmo },
+                                });
+                              }}>
+                                <SelectTrigger className="h-9 text-xs bg-background">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="FUE">Mod. Fuerza (FUE)</SelectItem>
+                                  <SelectItem value="DES">Mod. Destreza (DES)</SelectItem>
+                                  <SelectItem value="AVG_FUE_DES">Promedio FUE y DES</SelectItem>
+                                  <SelectItem value="NONE">Sin Modificador (Fijo por Calibre)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2 flex flex-col justify-end">
+                              <div className="flex items-center justify-between p-2 rounded bg-background border h-9">
+                                <Label className="text-xs font-semibold">Requiere Munición</Label>
+                                <Switch checked={usesAmmo} onCheckedChange={(checked) => {
+                                  patchRule(editingIndex, {
+                                    ruleType: 'component',
+                                    component: { kind: 'weapon_type', baseDice, damageModifier, usesAmmo: checked },
+                                  });
+                                }} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     if (contract?.editorMode === 'parameter') {
                       const isSelfDamage = contract?.coreKey === 'self_damage';
                       return (
@@ -1134,29 +1246,39 @@ export function UniversalRulesCatalog({ mechanics, onSave }: { mechanics: System
                     </div>
                   </div>
 
-                  {editingRule.effect && contract?.kind !== 'ce_adjustment' && !(contract?.coreKey === 'damage_type' || draft.id === 'damage_type' || draft.coreKey === 'damage_type') && (
-                    <div className="pt-2">
-                      <Label className="text-xs font-semibold mb-2 block">Definición de Efecto Mecánico</Label>
-                      <MechanicalEffectDefinitionEditor 
-                        value={editingRule.effect} 
-                        hideTypeSelector={Boolean(contract && contract.kind === 'effect')} 
-                        independentDuration 
-                        onChange={effect => {
-                          if (contract?.effectType && effect.type !== contract.effectType) {
-                            effect.type = contract.effectType;
-                          }
-                          patchRule(editingIndex, { effect });
-                        }} 
-                      />
-                    </div>
-                  )}
+                  {(() => {
+                    const isCustomOptionForm = 
+                      contract?.coreKey === 'damage_type' || draft.id === 'damage_type' || draft.coreKey === 'damage_type' ||
+                      contract?.coreKey === 'weapon_type' || draft.id === 'weapon_type' || draft.coreKey === 'weapon_type';
 
-                  {editingRule.component && contract?.kind !== 'ce_adjustment' && !(contract?.coreKey === 'damage_type' || draft.id === 'damage_type' || draft.coreKey === 'damage_type') && (
-                    <div className="pt-2">
-                      <Label className="text-xs font-semibold mb-2 block">Parámetros de la Regla / Componente</Label>
-                      <RuleComponentEditor value={editingRule.component} onChange={component => patchRule(editingIndex, { component })} />
-                    </div>
-                  )}
+                    return (
+                      <>
+                        {editingRule.effect && contract?.kind !== 'ce_adjustment' && !isCustomOptionForm && (
+                          <div className="pt-2">
+                            <Label className="text-xs font-semibold mb-2 block">Definición de Efecto Mecánico</Label>
+                            <MechanicalEffectDefinitionEditor 
+                              value={editingRule.effect} 
+                              hideTypeSelector={Boolean(contract && contract.kind === 'effect')} 
+                              independentDuration 
+                              onChange={effect => {
+                                if (contract?.effectType && effect.type !== contract.effectType) {
+                                  effect.type = contract.effectType;
+                                }
+                                patchRule(editingIndex, { effect });
+                              }} 
+                            />
+                          </div>
+                        )}
+
+                        {editingRule.component && contract?.kind !== 'ce_adjustment' && !isCustomOptionForm && (
+                          <div className="pt-2">
+                            <Label className="text-xs font-semibold mb-2 block">Parámetros de la Regla / Componente</Label>
+                            <RuleComponentEditor value={editingRule.component} onChange={component => patchRule(editingIndex, { component })} />
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
               <DialogFooter className="px-6 py-4 border-t bg-muted/30 shrink-0 flex items-center justify-between sm:justify-between">

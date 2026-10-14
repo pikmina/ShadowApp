@@ -1,6 +1,6 @@
 {
-  "summary": "Plan de implementación para la configuración de Naturaleza de Defensa (Físico/Evasión vs Mental/Coraje) en el Editor de Reglas Mecánicas, herencia automática en la creación de técnicas con anulación manual, e identificadores amigables derivados de nombres.",
-  "updatedAt": "2026-10-12T16:16:36.169183738Z",
+  "summary": "Plan de revisión para Armas: inclusión de Modificadores Pasivos para el Portador mientras el arma esté equipada (Bonos y Penalizaciones a Atributos y Estadísticas Derivadas), junto con la herencia de munición, filtrado dinámico de daño, limitaciones y penalizadores al impacto con duración.",
+  "updatedAt": "2026-10-14T02:31:34.366138829Z",
   "requestFeedback": true,
   "userFacing": true
 }

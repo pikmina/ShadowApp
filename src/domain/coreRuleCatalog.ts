@@ -67,6 +67,7 @@ export function getCategoryFamily(cat: { family?: string; coreKey?: string; id?:
 export const CORE_CATEGORIES = {
   damage: 'Daño',
   damage_type: 'Tipo de daño',
+  weapon_type: 'Tipo de arma',
   healing: 'Curación',
   barrier: 'Barrera',
   numeric_modifier: 'Modificador numérico',
@@ -265,6 +266,7 @@ export const CORE_CATEGORY_CONTRACTS: Record<CoreCategoryKey, CoreCategoryContra
   consequence: { coreKey: 'consequence', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
   caps: { coreKey: 'caps', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
   complexity_adjustment: { coreKey: 'complexity_adjustment', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
+  weapon_type: { coreKey: 'weapon_type', kind: 'component', ruleClass: 'component', ruleClassLabel: 'Aplicación / Regla', editorMode: 'component' },
 };
 
 export function getCoreCategoryContract(category: { coreKey?: string; id?: string } | null | undefined): CoreCategoryContract | undefined {
@@ -308,6 +310,8 @@ export interface CategoryOptionView {
   formula?: string;
   amount?: number;
   isAvailable: boolean;
+  component?: any;
+  effect?: any;
 }
 
 /** Only CREATE / versioned migration uses these defaults. LOAD never calls this. */
@@ -383,8 +387,12 @@ export function createCoreCategories(): SystemMechanicsConfig {
   effect('damage', '4d8', '4D8', { type: 'damage', dice: '4D8' }, '4D8', 7);
   effect('damage', '5d4', '5D4', { type: 'damage', dice: '5D4' }, '5D4', 4);
   effect('damage', '5d6', '5D6', { type: 'damage', dice: '5D6' }, '5D6', 6);
-  effect('damage', '6d6', '6D6', { type: 'damage', dice: '6D6' }, '6D6', 7);
   effect('damage', '5d8', '5D8', { type: 'damage', dice: '5D8' }, '5D8', 7);
+  effect('damage', '1d10', '1D10', { type: 'damage', dice: '1D10' }, '1D10', 3);
+  effect('damage', '2d10', '2D10', { type: 'damage', dice: '2D10' }, '2D10', 5);
+  effect('damage', '3d10', '3D10', { type: 'damage', dice: '3D10' }, '3D10', 7);
+  effect('damage', '1d12', '1D12', { type: 'damage', dice: '1D12' }, '1D12', 4);
+  effect('damage', '2d12', '2D12', { type: 'damage', dice: '2D12' }, '2D12', 6);
 
   // Damage Types (Canonical Core Category)
   option('damage_type', 'fisico', 'Físico', { kind: 'damage_type', defenseType: 'evasion' } as any, 'fisico', 0);
@@ -400,6 +408,13 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('damage_type', 'cortante', 'Cortante', { kind: 'damage_type', defenseType: 'evasion' } as any, 'cortante', 0);
   option('damage_type', 'perforante', 'Perforante', { kind: 'damage_type', defenseType: 'evasion' } as any, 'perforante', 0);
   option('damage_type', 'contundente', 'Contundente', { kind: 'damage_type', defenseType: 'evasion' } as any, 'contundente', 0);
+
+  // Weapon Types
+  option('weapon_type', 'firearm', 'Arma de Fuego', { kind: 'weapon_type', baseDice: 'D10', damageModifier: 'NONE', usesAmmo: true } as any, 'firearm', 0);
+  option('weapon_type', 'light_weapon', 'Arma Ligera', { kind: 'weapon_type', baseDice: 'D6', damageModifier: 'DES', usesAmmo: false } as any, 'light_weapon', 0);
+  option('weapon_type', 'tactical_weapon', 'Arma Táctica', { kind: 'weapon_type', baseDice: 'D8', damageModifier: 'DES', usesAmmo: false } as any, 'tactical_weapon', 0);
+  option('weapon_type', 'heavy_weapon', 'Arma Pesada / Contundente', { kind: 'weapon_type', baseDice: 'D10', damageModifier: 'FUE', usesAmmo: false } as any, 'heavy_weapon', 0);
+  option('weapon_type', 'hybrid_tech', 'Arma Tecnológica Híbrida', { kind: 'weapon_type', baseDice: 'D8', damageModifier: 'AVG_FUE_DES', usesAmmo: false } as any, 'hybrid_tech', 0);
 
   // Healing: Canonical Core Category
   // Fixed healing
@@ -476,6 +491,7 @@ export function createCoreCategories(): SystemMechanicsConfig {
   effect('status', 'stunned', 'Aturdido', { type: 'status', statusElementId: 'core.status.stunned' }, 'stunned', 3);
   effect('status', 'berserker', 'Berserker (Familia)', { type: 'status', statusElementId: 'core.status.berserker' }, 'berserker', 3);
   effect('status', 'berserker_grave', 'Berserker Grave', { type: 'status', statusElementId: 'core.status.berserker_grave' }, 'berserker_grave', 5);
+  effect('status', 'berserker_moderado', 'Berserker Moderado', { type: 'status', statusElementId: 'core.status.berserker_moderado' }, 'berserker_moderado', 4);
   effect('status', 'berserker_leve', 'Berserker Leve', { type: 'status', statusElementId: 'core.status.berserker_leve' }, 'berserker_leve', 3);
   effect('status', 'coma_ilusorio', 'Coma Ilusorio', { type: 'status', statusElementId: 'core.status.coma_ilusorio' }, 'coma_ilusorio', 4);
   effect('status', 'congelado', 'Congelado', { type: 'status', statusElementId: 'core.status.congelado' }, 'congelado', 3);
@@ -486,6 +502,7 @@ export function createCoreCategories(): SystemMechanicsConfig {
   effect('status', 'electrocutado', 'Electrocutado', { type: 'status', statusElementId: 'core.status.electrocutado' }, 'electrocutado', 3);
   effect('status', 'hemorragia', 'Hemorragia (Familia)', { type: 'status', statusElementId: 'core.status.hemorragia' }, 'hemorragia', 3);
   effect('status', 'hemorragia_grave', 'Hemorragia Grave', { type: 'status', statusElementId: 'core.status.hemorragia_grave' }, 'hemorragia_grave', 6);
+  effect('status', 'hemorragia_moderado', 'Hemorragia Moderado', { type: 'status', statusElementId: 'core.status.hemorragia_moderado' }, 'hemorragia_moderado', 4);
   effect('status', 'hemorragia_leve', 'Hemorragia Leve', { type: 'status', statusElementId: 'core.status.hemorragia_leve' }, 'hemorragia_leve', 3);
   effect('status', 'locura', 'Locura', { type: 'status', statusElementId: 'core.status.locura' }, 'locura', 3);
   effect('status', 'miedo', 'Miedo / Aterrorizado', { type: 'status', statusElementId: 'core.status.miedo' }, 'miedo', 3);
@@ -493,11 +510,13 @@ export function createCoreCategories(): SystemMechanicsConfig {
   effect('status', 'nulificacion_don', 'Nulificación de Don', { type: 'status', statusElementId: 'core.status.nulificacion_don' }, 'nulificacion_don', 5);
   effect('status', 'quemadura', 'Quemadura (Familia)', { type: 'status', statusElementId: 'core.status.quemadura' }, 'quemadura', 2);
   effect('status', 'quemadura_grave', 'Quemadura Grave', { type: 'status', statusElementId: 'core.status.quemadura_grave' }, 'quemadura_grave', 5);
+  effect('status', 'quemadura_moderado', 'Quemadura Moderado', { type: 'status', statusElementId: 'core.status.quemadura_moderado' }, 'quemadura_moderado', 3);
   effect('status', 'quemadura_leve', 'Quemadura Leve', { type: 'status', statusElementId: 'core.status.quemadura_leve' }, 'quemadura_leve', 2);
   effect('status', 'ralentizado', 'Ralentizado', { type: 'status', statusElementId: 'core.status.ralentizado' }, 'ralentizado', 2);
   effect('status', 'sobrecalentado', 'Sobrecalentado', { type: 'status', statusElementId: 'core.status.sobrecalentado' }, 'sobrecalentado', 3);
   effect('status', 'veneno', 'Veneno (Familia)', { type: 'status', statusElementId: 'core.status.veneno' }, 'veneno', 2);
   effect('status', 'veneno_grave', 'Veneno Grave', { type: 'status', statusElementId: 'core.status.veneno_grave' }, 'veneno_grave', 5);
+  effect('status', 'veneno_moderado', 'Veneno Moderado', { type: 'status', statusElementId: 'core.status.veneno_moderado' }, 'veneno_moderado', 3);
   effect('status', 'veneno_leve', 'Veneno Leve', { type: 'status', statusElementId: 'core.status.veneno_leve' }, 'veneno_leve', 2);
   effect('status', 'inmovilizado', 'Inmovilizado', { type: 'status', statusElementId: 'core.status.inmovilizado' }, 'inmovilizado', 3);
   effect('status', 'concentrado', 'Concentrado (beneficio)', { type: 'status', statusElementId: 'core.status.concentrado' }, 'concentrado', 3);
@@ -751,6 +770,8 @@ export function getCategoryOptions(
       formula: formula || undefined,
       amount,
       isAvailable,
+      component: r.component,
+      effect: r.effect,
     };
   };
 
@@ -926,7 +947,24 @@ export function migrateCoreCategories(existing: unknown): SystemMechanicsConfig 
     return createCoreCategories();
   }
   let parsed = systemMechanicsConfigSchema.parse(existing);
-  
+  // Purge retired core categories: caliber (calibers are now consumables in Catalog -> Ammunition)
+  parsed = parsed.filter(c => c.id !== 'core.caliber' && c.coreKey !== 'caliber' && c.id !== 'caliber');
+
+  const damageCat = parsed.find(c => c.id === 'core.damage' || c.coreKey === 'damage');
+  if (damageCat && damageCat.rules) {
+    const d10Rules = [
+      { id: 'core.damage.1d10', name: '1D10', cost: 3, runtimeKey: '1D10', ruleType: 'effect' as const, effect: { timing: 'on_activation' as const, type: 'damage' as const, dice: '1D10' } },
+      { id: 'core.damage.2d10', name: '2D10', cost: 5, runtimeKey: '2D10', ruleType: 'effect' as const, effect: { timing: 'on_activation' as const, type: 'damage' as const, dice: '2D10' } },
+      { id: 'core.damage.3d10', name: '3D10', cost: 7, runtimeKey: '3D10', ruleType: 'effect' as const, effect: { timing: 'on_activation' as const, type: 'damage' as const, dice: '3D10' } },
+      { id: 'core.damage.1d12', name: '1D12', cost: 4, runtimeKey: '1D12', ruleType: 'effect' as const, effect: { timing: 'on_activation' as const, type: 'damage' as const, dice: '1D12' } },
+      { id: 'core.damage.2d12', name: '2D12', cost: 6, runtimeKey: '2D12', ruleType: 'effect' as const, effect: { timing: 'on_activation' as const, type: 'damage' as const, dice: '2D12' } },
+    ];
+    d10Rules.forEach(r => {
+      if (!damageCat.rules.some(existing => existing.runtimeKey?.toUpperCase() === r.runtimeKey || existing.name === r.name)) {
+        damageCat.rules.push(r);
+      }
+    });
+  }
   const manualCondition = parsed.find(m => m.id === 'core.manual_condition');
   if (manualCondition) {
     const toMoveToManual = ['core.visual_contact', 'core.physical_contact', 'core.auditory_contact', 'core.conscious'];

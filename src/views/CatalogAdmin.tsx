@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import useSWR from "swr";
 import { apiFetch, fetcher } from "../lib/api";
 import { MechanicalBehaviorsEditor } from "../components/mechanics/MechanicalBehaviorsEditor";
+import { WeaponMechanicalEffectsEditor } from "../components/mechanics/WeaponMechanicalEffectsEditor";
 import { MechanicalDescriptionPreview } from "../components/mechanics/MechanicalDescriptionPreview";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
@@ -37,12 +38,13 @@ import {
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { Switch } from "../components/ui/switch";
-import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff, Sparkles, Layers, Copy, AlertCircle, Loader2, Flame, RefreshCw } from "lucide-react";
+import { Plus, Settings2, Trash2, Edit2, Search, Eye, EyeOff, Sparkles, Layers, Copy, AlertCircle, Loader2, Flame, RefreshCw, Swords, Disc, Crosshair } from "lucide-react";
 import { toast } from "sonner";
 import { useMemo } from "react";
 import { nanoid } from "nanoid";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { getProgressionBreakdown } from "../domain/progressionCosts";
+import { getCategoryOptions, createCoreCategories } from "../domain/coreRuleCatalog";
 import { ItemIcon } from "../components/common/ItemIcon";
 import { ItemIconPicker } from "../components/common/ItemIconPicker";
 
@@ -141,6 +143,7 @@ export default function CatalogAdmin() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [adminActionError, setAdminActionError] = useState("");
+  const [showAdvancedBehaviors, setShowAdvancedBehaviors] = useState(false);
 
   useEffect(() => {
     if (searchParams.get('create') === 'true') {
@@ -154,6 +157,13 @@ export default function CatalogAdmin() {
   const mechanicsRule = rules?.find((r: any) => r.key === "system_mechanics") || { value: [] };
   const mechanics = Array.isArray(mechanicsRule.value) ? mechanicsRule.value : [];
 
+  const weaponTypeOptions = useMemo(() => {
+    const opts = getCategoryOptions(mechanics, "weapon_type");
+    if (opts.length > 0) return opts;
+    const defaults = createCoreCategories().find(c => c.coreKey === "weapon_type");
+    return defaults ? defaults.rules : [];
+  }, [mechanics]);
+
   const { data: rawElements, error: elementsError, isLoading: elementsLoading, mutate } = useSWR(
     user ? "/api/admin/elements" : null, fetcher
   );
@@ -163,6 +173,14 @@ export default function CatalogAdmin() {
       ? rawElements.filter((el: any) => el.kind !== "technique" && el.kind !== "technique_entitlement")
       : [];
   }, [rawElements]);
+
+  const ammoElements = useMemo(() => {
+    return elements.filter((el: any) => el.kind === "ammunition");
+  }, [elements]);
+
+  const catalogStatuses = useMemo(() => {
+    return elements.filter((el: any) => el.kind === "altered_status");
+  }, [elements]);
   
   const filteredElements = useMemo(() => {
     if (!elements) return [];
@@ -263,6 +281,7 @@ export default function CatalogAdmin() {
       });
     }
     setActiveTab("info");
+    setShowAdvancedBehaviors(false);
     setIsDialogOpen(true);
   };
 
@@ -1019,6 +1038,252 @@ export default function CatalogAdmin() {
                     </div>
                   )}
 
+                  {/* Configuración de Parámetros de Arma */}
+                  {form.kind === 'weapon' && (() => {
+                    const defaultWeaponKey = weaponTypeOptions[0]?.runtimeKey || weaponTypeOptions[0]?.id || "arma_de_fuego";
+                    const selectedWeaponTypeId = form.metadata?.weaponTypeId || defaultWeaponKey;
+                    const selectedWeaponTypeOpt = weaponTypeOptions.find((o: any) => o.runtimeKey === selectedWeaponTypeId || o.id === selectedWeaponTypeId) || weaponTypeOptions[0];
+                    const selectedComp = (selectedWeaponTypeOpt as any)?.component || {};
+                    const effectiveUsesAmmo = selectedComp.usesAmmo === true;
+                    const effectiveBaseDice = selectedComp.baseDice || "D10";
+                    const effectiveDamageModifier = selectedComp.damageModifier || "NONE";
+
+                    return (
+                      <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-red-400">
+                            <Swords className="size-4" />
+                            <h4 className="text-xs font-bold uppercase tracking-wider">Parámetros del Arma</h4>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 bg-red-500/10">
+                            Reglas de Daño y Munición
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {/* Tipo de Arma */}
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-foreground font-medium">Tipo de Arma</Label>
+                            <Select
+                              value={selectedWeaponTypeId}
+                              onValueChange={v => {
+                                const opt = weaponTypeOptions.find((o: any) => o.runtimeKey === v || o.id === v);
+                                const comp = (opt as any)?.component || {};
+                                const defaultDice = comp.baseDice || 'D10';
+                                const defaultMod = comp.damageModifier || 'NONE';
+                                const usesAmmo = comp.usesAmmo === true;
+
+                                setForm({
+                                  ...form,
+                                  metadata: {
+                                    ...form.metadata,
+                                    weaponTypeId: v,
+                                    baseDice: defaultDice,
+                                    damageModifier: defaultMod,
+                                    usesAmmo,
+                                  }
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background/80">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {weaponTypeOptions.map((wt: any) => (
+                                  <SelectItem key={wt.runtimeKey || wt.id} value={wt.runtimeKey || wt.id}>
+                                    {wt.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Indicador de herencia de Munición */}
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-foreground font-medium">Munición Requerida</Label>
+                            <div className="flex items-center px-3 rounded-md bg-background/50 border h-8 text-xs font-mono text-muted-foreground">
+                              {effectiveUsesAmmo ? "SÍ (Heredado de Tipo de Arma)" : "NO (Sin munición)"}
+                            </div>
+                          </div>
+
+                          {/* Seleccionar Munición compatible del Catálogo */}
+                          {effectiveUsesAmmo && (
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-foreground font-medium">Munición Compatible (Catálogo)</Label>
+                            <Select
+                              value={form.metadata?.ammoElementId || "none"}
+                              onValueChange={v => {
+                                if (v === "none") {
+                                  setForm({
+                                    ...form,
+                                    metadata: {
+                                      ...form.metadata,
+                                      ammoElementId: "",
+                                    }
+                                  });
+                                } else {
+                                  const selectedAmmo = ammoElements.find((a: any) => a.id === v);
+                                  setForm({
+                                    ...form,
+                                    metadata: {
+                                      ...form.metadata,
+                                      ammoElementId: v,
+                                      caliberName: selectedAmmo?.metadata?.caliberName || selectedAmmo?.name || "",
+                                    }
+                                  });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background/80">
+                                <SelectValue placeholder="Seleccionar munición..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Sin munición vinculada / Calibre libre</SelectItem>
+                                {ammoElements.map((ammo: any) => (
+                                  <SelectItem key={ammo.id} value={ammo.id}>
+                                    {ammo.name} {ammo.metadata?.caliberName ? `(${ammo.metadata.caliberName})` : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        {/* Calibre de Munición (Texto / Nombre) */}
+                        {effectiveUsesAmmo && (
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-foreground font-medium">Calibre de Munición</Label>
+                            <Input
+                              value={form.metadata?.caliberName || ""}
+                              onChange={e => setForm({
+                                ...form,
+                                metadata: {
+                                  ...form.metadata,
+                                  caliberName: e.target.value
+                                }
+                              })}
+                              className="h-8 text-xs bg-background/80"
+                              placeholder="Ej: 9mm, .45 ACP, 5.56mm..."
+                            />
+                          </div>
+                        )}
+
+                        {/* Capacidad por Cargador */}
+                        {effectiveUsesAmmo && (
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-foreground font-medium">Capacidad de Cargador (Balas)</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={form.metadata?.magazineCapacity ?? 12}
+                              onChange={e => setForm({
+                                ...form,
+                                metadata: {
+                                  ...form.metadata,
+                                  magazineCapacity: Math.max(1, parseInt(e.target.value, 10) || 1)
+                                }
+                              })}
+                              className="h-8 text-xs font-mono bg-background/80"
+                              placeholder="Ej. 6, 12, 30..."
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                  {/* Configuración de Parámetros de Munición */}
+                  {form.kind === 'ammunition' && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-amber-400">
+                          <Disc className="size-4" />
+                          <h4 className="text-xs font-bold uppercase tracking-wider">Parámetros de la Munición</h4>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">
+                          Consumible de Catálogo
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {/* Calibre de Munición */}
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-foreground font-medium">Calibre de Munición</Label>
+                          <Input
+                            value={form.metadata?.caliberName || ""}
+                            onChange={e => setForm({
+                              ...form,
+                              metadata: { ...form.metadata, caliberName: e.target.value }
+                            })}
+                            className="h-8 text-xs bg-background/80"
+                            placeholder="Ej: 9mm Parabellum, .45 ACP, 5.56x45mm, 12 Gauge..."
+                          />
+                        </div>
+
+                        {/* Tipo de Arma Compatible */}
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-foreground font-medium">Tipo de Arma Compatible</Label>
+                          <Select
+                            value={form.metadata?.weaponTypeId || "firearm"}
+                            onValueChange={v => setForm({
+                              ...form,
+                              metadata: { ...form.metadata, weaponTypeId: v }
+                            })}
+                          >
+                            <SelectTrigger className="h-8 text-xs bg-background/80">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {weaponTypeOptions.map((wt: any) => (
+                                <SelectItem key={wt.runtimeKey || wt.id} value={wt.runtimeKey || wt.id}>
+                                  {wt.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Cantidad por Caja / Lote */}
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-foreground font-medium">Balas por Caja / Lote</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={form.metadata?.boxQuantity ?? 30}
+                            onChange={e => setForm({
+                              ...form,
+                              metadata: {
+                                ...form.metadata,
+                                boxQuantity: Math.max(1, parseInt(e.target.value, 10) || 1)
+                              }
+                            })}
+                            className="h-8 text-xs font-mono bg-background/80"
+                            placeholder="Ej. 30, 50, 100..."
+                          />
+                        </div>
+
+                        {/* Bono de Daño */}
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-foreground font-medium">Bono de Daño de Munición</Label>
+                          <Input
+                            type="number"
+                            value={form.metadata?.damageBonus ?? 0}
+                            onChange={e => setForm({
+                              ...form,
+                              metadata: {
+                                ...form.metadata,
+                                damageBonus: parseInt(e.target.value, 10) || 0
+                              }
+                            })}
+                            className="h-8 text-xs font-mono bg-background/80"
+                            placeholder="Ej. +0, +1, +2..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Icono del artículo (Lucide / Emoji) */}
                   <ItemIconPicker
                     iconType={form.iconType}
@@ -1062,14 +1327,79 @@ export default function CatalogAdmin() {
                 </TabsContent>
 
                 <TabsContent value="effects" className="mt-0">
-                  <MechanicalBehaviorsEditor
-                    behaviors={form.mechanicalBehaviors || []}
-                    onChange={(behaviors) => setForm((current) => ({ ...current, mechanicalBehaviors: behaviors }))}
-                    legacyEffects={form.effects || []}
-                    onLegacyChange={(effects) => setForm((current) => ({ ...current, effects }))}
-                    mechanics={mechanics}
-                    maxLevel={form.kind === 'skill' ? (Number(form.metadata?.maxLevel) || 5) : undefined}
-                  />
+                  {form.kind === 'weapon' && !showAdvancedBehaviors ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-2.5 rounded-lg bg-card/40 border">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 bg-red-500/10">
+                            Editor Simplificado de Armas
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            Activo · Instantáneo · Daño a Enemigo
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowAdvancedBehaviors(true)}
+                          className="text-xs text-muted-foreground hover:text-foreground h-7"
+                        >
+                          Ver editor avanzado genérico
+                        </Button>
+                      </div>
+
+                      {(() => {
+                        const defaultWeaponKey = weaponTypeOptions[0]?.runtimeKey || weaponTypeOptions[0]?.id || "arma_de_fuego";
+                        const selectedWeaponTypeId = form.metadata?.weaponTypeId || defaultWeaponKey;
+                        const selectedWeaponTypeOpt = weaponTypeOptions.find((o: any) => o.runtimeKey === selectedWeaponTypeId || o.id === selectedWeaponTypeId) || weaponTypeOptions[0];
+                        const selectedComp = (selectedWeaponTypeOpt as any)?.component || {};
+                        const effectiveUsesAmmo = selectedComp.usesAmmo === true;
+                        const effectiveBaseDice = selectedComp.baseDice || "D10";
+                        const effectiveDamageModifier = selectedComp.damageModifier || "NONE";
+
+                        return (
+                          <WeaponMechanicalEffectsEditor
+                            behaviors={form.mechanicalBehaviors || []}
+                            onChange={(behaviors) => setForm((current) => ({ ...current, mechanicalBehaviors: behaviors }))}
+                            weaponTypeId={selectedWeaponTypeId}
+                            baseDice={form.metadata?.baseDice || effectiveBaseDice}
+                            damageModifier={form.metadata?.damageModifier || effectiveDamageModifier}
+                            usesAmmo={effectiveUsesAmmo}
+                            mechanics={mechanics}
+                            catalogStatuses={catalogStatuses}
+                          />
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {form.kind === 'weapon' && (
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-card/40 border">
+                          <span className="text-xs text-muted-foreground">
+                            Estás visualizando el editor genérico avanzado de comportamientos.
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowAdvancedBehaviors(false)}
+                            className="text-xs text-primary font-semibold h-7"
+                          >
+                            Volver al editor simplificado de armas
+                          </Button>
+                        </div>
+                      )}
+                      <MechanicalBehaviorsEditor
+                        behaviors={form.mechanicalBehaviors || []}
+                        onChange={(behaviors) => setForm((current) => ({ ...current, mechanicalBehaviors: behaviors }))}
+                        legacyEffects={form.effects || []}
+                        onLegacyChange={(effects) => setForm((current) => ({ ...current, effects }))}
+                        mechanics={mechanics}
+                        maxLevel={form.kind === 'skill' ? (Number(form.metadata?.maxLevel) || 5) : undefined}
+                      />
+                    </div>
+                  )}
                 </TabsContent>
               </div>
             </Tabs>

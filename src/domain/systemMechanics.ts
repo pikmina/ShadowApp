@@ -234,6 +234,41 @@ export const mechanicalEffectSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+/**
+ * Calculates attribute modifier: +1 per 2 attribute points above 0.
+ */
+export function getAttributeModifier(attrValue: number): number {
+  return Math.floor(Math.max(0, attrValue || 0) / 2);
+}
+
+/**
+ * Calculates weapon damage bonus according to weapon type modifier rule:
+ * - FUE: Heavy/Blunt weapons (+Mod FUE)
+ * - DES: Light/Tactical weapons (+Mod DES)
+ * - AVG_FUE_DES: Hybrid Tech weapons (Average of Mod FUE and Mod DES)
+ * - NONE: Firearms (Fixed damage from caliber, no attr bonus)
+ */
+export function calculateWeaponDamageModifier(
+  modifierType: 'FUE' | 'DES' | 'AVG_FUE_DES' | 'NONE' | string,
+  fue: number,
+  des: number
+): number {
+  const modFue = getAttributeModifier(fue);
+  const modDes = getAttributeModifier(des);
+
+  switch (modifierType) {
+    case 'FUE':
+      return modFue;
+    case 'DES':
+      return modDes;
+    case 'AVG_FUE_DES':
+      return Math.floor((modFue + modDes) / 2);
+    case 'NONE':
+    default:
+      return 0;
+  }
+}
+
 export const canonicalMechanicalEffectsSchema = z.array(mechanicalEffectSchema);
 
 export const appliedMechanicReferenceSchema = z.strictObject({
