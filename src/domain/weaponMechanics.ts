@@ -106,6 +106,13 @@ export function buildWeaponMechanicalDescription(params: BuildWeaponDescriptionP
   // 6. Secondary Effects on hit
   if (Array.isArray(params.secondaryEffects) && params.secondaryEffects.length > 0) {
     const secondaryStr = params.secondaryEffects.map((s: any) => {
+      if (s.type === "damage") {
+        const secDice = s.dice || "1D4";
+        const rawSecType = s.damageType || "físico";
+        const secType = rawSecType.toLowerCase();
+        return `inflige adicionalmente ${secDice} de daño ${secType}`;
+      }
+
       if (s.type === "status_apply" || s.type === "status") {
         const statusId = s.statusElementId || "core.status.stunned";
         const matchedOpt = Array.isArray(params.statusOptions)

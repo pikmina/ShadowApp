@@ -1,4 +1,5 @@
 import { assertElementMechanics } from "../domain/elementMechanics.ts";
+import { assertWeaponSemantics } from "../domain/weaponValidation.ts";
 import { systemMechanicsConfigSchema } from "../domain/systemMechanics.ts";
 import { db, pool } from './index.ts';
 import { systemElements, elementPossessions, shopOffers, systemRules, auditLogs } from './schema.ts';
@@ -166,6 +167,39 @@ export async function getElement(id: string): Promise<typeof systemElements.$inf
   }
 }
 
+/**
+ * Merges element metadata adhering to JSON Merge Patch semantics (RFC 7396):
+ * - If patch is undefined, existing metadata is preserved intact.
+ * - Properties present in patch are updated.
+ * - Properties present in patch with value `null` are deleted.
+ * - Undefined values in patch do not overwrite existing values.
+ */
+export function mergeElementMetadata(
+  existingMeta: unknown,
+  patchMeta: unknown
+): Record<string, any> {
+  if (patchMeta === undefined) {
+    return (existingMeta && typeof existingMeta === 'object' && !Array.isArray(existingMeta))
+      ? { ...(existingMeta as Record<string, any>) }
+      : {};
+  }
+  if (!patchMeta || typeof patchMeta !== 'object' || Array.isArray(patchMeta)) {
+    return (patchMeta as any) ?? {};
+  }
+  const base = (existingMeta && typeof existingMeta === 'object' && !Array.isArray(existingMeta))
+    ? { ...(existingMeta as Record<string, any>) }
+    : {};
+
+  for (const [key, value] of Object.entries(patchMeta as Record<string, any>)) {
+    if (value === null) {
+      delete base[key];
+    } else if (value !== undefined) {
+      base[key] = value;
+    }
+  }
+  return base;
+}
+
 export async function upsertElement(data: any, actorUid: string = 'system') {
   await ensureElementIconColumns();
   return db.transaction(async tx => {
@@ -179,13 +213,51 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
     const [stored] = await tx.select().from(systemRules).where(eq(systemRules.key, 'system_mechanics'));
     const mechanics = systemMechanicsConfigSchema.parse(stored?.value ?? []);
     assertElementMechanics(effects as unknown[], status, mechanics, mechanicalBehaviors as unknown[]);
+
+    const effectiveKind = data.kind || existing?.kind;
+    const finalMetadata = existing
+      ? mergeElementMetadata(existing.metadata, data.metadata)
+      : mergeElementMetadata(undefined, data.metadata);
+
+    if (effectiveKind === 'weapon') {
+      let catalogStatuses: Array<{ id: string; kind?: string }> | undefined;
+      let catalogAmmunitions: Array<{ id: string; kind?: string }> | undefined;
+      try {
+        catalogStatuses = await tx
+          .select({ id: systemElements.id, kind: systemElements.kind })
+          .from(systemElements)
+          .where(eq(systemElements.kind, 'altered_status'));
+      } catch {
+        // Safe fallback
+      }
+      try {
+        catalogAmmunitions = await tx
+          .select({ id: systemElements.id, kind: systemElements.kind })
+          .from(systemElements)
+          .where(eq(systemElements.kind, 'ammunition'));
+      } catch {
+        // Safe fallback
+      }
+
+      const mergedPayload = {
+        ...(existing || {}),
+        ...data,
+        kind: 'weapon',
+        status,
+        metadata: finalMetadata,
+        mechanicalBehaviors: data.mechanicalBehaviors !== undefined ? data.mechanicalBehaviors : existing?.mechanicalBehaviors,
+      };
+
+      assertWeaponSemantics(mergedPayload, mechanics, catalogStatuses, catalogAmmunitions);
+    }
     if (existing) {
       const [updated] = await tx.update(systemElements).set({
         kind: data.kind, name: data.name, description: data.description, status: data.status,
         iconType: data.iconType !== undefined ? data.iconType : existing.iconType,
         iconValue: data.iconValue !== undefined ? data.iconValue : existing.iconValue,
         effects: data.effects, mechanicalBehaviors: data.mechanicalBehaviors === undefined ? undefined : mechanicalBehaviors,
-        requirements: data.requirements === undefined ? undefined : requirements, metadata: data.metadata,
+        requirements: data.requirements === undefined ? undefined : requirements,
+        metadata: finalMetadata,
         revision: (existing.revision ?? 1) + 1, updatedAt: new Date(),
       }).where(eq(systemElements.id, existing.id)).returning();
 
@@ -212,7 +284,7 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
     const [created] = await tx.insert(systemElements).values({
       id: nanoid(10), kind: data.kind, name: data.name, description: data.description, status,
       iconType: data.iconType ?? null, iconValue: data.iconValue ?? null,
-      effects, mechanicalBehaviors, requirements, metadata: data.metadata ?? {},
+      effects, mechanicalBehaviors, requirements, metadata: finalMetadata,
     }).returning();
 
     await tx.insert(auditLogs).values({

@@ -112,8 +112,8 @@ const KIND_TYPES: Record<string, string> = {
 };
 
 const STATUS_TYPES: Record<string, string> = {
-  draft: "Borrador (Oculto)",
-  published: "Publicado"
+  draft: "✍️",
+  published: "✅"
 };
 
 const normalizeRequirements = (value: any) => ({
@@ -309,7 +309,7 @@ export default function CatalogAdmin() {
         const equippedBeh = form.mechanicalBehaviors?.find((b: any) => b.mode === "continuous");
         const equippedMods = equippedBeh?.effects || [];
         const limits = primaryBeh?.limitations || [];
-        const secondary = primaryBeh?.effects?.filter((e: any) => e.type !== "damage") || [];
+        const secondary = primaryBeh?.effects?.filter((e: any) => e !== primaryDmg && (!primaryDmg?.id || e.id !== primaryDmg.id)) || [];
 
         const autoDesc = buildWeaponMechanicalDescription({
           name: form.name,
@@ -331,6 +331,8 @@ export default function CatalogAdmin() {
           metadata: {
             ...form.metadata,
             weaponTypeId: selectedWeaponTypeId,
+            baseDice: effectiveBaseDice,
+            damageModifier: effectiveDamageModifier,
             usesAmmo: effectiveUsesAmmo,
             mechanicalDescription: autoDesc,
           },
@@ -524,7 +526,7 @@ export default function CatalogAdmin() {
               </TableRow>
             ) : elementsError ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-destructive">
+                <TableCell colSpan={4} className="text-center py-10 text-destructive">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <AlertCircle className="size-6 text-destructive" />
                     <span className="font-semibold text-sm">Error al cargar los elementos del catálogo</span>
@@ -545,7 +547,7 @@ export default function CatalogAdmin() {
               filteredElements.map((el: any) => (
                 <TableRow key={el.id}>
                   <TableCell className="font-semibold">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 w-[350px]">
                       <div className="size-8 rounded bg-muted/60 border border-border flex items-center justify-center shrink-0">
                         <ItemIcon item={el} className="size-4.5 text-primary" />
                       </div>
@@ -593,24 +595,6 @@ export default function CatalogAdmin() {
                                 </span>
                               )}
                             </div>
-
-                            {/* Detalle de niveles para familias agrupadas (Quemadura, Veneno, Hemorragia, Berserker) */}
-                            {el.metadata?.hasTiers && el.metadata?.tiers && (
-                              <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px]">
-                                {el.metadata.tiers.leve && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                                    <strong className="font-semibold text-emerald-400">Leve:</strong>
-                                    {el.metadata.tiers.leve.combatEffect || el.metadata.tiers.leve.damageFormula} · ⏱️ {el.metadata.tiers.leve.durationTurns}t · 🛡️ {el.metadata.tiers.leve.resistanceDifficulty}
-                                  </span>
-                                )}
-                                {el.metadata.tiers.grave && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20">
-                                    <strong className="font-semibold text-rose-400">Grave:</strong>
-                                    {el.metadata.tiers.grave.combatEffect || el.metadata.tiers.grave.damageFormula} · ⏱️ {el.metadata.tiers.grave.durationTurns}t · 🛡️ {el.metadata.tiers.grave.resistanceDifficulty}
-                                  </span>
-                                )}
-                              </div>
-                            )}
                           </div>
                         )}
                       </div>
@@ -627,7 +611,7 @@ export default function CatalogAdmin() {
                       const count = Array.isArray(el.mechanicalBehaviors) && el.mechanicalBehaviors.length > 0
                         ? el.mechanicalBehaviors.reduce((acc, b) => acc + (b.effects?.length ?? 0), 0)
                         : (el.effects?.length ?? 0);
-                      return `${count} ${count === 1 ? "bloque conectado" : "bloques conectados"}`;
+                      return `${count} ${count === 1 ? "bloque" : "bloques"}`;
                     })()}
                   </TableCell>
                   <TableCell className="text-right">

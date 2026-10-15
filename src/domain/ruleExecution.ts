@@ -63,11 +63,20 @@ export function applyRuleOperations(world: RuleWorld, bearerId: string, sourceId
       const expiresAt = effect.duration?.unit === 'turn' ? turn + effect.duration.value : undefined;
       switch (effect.type) {
         case 'damage': {
-          const match = /^(\d+)[dD](\d+)$/.exec(effect.dice);
-          if (!match) throw new Error('Unsupported damage dice');
-          const dice = rolls[effect.id];
-          if (!dice || dice.length !== Number(match[1]) || dice.some(d => !Number.isInteger(d) || d < 1 || d > Number(match[2]))) throw new Error('Missing or invalid individual damage dice');
-          const rolled = dice.reduce((sum, d) => sum + d, 0);
+          let rolled = 0;
+          const trimmedDice = String(effect.dice || '').trim();
+          const match = /^(\d+)[dD](\d+)$/.exec(trimmedDice);
+          if (match) {
+            const dice = rolls[effect.id];
+            if (!dice || dice.length !== Number(match[1]) || dice.some(d => !Number.isInteger(d) || d < 1 || d > Number(match[2]))) {
+              throw new Error('Missing or invalid individual damage dice');
+            }
+            rolled = dice.reduce((sum, d) => sum + d, 0);
+          } else if (/^\d+$/.test(trimmedDice)) {
+            rolled = parseInt(trimmedDice, 10);
+          } else {
+            throw new Error('Unsupported damage dice');
+          }
           const total = op.cap ? Math.max(op.cap.min, Math.min(op.cap.max, rolled)) : rolled;
           const absorbed = Math.min(entity.barrier, total);
           let fromLayers = Math.max(0, absorbed - (entity.barrier - (entity.barriers ?? []).reduce((sum, layer) => sum + layer.amount, 0)));

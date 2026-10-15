@@ -120,11 +120,17 @@ export function WeaponMechanicalEffectsEditor({
     ];
   }, [mechanics]);
 
-  // Damage Options filtered strictly by baseDice using structured properties (effect.dice / formula)
+  // All Damage Options from system mechanics (unfiltered by weapon base dice)
+  const allDamageOptions = useMemo(() => {
+    return getCategoryOptions(mechanics, "damage");
+  }, [mechanics]);
+
+  // Damage Options filtered strictly by baseDice and respecting availability via getVisibleOptions
   const filteredDamageOptions = useMemo(() => {
-    const allDamage = getCategoryOptions(mechanics, "damage");
-    return filterDamageOptionsByBaseDice(allDamage, baseDice);
-  }, [mechanics, baseDice]);
+    const compatible = filterDamageOptionsByBaseDice(allDamageOptions, baseDice);
+    const rawDice = behaviors.find(b => b.mode === "active")?.effects?.find(e => e.type === "damage")?.dice;
+    return getVisibleOptions(compatible, rawDice);
+  }, [allDamageOptions, baseDice, behaviors]);
 
   // Weapon Type Options & Availability
   const availableWeaponTypeOptions = useMemo(() => {
@@ -186,7 +192,8 @@ export function WeaponMechanicalEffectsEditor({
       runtimeKey: String(n),
       name: `${n} ${n === 1 ? 'turno' : 'turnos'}`,
       cost: n === 2 ? -2 : 0,
-      component: { kind: 'cooldown', turns: n }
+      component: { kind: 'cooldown', turns: n },
+      isAvailable: true,
     }));
   }, [mechanics]);
 
@@ -195,16 +202,16 @@ export function WeaponMechanicalEffectsEditor({
     const opts = getCategoryOptions(mechanics, "usage");
     if (opts.length > 0) return opts;
     return [
-      { id: "core.usage.turn", runtimeKey: "turn", name: "1 por turno" },
-      { id: "core.usage.combat", runtimeKey: "combat", name: "1 por combate" },
-      { id: "core.usage.mission", runtimeKey: "mission", name: "1 por misión" },
-      { id: "core.usage.day", runtimeKey: "day", name: "1 por día" },
+      { id: "core.usage.turn", runtimeKey: "turn", name: "1 por turno", isAvailable: true },
+      { id: "core.usage.combat", runtimeKey: "combat", name: "1 por combate", isAvailable: true },
+      { id: "core.usage.mission", runtimeKey: "mission", name: "1 por misión", isAvailable: true },
+      { id: "core.usage.day", runtimeKey: "day", name: "1 por día", isAvailable: true },
     ];
   }, [mechanics]);
 
   // 2. Identify Primary Active Behavior (Attack) and Passive Continuous Behavior (Equipped modifiers)
   const primaryBehavior = useMemo(() => {
-    return behaviors.find(b => b.mode === "active") || behaviors[0] || null;
+    return behaviors.find(b => b.mode === "active") || null;
   }, [behaviors]);
 
   const equippedBehavior = useMemo(() => {
@@ -217,11 +224,12 @@ export function WeaponMechanicalEffectsEditor({
     return primaryBehavior.effects.find(e => e.type === "damage") || null;
   }, [primaryBehavior]);
 
-  // Secondary Effects against enemy (Status, Target Penalties)
+  // Secondary Effects against enemy (Status, Target Penalties, Secondary Damage)
   const secondaryEffects = useMemo(() => {
     if (!primaryBehavior) return [];
-    return primaryBehavior.effects.filter(e => e.type !== "damage");
-  }, [primaryBehavior]);
+    if (!primaryDamageEffect) return primaryBehavior.effects;
+    return primaryBehavior.effects.filter(e => e !== primaryDamageEffect && e.id !== primaryDamageEffect.id);
+  }, [primaryBehavior, primaryDamageEffect]);
 
   // Limitations on primary behavior
   const currentLimitations = useMemo(() => {
@@ -302,6 +310,12 @@ export function WeaponMechanicalEffectsEditor({
       resultBehaviors.push(continuousBehavior);
     }
 
+    // Preserve any existing behaviors outside the scope of this simplified editor
+    const unmanagedBehaviors = behaviors.filter(
+      (b) => b !== primaryBehavior && b !== equippedBehavior && b.id !== activeId && b.id !== equippedBehavior?.id
+    );
+    resultBehaviors.push(...unmanagedBehaviors);
+
     onChange(resultBehaviors);
   };
 
@@ -375,8 +389,27 @@ export function WeaponMechanicalEffectsEditor({
   };
 
   // Handlers for On-Hit Secondary Effects (against enemy)
+  const handleAddSecondaryDamage = () => {
+    const visibleDmg = getVisibleOptions(allDamageOptions);
+    const defaultDmgOpt = visibleDmg[0];
+    const defaultDice = defaultDmgOpt?.effect?.dice || defaultDmgOpt?.formula || defaultDmgOpt?.runtimeKey || defaultDmgOpt?.name || "1D4";
+    const defaultType = getVisibleOptions(damageTypeOptions)[0]?.runtimeKey || "fuego";
+    const newDamageEffect: MechanicalEffectItem = {
+      id: nanoid(8),
+      type: "damage",
+      dice: defaultDice,
+      damageType: defaultType,
+      target: { type: "enemy" },
+    };
+    commitChanges(undefined, [...secondaryEffects, newDamageEffect]);
+  };
+
   const handleAddSecondaryStatus = () => {
-    const defaultStatus = "stunned";
+    const availableStatuses = getVisibleOptions(statusOptions);
+    const defaultStatus =
+      availableStatuses.find((s) => s.id === "stunned" || s.runtimeKey === "stunned")?.id ||
+      availableStatuses[0]?.id ||
+      "stunned";
     const defaultTurns = getCanonicalStatusDefaultTurns(defaultStatus) || 2;
     const newStatusEffect: MechanicalEffectItem = {
       id: nanoid(8),
@@ -469,7 +502,8 @@ export function WeaponMechanicalEffectsEditor({
       usesAmmo: newUsesAmmo,
     });
 
-    const newFilteredDamage = filterDamageOptionsByBaseDice(getCategoryOptions(mechanics, "damage"), newBaseDice);
+    const rawCompatible = filterDamageOptionsByBaseDice(getCategoryOptions(mechanics, "damage"), newBaseDice);
+    const newFilteredDamage = getVisibleOptions(rawCompatible, (primaryDamageEffect as any)?.dice);
     const isStillValid = newFilteredDamage.some((d: any) => {
       const val = d.effect?.dice || d.formula || d.runtimeKey || d.name;
       return val === (primaryDamageEffect as any)?.dice;
@@ -698,7 +732,7 @@ export function WeaponMechanicalEffectsEditor({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {damageTypeOptions.map((opt: any) => (
+                {getVisibleOptions(damageTypeOptions, currentDamageType).map((opt: any) => (
                   <SelectItem key={opt.runtimeKey || opt.id} value={opt.runtimeKey || opt.id}>
                     {opt.name}
                   </SelectItem>
@@ -874,12 +908,12 @@ export function WeaponMechanicalEffectsEditor({
                         </SelectTrigger>
                         <SelectContent>
                           {isAttr
-                            ? attributeOptions.map((opt: any) => (
+                            ? getVisibleOptions(attributeOptions, currentTargetKey).map((opt: any) => (
                                 <SelectItem key={opt.id} value={opt.runtimeKey || opt.id}>
                                   {opt.name}
                                 </SelectItem>
                               ))
-                            : derivedStatOptions.map((opt: any) => (
+                            : getVisibleOptions(derivedStatOptions, currentTargetKey).map((opt: any) => (
                                 <SelectItem key={opt.id} value={opt.runtimeKey || opt.id}>
                                   {opt.name}
                                 </SelectItem>
@@ -968,7 +1002,7 @@ export function WeaponMechanicalEffectsEditor({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {cooldownOptions.map((opt: any) => {
+                          {getVisibleOptions(cooldownOptions, lim.turns).map((opt: any) => {
                             const turnsVal = (opt.component as any)?.turns || parseInt(opt.runtimeKey || opt.name, 10) || 1;
                             return (
                               <SelectItem key={opt.id} value={String(turnsVal)}>
@@ -995,7 +1029,7 @@ export function WeaponMechanicalEffectsEditor({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {usageOptions.map((opt: any) => (
+                          {getVisibleOptions(usageOptions, lim.period).map((opt: any) => (
                             <SelectItem key={opt.id} value={opt.runtimeKey || opt.id}>
                               {opt.name} {opt.cost ? `(${opt.cost > 0 ? `+${opt.cost}` : opt.cost} CE)` : ''}
                             </SelectItem>
@@ -1068,6 +1102,16 @@ export function WeaponMechanicalEffectsEditor({
               type="button"
               size="sm"
               variant="outline"
+              onClick={handleAddSecondaryDamage}
+              className="h-7 text-xs gap-1 border-primary/40 hover:bg-primary/10"
+            >
+              <Plus className="size-3 text-primary" />
+              <span>Añadir Daño Secundario</span>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
               onClick={handleAddSecondaryPenalty}
               className="h-7 text-xs gap-1 border-primary/40 hover:bg-primary/10"
             >
@@ -1094,6 +1138,7 @@ export function WeaponMechanicalEffectsEditor({
         ) : (
           <div className="space-y-2">
             {secondaryEffects.map((sec: any, idx) => {
+              const isDamage = sec.type === "damage";
               const isStatus = sec.type === "status_apply" || sec.type === "status";
               const isPenalty = sec.type === "penalty" || sec.type === "attribute_modifier";
               const currentTurns = sec.turns ?? sec.temporality?.duration?.turns ?? 2;
@@ -1108,16 +1153,65 @@ export function WeaponMechanicalEffectsEditor({
                     <div className="grid gap-1">
                       <Label className="text-[11px] text-muted-foreground">Efecto</Label>
                       <div className="flex items-center h-7 px-2 rounded border bg-background text-[11px] font-mono">
-                        {isStatus ? "Estado Alterado" : "Penalizador"}
+                        {isDamage ? "Daño Secundario" : isStatus ? "Estado Alterado" : "Penalizador"}
                       </div>
                     </div>
 
                     {/* Configuración específica */}
-                    {isStatus ? (
+                    {isDamage ? (
+                      <>
+                        <div className="grid gap-1">
+                          <Label className="text-[11px] text-muted-foreground">Dado / Daño Fijo</Label>
+                          <Select
+                            value={sec.dice || (allDamageOptions[0]?.runtimeKey || "1D4")}
+                            onValueChange={v => {
+                              handleUpdateSecondaryEffect(idx, { dice: v });
+                            }}
+                          >
+                            <SelectTrigger className="h-7 text-xs font-mono bg-background">
+                              <SelectValue placeholder="Seleccionar dado..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getVisibleOptions(allDamageOptions, sec.dice).map((opt: any) => {
+                                const itemVal = opt.effect?.dice || opt.formula || opt.runtimeKey || opt.name;
+                                return (
+                                  <SelectItem key={opt.id || itemVal} value={itemVal}>
+                                    {opt.name || opt.formula || itemVal}
+                                    {typeof opt.cost === "number" && opt.cost !== 0 ? ` (${opt.cost > 0 ? `+${opt.cost}` : opt.cost} CE)` : ""}
+                                    {opt.isAvailable === false ? " · No disponible" : ""}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid gap-1">
+                          <Label className="text-[11px] text-muted-foreground">Tipo de Daño</Label>
+                          <Select
+                            value={sec.damageType || "fuego"}
+                            onValueChange={dt => {
+                              handleUpdateSecondaryEffect(idx, { damageType: dt });
+                            }}
+                          >
+                            <SelectTrigger className="h-7 text-xs bg-background">
+                              <SelectValue placeholder="Tipo de daño..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getVisibleOptions(damageTypeOptions, sec.damageType).map((opt: any) => (
+                                <SelectItem key={opt.runtimeKey || opt.id} value={opt.runtimeKey || opt.id}>
+                                  {opt.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    ) : isStatus ? (
                       <div className="grid gap-1 sm:col-span-2">
                         <Label className="text-[11px] text-muted-foreground">Estado Alterado</Label>
                         <Select
-                          value={sec.statusElementId || (statusOptions[0]?.id || "core.status.stunned")}
+                          value={sec.statusElementId || (getVisibleOptions(statusOptions)[0]?.id || "core.status.stunned")}
                           onValueChange={v => {
                             const defaultT = getCanonicalStatusDefaultTurns(v) || 2;
                             handleUpdateSecondaryEffect(idx, {
@@ -1130,7 +1224,7 @@ export function WeaponMechanicalEffectsEditor({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {statusOptions.map((st: any) => {
+                            {getVisibleOptions(statusOptions, sec.statusElementId).map((st: any) => {
                               const itemVal = st.id || st.runtimeKey;
                               return (
                                 <SelectItem key={itemVal} value={itemVal}>
@@ -1156,7 +1250,7 @@ export function WeaponMechanicalEffectsEditor({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {numericModifierOptions.filter((o: any) => o.runtimeKey?.startsWith("-") || parseInt(o.runtimeKey, 10) < 0).map((opt: any) => (
+                              {getVisibleOptions(numericModifierOptions.filter((o: any) => o.runtimeKey?.startsWith("-") || parseInt(o.runtimeKey, 10) < 0), String(sec.amount ? -Math.abs(sec.amount) : -1)).map((opt: any) => (
                                 <SelectItem key={opt.id} value={opt.runtimeKey || opt.name}>
                                   {opt.name}
                                 </SelectItem>
@@ -1177,12 +1271,12 @@ export function WeaponMechanicalEffectsEditor({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {derivedStatOptions.map((opt: any) => (
+                              {getVisibleOptions(derivedStatOptions, sec.targetStat).map((opt: any) => (
                                 <SelectItem key={opt.id} value={opt.runtimeKey || opt.id}>
                                   {opt.name}
                                 </SelectItem>
                               ))}
-                              {attributeOptions.map((opt: any) => (
+                              {getVisibleOptions(attributeOptions, sec.attributeId).map((opt: any) => (
                                 <SelectItem key={opt.id} value={opt.runtimeKey || opt.id}>
                                   {opt.name}
                                 </SelectItem>
@@ -1193,10 +1287,16 @@ export function WeaponMechanicalEffectsEditor({
                       </>
                     )}
 
-                    {/* Duración en Turnos */}
+                    {/* Duración en Turnos / Resolución */}
                     <div className="grid gap-1">
-                      <Label className="text-[11px] text-muted-foreground">Duración (Turnos)</Label>
-                      {isStatus ? (
+                      <Label className="text-[11px] text-muted-foreground">
+                        {isDamage ? "Resolución" : "Duración (Turnos)"}
+                      </Label>
+                      {isDamage ? (
+                        <div className="flex items-center h-7 px-2.5 rounded border bg-background/50 text-xs font-mono text-muted-foreground">
+                          Instantáneo
+                        </div>
+                      ) : isStatus ? (
                         <div className="flex items-center h-7 px-2.5 rounded border bg-background/50 text-xs font-mono text-muted-foreground">
                           {getCanonicalStatusDefaultTurns(sec.statusElementId)} {getCanonicalStatusDefaultTurns(sec.statusElementId) === 1 ? "turno" : "turnos"}
                         </div>
