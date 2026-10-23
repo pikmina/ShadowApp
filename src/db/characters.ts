@@ -1,6 +1,7 @@
 import { db, ensureSystemSchemaColumns, pool } from './index.ts';
 import { characters, players } from './schema.ts';
 import { eq, or, and, isNull, sql, inArray } from 'drizzle-orm';
+import { resolveAmmunitionStock, consumeBullets } from '../domain/ammunition.ts';
 
 export async function getCharacterByUserId(userId: number) {
   const [character] = await db.select().from(characters).where(eq(characters.userId, userId));
@@ -141,14 +142,14 @@ export async function getCharacterPossessions(characterId: number) {
     const isMissingCol = err?.code === '42703' || err?.cause?.code === '42703' || String(err?.message).includes('icon_') || String(err?.cause?.message).includes('icon_');
     if (isMissingCol) {
       const res = await db.execute(sql`
-        SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes,
+        SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes, ep.selected_choices,
                se.id as se_id, se.kind, se.name, se.description, se.status, se.effects, se.mechanical_behaviors, se.requirements, se.metadata, se.revision
         FROM element_possessions ep
         INNER JOIN system_elements se ON se.id = ep.element_id
         WHERE ep.character_id = ${characterId}
       `);
       return (res.rows || []).map((r: any) => ({
-        possession: { id: r.ep_id, characterId: r.character_id, elementId: r.element_id, quantity: r.quantity, equipped: r.equipped, notes: r.notes },
+        possession: { id: r.ep_id, characterId: r.character_id, elementId: r.element_id, quantity: r.quantity, equipped: r.equipped, notes: r.notes, selectedChoices: r.selected_choices || {} },
         element: { id: r.se_id, kind: r.kind, name: r.name, description: r.description, status: r.status, effects: r.effects, mechanicalBehaviors: r.mechanical_behaviors, requirements: r.requirements, metadata: r.metadata, revision: r.revision, iconType: null, iconValue: null }
       }));
     }
@@ -173,14 +174,14 @@ export async function getPublicCharacterById(id: number) {
   } catch (err: any) {
     try {
       const res = await pool.query(`
-        SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes,
+        SELECT ep.id as ep_id, ep.character_id, ep.element_id, ep.quantity, ep.equipped, ep.notes, ep.selected_choices,
                se.*
         FROM element_possessions ep
         INNER JOIN system_elements se ON se.id = ep.element_id
         WHERE ep.character_id = $1 AND se.status = 'published'
       `, [id]);
       possessions = (res.rows || []).map((r: any) => ({
-        possession: { id: r.ep_id, characterId: r.character_id, elementId: r.element_id, quantity: r.quantity, equipped: r.equipped, notes: r.notes },
+        possession: { id: r.ep_id, characterId: r.character_id, elementId: r.element_id, quantity: r.quantity, equipped: r.equipped, notes: r.notes, selectedChoices: r.selected_choices || {} },
         element: {
           ...r,
           id: r.element_id || r.id,
@@ -815,7 +816,7 @@ export async function saveCharacterWithElementSelections(data: {
   elementIds?: string[];
   exp?: number;
   yen?: number;
-  inventoryPossessions?: Array<{ elementId: string; quantity: number; equipped?: boolean; notes?: string | null }>;
+  inventoryPossessions?: Array<{ elementId: string; quantity: number; equipped?: boolean; notes?: string | null; selectedChoices?: Record<string, any> }>;
   credentialPossessions?: Array<{ elementId: string; quantity?: number }>;
   skillPossessions?: Array<{ elementId: string; quantity: number }>;
   actorUid: string;
@@ -861,9 +862,9 @@ export async function saveCharacterWithElementSelections(data: {
     }
 
     // 3. Process inventory items (equipment, weapon, consumable, ammunition, crafting_material, ingredient, vehicle, real_estate)
-    let validInventory: Array<{ elementId: string; quantity: number; equipped?: boolean; notes?: string | null }> | undefined = undefined;
+    let validInventory: Array<{ elementId: string; quantity: number; equipped?: boolean; notes?: string | null; selectedChoices?: Record<string, any> }> | undefined = undefined;
     if (data.inventoryPossessions !== undefined) {
-      const invMap = new Map<string, { quantity: number; equipped: boolean; notes?: string | null }>();
+      const invMap = new Map<string, { quantity: number; equipped: boolean; notes?: string | null; selectedChoices?: Record<string, any> }>();
       for (const item of data.inventoryPossessions) {
         if (item.elementId && item.quantity > 0) {
           const existing = invMap.get(item.elementId);
@@ -871,6 +872,7 @@ export async function saveCharacterWithElementSelections(data: {
             quantity: (existing?.quantity || 0) + item.quantity,
             equipped: item.equipped !== undefined ? item.equipped : (existing?.equipped || false),
             notes: item.notes !== undefined ? item.notes : existing?.notes,
+            selectedChoices: item.selectedChoices !== undefined ? item.selectedChoices : existing?.selectedChoices,
           });
         }
       }
@@ -888,6 +890,7 @@ export async function saveCharacterWithElementSelections(data: {
         quantity: invData.quantity,
         equipped: invData.equipped,
         notes: invData.notes,
+        selectedChoices: invData.selectedChoices,
       }));
     }
 
@@ -982,7 +985,12 @@ export async function saveCharacterWithElementSelections(data: {
 
     // Synchronize Inventory Items if passed
     if (validInventory !== undefined) {
-      const currentAllPossessions = await tx.select({ id: elementPossessions.id, kind: systemElements.kind })
+      const currentAllPossessions = await tx.select({
+        id: elementPossessions.id,
+        elementId: elementPossessions.elementId,
+        selectedChoices: elementPossessions.selectedChoices,
+        kind: systemElements.kind,
+      })
         .from(elementPossessions)
         .innerJoin(systemElements, eq(systemElements.id, elementPossessions.elementId))
         .where(eq(elementPossessions.characterId, character.id));
@@ -991,6 +999,8 @@ export async function saveCharacterWithElementSelections(data: {
         await tx.delete(elementPossessions).where(inArray(elementPossessions.id, currentInvPossessions.map(item => item.id)));
       }
       for (const inv of validInventory) {
+        const prevChoices = currentInvPossessions.find(p => p.elementId === inv.elementId)?.selectedChoices;
+        const finalChoices = inv.selectedChoices !== undefined ? inv.selectedChoices : (prevChoices ?? {});
         await tx.insert(elementPossessions).values({
           id: nanoid(10),
           characterId: character.id,
@@ -998,6 +1008,7 @@ export async function saveCharacterWithElementSelections(data: {
           quantity: inv.quantity,
           equipped: inv.equipped ?? false,
           notes: inv.notes ?? null,
+          selectedChoices: finalChoices,
         }).onConflictDoNothing();
       }
     }
@@ -1199,6 +1210,58 @@ export async function toggleCharacterPossessionEquip(characterId: number, elemen
     }
 
     return updated;
+  });
+}
+
+/**
+ * Atomically consumes bullets from a character's possessed ammunition box.
+ * Preserves the catalog definition and updates only the character's remaining bullets.
+ */
+export async function consumeCharacterAmmunition(characterId: number, elementId: string, bulletsToConsume = 1) {
+  return await db.transaction(async (tx) => {
+    const [pos] = await tx
+      .select()
+      .from(elementPossessions)
+      .where(and(eq(elementPossessions.characterId, characterId), eq(elementPossessions.elementId, elementId)));
+
+    if (!pos) {
+      throw Object.assign(new Error("El personaje no posee este elemento de munición"), { status: 404 });
+    }
+
+    const [elem] = await tx
+      .select()
+      .from(systemElements)
+      .where(eq(systemElements.id, elementId));
+
+    if (!elem) {
+      throw Object.assign(new Error("Elemento de munición no encontrado"), { status: 404 });
+    }
+
+    const stock = resolveAmmunitionStock(pos, elem);
+    const result = consumeBullets(stock, bulletsToConsume);
+
+    const updatedChoices = {
+      ...((pos.selectedChoices as Record<string, unknown>) || {}),
+      remainingBullets: result.remainingBullets,
+    };
+
+    const [updated] = await tx
+      .update(elementPossessions)
+      .set({ selectedChoices: updatedChoices })
+      .where(eq(elementPossessions.id, pos.id))
+      .returning();
+
+    return {
+      success: true,
+      elementId,
+      characterId,
+      remainingBullets: result.remainingBullets,
+      boxQuantity: stock.boxQuantity,
+      totalBoxes: stock.totalBoxes,
+      isExhausted: result.isExhausted,
+      consumed: bulletsToConsume,
+      possession: updated,
+    };
   });
 }
 

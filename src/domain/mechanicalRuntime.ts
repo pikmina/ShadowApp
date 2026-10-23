@@ -3548,6 +3548,9 @@ export function resolveTargetCandidates(options: {
       }
     } else {
       // character, any, object, etc.
+      if (targetType === "character" && targetDef?.excludeSelf && (tid === sourceEntityId || rel === "self")) {
+        continue;
+      }
       validCandidates.push(tid);
     }
   }
@@ -3838,7 +3841,21 @@ export function executeMultiTargetBehavior(
 
     const rel = resolveEntityRelationship(sourceEntityId, tid, newWorld);
 
-    if (targetType === "ally") {
+    if (targetType === "character") {
+      if (targetDef?.excludeSelf && (tid === sourceEntityId || rel === "self")) {
+        return {
+          success: false,
+          reasons: [`Cannot target self when target specifies excludeSelf: ${tid}`],
+          normalizedTargetIds,
+          targetResults: {},
+          usageConsumed: false,
+          newWorld,
+          newEncounter,
+          appliedEffects: [],
+          emittedEvents: [],
+        };
+      }
+    } else if (targetType === "ally") {
       if (tid === sourceEntityId || rel === "self") {
         return {
           success: false,

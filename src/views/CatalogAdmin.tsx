@@ -8,6 +8,7 @@ import { MechanicalBehaviorsEditor } from "../components/mechanics/MechanicalBeh
 import { WeaponMechanicalEffectsEditor } from "../components/mechanics/WeaponMechanicalEffectsEditor";
 import { MechanicalDescriptionPreview } from "../components/mechanics/MechanicalDescriptionPreview";
 import { buildWeaponMechanicalDescription } from "../domain/weaponMechanics";
+import { buildAmmunitionMechanicalDescription } from "../domain/ammunition";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import {
@@ -334,6 +335,26 @@ export default function CatalogAdmin() {
             baseDice: effectiveBaseDice,
             damageModifier: effectiveDamageModifier,
             usesAmmo: effectiveUsesAmmo,
+            mechanicalDescription: autoDesc,
+          },
+        };
+      }
+
+      if (form.kind === "ammunition") {
+        const selectedWeaponTypeId = form.metadata?.weaponTypeId || weaponTypeOptions[0]?.runtimeKey || weaponTypeOptions[0]?.id || "firearm";
+        const selectedWeaponTypeOpt = weaponTypeOptions.find((o: any) => o.runtimeKey === selectedWeaponTypeId || o.id === selectedWeaponTypeId) || weaponTypeOptions[0];
+        const weaponTypeName = selectedWeaponTypeOpt?.name || selectedWeaponTypeId;
+
+        const autoDesc = buildAmmunitionMechanicalDescription(form.metadata || {}, weaponTypeName);
+
+        payloadForm = {
+          ...form,
+          metadata: {
+            ...form.metadata,
+            weaponTypeId: selectedWeaponTypeId,
+            caliberName: form.metadata?.caliberName || "",
+            boxQuantity: Math.max(1, Number(form.metadata?.boxQuantity) || 30),
+            damageBonus: Math.max(0, Number(form.metadata?.damageBonus) || 0),
             mechanicalDescription: autoDesc,
           },
         };
@@ -1067,98 +1088,6 @@ export default function CatalogAdmin() {
                   )}
 
 
-
-                  {/* Configuración de Parámetros de Munición */}
-                  {form.kind === 'ammunition' && (
-                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-amber-400">
-                          <Disc className="size-4" />
-                          <h4 className="text-xs font-bold uppercase tracking-wider">Parámetros de la Munición</h4>
-                        </div>
-                        <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">
-                          Consumible de Catálogo
-                        </Badge>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {/* Calibre de Munición */}
-                        <div className="grid gap-1.5">
-                          <Label className="text-xs text-foreground font-medium">Calibre de Munición</Label>
-                          <Input
-                            value={form.metadata?.caliberName || ""}
-                            onChange={e => setForm({
-                              ...form,
-                              metadata: { ...form.metadata, caliberName: e.target.value }
-                            })}
-                            className="h-8 text-xs bg-background/80"
-                            placeholder="Ej: 9mm Parabellum, .45 ACP, 5.56x45mm, 12 Gauge..."
-                          />
-                        </div>
-
-                        {/* Tipo de Arma Compatible */}
-                        <div className="grid gap-1.5">
-                          <Label className="text-xs text-foreground font-medium">Tipo de Arma Compatible</Label>
-                          <Select
-                            value={form.metadata?.weaponTypeId || "firearm"}
-                            onValueChange={v => setForm({
-                              ...form,
-                              metadata: { ...form.metadata, weaponTypeId: v }
-                            })}
-                          >
-                            <SelectTrigger className="h-8 text-xs bg-background/80">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {weaponTypeOptions.map((wt: any) => (
-                                <SelectItem key={wt.runtimeKey || wt.id} value={wt.runtimeKey || wt.id}>
-                                  {wt.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Cantidad por Caja / Lote */}
-                        <div className="grid gap-1.5">
-                          <Label className="text-xs text-foreground font-medium">Balas por Caja / Lote</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={form.metadata?.boxQuantity ?? 30}
-                            onChange={e => setForm({
-                              ...form,
-                              metadata: {
-                                ...form.metadata,
-                                boxQuantity: Math.max(1, parseInt(e.target.value, 10) || 1)
-                              }
-                            })}
-                            className="h-8 text-xs font-mono bg-background/80"
-                            placeholder="Ej. 30, 50, 100..."
-                          />
-                        </div>
-
-                        {/* Bono de Daño */}
-                        <div className="grid gap-1.5">
-                          <Label className="text-xs text-foreground font-medium">Bono de Daño de Munición</Label>
-                          <Input
-                            type="number"
-                            value={form.metadata?.damageBonus ?? 0}
-                            onChange={e => setForm({
-                              ...form,
-                              metadata: {
-                                ...form.metadata,
-                                damageBonus: parseInt(e.target.value, 10) || 0
-                              }
-                            })}
-                            className="h-8 text-xs font-mono bg-background/80"
-                            placeholder="Ej. +0, +1, +2..."
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Icono del artículo (Lucide / Emoji) */}
                   <ItemIconPicker
                     iconType={form.iconType}
@@ -1258,6 +1187,116 @@ export default function CatalogAdmin() {
                             mechanics={mechanics}
                             catalogStatuses={catalogStatuses}
                           />
+                        );
+                      })()}
+                    </div>
+                  ) : form.kind === 'ammunition' ? (
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-amber-400">
+                            <Disc className="size-4" />
+                            <h4 className="text-xs font-bold uppercase tracking-wider">Efectos Mecánicos de la Munición</h4>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">
+                            Consumible de Catálogo
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {/* Calibre de Munición */}
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-foreground font-medium">Calibre de Munición</Label>
+                            <Input
+                              value={form.metadata?.caliberName || ""}
+                              onChange={e => setForm({
+                                ...form,
+                                metadata: { ...form.metadata, caliberName: e.target.value }
+                              })}
+                              className="h-8 text-xs bg-background/80"
+                              placeholder="Ej: 9mm Parabellum, .45 ACP, 5.56x45mm, 12 Gauge..."
+                            />
+                          </div>
+
+                          {/* Tipo de Arma Compatible */}
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-foreground font-medium">Tipo de Arma Compatible</Label>
+                            <Select
+                              value={form.metadata?.weaponTypeId || "firearm"}
+                              onValueChange={v => setForm({
+                                ...form,
+                                metadata: { ...form.metadata, weaponTypeId: v }
+                              })}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background/80">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {weaponTypeOptions.map((wt: any) => (
+                                  <SelectItem key={wt.runtimeKey || wt.id} value={wt.runtimeKey || wt.id}>
+                                    {wt.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Cantidad por Caja / Lote */}
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-foreground font-medium">Balas por Caja / Lote</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={form.metadata?.boxQuantity ?? 30}
+                              onChange={e => setForm({
+                                ...form,
+                                metadata: {
+                                  ...form.metadata,
+                                  boxQuantity: Math.max(1, parseInt(e.target.value, 10) || 1)
+                                }
+                              })}
+                              className="h-8 text-xs font-mono bg-background/80"
+                              placeholder="Ej. 30, 50, 100..."
+                            />
+                          </div>
+
+                          {/* Bono de Daño */}
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-foreground font-medium">Bono de Daño de Munición</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={form.metadata?.damageBonus ?? 0}
+                              onChange={e => setForm({
+                                ...form,
+                                metadata: {
+                                  ...form.metadata,
+                                  damageBonus: Math.max(0, parseInt(e.target.value, 10) || 0)
+                                }
+                              })}
+                              className="h-8 text-xs font-mono bg-background/80"
+                              placeholder="Ej. +0, +1, +2..."
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Vista previa de descripción mecánica */}
+                      {(() => {
+                        const selectedWeaponTypeId = form.metadata?.weaponTypeId || weaponTypeOptions[0]?.runtimeKey || weaponTypeOptions[0]?.id || "firearm";
+                        const selectedWeaponTypeOpt = weaponTypeOptions.find((o: any) => o.runtimeKey === selectedWeaponTypeId || o.id === selectedWeaponTypeId) || weaponTypeOptions[0];
+                        const weaponTypeName = selectedWeaponTypeOpt?.name || selectedWeaponTypeId;
+                        const autoDesc = buildAmmunitionMechanicalDescription(form.metadata || {}, weaponTypeName);
+
+                        return (
+                          <div className="rounded-lg border border-amber-500/20 bg-muted/40 p-3 space-y-1">
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                              Descripción Mecánica Generada
+                            </div>
+                            <p className="text-xs font-mono text-foreground leading-relaxed">
+                              {autoDesc}
+                            </p>
+                          </div>
                         );
                       })()}
                     </div>

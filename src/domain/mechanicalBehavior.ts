@@ -300,16 +300,25 @@ export type MechanicalConditionLogic = z.infer<typeof conditionLogicSchema>;
 // ==========================================
 // 5. TARGET (unified object)
 // ==========================================
+export const CANONICAL_TARGET_TYPES = [
+  "self",
+  "character",
+  "object",
+  "structure",
+  "zone",
+] as const;
+
 export const targetTypeSchema = z.enum([
   "self",
+  "character",
+  "object",
+  "structure",
+  "zone",
   "ally",
   "allies",
   "enemy",
   "enemies",
-  "character",
   "any",
-  "object",
-  "structure",
   "area",
   "roll",
   "resource",
@@ -389,29 +398,40 @@ export const mechanicalTargetSchema = z.preprocess((val) => {
   if (val && typeof val === "object") {
     const raw = { ...(val as Record<string, any>) };
 
-    // Invariant CE-4B.1: target.type === "self" does not accept quantity, range, area, selectionMode, or selectionRestriction
+    // Invariant CE-4B.1: target.type === "self" does not accept quantity, range, area, selectionMode, selectionRestriction, or excludeSelf
+    // Documentative description is preserved if present
     if (raw.type === "self") {
       delete raw.quantity;
       delete raw.range;
       delete raw.area;
       delete raw.selectionMode;
       delete raw.selectionRestriction;
+      delete raw.excludeSelf;
+      return raw;
     }
 
-    // Legacy normalization: allies / enemies -> ally / enemy + quantity all (if quantity not set)
+    // Intentional schema normalization: allies / enemies / ally / enemy -> character with excludeSelf: true
     if (raw.type === "enemies") {
-      raw.type = "enemy";
+      raw.type = "character";
+      raw.excludeSelf = true;
       if (!raw.quantity) {
         raw.quantity = { mode: "all" };
       }
+    } else if (raw.type === "enemy") {
+      raw.type = "character";
+      raw.excludeSelf = true;
     } else if (raw.type === "allies") {
-      raw.type = "ally";
+      raw.type = "character";
+      raw.excludeSelf = true;
       if (!raw.quantity) {
         raw.quantity = { mode: "all" };
       }
+    } else if (raw.type === "ally") {
+      raw.type = "character";
+      raw.excludeSelf = true;
     }
 
-    // Legacy selectionRestriction -> selectionMode
+    // Legacy selectionRestriction -> selectionMode (preserves selectionRestriction field)
     if (!raw.selectionMode && raw.selectionRestriction) {
       if (raw.selectionRestriction === "random") {
         raw.selectionMode = "random";
@@ -427,6 +447,7 @@ export const mechanicalTargetSchema = z.preprocess((val) => {
   return val;
 }, z.object({
   type: targetTypeSchema.default("self"),
+  excludeSelf: z.boolean().optional(),
   quantity: targetQuantitySchema.optional(),
   range: targetRangeSchema.optional(),
   area: targetAreaSchema.optional(),
@@ -440,10 +461,43 @@ export const mechanicalTargetSchema = z.preprocess((val) => {
 ));
 export type MechanicalTarget = z.infer<typeof mechanicalTargetSchema>;
 
+/**
+ * Normalizes a target object in memory:
+ * - Maps factional target types ('enemy', 'ally', 'enemies', 'allies') to neutral 'character' with excludeSelf: true.
+ * - Preserves explicit quantity or defaults plural to { mode: 'all' }.
+ * - Canonicalizes 'self' enforcing invariant CE-4B.1 while preserving description.
+ * - Deterministically maps selectionRestriction to selectionMode preserving historical field.
+ */
 export function normalizeMechanicalTarget(target: unknown): MechanicalTarget {
-  const parsed = mechanicalTargetSchema.parse(target ?? { type: "self" });
+  let raw: Record<string, any> =
+    target && typeof target === "object"
+      ? { ...(target as Record<string, any>) }
+      : { type: "self" };
+
+  // Intentional in-memory normalization: allies / enemies / ally / enemy -> character with excludeSelf: true
+  if (raw.type === "enemies") {
+    raw.type = "character";
+    raw.excludeSelf = true;
+    if (!raw.quantity) {
+      raw.quantity = { mode: "all" };
+    }
+  } else if (raw.type === "enemy") {
+    raw.type = "character";
+    raw.excludeSelf = true;
+  } else if (raw.type === "allies") {
+    raw.type = "character";
+    raw.excludeSelf = true;
+    if (!raw.quantity) {
+      raw.quantity = { mode: "all" };
+    }
+  } else if (raw.type === "ally") {
+    raw.type = "character";
+    raw.excludeSelf = true;
+  }
+
+  const parsed = mechanicalTargetSchema.parse(raw);
   if (parsed.type === "self") {
-    return { type: "self" };
+    return { type: "self" as const, ...(parsed.description ? { description: parsed.description } : {}) };
   }
   return parsed;
 }

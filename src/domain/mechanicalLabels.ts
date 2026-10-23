@@ -263,11 +263,15 @@ export const MECHANICAL_LABELS = {
   // 7. TARGETS
   targets: {
     self: "Uno mismo",
-    ally: "Aliado",
-    enemy: "Enemigo",
     character: "Personaje",
     object: "Objeto",
     structure: "Estructura",
+    zone: "Zona / Coordenada espacial",
+    ally: "Aliado",
+    allies: "Todos los aliados",
+    enemy: "Enemigo",
+    enemies: "Todos los enemigos",
+    any: "Cualquiera",
     area: "Área",
     roll: "Tirada",
     resource: "Recurso",

@@ -186,9 +186,10 @@ describe('TAREA CE-4B.1 — INVARIANTE DE OBJETIVO «UNO MISMO»', () => {
       target = normalizeMechanicalTarget({ type: 'self' });
       expect(target).toEqual({ type: 'self' });
 
-      // 3. User changes back to enemy -> new clean target without old hidden values
+      // 3. User changes back to enemy -> new clean target without old hidden values (normalizes to character with excludeSelf: true)
       target = normalizeMechanicalTarget({ type: 'enemy' });
-      expect(target.type).toBe('enemy');
+      expect(target.type).toBe('character');
+      expect(target.excludeSelf).toBe(true);
       expect(target.quantity).toBeUndefined();
       expect(target.range).toBeUndefined();
       expect(target.area).toBeUndefined();
@@ -209,7 +210,8 @@ describe('TAREA CE-4B.1 — INVARIANTE DE OBJETIVO «UNO MISMO»', () => {
       };
 
       const parsed = mechanicalTargetSchema.parse(behavior.target);
-      expect(parsed.type).toBe('enemy');
+      expect(parsed.type).toBe('character');
+      expect(parsed.excludeSelf).toBe(true);
       expect(parsed.quantity).toEqual({ mode: 'up_to', count: 3 });
       expect(parsed.range).toEqual({ type: 'distance', distanceMeters: 10 });
       expect(parsed.selectionMode).toBe('standard_priority');

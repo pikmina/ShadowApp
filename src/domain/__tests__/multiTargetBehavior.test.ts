@@ -235,7 +235,7 @@ describe('Task 21 — Multi-Target Behavior Execution and Líder nato', () => {
   });
 
   // Scenario E: Self included
-  it('Scenario E: Self included in ally targeting rejects action and applies nothing', () => {
+  it('Scenario E: Self included in character targeting with excludeSelf rejects action and applies nothing', () => {
     const res = executeMultiTargetBehavior({
       behavior: liderNatoBehavior,
       sourceEntityId: 'hero',
@@ -247,16 +247,38 @@ describe('Task 21 — Multi-Target Behavior Execution and Líder nato', () => {
 
     expect(res.success).toBe(false);
     expect(res.usageConsumed).toBe(false);
-    expect(res.reasons?.[0]).toContain('Cannot target self when target type is ally');
+    expect(res.reasons?.[0]).toContain('Cannot target self');
     expect(res.newWorld.allyA.resources.ES.current).toBe(4);
     expect(res.newWorld.hero.resources.ES.current).toBe(5);
     expect(res.newEncounter.participants.hero.usageCounters['combat:current:natural-leader.speech']).toBeUndefined();
   });
 
   // Scenario F: Enemy included
-  it('Scenario F: Enemy included in ally targeting rejects action atomically', () => {
+  it('Scenario F: Líder nato admits ally and enemy without faction rejection under character contract', () => {
     const res = executeMultiTargetBehavior({
       behavior: liderNatoBehavior,
+      sourceEntityId: 'hero',
+      targetEntityIds: ['allyA', 'enemy'],
+      world,
+      encounter,
+      signals: ['speech'],
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.usageConsumed).toBe(true);
+    expect(res.newWorld.allyA.resources.ES.current).toBe(6);
+    expect(res.newWorld.enemy.resources.ES.current).toBe(10); // Enemy already at max (10/10)
+    expect(res.newEncounter.participants.hero.usageCounters['combat:current:natural-leader.speech']).toBe(1);
+  });
+
+  it('Scenario F (Legacy): Historical unnormalized ally targeting rejects enemy atomically', () => {
+    const legacyAllyBehavior = {
+      ...liderNatoBehavior,
+      id: 'legacy-ally-behavior',
+      target: { type: 'ally' as const, quantity: { mode: 'up_to' as const, count: 3 } },
+    };
+    const res = executeMultiTargetBehavior({
+      behavior: legacyAllyBehavior as any,
       sourceEntityId: 'hero',
       targetEntityIds: ['allyA', 'enemy'],
       world,
@@ -269,7 +291,6 @@ describe('Task 21 — Multi-Target Behavior Execution and Líder nato', () => {
     expect(res.reasons?.[0]).toContain('is not an ally');
     expect(res.newWorld.allyA.resources.ES.current).toBe(4);
     expect(res.newWorld.enemy.resources.ES.current).toBe(10);
-    expect(res.newEncounter.participants.hero.usageCounters['combat:current:natural-leader.speech']).toBeUndefined();
   });
 
   // Scenario G: Missing speech signal

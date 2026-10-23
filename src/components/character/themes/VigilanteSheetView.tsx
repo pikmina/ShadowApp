@@ -1093,14 +1093,20 @@ export function VigilanteSheetView({
                           <span className="font-oxanium text-xs font-bold text-white truncate uppercase block">
                             {iName}
                           </span>
-                          {iQty > 1 && (
+                          {item.displayStock ? (
+                            <span className="text-[9px] font-mono font-bold bg-amber-500/10 text-amber-400 px-1 py-0.2 rounded-xs border border-amber-500/30">
+                              {item.displayStock}
+                            </span>
+                          ) : iQty > 1 ? (
                             <span className="text-[9px] font-mono font-bold bg-black text-zinc-300 px-1 py-0.2 rounded-xs border border-zinc-700">
                               x{iQty}
                             </span>
-                          )}
+                          ) : null}
                         </div>
                         <span className="text-[10px] font-mono text-zinc-400 block truncate">
-                          {iCategory}
+                          {item.caliberName || item.element?.metadata?.caliberName
+                            ? `Cal. ${item.caliberName || item.element?.metadata?.caliberName}`
+                            : iCategory}
                         </span>
                       </div>
                     </div>

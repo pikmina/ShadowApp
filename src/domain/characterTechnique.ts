@@ -426,11 +426,7 @@ export function deriveEffectiveBehaviorResolution(
   );
 
   if (isExplicit && storedRes) {
-    let attackType = storedRes.attackType;
-    if (storedRes.type === 'roll' && !attackType && isOffensiveOrControl) {
-      if (isDamageMental) attackType = 'mental';
-      else attackType = 'physical';
-    }
+    const attackType = storedRes.attackType;
 
     let oppositionKind: OppositionKind | undefined = undefined;
     let oppositionLabel: string | undefined = undefined;
@@ -488,7 +484,7 @@ export function deriveEffectiveBehaviorResolution(
   }
 
   // Otherwise, DERIVE resolution automatically based on classification:
-  if (isOffensiveOrControl) {
+  if (isOffensive) {
     const attackType: AttackType = (storedRes?.attackType === 'mental' || isDamageMental) ? 'mental' : 'physical';
     const targetDefense: 'EVA' | 'COR' = attackType === 'physical' ? 'EVA' : 'COR';
     const oppositionLabel = attackType === 'physical' ? 'Evasión' : 'Coraje';

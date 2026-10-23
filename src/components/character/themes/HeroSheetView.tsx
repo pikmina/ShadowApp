@@ -708,12 +708,21 @@ export function HeroSheetView({
                         <span className="font-bold text-xs text-white truncate block uppercase font-mono">
                           {itemName}
                         </span>
-                        {itemQty > 1 && (
+                        {item.displayStock ? (
+                          <span className="text-[9px] font-mono font-bold bg-amber-500/10 text-amber-400 px-1.5 py-0.2 rounded border border-amber-500/20">
+                            {item.displayStock}
+                          </span>
+                        ) : itemQty > 1 ? (
                           <span className="text-[9px] font-mono font-bold bg-amber-500/10 text-amber-400 px-1.5 py-0.2 rounded border border-amber-500/20">
                             x{itemQty}
                           </span>
-                        )}
+                        ) : null}
                       </div>
+                      {(item.caliberName || item.element?.metadata?.caliberName) && (
+                        <span className="text-[9px] font-mono text-cyan-400 block">
+                          Calibre: {item.caliberName || item.element?.metadata?.caliberName}
+                        </span>
+                      )}
                       {itemDesc && (
                         <p className="text-[10px] text-zinc-400 line-clamp-2 leading-relaxed font-mono">
                           {itemDesc}

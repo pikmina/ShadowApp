@@ -724,12 +724,21 @@ export function StudentSheetView({
                       <span className="font-bold text-xs text-slate-900 truncate block">
                         {itemName}
                       </span>
-                      {itemQty > 1 && (
+                      {item.displayStock ? (
+                        <span className="text-[9px] font-mono font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded border border-amber-300">
+                          {item.displayStock}
+                        </span>
+                      ) : itemQty > 1 ? (
                         <span className="text-[9px] font-mono font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded border border-amber-300">
                           x{itemQty}
                         </span>
-                      )}
+                      ) : null}
                     </div>
+                    {(item.caliberName || item.element?.metadata?.caliberName) && (
+                      <span className="text-[9px] font-mono text-blue-700 block">
+                        Calibre: {item.caliberName || item.element?.metadata?.caliberName}
+                      </span>
+                    )}
                     {itemDesc && (
                       <p className="text-[10px] text-slate-600 line-clamp-2 leading-relaxed">
                         {itemDesc}

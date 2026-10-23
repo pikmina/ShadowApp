@@ -1,5 +1,6 @@
 import { assertElementMechanics } from "../domain/elementMechanics.ts";
 import { assertWeaponSemantics } from "../domain/weaponValidation.ts";
+import { assertAmmunitionSemantics } from "../domain/ammunition.ts";
 import { systemMechanicsConfigSchema } from "../domain/systemMechanics.ts";
 import { db, pool } from './index.ts';
 import { systemElements, elementPossessions, shopOffers, systemRules, auditLogs } from './schema.ts';
@@ -249,6 +250,18 @@ export async function upsertElement(data: any, actorUid: string = 'system') {
       };
 
       assertWeaponSemantics(mergedPayload, mechanics, catalogStatuses, catalogAmmunitions);
+    }
+
+    if (effectiveKind === 'ammunition') {
+      const mergedPayload = {
+        ...(existing || {}),
+        ...data,
+        kind: 'ammunition',
+        status,
+        metadata: finalMetadata,
+      };
+
+      assertAmmunitionSemantics(mergedPayload, mechanics);
     }
     if (existing) {
       const [updated] = await tx.update(systemElements).set({

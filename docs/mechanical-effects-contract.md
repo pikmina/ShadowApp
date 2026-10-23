@@ -27,7 +27,7 @@ No copian nombres, costes, dados ni cantidades. `groupId` agrupa efectos y compo
 | Dimensión | Contrato |
 | --- | --- |
 | Efectos | Unión cerrada de `MechanicalEffectDefinition`; las etiquetas nunca ejecutan comportamiento. |
-| Objetivo | Permisos independientes `self`, `allies`, `enemies`. Las categorías anteriores conservan su targeting si no hay componente que lo sustituya. |
+| Objetivo | Tipos canónicos cerrados (`self`, `character`, `object`, `structure`, `zone`). El tipo `character` es neutral (sin sesgo de facción); `excludeSelf: boolean` determina exclusivamente si el usuario está excluido. Tipos históricos (`ally`, `enemy`, etc.) son normalizados a `character` o conservan sus restricciones donde aún se procesen sin normalización. |
 | Cantidad | Mínimo y máximo de objetivos únicos. El ejecutor valida una selección explícita; no inventa candidatos. |
 | Rango / área | Metros y radio medidos desde el portador en esta versión. El llamador entrega distancias verificadas. |
 | Duración | Instantáneo, N turnos, sostenido o mientras se cumpla la condición. |
@@ -38,6 +38,17 @@ No copian nombres, costes, dados ni cantidades. `groupId` agrupa efectos y compo
 | Condición | Predicados AND/OR; varias opciones de condición se combinan mediante AND. |
 | Consecuencia | Débito propio, consumo, modificador temporal, estado o recoil, en su momento configurado. |
 | Caps | Coste de Estamina, daño, curación, barrera y modificador de atributo. El modificador acumulado se limita al proyectar atributos. |
+
+### Contrato Canónico de Objetivos (`MechanicalTarget` — Fases 1 y 2)
+
+El contrato de objetivos separa la definición semántica de la entidad elegible respecto a la relación con el usuario y la cantidad permitida:
+
+1. **Semántica neutral de `character`:** El tipo `character` designa a cualquier personaje o PNJ con atributos y recursos en el encuentro, sin asumir facción (`heroes`, `villains`, `civilians`). No presupone alianza ni enemistad.
+2. **Control ortogonal de exclusión (`excludeSelf`):** Define únicamente si el ejecutor de la acción puede ser seleccionado (`true` = excluido; `false` u omitido = admitido). No altera la elegibilidad por facción de los demás participantes.
+3. **Coherencia y atomicidad en runtime:** La selección automática (`resolveTargetCandidates`) descarta al ejecutor antes de la ordenación de prioridad, y la validación de objetivos explícitos (`executeMultiTargetBehavior`) valida todos los objetivos antes de debitar recursos, descontar usos o aplicar efectos. Si un objetivo incumple el contrato, la acción falla atómicamente.
+4. **Preservación de tipos históricos no normalizados:** Si una técnica o elemento llega al runtime con tipos legacy sin normalizar (`ally`, `enemy`), se preservan sus restricciones históricas de facción (`is not an ally`, `is not an enemy`).
+5. **Costes CE en catálogo (`findTargetCountOption`):** Las opciones históricas `ally_N` y `enemy_N` continúan registradas en `core.target_count` para compatibilidad referencial. Las técnicas normalizadas con `character` resuelven su coste mediante las opciones genéricas de recuento (`1..5`).
+6. **Decisión pendiente de diseño (Riesgo de Costes):** La conservación física de las reglas históricas no garantiza que todas las técnicas normalizadas conserven su coste efectivo previo en CE. Antes de modificar reglas o tarifas en el catálogo, se requiere una auditoría técnica comparativa de las técnicas afectadas.
 
 Un **requisito** comprueba si se permite ejecutar; un **limitador** expresa una restricción de uso y puede llevar un descuento CE configurado; un **coste** se paga al activar; una **consecuencia** ocurre al activar, por turno, al terminar o después del daño. Ningún descuento se deduce automáticamente del texto.
 

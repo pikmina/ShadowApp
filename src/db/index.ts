@@ -8,25 +8,45 @@ declare global {
 
 export const createPool = () => {
   if (!global._postgresPool) {
+    const baseConfig = {
+      max: 10,
+      connectionTimeoutMillis: 15000,
+      idleTimeoutMillis: 30000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+    };
+
     if (process.env.DATABASE_URL) {
       global._postgresPool = new Pool({
+        ...baseConfig,
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false },
-        max: 10,
-        connectionTimeoutMillis: 15000,
       });
     } else {
       global._postgresPool = new Pool({
+        ...baseConfig,
         host: process.env.SQL_HOST,
         user: process.env.SQL_USER,
         password: process.env.SQL_PASSWORD,
         database: process.env.SQL_DB_NAME,
-        max: 10,
-        connectionTimeoutMillis: 15000,
       });
     }
 
-    global._postgresPool.on('error', (err) => {
+    global._postgresPool.on('error', (err: any) => {
+      // In remote / serverless environments (Cloud SQL, Cloud Run, firewalls), idle connections
+      // are closed after periods of inactivity. node-postgres automatically removes the dead client
+      // from the pool and establishes fresh connections on subsequent queries.
+      const isIdleDisconnect =
+        err?.message?.includes('Connection terminated unexpectedly') ||
+        err?.code === 'ECONNRESET' ||
+        err?.code === 'EPIPE' ||
+        err?.code === '57P01';
+
+      if (isIdleDisconnect) {
+        console.warn('PostgreSQL pool: idle client closed by remote host (pool will replace on demand):', err?.message || err);
+        return;
+      }
+
       console.error('Unexpected error on idle SQL pool client:', err);
     });
   }

@@ -151,11 +151,11 @@ describe("Mechanical Description Renderer (Task 23)", () => {
 
     expect(res.complete).toBe(true);
     expect(res.sections?.activation).toContain("Dar un discurso.");
-    expect(res.sections?.target).toContain("Hasta 3 aliados");
+    expect(res.sections?.target).toContain("Hasta 3 personajes (excluyendo al usuario)");
     expect(res.sections?.effects?.[0]).toContain("recuperan 2 de Estamina");
     expect(res.sections?.limitations).toContain("1 vez por combate");
     expect(res.text).toContain("Activación: Dar un discurso.");
-    expect(res.text).toContain("Objetivo: Hasta 3 aliados.");
+    expect(res.text).toContain("Objetivo: Hasta 3 personajes (excluyendo al usuario).");
     expect(res.text).toContain("Limitaciones: 1 vez por combate.");
   });
 

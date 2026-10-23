@@ -32,20 +32,22 @@ describe('TAREA CE-4B — Composición de Objetivos, Cantidad, Rango, Área y Se
   const coreMechanics = createCoreCategories();
 
   describe('1. Normalización Legacy y Schema', () => {
-    it('normalizes legacy "enemies" to "enemy" with quantity { mode: "all" } when quantity is unset', () => {
+    it('normalizes legacy "enemies" to "character" with excludeSelf: true and quantity { mode: "all" } when quantity is unset', () => {
       const parsed = mechanicalTargetSchema.parse({
         type: 'enemies',
       });
-      expect(parsed.type).toBe('enemy');
+      expect(parsed.type).toBe('character');
+      expect(parsed.excludeSelf).toBe(true);
       expect(parsed.quantity).toEqual({ mode: 'all' });
       expect(parsed.selectionMode).toBe('standard_priority');
     });
 
-    it('normalizes legacy "allies" to "ally" with quantity { mode: "all" } when quantity is unset', () => {
+    it('normalizes legacy "allies" to "character" with excludeSelf: true and quantity { mode: "all" } when quantity is unset', () => {
       const parsed = mechanicalTargetSchema.parse({
         type: 'allies',
       });
-      expect(parsed.type).toBe('ally');
+      expect(parsed.type).toBe('character');
+      expect(parsed.excludeSelf).toBe(true);
       expect(parsed.quantity).toEqual({ mode: 'all' });
     });
 
@@ -54,7 +56,8 @@ describe('TAREA CE-4B — Composición de Objetivos, Cantidad, Rango, Área y Se
         type: 'enemies',
         quantity: { mode: 'up_to', count: 3 },
       });
-      expect(parsed.type).toBe('enemy');
+      expect(parsed.type).toBe('character');
+      expect(parsed.excludeSelf).toBe(true);
       expect(parsed.quantity).toEqual({ mode: 'up_to', count: 3 });
     });
 

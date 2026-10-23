@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, ShieldCheck, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus, FileText, User, Eye, ArrowLeft } from "lucide-react";
+import { Loader2, Save, AlertTriangle, CheckCircle, AlertCircle, Activity, Heart, Shield, ShieldCheck, Swords, Zap, Brain, BrainCircuit, HeartCrack, Flame, Wind, Sparkles, Package, Coins, Plus, Trash2, Minus, HeartPulse, BatteryPlus, FileText, User, Eye, ArrowLeft, Disc } from "lucide-react";
 import { toast } from "sonner";
 import { validateCharacter, calculateDerivedStats, calculateTraitAttributeBonus, calculatePurchasedAttributeBonuses, calculateEquipmentBonuses } from "@/lib/characterValidation";
 import { ModifierBadgeGroup, ModifierNotesLegend } from "@/components/character/ModifierBadge";
@@ -53,7 +53,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
   const [yenDelta, setYenDelta] = useState<string>("");
 
   // Inventory items state
-  const [inventoryItems, setInventoryItems] = useState<Array<{ elementId: string; quantity: number; notes?: string | null; equipped?: boolean; element?: any }>>(() => {
+  const [inventoryItems, setInventoryItems] = useState<Array<{ elementId: string; quantity: number; notes?: string | null; equipped?: boolean; element?: any; selectedChoices?: Record<string, any> }>>(() => {
     const rows = Array.isArray(character?.possessions) ? character.possessions : [];
     return rows
       .filter((row: any) => [
@@ -65,6 +65,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
         quantity: row?.possession?.quantity || row?.quantity || 1,
         equipped: row?.possession?.equipped ?? row?.equipped ?? false,
         notes: row?.possession?.notes ?? row?.notes ?? null,
+        selectedChoices: row?.possession?.selectedChoices ?? row?.selectedChoices ?? {},
         element: row?.element
       }));
   });
@@ -301,6 +302,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             quantity: row?.possession?.quantity || row?.quantity || 1,
             equipped: row?.possession?.equipped ?? row?.equipped ?? false,
             notes: row?.possession?.notes ?? row?.notes ?? null,
+            selectedChoices: row?.possession?.selectedChoices ?? row?.selectedChoices ?? {},
             element: row?.element
           }))
       );
@@ -436,6 +438,30 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
       if (item.elementId === elementId) {
         const newQty = isAbsolute ? Math.max(1, deltaOrValue) : Math.max(1, item.quantity + deltaOrValue);
         return { ...item, quantity: newQty };
+      }
+      return item;
+    }));
+    setIsDirty(true);
+  };
+
+  const handleUpdateRemainingBullets = (elementId: string, deltaOrValue: number, isAbsolute: boolean = false) => {
+    setInventoryItems(prev => prev.map(item => {
+      if (item.elementId === elementId) {
+        const el = item.element || elements.find(e => e.id === item.elementId);
+        const boxQty = Number(el?.metadata?.boxQuantity) || 30;
+        const maxBullets = boxQty * (Number(item.quantity) || 1);
+        const currentBullets = typeof item.selectedChoices?.remainingBullets === 'number'
+          ? item.selectedChoices.remainingBullets
+          : maxBullets;
+        const newBullets = isAbsolute ? deltaOrValue : currentBullets + deltaOrValue;
+        const clamped = Math.max(0, Math.min(maxBullets, newBullets));
+        return {
+          ...item,
+          selectedChoices: {
+            ...(item.selectedChoices || {}),
+            remainingBullets: clamped,
+          }
+        };
       }
       return item;
     }));
@@ -630,6 +656,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
             quantity: Number(item.quantity) || 1,
             equipped: item.equipped === true,
             notes: item.notes ?? null,
+            selectedChoices: item.selectedChoices ?? {},
           })),
           credentialPossessions: credentialItems.map(item => ({
             elementId: item.elementId,
@@ -1777,15 +1804,71 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                                 </Badge>
                               )}
                             </div>
-                            <Badge variant="secondary" className="font-mono text-[10px] uppercase shrink-0">
-                              {elementKindMap[el.kind] || el.kind}
-                            </Badge>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {el.kind === 'ammunition' && el.metadata?.caliberName && (
+                                <Badge variant="outline" className="border-amber-500/30 text-amber-400 bg-amber-500/10 font-mono text-[10px]">
+                                  Cal. {el.metadata.caliberName}
+                                </Badge>
+                              )}
+                              <Badge variant="secondary" className="font-mono text-[10px] uppercase">
+                                {elementKindMap[el.kind] || el.kind}
+                              </Badge>
+                            </div>
                           </div>
                           {el.description && (
                             <p className="text-xs text-muted-foreground line-clamp-2">
                               {el.description}
                             </p>
                           )}
+                          {el.kind === 'ammunition' && (() => {
+                            const boxQty = Number(el.metadata?.boxQuantity) || 30;
+                            const maxBullets = boxQty * (Number(item.quantity) || 1);
+                            const remaining = typeof item.selectedChoices?.remainingBullets === 'number'
+                              ? item.selectedChoices.remainingBullets
+                              : maxBullets;
+                            return (
+                              <div className="bg-amber-500/10 border border-amber-500/20 rounded p-2 text-xs font-mono flex items-center justify-between gap-2 mt-1 flex-wrap">
+                                <div className="flex items-center gap-1.5 text-amber-300">
+                                  <Disc className="size-3.5 text-amber-400" />
+                                  <span className="font-bold">Balas disponibles:</span>
+                                  <span className="font-bold text-foreground">{remaining} / {maxBullets}</span>
+                                  <span className="text-[10px] text-muted-foreground">({boxQty} por caja)</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="size-6 text-amber-400 hover:text-amber-300 h-6 w-6 p-0"
+                                    onClick={() => handleUpdateRemainingBullets(item.elementId, -1)}
+                                    disabled={remaining <= 0}
+                                    title="Consumir 1 bala"
+                                  >
+                                    <Minus className="size-3" />
+                                  </Button>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={maxBullets}
+                                    value={remaining}
+                                    onChange={(e) => handleUpdateRemainingBullets(item.elementId, parseInt(e.target.value, 10) || 0, true)}
+                                    className="w-14 h-6 text-xs font-mono font-bold text-center px-1 bg-background"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="size-6 text-amber-400 hover:text-amber-300 h-6 w-6 p-0"
+                                    onClick={() => handleUpdateRemainingBullets(item.elementId, 1)}
+                                    disabled={remaining >= maxBullets}
+                                    title="Añadir 1 bala"
+                                  >
+                                    <Plus className="size-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })()}
                           {item.notes && (
                             <div className="bg-amber-500/10 border border-amber-500/20 rounded p-2 text-xs text-amber-200/90 font-mono flex items-start gap-1.5 mt-1">
                               <FileText className="size-3.5 text-amber-400 shrink-0 mt-0.5" />

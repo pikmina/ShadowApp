@@ -212,15 +212,17 @@ export function describeMechanicalTarget(
       break;
 
     case "character":
-    case "any":
+    case "any": {
+      const suffix = target.excludeSelf && target.type === "character" ? " (excluyendo al usuario)" : "";
       if (mode === "all") {
-        text = "Todos los personajes";
+        text = `Todos los personajes${suffix}`;
       } else if (mode === "up_to") {
-        text = `Hasta ${pluralize(count, "personaje", "personajes")}`;
+        text = `Hasta ${pluralize(count, "personaje", "personajes")}${suffix}`;
       } else {
-        text = pluralize(count, "personaje", "personajes");
+        text = `${pluralize(count, "personaje", "personajes")}${suffix}`;
       }
       break;
+    }
 
     case "object":
       if (mode === "all") {
@@ -240,6 +242,10 @@ export function describeMechanicalTarget(
       } else {
         text = pluralize(count, "estructura de hasta 2 pisos", "estructuras de hasta 2 pisos");
       }
+      break;
+
+    case "zone":
+      text = "En la zona seleccionada";
       break;
 
     case "area":

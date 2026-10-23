@@ -1213,11 +1213,15 @@ export function BaseSheetView({
                           Equipado
                         </span>
                       )}
-                      {Number(item.quantity || 1) > 1 && (
+                      {item.displayStock ? (
+                        <span className="text-[8px] font-mono text-amber-400 font-bold ml-auto bg-amber-500/10 px-1 rounded border border-amber-500/20">
+                          {item.displayStock}
+                        </span>
+                      ) : Number(item.quantity || 1) > 1 ? (
                         <span className="text-[8px] font-mono text-zinc-400 ml-auto">
                           x{item.quantity}
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
                     <div className="my-auto">
@@ -1228,7 +1232,9 @@ export function BaseSheetView({
                     </div>
 
                     <span className="text-[8px] font-mono text-zinc-500 uppercase truncate">
-                      {item.kind || 'Objeto'}
+                      {item.caliberName || item.element?.metadata?.caliberName
+                        ? `Cal. ${item.caliberName || item.element?.metadata?.caliberName}`
+                        : (item.kind || 'Objeto')}
                     </span>
                   </div>
                 );
@@ -1262,11 +1268,15 @@ export function BaseSheetView({
                         Equipado
                       </span>
                     )}
-                    {Number(item.quantity || 1) > 1 && (
+                    {item.displayStock ? (
+                      <span className="text-[8px] font-mono text-amber-400 font-bold ml-auto bg-amber-500/10 px-1 rounded border border-amber-500/20">
+                        {item.displayStock}
+                      </span>
+                    ) : Number(item.quantity || 1) > 1 ? (
                       <span className="text-[8px] font-mono text-zinc-400 ml-auto">
                         x{item.quantity}
                       </span>
-                    )}
+                    ) : null}
                   </div>
 
                   <div className="my-auto">
@@ -1277,7 +1287,9 @@ export function BaseSheetView({
                   </div>
 
                   <span className="text-[8px] font-mono text-zinc-500 uppercase truncate">
-                    {item.kind || 'Objeto'}
+                    {item.caliberName || item.element?.metadata?.caliberName
+                      ? `Cal. ${item.caliberName || item.element?.metadata?.caliberName}`
+                      : (item.kind || 'Objeto')}
                   </span>
                 </div>
               ))}

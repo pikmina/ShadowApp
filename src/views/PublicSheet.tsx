@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { resolveAmmunitionStock } from '../domain/ammunition.ts';
 import {
   Activity,
   AlertTriangle,
@@ -528,16 +529,29 @@ export default function PublicSheet() {
       const kind = (r?.element?.kind || r?.kind || '').toLowerCase();
       return ['equipment', 'weapon', 'consumable', 'ammunition', 'crafting_material', 'ingredient', 'vehicle', 'real_estate', 'item', 'item_equipment', 'gear', 'objeto', 'consumible', 'arma', 'armadura', 'municion', 'sustancia', 'ingrediente'].includes(kind);
     })
-    .map((r: any) => ({
-      name: r?.element?.name || r?.name || 'Objeto',
-      description: r?.element?.description || r?.description || '',
-      quantity: r?.possession?.quantity ?? r?.quantity ?? 1,
-      kind: r?.element?.kind || r?.kind || 'item',
-      equipped: r?.possession?.equipped ?? r?.equipped ?? false,
-      element: r?.element,
-      iconType: r?.element?.iconType ?? null,
-      iconValue: r?.element?.iconValue ?? null,
-    }));
+    .map((r: any) => {
+      const kind = (r?.element?.kind || r?.kind || 'item').toLowerCase();
+      const isAmmo = kind === 'ammunition' || kind === 'municion';
+      const ammoStock = isAmmo ? resolveAmmunitionStock(r?.possession || r, r?.element || r) : null;
+
+      return {
+        id: r?.element?.id || r?.possession?.elementId || r?.elementId || r?.id,
+        name: r?.element?.name || r?.name || 'Objeto',
+        description: r?.element?.description || r?.description || '',
+        quantity: r?.possession?.quantity ?? r?.quantity ?? 1,
+        kind,
+        equipped: r?.possession?.equipped ?? r?.equipped ?? false,
+        element: r?.element,
+        iconType: r?.element?.iconType ?? null,
+        iconValue: r?.element?.iconValue ?? null,
+        possession: r?.possession,
+        ammoStock,
+        caliberName: ammoStock?.caliberName,
+        boxQuantity: ammoStock?.boxQuantity,
+        remainingBullets: ammoStock?.remainingBullets,
+        displayStock: ammoStock?.displayStock,
+      };
+    });
 
   useEffect(() => {
     if (character) {

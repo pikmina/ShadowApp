@@ -471,6 +471,7 @@ async function startServer() {
           quantity: z.number().int().min(1).default(1),
           equipped: z.boolean().optional(),
           notes: z.string().nullable().optional(),
+          selectedChoices: z.record(z.string(), z.any()).optional(),
         })).optional(),
         credentialPossessions: z.array(z.object({
           elementId: z.string().min(1),
@@ -582,6 +583,37 @@ async function startServer() {
       res.json(updated);
     } catch (error: any) {
       res.status(error.status || 500).json({ error: error.message || "Failed to toggle possession equipment" });
+    }
+  });
+
+  // --- Character Ammunition Consumption API ---
+  app.post("/api/characters/:id/possessions/:elementId/consume-ammo", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const charId = parseInt(req.params.id, 10);
+      if (isNaN(charId)) return res.status(400).json({ error: "Invalid character ID" });
+      const elementId = req.params.elementId;
+      if (!elementId) return res.status(400).json({ error: "Invalid element ID" });
+
+      const { getCharacterById, consumeCharacterAmmunition } = await import("./src/db/characters.ts");
+      const character = await getCharacterById(charId);
+      if (!character) return res.status(404).json({ error: "Character not found" });
+
+      const isOwner = req.dbUser && character.userId === req.dbUser.id;
+      const isAdmin = req.dbUser && ['superadmin', 'moderator'].includes(req.dbUser.role);
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const schema = z.object({
+        bullets: z.number().int().positive().optional().default(1),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error });
+
+      const result = await consumeCharacterAmmunition(charId, elementId, parsed.data.bullets);
+      res.json(result);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || "Failed to consume ammunition" });
     }
   });
 

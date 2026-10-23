@@ -933,9 +933,15 @@ export function CivilianSheetView({
                           <ItemIcon item={item} className="size-4 shrink-0 text-stone-700" />
                           <span className="font-serif font-bold text-stone-950 truncate">{item.name}</span>
                         </div>
-                        <span className="font-mono text-[10px] font-bold text-stone-600 bg-white px-1.5 py-0.2 border border-stone-300">
-                          x{item.quantity || 1}
-                        </span>
+                        {item.displayStock ? (
+                          <span className="font-mono text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.2 border border-amber-300">
+                            {item.displayStock}
+                          </span>
+                        ) : (
+                          <span className="font-mono text-[10px] font-bold text-stone-600 bg-white px-1.5 py-0.2 border border-stone-300">
+                            x{item.quantity || 1}
+                          </span>
+                        )}
                       </div>
                       {item.description && (
                         <p className="text-[11px] text-stone-600 line-clamp-2 font-serif italic">
@@ -944,7 +950,11 @@ export function CivilianSheetView({
                       )}
                     </div>
                     <div className="mt-2 pt-1 border-t border-stone-200 flex items-center justify-between text-[10px] text-stone-500 font-mono">
-                      <span className="uppercase">{item.kind || 'Objeto'}</span>
+                      <span className="uppercase">
+                        {item.caliberName || item.element?.metadata?.caliberName
+                          ? `Cal. ${item.caliberName || item.element?.metadata?.caliberName}`
+                          : (item.kind || 'Objeto')}
+                      </span>
                       {item.equipped && <span className="font-bold text-stone-800">EN USO</span>}
                     </div>
                   </div>
