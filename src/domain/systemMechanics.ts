@@ -1054,19 +1054,28 @@ export function findTargetCountOption(
   targetType?: string
 ): ConfiguredOptionResult | undefined {
   if (count === undefined || count === null || count === '') return undefined;
-  const cat = categories.find(c => c.id === 'target_count' || c.coreKey === 'target_count' || c.id === 'core.target_count');
+  const cat = categories.find(c =>
+    c.id === 'target_count' ||
+    c.coreKey === 'target_count' ||
+    c.id === 'core.target_count' ||
+    (c as any).logicalType === 'target_count'
+  );
   if (!cat || !cat.rules) return undefined;
   const str = String(count).trim().toLowerCase();
   const normType = targetType ? targetType.trim().toLowerCase() : undefined;
 
   if (str === 'all') {
-    const rule = cat.rules.find(r => (r as any).runtimeKey === 'all' || r.id.endsWith('.all'));
+    const rule = cat.rules.find(r =>
+      (r as any).runtimeKey === 'all' ||
+      r.id.endsWith('.all') ||
+      (r as any).runtimeKey === 'count_all'
+    );
     if (!rule) return undefined;
     return {
       ruleId: rule.id,
       name: rule.name,
       cost: typeof rule.cost === 'number' ? rule.cost : 0,
-      runtimeKey: 'all',
+      runtimeKey: (rule as any).runtimeKey || 'all',
       kind: 'semantic'
     };
   }
@@ -1074,39 +1083,63 @@ export function findTargetCountOption(
   const num = parseInt(str, 10);
   if (isNaN(num) || num <= 0) return undefined;
 
-  // 1. If targetType is provided (e.g. 'enemy', 'ally'), check for specific targetType + count rule first
+  // 1. Locate canonical neutral rule for this count
+  const canonicalRule = cat.rules.find(r => {
+    const rk = (r as any).runtimeKey;
+    const comp = (r as any).component;
+    if (rk === String(num) || rk === `count_${num}` || r.id.endsWith(`.${num}`) || r.id.endsWith(`.count_${num}`)) {
+      return true;
+    }
+    if (comp?.kind === 'target_count' && comp?.max === num && !comp?.targetType) {
+      return true;
+    }
+    return false;
+  });
+
+  // 2. Locate any legacy / specific rule for normType if requested (e.g. 'enemy', 'ally')
+  let specificRule: any = undefined;
   if (normType) {
-    const specificRule = cat.rules.find(r => {
+    specificRule = cat.rules.find(r => {
       const rk = (r as any).runtimeKey?.toLowerCase();
       const comp = (r as any).component;
       const isTypeMatch = comp?.targetType === normType || rk?.startsWith(`${normType}_`) || r.id?.includes(`.${normType}_`);
       const isNumMatch = comp?.max === num || rk === `${normType}_${num}` || r.id?.endsWith(`.${normType}_${num}`);
       return isTypeMatch && isNumMatch;
     });
-    if (specificRule) {
-      return {
-        ruleId: specificRule.id,
-        name: specificRule.name,
-        cost: typeof specificRule.cost === 'number' ? specificRule.cost : 0,
-        runtimeKey: (specificRule as any).runtimeKey || `${normType}_${num}`,
-        amount: num,
-        kind: 'fixed'
-      };
-    }
   }
 
-  // 2. Generic fallback
-  const rule = cat.rules.find(r =>
-    (r as any).runtimeKey === String(num) ||
-    (r as any).component?.max === num ||
-    r.id.endsWith(`.${num}`)
-  );
-  if (!rule) return undefined;
+  // 3. Fallback to any rule matching the count if neither canonical nor specific was found
+  const anyMatchingRule = !canonicalRule && !specificRule
+    ? cat.rules.find(r => (r as any).component?.max === num || (r as any).runtimeKey?.endsWith(`_${num}`))
+    : undefined;
+
+  const targetRule = canonicalRule || specificRule || anyMatchingRule;
+  if (!targetRule) return undefined;
+
+  // Single central rate: if canonicalRule exists, its cost is authoritative.
+  // Otherwise, use targetRule.cost. This ensures no faction asymmetry even with legacy rules.
+  const authoritativeCost = typeof (canonicalRule?.cost ?? targetRule.cost) === 'number'
+    ? (canonicalRule?.cost ?? targetRule.cost)
+    : 0;
+
+  // If a legacy rule specifically matched normType (e.g. enemy_2, ally_3), preserve its rule identity and runtimeKey
+  if (specificRule) {
+    return {
+      ruleId: specificRule.id,
+      name: specificRule.name,
+      cost: typeof specificRule.cost === 'number' ? specificRule.cost : authoritativeCost,
+      runtimeKey: (specificRule as any).runtimeKey || `${normType}_${num}`,
+      amount: num,
+      kind: 'fixed'
+    };
+  }
+
+  // Default to canonical or matched rule
   return {
-    ruleId: rule.id,
-    name: rule.name,
-    cost: typeof rule.cost === 'number' ? rule.cost : 0,
-    runtimeKey: String(num),
+    ruleId: targetRule.id,
+    name: targetRule.name,
+    cost: authoritativeCost,
+    runtimeKey: (targetRule as any).runtimeKey || String(num),
     amount: num,
     kind: 'fixed'
   };
@@ -1826,9 +1859,6 @@ export function calculateTechniqueStructuralCost(
           const targetCountOpt = findTargetCountOption(effectiveCats, rawCount, targetType);
           if (targetCountOpt) {
             mechanicCostSum += targetCountOpt.cost;
-          } else {
-            mechanicCostSum += lookupRuleCost('target_count', `${targetType}_${rawCount}`) ||
-              lookupRuleCost('target_count', rawCount);
           }
         }
         if (b.target.range?.type) {

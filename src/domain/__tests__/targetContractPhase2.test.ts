@@ -364,11 +364,11 @@ describe("Fase 2 — Coherencia del runtime de objetivos y Contrato Canónico", 
     expect(enemyCount2?.runtimeKey).toBe("enemy_2");
     expect(enemyCount2?.cost).toBe(2);
 
-    // Historical ally_N
+    // Historical ally_N (unified to 3 CE, matching neutral rate for 3 targets)
     const allyCount3 = findTargetCountOption(cats, 3, "ally");
     expect(allyCount3).toBeDefined();
     expect(allyCount3?.runtimeKey).toBe("ally_3");
-    expect(allyCount3?.cost).toBe(4);
+    expect(allyCount3?.cost).toBe(3);
 
     // Generic 'all'
     const countAll = findTargetCountOption(cats, "all");

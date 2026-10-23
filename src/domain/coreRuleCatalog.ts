@@ -79,7 +79,7 @@ export const CORE_CATEGORIES = {
   cost_adjustment: 'Modificar coste',
   manual_resolution: 'Resolución manual',
   target: 'Objetivo',
-  target_count: 'Cantidad',
+  target_count: 'Cantidad de objetivos',
   range: 'Rango',
   area: 'Área',
   selection_restriction: 'Modo de selección',
@@ -567,21 +567,20 @@ export function createCoreCategories(): SystemMechanicsConfig {
   option('target', 'allies', 'Aliados (Legacy)', { kind: 'target', self: false, allies: true, enemies: false }, 'allies', 0, false);
   option('target', 'enemies', 'Enemigos (Legacy)', { kind: 'target', self: false, allies: false, enemies: true }, 'enemies', 0, false);
 
-  // Target Count (Capacity & Asymmetry)
-  // Enemy capacities
-  option('target_count', 'enemy_1', '1 enemigo', { kind: 'target_count', min: 1, max: 1, targetType: 'enemy' }, 'enemy_1', 0);
-  option('target_count', 'enemy_2', 'Hasta 2 enemigos', { kind: 'target_count', min: 1, max: 2, targetType: 'enemy' }, 'enemy_2', 2);
-  option('target_count', 'enemy_3', 'Hasta 3 enemigos', { kind: 'target_count', min: 1, max: 3, targetType: 'enemy' }, 'enemy_3', 3);
-  // Ally capacities
-  option('target_count', 'ally_1', '1 aliado', { kind: 'target_count', min: 1, max: 1, targetType: 'ally' }, 'ally_1', 0);
-  option('target_count', 'ally_2', 'Hasta 2 aliados', { kind: 'target_count', min: 1, max: 2, targetType: 'ally' }, 'ally_2', 3);
-  option('target_count', 'ally_3', 'Hasta 3 aliados', { kind: 'target_count', min: 1, max: 3, targetType: 'ally' }, 'ally_3', 4);
-  // Generic target count fallbacks
-  option('target_count', '1', 'Hasta 1', { kind: 'target_count', min: 1, max: 1 }, '1', 0);
-  option('target_count', '2', 'Hasta 2', { kind: 'target_count', min: 1, max: 2 }, '2', 2);
-  option('target_count', '3', 'Hasta 3', { kind: 'target_count', min: 1, max: 3 }, '3', 3);
-  option('target_count', '4', 'Hasta 4', { kind: 'target_count', min: 1, max: 4 }, '4', 4);
-  option('target_count', '5', 'Hasta 5', { kind: 'target_count', min: 1, max: 5 }, '5', 5);
+  // Target Count (Unified capacity rates)
+  // Legacy capacities (Preserved as compatibility options with unified rates, hidden for new selections)
+  option('target_count', 'enemy_1', '1 enemigo', { kind: 'target_count', min: 1, max: 1, targetType: 'enemy' }, 'enemy_1', 0, false);
+  option('target_count', 'enemy_2', 'Hasta 2 enemigos', { kind: 'target_count', min: 1, max: 2, targetType: 'enemy' }, 'enemy_2', 2, false);
+  option('target_count', 'enemy_3', 'Hasta 3 enemigos', { kind: 'target_count', min: 1, max: 3, targetType: 'enemy' }, 'enemy_3', 3, false);
+  option('target_count', 'ally_1', '1 aliado', { kind: 'target_count', min: 1, max: 1, targetType: 'ally' }, 'ally_1', 0, false);
+  option('target_count', 'ally_2', 'Hasta 2 aliados', { kind: 'target_count', min: 1, max: 2, targetType: 'ally' }, 'ally_2', 2, false);
+  option('target_count', 'ally_3', 'Hasta 3 aliados', { kind: 'target_count', min: 1, max: 3, targetType: 'ally' }, 'ally_3', 3, false);
+  // Canonical neutral target count rates
+  option('target_count', '1', '1 objetivo', { kind: 'target_count', min: 1, max: 1 }, '1', 0);
+  option('target_count', '2', 'Hasta 2 objetivos', { kind: 'target_count', min: 1, max: 2 }, '2', 2);
+  option('target_count', '3', 'Hasta 3 objetivos', { kind: 'target_count', min: 1, max: 3 }, '3', 3);
+  option('target_count', '4', 'Hasta 4 objetivos', { kind: 'target_count', min: 1, max: 4 }, '4', 4);
+  option('target_count', '5', 'Hasta 5 objetivos', { kind: 'target_count', min: 1, max: 5 }, '5', 5);
   option('target_count', 'all', 'Todos los objetivos válidos', undefined, 'all', 0);
 
   // Range (Preserved structurally with 0 CE, no invented non-canonical distance costs)

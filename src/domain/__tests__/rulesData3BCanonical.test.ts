@@ -142,7 +142,7 @@ describe('RULES-DATA-3B: Target, Capacity, Radius & Spatial Range Catalog', () =
       expect(calculateTechniqueStructuralCost([threeEnemies], categories)).toBe(3);
     });
 
-    test('ally target capacities: 2 allies = 3 CE, 3 allies = 4 CE', () => {
+    test('ally target capacities: 2 allies = 2 CE, 3 allies = 3 CE (unified neutral rates)', () => {
       const twoAllies = makeBehavior({
         name: 'Two Allies Shield',
         mode: 'active',
@@ -151,7 +151,7 @@ describe('RULES-DATA-3B: Target, Capacity, Radius & Spatial Range Catalog', () =
           quantity: { mode: 'up_to', count: 2 },
         },
       });
-      expect(calculateTechniqueStructuralCost([twoAllies], categories)).toBe(3);
+      expect(calculateTechniqueStructuralCost([twoAllies], categories)).toBe(2);
 
       const threeAllies = makeBehavior({
         name: 'Three Allies Shield',
@@ -161,10 +161,10 @@ describe('RULES-DATA-3B: Target, Capacity, Radius & Spatial Range Catalog', () =
           quantity: { mode: 'up_to', count: 3 },
         },
       });
-      expect(calculateTechniqueStructuralCost([threeAllies], categories)).toBe(4);
+      expect(calculateTechniqueStructuralCost([threeAllies], categories)).toBe(3);
     });
 
-    test('asymmetry: 2 enemies (2 CE) vs 2 allies (3 CE) is derived from catalog configuration, not hardcode', () => {
+    test('unified parity: 2 enemies (2 CE) vs 2 allies (2 CE) resolves identically from central configuration', () => {
       const optEnemy2 = findTargetCountOption(categories, 2, 'enemy');
       const optAlly2 = findTargetCountOption(categories, 2, 'ally');
 
@@ -172,7 +172,7 @@ describe('RULES-DATA-3B: Target, Capacity, Radius & Spatial Range Catalog', () =
       expect(optEnemy2?.cost).toBe(2);
 
       expect(optAlly2).toBeDefined();
-      expect(optAlly2?.cost).toBe(3);
+      expect(optAlly2?.cost).toBe(2);
 
       // Verify dynamically modifiable: if admin changes ally_2 to 10 CE, calculation uses 10 CE
       const customCats = JSON.parse(JSON.stringify(categories));
@@ -359,7 +359,7 @@ describe('RULES-DATA-3B: Target, Capacity, Radius & Spatial Range Catalog', () =
 
       const ally2 = tcCat?.rules.find(r => r.runtimeKey === 'ally_2');
       expect(ally2).toBeDefined();
-      expect(ally2?.cost).toBe(3);
+      expect(ally2?.cost).toBe(2);
     });
   });
 });
