@@ -159,6 +159,8 @@ export type MechanicalCondition =
   | { id?: string; type: "item"; elementId: string; quantity?: number; comparison?: ConditionComparison; negated?: boolean }
   | { id?: string; type: "counter"; counterId: string; comparison?: ConditionComparison; value: number; negated?: boolean }
   | { id?: string; type: "attribute"; attributeId: string; comparison: ConditionComparison; value: number; negated?: boolean }
+  | { id?: string; type: "skill_level"; skillElementId: string; comparison?: ConditionComparison; value: number; negated?: boolean }
+  | { id?: string; type: "active_ability" | "learned_technique"; abilityId?: string; techniqueId?: string; negated?: boolean }
   | { id?: string; type: "manual"; signalId: string; description?: string; negated?: boolean }
   | { id?: string; type: "equipped"; negated?: boolean }
   | { id?: string; type: "active_behavior"; behaviorId?: string; elementId?: string; present?: boolean; scope?: "self" | "target" | "any"; negated?: boolean }
@@ -254,6 +256,28 @@ export const conditionItemSchema: z.ZodType<MechanicalCondition> = z.lazy(() =>
       attributeId: z.string().min(1),
       comparison: conditionComparisonSchema,
       value: z.number(),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("skill_level"),
+      skillElementId: z.string().min(1),
+      comparison: conditionComparisonSchema.default(">="),
+      value: z.number().default(1),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("active_ability"),
+      abilityId: z.string().optional(),
+      techniqueId: z.string().optional(),
+      negated: z.boolean().optional(),
+    }),
+    z.object({
+      id: z.string().optional(),
+      type: z.literal("learned_technique"),
+      abilityId: z.string().optional(),
+      techniqueId: z.string().optional(),
       negated: z.boolean().optional(),
     }),
     z.object({

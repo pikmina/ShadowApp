@@ -77,6 +77,7 @@ const fetcher = (url: string) => fetch(url).then(r => r.json());
 interface MechanicalBehaviorsEditorProps {
   behaviors: MechanicalBehavior[];
   onChange: (behaviors: MechanicalBehavior[]) => void;
+  characterId?: number;
   // Optional legacy props for full compatibility
   legacyEffects?: unknown[];
   onLegacyChange?: (effects: unknown[]) => void;
@@ -91,6 +92,7 @@ interface MechanicalBehaviorsEditorProps {
 export function MechanicalBehaviorsEditor({
   behaviors,
   onChange,
+  characterId,
   legacyEffects = [],
   onLegacyChange,
   mechanics = [],
@@ -286,6 +288,7 @@ export function MechanicalBehaviorsEditor({
                   onRemove={() => removeBehavior(bIndex)}
                   onMoveUp={() => moveBehavior(bIndex, "up")}
                   onMoveDown={() => moveBehavior(bIndex, "down")}
+                  characterId={characterId}
                   mechanics={mechanics}
                   structuralCost={structuralCost}
                   supportDifficultyTiers={supportDifficultyTiers}
@@ -312,6 +315,7 @@ interface SingleBehaviorCardProps {
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  characterId?: number;
   mechanics?: SystemMechanicsConfig;
   structuralCost?: number;
   supportDifficultyTiers?: SupportDifficultyTier[];
@@ -327,6 +331,7 @@ function SingleBehaviorCard({
   onRemove,
   onMoveUp,
   onMoveDown,
+  characterId,
   mechanics = [],
   structuralCost,
   supportDifficultyTiers,
@@ -760,6 +765,7 @@ function SingleBehaviorCard({
                   onUpdate({ ...behavior, conditions, conditionLogic })
                 }
                 mechanics={mechanics}
+                characterId={characterId}
               />
             </AccordionContent>
           </AccordionItem>
@@ -918,12 +924,45 @@ function ConditionsEditor({
   logic,
   onChange,
   mechanics = [],
+  characterId,
 }: {
   conditions: MechanicalCondition[];
   logic: "all" | "any";
   onChange: (conditions: MechanicalCondition[], logic: "all" | "any") => void;
   mechanics?: SystemMechanicsConfig;
+  characterId?: number;
 }) {
+  const { data: elementsData } = useSWR('/api/elements', fetcher);
+  const catalogSkills = React.useMemo(() => {
+    return Array.isArray(elementsData) ? elementsData.filter((el: any) => el.kind === 'skill') : [];
+  }, [elementsData]);
+
+  // Fetch character techniques if characterId exists
+  const { data: characterTechniquesData, error: techErr, isLoading: techLoading } = useSWR(
+    characterId ? `/api/characters/${characterId}/techniques` : null,
+    fetcher
+  );
+
+  // Fetch character details/possessions if characterId exists
+  const { data: characterData, error: charErr, isLoading: charLoading } = useSWR(
+    characterId ? `/api/characters/${characterId}` : null,
+    fetcher
+  );
+
+  const characterSkills = React.useMemo(() => {
+    if (Array.isArray(characterData?.possessions)) {
+      const skills = characterData.possessions
+        .filter((p: any) => p.element?.kind === 'skill')
+        .map((p: any) => ({
+          id: p.element.id,
+          name: p.element.name,
+          level: p.possession?.selectedChoices?.level ?? p.possession?.level ?? 1,
+        }));
+      if (skills.length > 0) return skills;
+    }
+    return catalogSkills;
+  }, [characterData, catalogSkills]);
+
   const addCondition = () => {
     const newCond: MechanicalCondition = {
       type: "resource",
@@ -1001,6 +1040,12 @@ function ConditionsEditor({
                     updateCond(i, { type: "tag", tag: "fire", scope: "attack", negated: cond.negated });
                   } else if (val === "die") {
                     updateCond(i, { type: "die", dieSelection: "both", comparison: "=", value: 10, negated: cond.negated });
+                  } else if (val === "active_ability" || val === "learned_technique") {
+                    const defaultId = (Array.isArray(characterTechniquesData) && characterTechniquesData[0]?.id) || "";
+                    updateCond(i, { type: "active_ability", abilityId: defaultId, negated: cond.negated } as any);
+                  } else if (val === "skill_level") {
+                    const defaultId = characterSkills?.[0]?.id || catalogSkills?.[0]?.id || "core.skill.base";
+                    updateCond(i, { type: "skill_level", skillElementId: defaultId, comparison: ">=", value: 1, negated: cond.negated } as any);
                   } else if (val === "manual") {
                     updateCond(i, { type: "manual", signalId: "permiso_master", description: "", negated: cond.negated });
                   } else if (val === "equipped") {
@@ -1010,10 +1055,12 @@ function ConditionsEditor({
                   }
                 }}
               >
-                <SelectTrigger className="h-7 w-44 text-xs font-semibold">
+                <SelectTrigger className="h-7 w-48 text-xs font-semibold">
                   <SelectValue>{getMechanicalLabel("conditionTypes", cond.type)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="active_ability">Requiere Técnica Activa</SelectItem>
+                  <SelectItem value="skill_level">Requiere Habilidad (Nivel)</SelectItem>
                   <SelectItem value="equipped">Equipado</SelectItem>
                   <SelectItem value="resource">Valor de Recurso / Atributo</SelectItem>
                   <SelectItem value="attribute">Atributo / Estadística</SelectItem>
@@ -1028,6 +1075,209 @@ function ConditionsEditor({
 
               {/* Dynamic inputs based on condition type */}
               <div className="flex-1 flex flex-wrap items-center gap-2 w-full">
+                {(cond.type === "active_ability" || cond.type === "learned_technique") && (() => {
+                  const currentTechId = (cond as any).abilityId || (cond as any).techniqueId || "";
+                  const learnedList: Array<{ id: string; name: string; level?: number }> = Array.isArray(characterTechniquesData)
+                    ? characterTechniquesData
+                    : [];
+
+                  if (techLoading) {
+                    return (
+                      <span className="text-xs text-muted-foreground italic py-0.5">
+                        Cargando técnicas aprendidas...
+                      </span>
+                    );
+                  }
+
+                  if (techErr) {
+                    return (
+                      <span className="text-xs text-destructive py-0.5">
+                        Error al cargar técnicas del personaje.
+                      </span>
+                    );
+                  }
+
+                  if (characterId && learnedList.length === 0) {
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-amber-400 font-semibold italic">
+                          No tiene técnicas aprendidas
+                        </span>
+                        <Input
+                          value={currentTechId}
+                          onChange={(e) => updateCond(i, { ...cond, type: "active_ability", abilityId: e.target.value } as any)}
+                          placeholder="ID de técnica manual..."
+                          className="h-7 w-48 text-xs font-mono"
+                        />
+                      </div>
+                    );
+                  }
+
+                  const inList = learnedList.some((t) => t.id === currentTechId);
+
+                  return (
+                    <div className="flex flex-1 flex-wrap items-center gap-2">
+                      <Select
+                        value={inList ? currentTechId : "custom"}
+                        onValueChange={(val) => {
+                          if (val !== "custom") {
+                            updateCond(i, { ...cond, type: "active_ability", abilityId: val } as any);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 min-w-[200px] flex-1 text-xs font-semibold bg-background">
+                          <SelectValue placeholder="Seleccionar técnica aprendida...">
+                            {learnedList.find((t) => t.id === currentTechId)?.name || currentTechId || "Seleccionar técnica..."}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                              Técnicas Aprendidas ({learnedList.length})
+                            </SelectLabel>
+                            {learnedList.map((t) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                {t.name} {t.level ? `(Nivel ${t.level})` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                          <SelectItem value="custom">ID manual de técnica...</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {!inList && (
+                        <Input
+                          value={currentTechId}
+                          onChange={(e) => updateCond(i, { ...cond, type: "active_ability", abilityId: e.target.value } as any)}
+                          placeholder="ID de técnica requerida..."
+                          className="h-7 w-44 text-xs font-mono"
+                        />
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {cond.type === "skill_level" && (() => {
+                  const currentSkillId = (cond as any).skillElementId || "";
+                  const currentComp = (cond as any).comparison || ">=";
+                  const currentVal = (cond as any).value ?? 1;
+
+                  const skillsList: Array<{ id: string; name: string; level?: number }> = characterSkills;
+
+                  if (charLoading) {
+                    return (
+                      <span className="text-xs text-muted-foreground italic py-0.5">
+                        Cargando habilidades...
+                      </span>
+                    );
+                  }
+
+                  if (charErr) {
+                    return (
+                      <span className="text-xs text-destructive py-0.5">
+                        Error al cargar habilidades.
+                      </span>
+                    );
+                  }
+
+                  if (characterId && skillsList.length === 0) {
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-amber-400 font-semibold italic">
+                          No tiene habilidades registradas
+                        </span>
+                        <Input
+                          value={currentSkillId}
+                          onChange={(e) => updateCond(i, { ...cond, type: "skill_level", skillElementId: e.target.value } as any)}
+                          placeholder="ID de habilidad..."
+                          className="h-7 w-40 text-xs font-mono"
+                        />
+                      </div>
+                    );
+                  }
+
+                  const inList = skillsList.some((s) => s.id === currentSkillId);
+
+                  return (
+                    <div className="flex flex-1 flex-wrap items-center gap-2">
+                      <Select
+                        value={inList ? currentSkillId : "custom"}
+                        onValueChange={(val) => {
+                          if (val !== "custom") {
+                            updateCond(i, {
+                              ...cond,
+                              type: "skill_level",
+                              skillElementId: val,
+                              comparison: currentComp,
+                              value: currentVal,
+                            } as any);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 min-w-[180px] text-xs font-semibold bg-background">
+                          <SelectValue placeholder="Seleccionar habilidad...">
+                            {skillsList.find((s) => s.id === currentSkillId)?.name || currentSkillId || "Seleccionar habilidad..."}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                              Habilidades Registradas ({skillsList.length})
+                            </SelectLabel>
+                            {skillsList.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.name} {s.level ? `(Nivel actual: ${s.level})` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                          <SelectItem value="custom">ID manual de habilidad...</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {!inList && (
+                        <Input
+                          value={currentSkillId}
+                          onChange={(e) => updateCond(i, { ...cond, type: "skill_level", skillElementId: e.target.value } as any)}
+                          placeholder="ID de habilidad..."
+                          className="h-7 w-36 text-xs font-mono"
+                        />
+                      )}
+
+                      <Select
+                        value={currentComp}
+                        onValueChange={(val: any) => updateCond(i, { ...cond, comparison: val } as any)}
+                      >
+                        <SelectTrigger className="h-7 w-36 text-xs">
+                          <SelectValue>{getComparisonOperatorLabel(currentComp)}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value=">=">Nivel mínimo (&ge;)</SelectItem>
+                          <SelectItem value=">">Mayor que (&gt;)</SelectItem>
+                          <SelectItem value="=">Nivel exacto (=)</SelectItem>
+                          <SelectItem value="<=">Menor o igual (&le;)</SelectItem>
+                          <SelectItem value="<">Menor que (&lt;)</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <div className="flex items-center gap-1">
+                        <span className="text-[11px] text-muted-foreground font-semibold">Nivel:</span>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={5}
+                          value={currentVal}
+                          onChange={(e) =>
+                            updateCond(i, {
+                              ...cond,
+                              value: Math.max(1, parseInt(e.target.value, 10) || 1),
+                            } as any)
+                          }
+                          className="h-7 w-16 text-xs font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
                 {cond.type === "equipped" && (
                   <span className="text-xs text-muted-foreground italic py-0.5">
                     Requiere que el objeto esté equipado.

@@ -95,10 +95,10 @@ export const MECHANICAL_LABELS = {
     item: "Objeto en posesión",
     counter: "Contador de combate",
     attribute: "Atributo",
-    manual: "Condición manual / Narrativa",
-    equipped: "Equipado",
-    active_behavior: "Técnica o habilidad activa",
     conscious: "Estado de consciencia",
+    active_ability: "Requiere Técnica Activa",
+    learned_technique: "Requiere Técnica Aprendida",
+    skill_level: "Requiere Habilidad",
     group: "Grupo de condiciones",
   },
 

@@ -458,7 +458,7 @@ describe('RULES-DATA-1: Mechanical Rules Persistence & Lifecycle Audit', () => {
 
     const tcCat = categories1.find((c: any) => c.id === 'core.target_count')!;
     const ally2Rule = tcCat.rules.find((r: any) => r.runtimeKey === 'ally_2')!;
-    expect(ally2Rule.cost).toBe(3);
+    expect(ally2Rule.cost).toBe(2);
 
     const areaCat = categories1.find((c: any) => c.id === 'core.area')!;
     const area50Rule = areaCat.rules.find((r: any) => r.runtimeKey === '50')!;

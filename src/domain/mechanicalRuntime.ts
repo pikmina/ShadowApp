@@ -141,6 +141,9 @@ export interface ParticipantRuntimeState {
   lastTechniqueId?: string;
   lastQuirkUseTurn?: number;
 
+  /** Learned technique IDs for runtime requirement checks */
+  learnedTechniqueIds?: string[];
+
   /** Generic counters keyed by `${entityId}:${elementId}:${behaviorId}:${counterId}` or `${counterId}` */
   activeCounters: Record<string, number>;
 
@@ -908,6 +911,44 @@ export function evaluateSingleCondition(
         attrVal = ctx.entity.attributes[rawKey] ?? ctx.entity.attributes[upper] ?? 0;
       }
       result = compareNumbers(attrVal, condition.comparison, condition.value);
+      break;
+    }
+
+    case "skill_level": {
+      const skillId = (condition as any).skillElementId;
+      if (!skillId) {
+        result = false;
+        break;
+      }
+      let currentLevel = 0;
+      const possessions = (ctx.entity as any)?.possessions;
+      if (possessions instanceof Map && possessions.has(skillId)) {
+        const item = possessions.get(skillId);
+        currentLevel = item?.selectedChoices?.level ?? item?.level ?? (item ? 1 : 0);
+      } else if (possessions && typeof possessions === "object" && possessions[skillId]) {
+        const item = possessions[skillId];
+        currentLevel = item?.selectedChoices?.level ?? item?.level ?? (item ? 1 : 0);
+      } else if (ctx.entity.inventory?.[skillId] !== undefined) {
+        currentLevel = ctx.entity.inventory[skillId];
+      }
+      const comp = condition.comparison ?? ">=";
+      result = compareNumbers(currentLevel, comp, condition.value ?? 1);
+      break;
+    }
+
+    case "active_ability":
+    case "learned_technique": {
+      const targetTechId = (condition as any).abilityId ?? (condition as any).techniqueId;
+      if (!targetTechId) {
+        result = false;
+        break;
+      }
+      const learnedIds: string[] =
+        (ctx.participant as any)?.learnedTechniqueIds ??
+        (ctx.entity as any)?.learnedTechniqueIds ??
+        ((ctx.entity as any)?.techniques ?? []).map((t: any) => t.id ?? t.techniqueId) ??
+        [];
+      result = learnedIds.includes(targetTechId);
       break;
     }
 

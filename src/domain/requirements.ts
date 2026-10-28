@@ -9,6 +9,7 @@ export const requirementSchema: z.ZodType<any> = z.lazy(() => z.union([
   z.object({ id: z.string().optional(), type: z.literal('stage'), stageId: z.string().min(1), comparison: z.enum(['eq', 'gte']) }),
   z.object({ id: z.string().optional(), type: z.literal('age'), comparison: z.enum(['gte', 'lte']), value: z.coerce.number() }),
   z.object({ id: z.string().optional(), type: z.literal('character_field'), fieldId: z.string().min(1), comparison: comparisonSchema, value: z.union([z.string(), z.number(), z.boolean()]) }),
+  z.object({ id: z.string().optional(), type: z.union([z.literal('learned_technique'), z.literal('active_ability')]), techniqueId: z.string().optional(), abilityId: z.string().optional() }),
   z.object({ id: z.string().optional(), type: z.literal('custom_info'), label: z.string().optional(), placeholder: z.string().optional(), required: z.boolean().optional() }),
   requirementGroupSchema,
 ]));
@@ -22,16 +23,19 @@ export type RequirementGroup = z.infer<typeof requirementGroupSchema>;
 
 export type RequirementContext = {
   profile: Record<string, unknown>;
-  possessions: Map<string, { quantity: number; selectedChoices?: Record<string, unknown> | null }>;
+  possessions: Map<string, { quantity: number; selectedChoices?: Record<string, unknown> | null; level?: number }>;
   stageIds?: string[];
+  learnedTechniqueIds?: string[];
 };
 
 export type RequirementEvaluation = { passed: boolean; failures: string[] };
 
 function compare(actual: unknown, comparison: string, expected: unknown): boolean {
-  if (comparison === 'eq') return actual === expected;
-  if (comparison === 'gte') return Number(actual) >= Number(expected);
-  if (comparison === 'lte') return Number(actual) <= Number(expected);
+  if (comparison === 'eq' || comparison === '=') return actual === expected;
+  if (comparison === 'gte' || comparison === '>=') return Number(actual) >= Number(expected);
+  if (comparison === 'lte' || comparison === '<=') return Number(actual) <= Number(expected);
+  if (comparison === 'gt' || comparison === '>') return Number(actual) > Number(expected);
+  if (comparison === 'lt' || comparison === '<') return Number(actual) < Number(expected);
   if (comparison === 'includes') return Array.isArray(actual) ? actual.includes(expected) : String(actual ?? '').includes(String(expected));
   return false;
 }
@@ -52,7 +56,12 @@ export function evaluateRequirements(group: RequirementGroup, context: Requireme
     }
     if (item.type === 'skill_level') {
       const possession = context.possessions.get(item.skillElementId);
-      passed = compare(possession?.selectedChoices?.level ?? 0, item.comparison, item.value);
+      const level = possession?.selectedChoices?.level ?? possession?.level ?? (possession ? 1 : 0);
+      passed = compare(level, item.comparison ?? '>=', item.value);
+    }
+    if (item.type === 'learned_technique' || item.type === 'active_ability') {
+      const requiredId = item.techniqueId || item.abilityId;
+      passed = requiredId ? (context.learnedTechniqueIds ?? []).includes(requiredId) : false;
     }
     if (item.type === 'custom_info') {
       passed = true;

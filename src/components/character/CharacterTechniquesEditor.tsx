@@ -703,6 +703,7 @@ export function CharacterTechniqueDialog({
                   mechanicalBehaviors: updatedBehaviors,
                 })
               }
+              characterId={characterId}
               mechanics={effectiveMechanics}
               maxLevel={TECHNIQUE_MAX_LEVEL}
               structuralCost={dialogStructuralCost}
