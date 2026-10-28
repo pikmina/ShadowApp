@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   mechanicalBehaviorSchema,
   type MechanicalBehavior,
+  type MechanicalEffectItem,
   attackTypeSchema,
   type AttackType,
   deriveTargetDefense,
@@ -11,6 +12,7 @@ import {
   type SupportDifficultyTier,
   DEFAULT_SUPPORT_DIFFICULTY_TIERS,
 } from './systemMechanics.ts';
+import { CORE_ALTERED_STATUSES } from './systemWeaknesses.ts';
 
 // ==========================================
 // 1. CONSTANTS & CANONICAL ENUMS
@@ -31,6 +33,7 @@ export const TECHNIQUE_FUNCTIONAL_CATEGORIES = [
   'support',
   'defensive',
   'control',
+  'hybrid',
 ] as const;
 
 export type TechniqueFunctionalCategory = (typeof TECHNIQUE_FUNCTIONAL_CATEGORIES)[number];
@@ -42,7 +45,7 @@ export const normalizeTechniqueClassification = (val: unknown): unknown => {
     if (lower === 'soporte' || lower === 'support') return 'support';
     if (lower === 'defensiva' || lower === 'defensivo' || lower === 'defensive') return 'defensive';
     if (lower === 'control') return 'control';
-    if (lower === 'híbrida' || lower === 'hibrida' || lower === 'híbrido' || lower === 'hibrido' || lower === 'hybrid') return 'offensive';
+    if (lower === 'híbrida' || lower === 'hibrida' || lower === 'híbrido' || lower === 'hibrido' || lower === 'hybrid') return 'hybrid';
   }
   return val;
 };
@@ -357,6 +360,93 @@ export interface EffectiveBehaviorResolution {
 }
 
 /**
+ * Canonical helper: identifies whether an altered status or effect is classified as mental.
+ * Source of truth: CORE_ALTERED_STATUSES where metadata.damageTypeId === 'psiquico',
+ * or explicit effect hints (targetDefense === 'COR', vsCourage === true, attackType === 'mental', psíquico).
+ */
+export function isMentalAlteredStatus(
+  statusId?: string | null,
+  effect?: Partial<MechanicalEffectItem> | null
+): boolean {
+  if (effect) {
+    if (
+      (effect as any).targetDefense === 'COR' ||
+      (effect as any).vsCourage === true ||
+      (effect as any).attackType === 'mental' ||
+      (effect as any).damageType === 'psiquico' ||
+      (effect as any).damageType === 'mental' ||
+      (effect as any).elementId === 'psiquico' ||
+      (effect as any).elementId === 'mental' ||
+      (effect as any).tag === 'mental' ||
+      (effect as any).tag === 'psiquico'
+    ) {
+      return true;
+    }
+  }
+
+  const id = statusId ?? (effect as any)?.statusElementId ?? (effect as any)?.statusId;
+  if (!id || typeof id !== 'string') return false;
+
+  const normalized = id.toLowerCase().trim();
+  const match = CORE_ALTERED_STATUSES.find(
+    (s) => s.id.toLowerCase() === normalized || s.name.toLowerCase() === normalized
+  );
+  if (match) {
+    return match.metadata?.damageTypeId === 'psiquico';
+  }
+
+  // Common aliases without namespace
+  if (
+    normalized === 'berserker' ||
+    normalized === 'coma_ilusorio' ||
+    normalized === 'concentrado' ||
+    normalized === 'desorientado' ||
+    normalized === 'locura' ||
+    normalized === 'miedo' ||
+    normalized.includes('psiquic') ||
+    normalized.includes('mental')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Pure canonical helper: determines the target defense (EVA or COR) required to resist an effect.
+ * - Damage: COR if psychic/mental, EVA otherwise.
+ * - Status apply: COR if mental altered status, EVA otherwise.
+ * - Control effects (turn_loss, action_block, effect_block, penalty): COR if mental, EVA otherwise.
+ * - Support / non-resisted effects (healing, barrier, bonus, status_remove): undefined (no defense).
+ */
+export function deriveEffectTargetDefense(
+  eff?: Partial<MechanicalEffectItem> | null
+): 'EVA' | 'COR' | undefined {
+  if (!eff || !eff.type) return undefined;
+
+  switch (eff.type) {
+    case 'damage': {
+      const isMental =
+        (eff as any).targetDefense === 'COR' ||
+        (eff as any).vsCourage === true ||
+        (eff as any).attackType === 'mental' ||
+        eff.damageType === 'psiquico' ||
+        eff.damageType === 'mental' ||
+        (eff as any).elementId === 'psiquico' ||
+        (eff as any).elementId === 'mental' ||
+        (eff as any).tag === 'mental' ||
+        (eff as any).tag === 'psiquico';
+      return isMental ? 'COR' : 'EVA';
+    }
+    case 'status_apply': {
+      return isMentalAlteredStatus((eff as any).statusElementId, eff) ? 'COR' : 'EVA';
+    }
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Single authoritative domain helper that derives the effective resolution of a behavior.
  * Precedence for attribute:
  * 1. Explicit behavior attribute (behavior.resolution.attribute)
@@ -372,8 +462,11 @@ export interface EffectiveBehaviorResolution {
  * 2. Automatic derivation:
  *    - Offensive with Physical damage -> ACC vs Evasión (EVA)
  *    - Offensive with Mental/Psychic damage -> ACC vs Coraje (COR)
+ *    - Control with Non-mental altered status -> ACC vs Evasión (EVA)
+ *    - Control with Mental altered status -> ACC vs Coraje (COR)
+ *    - Hybrid with Damage/Altered Status -> ACC vs Evasión (EVA) or Coraje (COR)
  *    - Support / Defensive with structural cost -> ACC vs RD (derived tier)
- *    - Default -> Automática (Sin tirada)
+ *    - Default (pure support / self / unresisted) -> Automática (Sin tirada)
  */
 export function deriveEffectiveBehaviorResolution(
   behavior: MechanicalBehavior,
@@ -381,33 +474,37 @@ export function deriveEffectiveBehaviorResolution(
 ): EffectiveBehaviorResolution {
   const explicitClassification = options?.classification;
   const behaviorCategories = deriveTechniqueFunctionalCategories([behavior]);
-  const isSupportOrDefensive = explicitClassification !== undefined && explicitClassification !== null
-    ? (explicitClassification === 'support' || explicitClassification === 'defensive')
-    : (behaviorCategories.includes('support') || behaviorCategories.includes('defensive'));
-  const hasDamage = (behavior.effects || []).some((e) => e.type === 'damage');
-  const damageEff = (behavior.effects || []).find((e) => e.type === 'damage');
-  const isOffensive = explicitClassification !== undefined && explicitClassification !== null
-    ? explicitClassification === 'offensive'
-    : (behaviorCategories.includes('offensive') || hasDamage);
-  const isControl = explicitClassification !== undefined && explicitClassification !== null
-    ? explicitClassification === 'control'
-    : behaviorCategories.includes('control');
-  const isOffensiveOrControl = isOffensive || isControl;
 
-  const isDamageMental = (behavior.effects || []).some((e: any) =>
-    e.vsCourage === true ||
-    e.targetDefense === 'COR' ||
-    e.attackType === 'mental' ||
-    e.damageType === 'psiquico' ||
-    e.damageType === 'mental' ||
-    e.elementId === 'psiquico' ||
-    e.elementId === 'mental' ||
-    e.type === 'psiquico' ||
-    e.type === 'mental' ||
-    e.tag === 'mental' ||
-    (e.type === 'damage' && (e.damageType === 'psiquico' || e.damageType === 'mental'))
-  );
-  const isDamagePhysical = damageEff?.damageType === 'fisico';
+  const isExplicitSupportOrDefensive =
+    explicitClassification === 'support' || explicitClassification === 'defensive';
+  const isBehaviorSupportOrDefensive =
+    behaviorCategories.includes('support') || behaviorCategories.includes('defensive');
+  const isSupportOrDefensive =
+    explicitClassification !== undefined && explicitClassification !== null && explicitClassification !== 'hybrid'
+      ? isExplicitSupportOrDefensive
+      : isBehaviorSupportOrDefensive;
+
+  const hasDamage = (behavior.effects || []).some((e) => e.type === 'damage');
+  const isOffensive =
+    explicitClassification !== undefined && explicitClassification !== null && explicitClassification !== 'hybrid'
+      ? explicitClassification === 'offensive'
+      : (behaviorCategories.includes('offensive') || hasDamage);
+  const isControl =
+    explicitClassification !== undefined && explicitClassification !== null && explicitClassification !== 'hybrid'
+      ? explicitClassification === 'control'
+      : behaviorCategories.includes('control');
+  const isHybrid =
+    explicitClassification !== undefined && explicitClassification !== null
+      ? explicitClassification === 'hybrid'
+      : false;
+
+  const effects = behavior.effects || [];
+
+  // Collect defenses required by individual effects (damage and status_apply)
+  const effectDefenses = effects
+    .map((eff) => deriveEffectTargetDefense(eff))
+    .filter((d): d is 'EVA' | 'COR' => d !== undefined);
+  const hasResistedEffects = effectDefenses.length > 0;
 
   const storedRes = behavior.resolution;
   const explicitAttr = storedRes?.attribute?.trim() || undefined;
@@ -427,10 +524,10 @@ export function deriveEffectiveBehaviorResolution(
 
   if (isExplicit && storedRes) {
     const attackType = storedRes.attackType;
+    let targetDefense: 'EVA' | 'COR' | undefined = attackType === 'physical' ? 'EVA' : (attackType === 'mental' ? 'COR' : undefined);
 
     let oppositionKind: OppositionKind | undefined = undefined;
     let oppositionLabel: string | undefined = undefined;
-    let targetDefense: 'EVA' | 'COR' | undefined = undefined;
     let difficulty = storedRes.difficulty;
 
     if (storedRes.type === 'roll') {
@@ -483,8 +580,45 @@ export function deriveEffectiveBehaviorResolution(
     };
   }
 
-  // Otherwise, DERIVE resolution automatically based on classification:
+  // Otherwise, DERIVE resolution automatically:
+  // 1. Resisted effects (Damage, Altered Statuses, or Control on target characters):
+  if (hasResistedEffects) {
+    const requiresCourage = effectDefenses.includes('COR') || storedRes?.attackType === 'mental';
+    const attackType: AttackType = requiresCourage ? 'mental' : 'physical';
+    const targetDefense: 'EVA' | 'COR' = requiresCourage ? 'COR' : 'EVA';
+    const oppositionLabel = requiresCourage ? 'Coraje' : 'Evasión';
+    const oppositionKind: OppositionKind = requiresCourage ? 'target_courage' : 'target_evasion';
+
+    return {
+      type: 'roll',
+      attackType,
+      attribute: effectiveAttribute,
+      skill: storedRes?.skill,
+      isDerived: true,
+      rollType: 'ACC',
+      requiresRoll: true,
+      oppositionKind,
+      oppositionLabel,
+      targetDefense,
+      summaryLabel: `Acción (ACC) vs ${oppositionLabel}`,
+    };
+  }
+
+  // 2. Pure offensive behavior with no explicit resistedDefenses (e.g. empty effects or custom attack tag)
   if (isOffensive) {
+    const isDamageMental = (behavior.effects || []).some((e: any) =>
+      e.vsCourage === true ||
+      e.targetDefense === 'COR' ||
+      e.attackType === 'mental' ||
+      e.damageType === 'psiquico' ||
+      e.damageType === 'mental' ||
+      e.elementId === 'psiquico' ||
+      e.elementId === 'mental' ||
+      e.type === 'psiquico' ||
+      e.type === 'mental' ||
+      e.tag === 'mental' ||
+      (e.type === 'damage' && (e.damageType === 'psiquico' || e.damageType === 'mental'))
+    );
     const attackType: AttackType = (storedRes?.attackType === 'mental' || isDamageMental) ? 'mental' : 'physical';
     const targetDefense: 'EVA' | 'COR' = attackType === 'physical' ? 'EVA' : 'COR';
     const oppositionLabel = attackType === 'physical' ? 'Evasión' : 'Coraje';
@@ -505,6 +639,7 @@ export function deriveEffectiveBehaviorResolution(
     };
   }
 
+  // 3. Support or Defensive behaviors with structural cost -> RD roll
   if (isSupportOrDefensive && options?.structuralCost !== undefined) {
     const derivedRd = deriveSupportDefenseRD(options.structuralCost, options.supportDifficultyTiers);
     return {
@@ -521,6 +656,7 @@ export function deriveEffectiveBehaviorResolution(
     };
   }
 
+  // 4. Pure support / self / unresisted default -> Automática (Sin tirada)
   return {
     type: 'automatic',
     attribute: effectiveAttribute,

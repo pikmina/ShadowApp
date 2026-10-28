@@ -98,9 +98,9 @@ export function WeaponMechanicalEffectsEditor({
     if (opts.length > 0) return opts;
     return [
       { id: "FUE", runtimeKey: "FUE", name: "Fuerza (FUE)" },
+      { id: "RES", runtimeKey: "RES", name: "Resistencia (RES)" },
       { id: "DES", runtimeKey: "DES", name: "Destreza (DES)" },
       { id: "INT", runtimeKey: "INT", name: "Inteligencia (INT)" },
-      { id: "RES", runtimeKey: "RES", name: "Resistencia (RES)" },
       { id: "VEL", runtimeKey: "VEL", name: "Velocidad (VEL)" },
       { id: "VOL", runtimeKey: "VOL", name: "Voluntad (VOL)" },
     ];

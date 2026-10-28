@@ -418,15 +418,15 @@ describe('Action Roll Resolution & Opposition Architecture Contract', () => {
         },
       });
 
-      const behaviorControl = createBehavior({
-        id: 'b_ctrl',
-        effects: [{ id: 'e2', type: 'status_apply', statusElementId: 'core.status.stunned' }],
+      const behaviorSupport = createBehavior({
+        id: 'b_supp',
+        effects: [{ id: 'e2', type: 'healing', resourceId: 'SA', amount: 4 }],
         resolution: {
           type: 'automatic',
         },
       });
 
-      const contract = deriveTechniqueRollContract([behaviorAttack, behaviorControl]);
+      const contract = deriveTechniqueRollContract([behaviorAttack, behaviorSupport]);
       expect(contract.hasRoll).toBe(true);
       expect(contract.complete).toBe(true);
       expect(contract.behaviors).toHaveLength(2);

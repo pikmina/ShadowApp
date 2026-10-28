@@ -202,8 +202,8 @@ export function buildCharacterSheetViewModel({
     { label: 'Resistencia', key: 'RES', angle: 30 },
     { label: 'Destreza', key: 'DES', angle: 330 },
     { label: 'Inteligencia', key: 'INT', angle: 150 },
-    { label: 'Voluntad', key: 'VOL', angle: 270 },
     { label: 'Velocidad', key: 'VEL', angle: 210 },
+    { label: 'Voluntad', key: 'VOL', angle: 270 },
   ];
 
   const baseAttributes: HexStat[] = baseAttrDefs.map((attr) => {

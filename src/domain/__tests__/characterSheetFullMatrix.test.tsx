@@ -105,7 +105,7 @@ describe('Comprehensive Category DATA / RENDER Parity Matrix Audit', () => {
 
     // 2. Base Attributes
     expect(vm.baseAttributes).toHaveLength(6);
-    expect(vm.baseAttributes.map(a => a.key)).toEqual(['FUE', 'RES', 'DES', 'INT', 'VOL', 'VEL']);
+    expect(vm.baseAttributes.map(a => a.key)).toEqual(['FUE', 'RES', 'DES', 'INT', 'VEL', 'VOL']);
 
     // 3. Derived Stats
     expect(vm.defenseList.find(d => d.label === 'EVASIÓN')).toBeDefined();

@@ -94,11 +94,11 @@ const KIND_TYPES: Record<string, string> = {
 
 const ATTRIBUTE_OPTIONS = [
   { id: "FUE", name: "Fuerza (FUE)" },
-  { id: "DES", name: "Destreza (DES)" },
   { id: "RES", name: "Resistencia (RES)" },
+  { id: "DES", name: "Destreza (DES)" },
   { id: "INT", name: "Inteligencia (INT)" },
-  { id: "VOL", name: "Voluntad (VOL)" },
   { id: "VEL", name: "Velocidad (VEL)" },
+  { id: "VOL", name: "Voluntad (VOL)" },
 ];
 
 const REQUIREMENT_TYPE_LABELS: Record<string, string> = {

@@ -1206,7 +1206,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <Label className="text-sm font-bold uppercase tracking-widest text-foreground">Atributos Base</Label>
                     {stage && (() => {
-                      const baseSum = (Number(formData.FUE)||0) + (Number(formData.DES)||0) + (Number(formData.RES)||0) + (Number(formData.INT)||0) + (Number(formData.VOL)||0) + (Number(formData.VEL)||0);
+                      const baseSum = (Number(formData.FUE)||0) + (Number(formData.RES)||0) + (Number(formData.DES)||0) + (Number(formData.INT)||0) + (Number(formData.VEL)||0) + (Number(formData.VOL)||0);
                       const allowedBaseBudget = stage.attrPoints;
                       const isOverBudget = baseSum > allowedBaseBudget;
                       const effectiveTotal = baseSum + purchasedAttrPoints + traitAttrPoints;
@@ -1224,7 +1224,7 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                               return id === 'core.trait.talented';
                             });
                             const allowedAtCap = stage.maxAttributesAtCap + (hasTalentoso ? 1 : 0);
-                            const countAtCap = ['FUE', 'DES', 'RES', 'INT', 'VOL', 'VEL'].filter(
+                            const countAtCap = ['FUE', 'RES', 'DES', 'INT', 'VEL', 'VOL'].filter(
                               attr => (Number(formData[attr]) || 0) === stage.maxAttr
                             ).length;
                             const isCapExceeded = countAtCap > allowedAtCap;
@@ -1260,11 +1260,11 @@ export default function CharacterEditor({ character, initialCanonId, onSaved, on
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {[
                       { id: 'FUE', label: 'Fuerza', icon: Swords },
-                      { id: 'DES', label: 'Destreza', icon: Zap },
                       { id: 'RES', label: 'Resistencia', icon: HeartPulse },
+                      { id: 'DES', label: 'Destreza', icon: Zap },
                       { id: 'INT', label: 'Inteligencia', icon: Brain },
-                      { id: 'VOL', label: 'Voluntad', icon: Flame },
-                      { id: 'VEL', label: 'Velocidad', icon: Wind }
+                      { id: 'VEL', label: 'Velocidad', icon: Wind },
+                      { id: 'VOL', label: 'Voluntad', icon: Flame }
                     ].map(attr => {
                       const baseVal = Number(formData[attr.id]) || 0;
                       const purchasedVal = purchasedBonus.byAttr[attr.id] || 0;

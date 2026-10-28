@@ -262,11 +262,11 @@ export function CharacterTechniqueDialog({
     }
     return [
       { id: 'FUE', name: 'Fuerza', abbrev: 'FUE', label: 'Fuerza (FUE)' },
-      { id: 'DES', name: 'Destreza', abbrev: 'DES', label: 'Destreza (DES)' },
       { id: 'RES', name: 'Resistencia', abbrev: 'RES', label: 'Resistencia (RES)' },
+      { id: 'DES', name: 'Destreza', abbrev: 'DES', label: 'Destreza (DES)' },
       { id: 'INT', name: 'Inteligencia', abbrev: 'INT', label: 'Inteligencia (INT)' },
-      { id: 'VOL', name: 'Voluntad', abbrev: 'VOL', label: 'Voluntad (VOL)' },
       { id: 'VEL', name: 'Velocidad', abbrev: 'VEL', label: 'Velocidad (VEL)' },
+      { id: 'VOL', name: 'Voluntad', abbrev: 'VOL', label: 'Voluntad (VOL)' },
     ];
   }, [rawRules]);
 
@@ -784,11 +784,11 @@ export function CharacterTechniquesEditor({
     }
     return [
       { id: 'FUE', name: 'Fuerza', abbrev: 'FUE', label: 'Fuerza (FUE)' },
-      { id: 'DES', name: 'Destreza', abbrev: 'DES', label: 'Destreza (DES)' },
       { id: 'RES', name: 'Resistencia', abbrev: 'RES', label: 'Resistencia (RES)' },
+      { id: 'DES', name: 'Destreza', abbrev: 'DES', label: 'Destreza (DES)' },
       { id: 'INT', name: 'Inteligencia', abbrev: 'INT', label: 'Inteligencia (INT)' },
-      { id: 'VOL', name: 'Voluntad', abbrev: 'VOL', label: 'Voluntad (VOL)' },
       { id: 'VEL', name: 'Velocidad', abbrev: 'VEL', label: 'Velocidad (VEL)' },
+      { id: 'VOL', name: 'Voluntad', abbrev: 'VOL', label: 'Voluntad (VOL)' },
     ];
   }, [rawRules]);
 

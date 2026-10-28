@@ -293,8 +293,8 @@ export default function PublicSheet() {
     { label: 'Resistencia', key: 'RES', icon: HeartPulse, angle: 30 },
     { label: 'Destreza', key: 'DES', icon: Target, angle: 330 },
     { label: 'Inteligencia', key: 'INT', icon: Scale, angle: 150 },
-    { label: 'Voluntad', key: 'VOL', icon: UserShield, angle: 270 },
-    { label: 'Velocidad', key: 'VEL', icon: Wind, angle: 210 }
+    { label: 'Velocidad', key: 'VEL', icon: Wind, angle: 210 },
+    { label: 'Voluntad', key: 'VOL', icon: UserShield, angle: 270 }
   ].map(attr => {
     const rawVal = readValue(profile, [attr.key, attr.key.toLowerCase(), attr.label.toLowerCase()]);
     const baseVal = Number(rawVal || 0);

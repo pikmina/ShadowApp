@@ -1410,6 +1410,76 @@ export function resolveOutcomesForRoll(
   };
 }
 
+/**
+ * Canonical helper: resolves the target's effective defense (EVA for physical/sensory/motor,
+ * COR for mental/psychic) based on the target entity's attributes, derivedStats, and active modifiers.
+ */
+export function resolveTargetDefenseValue(
+  targetEntity?: RuleEntityState,
+  targetParticipant?: ParticipantRuntimeState,
+  targetDefense?: "EVA" | "COR" | "evasion" | "coraje" | string,
+  explicitDifficulty?: number
+): number {
+  if (typeof explicitDifficulty === "number" && !isNaN(explicitDifficulty)) {
+    return explicitDifficulty;
+  }
+
+  if (!targetEntity) {
+    return 10;
+  }
+
+  const isCourage = targetDefense === "COR" || targetDefense === "coraje" || targetDefense === "courage";
+
+  // Base attribute: VEL for Evasión, VOL for Coraje
+  let baseValue = 10;
+  const attrs = targetEntity.attributes || {};
+  if (isCourage) {
+    const vol = attrs.VOL ?? attrs.vol ?? attrs.Voluntad ?? attrs.voluntad ?? 0;
+    const explicitCor = (targetEntity as any).coraje ?? (targetEntity as any).derivedStats?.coraje ?? (targetEntity as any).derivedStats?.COR;
+    baseValue = typeof explicitCor === "number" ? explicitCor : (10 + vol);
+  } else {
+    const vel = attrs.VEL ?? attrs.vel ?? attrs.Velocidad ?? attrs.velocidad ?? 0;
+    const explicitEva = (targetEntity as any).evasion ?? (targetEntity as any).derivedStats?.evasion ?? (targetEntity as any).derivedStats?.EVA;
+    baseValue = typeof explicitEva === "number" ? explicitEva : (10 + vel);
+  }
+
+  // Check targetEntity.modifiers
+  if (Array.isArray(targetEntity.modifiers)) {
+    for (const mod of targetEntity.modifiers) {
+      const stat = (mod.statId || "").toUpperCase();
+      if (isCourage && (stat === "COR" || stat === "CORAJE" || stat === "VOL")) {
+        baseValue += mod.amount;
+      } else if (!isCourage && (stat === "EVA" || stat === "EVASION" || stat === "VEL")) {
+        baseValue += mod.amount;
+      }
+    }
+  }
+
+  // Check active timed derived stat modifiers on targetParticipant
+  if (targetParticipant && Array.isArray(targetParticipant.activeTimedEffects)) {
+    for (const timed of targetParticipant.activeTimedEffects) {
+      const eff = timed.effect;
+      if (eff.type === "derived_stat_modifier") {
+        const stat = (eff.statId || "").toUpperCase();
+        if (isCourage && (stat === "COR" || stat === "CORAJE")) {
+          baseValue += eff.amount;
+        } else if (!isCourage && (stat === "EVA" || stat === "EVASION")) {
+          baseValue += eff.amount;
+        }
+      } else if (eff.type === "attribute_modifier") {
+        const attr = (eff.attributeId || "").toUpperCase();
+        if (isCourage && attr === "VOL") {
+          baseValue += eff.amount;
+        } else if (!isCourage && attr === "VEL") {
+          baseValue += eff.amount;
+        }
+      }
+    }
+  }
+
+  return baseValue;
+}
+
 // ============================================================================
 // 11. GESTIÓN DE CONTADORES Y ACUMULACIÓN (Counters)
 // ============================================================================
@@ -2162,10 +2232,17 @@ export function executeMechanicalBehavior(options: ExecuteBehaviorOptions): Exec
       // Append branch effects
       effectsToExecute.push(...resolutionResult.effectsToApply);
     } else if (behavior.resolution.type === "roll") {
-      const diff = behavior.resolution.difficulty ?? 10;
-      const roll = rollResult ?? 10;
+      const targetEntity = newWorld[targetEntityId];
+      const targetParticipant = newEncounter.participants[targetEntityId];
+      const targetDefense = (behavior.resolution as any).targetDefense ?? (behavior.resolution.attackType === "mental" ? "COR" : "EVA");
+      const diff = resolveTargetDefenseValue(targetEntity, targetParticipant, targetDefense, behavior.resolution.difficulty);
+      const roll = rollResult ?? diff;
       resolutionResult = resolveOutcomesForRoll(roll, diff, behavior.resolution.outcomes);
-      effectsToExecute.push(...resolutionResult.effectsToApply);
+      if (resolutionResult.outcome === "failure" || resolutionResult.outcome === "failure_margin") {
+        effectsToExecute = resolutionResult.effectsToApply ? [...resolutionResult.effectsToApply] : [];
+      } else {
+        effectsToExecute.push(...resolutionResult.effectsToApply);
+      }
     }
   }
 
@@ -4079,11 +4156,21 @@ export function executeMultiTargetBehavior(
     const targetParticipant = getOrCreateParticipantState(newEncounter, tid);
     const specificOwnedBehaviors = helperGetTargetBehaviors(tid);
 
+    let perTargetEffectsToExecute = [...effectsToExecute];
+    if (behavior.resolution?.type === "roll" && rollResult !== undefined) {
+      const targetDefense = (behavior.resolution as any).targetDefense ?? (behavior.resolution.attackType === "mental" ? "COR" : "EVA");
+      const diff = resolveTargetDefenseValue(targetEntity, targetParticipant, targetDefense, behavior.resolution.difficulty);
+      const targetRes = resolveOutcomesForRoll(rollResult, diff, behavior.resolution.outcomes);
+      if (targetRes.outcome === "failure" || targetRes.outcome === "failure_margin") {
+        perTargetEffectsToExecute = targetRes.effectsToApply ? [...targetRes.effectsToApply] : [];
+      }
+    }
+
     const appliedForTarget: MechanicalEffectItem[] = [];
     const blockedForTarget: string[] = [];
     let creditedAmountForTarget = 0;
 
-    for (const eff of effectsToExecute) {
+    for (const eff of perTargetEffectsToExecute) {
       // Temporality check
       const temporality = eff.temporality ?? behavior.temporality;
       const durationType = temporality?.duration?.type ?? "instant";
