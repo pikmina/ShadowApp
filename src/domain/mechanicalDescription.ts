@@ -43,6 +43,8 @@ export interface MechanicalDescriptionContext {
   staminaCost?: number;
   parentName?: string;
   sourceName?: string;
+  techniques?: Array<{ id: string; name: string; level?: number }>;
+  skills?: Array<{ id: string; name: string }>;
 }
 
 export interface DescribeBehaviorOptions {
@@ -748,6 +750,65 @@ export function describeMechanicalCondition(
       text = cond.present !== false
         ? `Mientras esté activa la técnica (${cond.behaviorId || cond.elementId || "otra técnica"})`
         : `Mientras no esté activa la técnica (${cond.behaviorId || cond.elementId || "otra técnica"})`;
+      break;
+    }
+
+    case "active_ability": {
+      const techId = cond.abilityId || (cond as any).techniqueId || "";
+      let techName = "";
+      if (options?.context?.techniques && Array.isArray(options.context.techniques)) {
+        const found = options.context.techniques.find((t: any) => t.id === techId);
+        if (found?.name) techName = found.name;
+      }
+      const label = techName ? `"${techName}"` : techId ? `"${techId}"` : "";
+      if (label) {
+        text = `Mientras esté activa la técnica ${label}`;
+      } else {
+        text = "Requiere tener una técnica activa previa";
+        complete = false;
+        warnings.push("Técnica activa requerida no especificada");
+      }
+      break;
+    }
+
+    case "learned_technique": {
+      const techId = (cond as any).abilityId || (cond as any).techniqueId || "";
+      let techName = "";
+      if (options?.context?.techniques && Array.isArray(options.context.techniques)) {
+        const found = options.context.techniques.find((t: any) => t.id === techId);
+        if (found?.name) techName = found.name;
+      }
+      const label = techName ? `"${techName}"` : techId ? `"${techId}"` : "";
+      if (label) {
+        text = `Requiere tener aprendida la técnica ${label}`;
+      } else {
+        text = "Requiere tener aprendida una técnica";
+        complete = false;
+        warnings.push("Técnica aprendida no especificada");
+      }
+      break;
+    }
+
+    case "skill_level": {
+      const skillId = (cond as any).skillElementId || "";
+      let skillName = "";
+      if (options?.context?.skills && Array.isArray(options.context.skills)) {
+        const found = options.context.skills.find((s: any) => s.id === skillId);
+        if (found?.name) skillName = found.name;
+      }
+      if (!skillName) {
+        skillName = getStatOrSkillLabel(skillId) || skillId;
+      }
+      const lvl = (cond as any).value ?? 1;
+      const comp = (cond as any).comparison || ">=";
+      if (comp === ">=" || comp === ">") {
+        text = `Requiere habilidad ${skillName} (Nivel ${lvl}+)`;
+      } else if (comp === "=" || comp === "==") {
+        text = `Requiere habilidad ${skillName} (Nivel ${lvl})`;
+      } else {
+        const compPhrase = formatComparisonPhrase(comp);
+        text = `Requiere habilidad ${skillName} ${compPhrase} nivel ${lvl}`;
+      }
       break;
     }
 

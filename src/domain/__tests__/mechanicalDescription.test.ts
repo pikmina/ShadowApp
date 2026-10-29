@@ -491,5 +491,112 @@ describe("Mechanical Description Renderer (Task 23)", () => {
       });
       expect(cond2.text).toBe("Solo durante el primer turno del combate.");
     });
+    it("renders active_ability condition with technique name and without unsupported warnings", () => {
+      const cond = describeMechanicalCondition(
+        {
+          id: "c_act1",
+          type: "active_ability",
+          abilityId: "tech_puno",
+          negated: false,
+        },
+        {
+          context: {
+            techniques: [{ id: "tech_puno", name: "Puño Incandescente", level: 2 }],
+          },
+        }
+      );
+      expect(cond.text).toBe('Mientras esté activa la técnica "Puño Incandescente"');
+      expect(cond.complete).toBe(true);
+      expect(cond.warnings).toHaveLength(0);
+
+      // Negated
+      const negatedCond = describeMechanicalCondition(
+        {
+          id: "c_act2",
+          type: "active_ability",
+          abilityId: "tech_puno",
+          negated: true,
+        },
+        {
+          context: {
+            techniques: [{ id: "tech_puno", name: "Puño Incandescente", level: 2 }],
+          },
+        }
+      );
+      expect(negatedCond.text).toBe('Mientras no esté activa la técnica "Puño Incandescente"');
+      expect(negatedCond.complete).toBe(true);
+      expect(negatedCond.warnings).toHaveLength(0);
+
+      // Fallback ID when name not found in context
+      const fallbackCond = describeMechanicalCondition({
+        id: "c_act3",
+        type: "active_ability",
+        abilityId: "tech_desconocida",
+      });
+      expect(fallbackCond.text).toBe('Mientras esté activa la técnica "tech_desconocida"');
+      expect(fallbackCond.complete).toBe(true);
+    });
+
+    it("renders learned_technique condition correctly", () => {
+      const cond = describeMechanicalCondition(
+        {
+          id: "c_learn1",
+          type: "learned_technique",
+          abilityId: "tech_1",
+        },
+        {
+          context: {
+            techniques: [{ id: "tech_1", name: "Golpe Meteoro", level: 1 }],
+          },
+        }
+      );
+      expect(cond.text).toBe('Requiere tener aprendida la técnica "Golpe Meteoro"');
+      expect(cond.complete).toBe(true);
+      expect(cond.warnings).toHaveLength(0);
+    });
+
+    it("renders skill_level condition correctly", () => {
+      const cond = describeMechanicalCondition({
+        id: "c_skill1",
+        type: "skill_level",
+        skillElementId: "core.skill.stealth",
+        value: 2,
+        comparison: ">=",
+      });
+      expect(cond.text).toContain("Nivel 2+");
+      expect(cond.complete).toBe(true);
+      expect(cond.warnings).toHaveLength(0);
+    });
+
+    it("renders full technique description with active_ability condition completely without warnings", () => {
+      const mb: MechanicalBehavior = {
+        ...createDefaultMechanicalBehavior("jet_burn"),
+        effects: [
+          { id: "eff1", type: "damage", dice: "4D8", damageType: "fuego" },
+          { id: "eff2", type: "status_apply", statusElementId: "core.status.quemadura_grave", turns: 4 },
+        ],
+        conditions: [
+          { type: "active_ability", abilityId: "tech_puno", negated: false },
+        ],
+        limitations: [
+          { id: "lim1", type: "cooldown", turns: 2 },
+        ],
+      };
+
+      const res = describeMechanicalBehavior(mb, {
+        context: {
+          staminaCost: 11,
+          techniques: [{ id: "tech_puno", name: "Puño Incandescente" }],
+        },
+      });
+
+      expect(res.complete).toBe(true);
+      expect(res.warnings).toHaveLength(0);
+      expect(res.text).toContain('Mientras esté activa la técnica "Puño Incandescente"');
+      expect(res.text).toContain("Inflige 4D8 de daño");
+      expect(res.text).toContain("Tiempo de recarga: 2 turnos");
+      expect(res.text).toContain("Coste: 11 de Estamina");
+    });
   });
 });
+

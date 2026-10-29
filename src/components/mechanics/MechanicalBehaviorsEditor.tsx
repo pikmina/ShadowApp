@@ -280,7 +280,13 @@ export function MechanicalBehaviorsEditor({
             </div>
           ) : (
             <>
-              <MechanicalDescriptionPreview behaviors={behaviors} />
+              <MechanicalDescriptionPreview
+                behaviors={behaviors}
+                context={{
+                  staminaCost: structuralCost,
+                  techniques: characterTechniques,
+                }}
+              />
               {behaviors.map((behavior, bIndex) => (
                 <SingleBehaviorCard
                   key={behavior.id}
