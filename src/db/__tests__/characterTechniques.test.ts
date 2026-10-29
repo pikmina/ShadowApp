@@ -407,4 +407,72 @@ describe.skipIf(!dbAvailable)('Character-Owned Techniques Integrity & Invariants
     // Clean up
     await deleteCharacterTechnique(created.id);
   });
+
+  // Scenario M: Hybrid classification and active_ability condition persistence
+  test('Scenario M: Hybrid classification and active_ability condition persistence', async () => {
+    // 1. Create a base prerequisite technique
+    const baseTech = await createCharacterTechnique({
+      characterId: testCharIdA,
+      name: 'Puño Incandescente',
+      description: 'Acumula calor en los puños',
+      level: 2,
+      sourceType: 'quirk',
+      classification: 'support',
+    });
+
+    // 2. Create the dependent hybrid technique requiring baseTech to be active
+    const hybridTech = await createCharacterTechnique({
+      characterId: testCharIdA,
+      name: 'Jet Burn',
+      description: 'Rayo de fuego concentrado de alta temperatura',
+      level: 3,
+      sourceType: 'quirk',
+      classification: 'hybrid',
+      activationAttributeId: 'FUE',
+      mechanicalBehaviors: [
+        {
+          id: 'WAQny8o5',
+          name: 'Comportamiento 1',
+          mode: 'active',
+          activation: { actionType: 'action', timing: 'immediate', turns: 0, delay: 0, description: '' },
+          conditions: [{ type: 'active_ability', abilityId: baseTech.id, negated: false }],
+          conditionLogic: 'all',
+          requirements: [],
+          resolution: { type: 'automatic', outcomes: [] },
+          effects: [
+            { id: '0Tzp0amj', type: 'damage', dice: '4D8', damageType: 'physical' },
+            { id: 'NmGMtvFi', type: 'status_apply', statusElementId: 'core.status.quemadura', turns: 4 },
+          ],
+          target: { type: 'character', selectionMode: 'standard_priority' },
+          temporality: { duration: { type: 'instant' }, periodicity: { mode: 'once' } },
+          limitations: [{ id: 'Fi6g7z', type: 'cooldown', turns: 2 }],
+          consequences: [],
+        },
+      ],
+    });
+
+    expect(hybridTech.id).toBeDefined();
+    expect(hybridTech.classification).toBe('hybrid');
+    expect(hybridTech.activationAttributeId).toBe('FUE');
+    expect(hybridTech.mechanicalBehaviors[0].conditions[0]).toEqual({
+      type: 'active_ability',
+      abilityId: baseTech.id,
+      negated: false,
+    });
+
+    // 3. Reload from database and verify persistence & hydration
+    const loaded = await getCharacterTechniqueById(hybridTech.id);
+    expect(loaded).not.toBeNull();
+    expect(loaded?.classification).toBe('hybrid');
+    expect(loaded?.mechanicalBehaviors[0].conditions[0]).toEqual({
+      type: 'active_ability',
+      abilityId: baseTech.id,
+      negated: false,
+    });
+
+    // 4. Clean up
+    await deleteCharacterTechnique(hybridTech.id);
+    await deleteCharacterTechnique(baseTech.id);
+  });
 });
+

@@ -220,6 +220,7 @@ export interface CharacterTechniqueDialogProps {
   characterId: number;
   characterName?: string | null;
   technique?: CharacterTechnique | null;
+  availableTechniques?: CharacterTechnique[];
   onSaved?: (technique: CharacterTechnique) => void;
   mechanics?: SystemMechanicsConfig;
 }
@@ -230,6 +231,7 @@ export function CharacterTechniqueDialog({
   characterId,
   characterName,
   technique,
+  availableTechniques = [],
   onSaved,
   mechanics = [],
 }: CharacterTechniqueDialogProps) {
@@ -704,6 +706,8 @@ export function CharacterTechniqueDialog({
                 })
               }
               characterId={characterId}
+              characterTechniques={availableTechniques}
+              currentTechniqueId={editingTechnique.id}
               mechanics={effectiveMechanics}
               maxLevel={TECHNIQUE_MAX_LEVEL}
               structuralCost={dialogStructuralCost}
@@ -1099,6 +1103,7 @@ export function CharacterTechniquesEditor({
           onOpenChange={setIsDialogOpen}
           characterId={characterId}
           technique={selectedTechnique}
+          availableTechniques={techniques}
           onSaved={() => {
             mutate();
           }}

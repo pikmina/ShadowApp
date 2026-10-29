@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import useSWR from "swr";
 import { nanoid } from "nanoid";
+import { fetcher } from "../../lib/api.ts";
 import {
   Plus,
   Trash2,
@@ -72,12 +73,12 @@ import {
   composeStatusRemoveId,
 } from "../../domain/canonicalAlteredStatuses.ts";
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
-
 interface MechanicalBehaviorsEditorProps {
   behaviors: MechanicalBehavior[];
   onChange: (behaviors: MechanicalBehavior[]) => void;
   characterId?: number;
+  characterTechniques?: Array<{ id: string; name: string; level?: number }>;
+  currentTechniqueId?: string;
   // Optional legacy props for full compatibility
   legacyEffects?: unknown[];
   onLegacyChange?: (effects: unknown[]) => void;
@@ -93,6 +94,8 @@ export function MechanicalBehaviorsEditor({
   behaviors,
   onChange,
   characterId,
+  characterTechniques,
+  currentTechniqueId,
   legacyEffects = [],
   onLegacyChange,
   mechanics = [],
@@ -289,6 +292,8 @@ export function MechanicalBehaviorsEditor({
                   onMoveUp={() => moveBehavior(bIndex, "up")}
                   onMoveDown={() => moveBehavior(bIndex, "down")}
                   characterId={characterId}
+                  characterTechniques={characterTechniques}
+                  currentTechniqueId={currentTechniqueId}
                   mechanics={mechanics}
                   structuralCost={structuralCost}
                   supportDifficultyTiers={supportDifficultyTiers}
@@ -316,6 +321,8 @@ interface SingleBehaviorCardProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   characterId?: number;
+  characterTechniques?: Array<{ id: string; name: string; level?: number }>;
+  currentTechniqueId?: string;
   mechanics?: SystemMechanicsConfig;
   structuralCost?: number;
   supportDifficultyTiers?: SupportDifficultyTier[];
@@ -332,6 +339,8 @@ function SingleBehaviorCard({
   onMoveUp,
   onMoveDown,
   characterId,
+  characterTechniques,
+  currentTechniqueId,
   mechanics = [],
   structuralCost,
   supportDifficultyTiers,
@@ -766,6 +775,8 @@ function SingleBehaviorCard({
                 }
                 mechanics={mechanics}
                 characterId={characterId}
+                characterTechniques={characterTechniques}
+                currentTechniqueId={currentTechniqueId}
               />
             </AccordionContent>
           </AccordionItem>
@@ -925,12 +936,16 @@ function ConditionsEditor({
   onChange,
   mechanics = [],
   characterId,
+  characterTechniques,
+  currentTechniqueId,
 }: {
   conditions: MechanicalCondition[];
   logic: "all" | "any";
   onChange: (conditions: MechanicalCondition[], logic: "all" | "any") => void;
   mechanics?: SystemMechanicsConfig;
   characterId?: number;
+  characterTechniques?: Array<{ id: string; name: string; level?: number }>;
+  currentTechniqueId?: string;
 }) {
   const { data: elementsData } = useSWR('/api/elements', fetcher);
   const catalogSkills = React.useMemo(() => {
@@ -942,6 +957,19 @@ function ConditionsEditor({
     characterId ? `/api/characters/${characterId}/techniques` : null,
     fetcher
   );
+
+  const learnedTechniquesList = React.useMemo(() => {
+    const list: Array<{ id: string; name: string; level?: number }> =
+      Array.isArray(characterTechniques) && characterTechniques.length > 0
+        ? characterTechniques
+        : Array.isArray(characterTechniquesData)
+        ? characterTechniquesData
+        : [];
+    if (currentTechniqueId) {
+      return list.filter((t) => t.id !== currentTechniqueId);
+    }
+    return list;
+  }, [characterTechniques, characterTechniquesData, currentTechniqueId]);
 
   // Fetch character details/possessions if characterId exists
   const { data: characterData, error: charErr, isLoading: charLoading } = useSWR(
@@ -1041,7 +1069,7 @@ function ConditionsEditor({
                   } else if (val === "die") {
                     updateCond(i, { type: "die", dieSelection: "both", comparison: "=", value: 10, negated: cond.negated });
                   } else if (val === "active_ability" || val === "learned_technique") {
-                    const defaultId = (Array.isArray(characterTechniquesData) && characterTechniquesData[0]?.id) || "";
+                    const defaultId = (learnedTechniquesList && learnedTechniquesList[0]?.id) || "";
                     updateCond(i, { type: "active_ability", abilityId: defaultId, negated: cond.negated } as any);
                   } else if (val === "skill_level") {
                     const defaultId = characterSkills?.[0]?.id || catalogSkills?.[0]?.id || "core.skill.base";
@@ -1077,11 +1105,10 @@ function ConditionsEditor({
               <div className="flex-1 flex flex-wrap items-center gap-2 w-full">
                 {(cond.type === "active_ability" || cond.type === "learned_technique") && (() => {
                   const currentTechId = (cond as any).abilityId || (cond as any).techniqueId || "";
-                  const learnedList: Array<{ id: string; name: string; level?: number }> = Array.isArray(characterTechniquesData)
-                    ? characterTechniquesData
-                    : [];
+                  const learnedList = learnedTechniquesList;
+                  const hasExplicitList = Array.isArray(characterTechniques) && characterTechniques.length > 0;
 
-                  if (techLoading) {
+                  if (techLoading && !hasExplicitList) {
                     return (
                       <span className="text-xs text-muted-foreground italic py-0.5">
                         Cargando técnicas aprendidas...
@@ -1089,7 +1116,7 @@ function ConditionsEditor({
                     );
                   }
 
-                  if (techErr) {
+                  if (techErr && !hasExplicitList) {
                     return (
                       <span className="text-xs text-destructive py-0.5">
                         Error al cargar técnicas del personaje.
@@ -1097,11 +1124,11 @@ function ConditionsEditor({
                     );
                   }
 
-                  if (characterId && learnedList.length === 0) {
+                  if (characterId && learnedList.length === 0 && (!techLoading || hasExplicitList)) {
                     return (
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-amber-400 font-semibold italic">
-                          No tiene técnicas aprendidas
+                          No tiene otras técnicas aprendidas
                         </span>
                         <Input
                           value={currentTechId}
@@ -1127,7 +1154,7 @@ function ConditionsEditor({
                       >
                         <SelectTrigger className="h-7 min-w-[200px] flex-1 text-xs font-semibold bg-background">
                           <SelectValue placeholder="Seleccionar técnica aprendida...">
-                            {learnedList.find((t) => t.id === currentTechId)?.name || currentTechId || "Seleccionar técnica..."}
+                            {learnedList.find((t) => t.id === currentTechId)?.name || (currentTechId ? `Técnica (${currentTechId})` : "Seleccionar técnica...")}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
